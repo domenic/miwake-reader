@@ -10,7 +10,6 @@
   } from '$lib/components/statistics/statistics-types';
   import { pxScreen } from '$lib/css-classes';
   import {
-    database,
     lastStartDayOfWeek$,
     lastStatisticsEndDate$,
     lastStatisticsRangeTemplate$,
@@ -24,15 +23,9 @@
     getStartHoursDate
   } from '$lib/functions/statistic-util';
   import { clickOutside } from '$lib/functions/use-click-outside';
-  import { map, share } from 'rxjs';
   import { onDestroy, tick } from 'svelte';
   import { quintInOut } from 'svelte/easing';
   import { fly } from 'svelte/transition';
-
-  const currentBookId$ = database.lastItem$.pipe(
-    map((item) => item?.dataId),
-    share()
-  );
 
   let showStatisticsSettings = false;
 
@@ -125,7 +118,7 @@
   }
 </script>
 
-<StatisticsHeader currentBookId={$currentBookId$} bind:showStatisticsSettings />
+<StatisticsHeader bind:showStatisticsSettings />
 
 <div class="{pxScreen} flex flex-col pt-16 h-full xl:pt-14">
   <StatisticsContent />

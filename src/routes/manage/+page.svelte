@@ -7,7 +7,6 @@
   import BookExportDialog from '$lib/components/book-export/book-export-dialog.svelte';
   import ConfirmDialog from '$lib/components/confirm-dialog.svelte';
   import LogReportDialog from '$lib/components/log-report-dialog.svelte';
-  import { mergeEntries } from '$lib/components/merged-header-icon/merged-entries';
   import MessageDialog from '$lib/components/message-dialog.svelte';
   import { preFilteredTitlesForStatistics$ } from '$lib/components/statistics/statistics-types';
   import { pxScreen } from '$lib/css-classes';
@@ -357,12 +356,6 @@
     });
   }
 
-  function backToCurrentBook() {
-    const currentBookId = $currentBookId$;
-    if (!currentBookId) return;
-    gotoBook(currentBookId);
-  }
-
   async function removeBooks(bookIds: number[]) {
     if (!operationAllowed()) {
       return;
@@ -650,7 +643,6 @@
 
 <div class="elevation-4 fixed inset-x-0 top-0 z-10">
   <BookManagerHeader
-    hasBookOpened={!!$currentBookId$}
     selectedCount={selectedBookIds.size}
     hasBooks={!!$bookCards$?.length}
     {cancelTooltip}
@@ -659,23 +651,14 @@
     {replicationProgressRemaining}
     bind:selectMode
     on:selectAllClick={onSelectAllBooks}
-    on:backToBookClick={backToCurrentBook}
     on:removeClick={() => removeBooks(Array.from(selectedBookIds))}
     on:filesChange={(ev) => onFilesChange(ev.detail)}
-    on:domainHintClick={onDomainHintClick}
     on:bugReportClick={onBugReportClick}
     on:cancelReplication={() => {
       if (!cancelSignal.aborted) {
         cancelToken.abort();
         replicationProgressRemaining = 'Canceling ...';
       }
-    }}
-    on:selectionToStatistics={() => {
-      $preFilteredTitlesForStatistics$ = new Set(
-        $bookCards$.filter((card) => selectedBookIds.has(card.id)).map((book) => book.title)
-      );
-
-      goto(`${pagePath}${mergeEntries.STATISTICS.routeId}`);
     }}
     on:deleteStatistics={onDeleteStatistics}
     on:replicateData={onReplicateData}

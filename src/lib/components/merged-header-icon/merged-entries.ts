@@ -11,17 +11,14 @@ import {
   faFileArrowUp,
   faFileZipper,
   faFolderPlus,
-  faHashtag,
-  faImages,
-  faSignOutAlt,
-  faTriangleExclamation
+  faSignOutAlt
 } from '@fortawesome/free-solid-svg-icons';
 
 export const mergeEntries = {
   MANAGE: { routeId: '/manage', label: 'Manager', icon: faSignOutAlt, title: 'Go to Book Manager' },
   SETTINGS: {
     routeId: '/settings',
-    label: 'Settings',
+    label: 'Reader Settings',
     icon: faCog,
     title: 'Go to Reader Settings'
   },
@@ -31,31 +28,13 @@ export const mergeEntries = {
     icon: faChartLine,
     title: 'Go to Statistics'
   },
-  JUMP_TO_POSITION: {
-    routeId: '',
-    label: 'Jump',
-    icon: faHashtag,
-    title: 'Jump to Position'
-  },
-  READER_IMAGE_GALLERY: {
-    routeId: '',
-    label: 'Images',
-    icon: faImages,
-    title: 'Open Image Gallery'
-  },
-  DOMAIN_HINT: {
-    routeId: '',
-    label: 'Domain Hint',
-    icon: faTriangleExclamation,
-    title: 'Old Domain used'
-  },
-  BUG_REPORT: { routeId: '', label: 'Bug Report', icon: faBug, title: 'Report an Issue' },
+  BUG_REPORT: { routeId: '', label: 'Issue Report', icon: faBug, title: 'Report an Issue' },
   FOLDER_IMPORT: {
     routeId: '',
-    label: 'Import Folder(s)',
+    label: 'Import Folder',
     icon: faFolderPlus,
     title: 'Import from Folder'
   },
-  FILE_IMPORT: { routeId: '', label: 'Import File(s)', icon: faFileArrowUp, title: 'Import Files' },
+  FILE_IMPORT: { routeId: '', label: 'Import Files', icon: faFileArrowUp, title: 'Import Files' },
   BACKUP_IMPORT: { routeId: '', label: 'Import Backup', icon: faFileZipper, title: 'Import Backup' }
 };

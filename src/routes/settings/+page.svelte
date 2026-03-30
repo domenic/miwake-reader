@@ -1,7 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { tap } from 'rxjs';
-  import { afterNavigate } from '$app/navigation';
   import SettingsContent from '$lib/components/settings/settings-content.svelte';
   import SettingsHeader from '$lib/components/settings/settings-header.svelte';
   import { pxScreen } from '$lib/css-classes';
@@ -69,8 +68,6 @@
     readingGoalsMergeMode$,
     hideSpoilerImageMode$
   } from '$lib/data/store';
-  import { mergeEntries } from '$lib/components/merged-header-icon/merged-entries';
-  import { pagePath } from '$lib/data/env';
   import { storage } from '$lib/data/window/navigator/storage';
   import { formatPageTitle } from '$lib/functions/format-page-title';
   import { writableSubject } from '$lib/functions/svelte/store';
@@ -85,17 +82,9 @@
     setStorageQuota();
   });
 
-  let prevPage = `${pagePath}${mergeEntries.MANAGE.routeId}`;
-
   let activeSettings = 'Reader';
 
   let storageQuota = '';
-
-  afterNavigate((navigation) => {
-    const { from } = navigation;
-    if (!from) return;
-    prevPage = `${from.url.pathname}${from.url.search}`;
-  });
 
   const setPersistentStorage$ = persistentStorage$.pipe(
     tap((value) => {
@@ -139,7 +128,7 @@
 </svelte:head>
 
 <div class="elevation-4 fixed inset-x-0 top-0 z-10">
-  <SettingsHeader leavePageLink={prevPage} bind:activeSettings />
+  <SettingsHeader bind:activeSettings />
 </div>
 
 <div class="{pxScreen} h-full pt-16 xl:pt-14">

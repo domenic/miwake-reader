@@ -5,14 +5,13 @@
   import { page } from '$app/stores';
   import { mergeEntries } from '$lib/components/merged-header-icon/merged-entries';
   import Popover from '$lib/components/popover/popover.svelte';
-  import { baseIconClasses } from '$lib/css-classes';
+  import { baseIconClasses, labelIconClasses } from '$lib/css-classes';
   import { pagePath } from '$lib/data/env';
   import { dummyFn } from '$lib/functions/utils';
 
   export let leavePageLink = '';
   export let items = [mergeEntries.MANAGE, mergeEntries.SETTINGS, mergeEntries.BUG_REPORT];
   export let mergeTo = mergeEntries.MANAGE;
-  export let disableRouteNavigation = false;
 
   const dispatch = createEventDispatcher<{ action: string }>();
 
@@ -29,12 +28,10 @@
       menuElm.toggleOpen();
     }
 
-    if (!disableRouteNavigation) {
-      const action = actionItems.find((item) => item.label === target);
+    const action = actionItems.find((item) => item.label === target);
 
-      if (action?.routeId) {
-        goto(`${pagePath}${action.routeId}`);
-      }
+    if (action?.routeId) {
+      goto(`${pagePath}${action.routeId}`);
     }
   }
 
@@ -45,8 +42,9 @@
 
 {#if leavePageLink}
   <a href={leavePageLink}>
-    <div class={baseIconClasses}>
-      <Fa icon={mergeTo.icon} />
+    <div class={labelIconClasses}>
+      <Fa icon={mergeTo.icon} class="text-sm xl:text-xs" />
+      <span>{mergeTo.label}{mergeTo.routeId ? ' ↗' : ''}</span>
     </div>
   </a>
 {:else}
@@ -56,11 +54,12 @@
         tabindex="0"
         role="button"
         title={actionItem.title}
-        class={baseIconClasses}
+        class={labelIconClasses}
         on:click={() => handleActionMenuItem(actionItem.label)}
         on:keyup={dummyFn}
       >
-        <Fa icon={actionItem.icon} />
+        <Fa icon={actionItem.icon} class="text-sm xl:text-xs" />
+        <span>{actionItem.label}{actionItem.routeId ? ' ↗' : ''}</span>
       </div>
     {/each}
   </div>
