@@ -10,8 +10,10 @@
 
 <button
   {title}
-  class="flex flex-col items-center justify-center h-12 xl:h-10 px-3 text-xs cursor-pointer
-    {active ? 'bg-gray-900 hover:bg-gray-800' : 'hover:bg-gray-900'}"
+  class="flex flex-col items-center justify-center h-12 xl:h-10 px-3 text-xs cursor-pointer"
+  class:bg-gray-900={active}
+  class:hover:bg-gray-800={active}
+  class:hover:bg-gray-900={!active}
   on:click
 >
   <Fa class="mb-0.5" {icon} />
