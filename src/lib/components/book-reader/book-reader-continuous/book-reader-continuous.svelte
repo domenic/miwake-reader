@@ -692,7 +692,7 @@
   class:ttu-text-wrap-pretty={enableTextWrapPretty}
   class="book-content m-auto"
 >
-  <HtmlRenderer html={htmlContent} on:load={onHtmlLoad} />
+  <HtmlRenderer html={htmlContent} onload={onHtmlLoad} />
 </div>
 
 {#if firstDimensionMargin}

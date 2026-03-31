@@ -1,15 +1,19 @@
 <script lang="ts">
   import { onDestroy, onMount } from 'svelte';
 
-  export let styleSheet: string;
+  interface Props {
+    styleSheet: string;
+  }
+
+  let { styleSheet }: Props = $props();
 
   let styleEl: HTMLStyleElement | undefined;
 
-  $: {
+  $effect(() => {
     if (styleEl) {
       updateSheet(styleEl, styleSheet);
     }
-  }
+  });
 
   function updateSheet(el: HTMLStyleElement, sheet: string) {
     const styleNode = document.createTextNode(sheet);

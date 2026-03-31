@@ -1,11 +1,18 @@
 <script lang="ts">
+  import type { Snippet } from 'svelte';
   import { faCircleQuestion } from '@fortawesome/free-solid-svg-icons';
   import Fa from 'svelte-fa';
   import Popover from '../popover/popover.svelte';
 
-  export let title: string;
-  export let tooltip = '';
-  export let applyHeaderClasses = true;
+  interface Props {
+    title: string;
+    tooltip?: string;
+    applyHeaderClasses?: boolean;
+    header?: Snippet;
+    children?: Snippet;
+  }
+
+  let { title, tooltip = '', applyHeaderClasses = true, header, children }: Props = $props();
 </script>
 
 <section class="pb-8 md:pb-3">
@@ -20,9 +27,9 @@
         <span class="capitalize">{title}</span>
       {/if}
     </h2>
-    <slot name="header"></slot>
+    {@render header?.()}
   </div>
   <div>
-    <slot></slot>
+    {@render children?.()}
   </div>
 </section>

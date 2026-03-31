@@ -720,7 +720,7 @@
   on:swipe={onSwipe}
 >
   <div class="book-content-container" id={currentSectionId || null} bind:this={contentEl}>
-    <HtmlRenderer html={displayedHtml} on:load={onHtmlLoad} />
+    <HtmlRenderer html={displayedHtml} onload={onHtmlLoad} />
   </div>
 </div>
 

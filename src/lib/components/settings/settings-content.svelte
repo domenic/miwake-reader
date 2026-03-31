@@ -534,37 +534,39 @@
       </SettingsItemGroup>
     </div>
     <SettingsItemGroup title="Font family (Group 1)">
-      <div slot="header" class="flex items-center">
-        <SettingsFontSelector
-          availableFonts={[
-            LocalFont.NOTOSERIFJP,
-            LocalFont.KZUDMINCHO,
-            LocalFont.GENEI,
-            LocalFont.SHIPPORIMINCHO,
-            LocalFont.KLEEONE,
-            LocalFont.KLEEONESEMIBOLD,
-            LocalFont.SERIF
-          ]}
-          bind:fontValue={fontFamilyGroupOne}
-        />
-        {#if fontCacheSupported}
-          <div
-            tabindex="0"
-            role="button"
-            title="Open Custom Font Dialog"
-            on:click={() =>
-              dialogManager.dialogs$.next([
-                {
-                  component: SettingsUserFontDialog,
-                  props: { fontFamily: fontFamilyGroupOne$ }
-                }
-              ])}
-            on:keyup={dummyFn}
-          >
-            <Fa icon={faComputer} />
-          </div>
-        {/if}
-      </div>
+      {#snippet header()}
+        <div class="flex items-center">
+          <SettingsFontSelector
+            availableFonts={[
+              LocalFont.NOTOSERIFJP,
+              LocalFont.KZUDMINCHO,
+              LocalFont.GENEI,
+              LocalFont.SHIPPORIMINCHO,
+              LocalFont.KLEEONE,
+              LocalFont.KLEEONESEMIBOLD,
+              LocalFont.SERIF
+            ]}
+            bind:fontValue={fontFamilyGroupOne}
+          />
+          {#if fontCacheSupported}
+            <div
+              tabindex="0"
+              role="button"
+              title="Open Custom Font Dialog"
+              on:click={() =>
+                dialogManager.dialogs$.next([
+                  {
+                    component: SettingsUserFontDialog,
+                    props: { fontFamily: fontFamilyGroupOne$ }
+                  }
+                ])}
+              on:keyup={dummyFn}
+            >
+              <Fa icon={faComputer} />
+            </div>
+          {/if}
+        </div>
+      {/snippet}
       <input
         type="text"
         class={inputClasses}
@@ -573,28 +575,30 @@
       />
     </SettingsItemGroup>
     <SettingsItemGroup title="Font family (Group 2)">
-      <div slot="header" class="flex items-center">
-        <SettingsFontSelector
-          availableFonts={[LocalFont.NOTOSANSJP, LocalFont.KZUDGOTHIC, LocalFont.SANSSERIF]}
-          bind:fontValue={fontFamilyGroupTwo}
-        />
-        {#if fontCacheSupported}
-          <div
-            tabindex="0"
-            role="button"
-            on:click={() =>
-              dialogManager.dialogs$.next([
-                {
-                  component: SettingsUserFontDialog,
-                  props: { fontFamily: fontFamilyGroupTwo$ }
-                }
-              ])}
-            on:keyup={dummyFn}
-          >
-            <Fa icon={faComputer} />
-          </div>
-        {/if}
-      </div>
+      {#snippet header()}
+        <div class="flex items-center">
+          <SettingsFontSelector
+            availableFonts={[LocalFont.NOTOSANSJP, LocalFont.KZUDGOTHIC, LocalFont.SANSSERIF]}
+            bind:fontValue={fontFamilyGroupTwo}
+          />
+          {#if fontCacheSupported}
+            <div
+              tabindex="0"
+              role="button"
+              on:click={() =>
+                dialogManager.dialogs$.next([
+                  {
+                    component: SettingsUserFontDialog,
+                    props: { fontFamily: fontFamilyGroupTwo$ }
+                  }
+                ])}
+              on:keyup={dummyFn}
+            >
+              <Fa icon={faComputer} />
+            </div>
+          {/if}
+        </div>
+      {/snippet}
       <input
         type="text"
         class={inputClasses}
@@ -659,12 +663,13 @@
     <SettingsItemGroup
       title={verticalMode ? 'Reader Left/right margin' : 'Reader Top/bottom margin'}
     >
-      <SettingsDimensionPopover
-        slot="header"
-        isFirstDimension
-        isVertical={verticalMode}
-        bind:dimensionValue={firstDimensionMargin}
-      />
+      {#snippet header()}
+        <SettingsDimensionPopover
+          isFirstDimension
+          isVertical={verticalMode}
+          bind:dimensionValue={firstDimensionMargin}
+        />
+      {/snippet}
       <input
         type="number"
         class={inputClasses}
@@ -674,11 +679,12 @@
       />
     </SettingsItemGroup>
     <SettingsItemGroup title={verticalMode ? 'Reader Max height' : 'Reader Max width'}>
-      <SettingsDimensionPopover
-        slot="header"
-        isVertical={verticalMode}
-        bind:dimensionValue={secondDimensionMaxValue}
-      />
+      {#snippet header()}
+        <SettingsDimensionPopover
+          isVertical={verticalMode}
+          bind:dimensionValue={secondDimensionMaxValue}
+        />
+      {/snippet}
       <input
         type="number"
         class={inputClasses}

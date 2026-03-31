@@ -1,14 +1,16 @@
 <script lang="ts">
-  import { afterUpdate, createEventDispatcher } from 'svelte';
+  import { untrack } from 'svelte';
 
-  export let html: string;
+  interface Props {
+    html: string;
+    onload?: () => void;
+  }
 
-  const dispatch = createEventDispatcher<{
-    load: void;
-  }>();
+  let { html, onload }: Props = $props();
 
-  afterUpdate(() => {
-    dispatch('load');
+  $effect(() => {
+    html;
+    untrack(() => onload?.());
   });
 </script>
 

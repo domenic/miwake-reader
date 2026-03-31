@@ -5,18 +5,20 @@
   import { domainHintSeen$ } from '$lib/data/store';
   import { isOnOldUrl } from '$lib/functions/utils';
 
-  $: if (browser && isOnOldUrl(window) && !$domainHintSeen$) {
-    $domainHintSeen$ = true;
-    dialogManager.dialogs$.next([
-      {
-        component: MessageDialog,
-        props: {
-          title: 'Old Domain',
-          message:
-            'You are currently using the old domain of ッツ Reader - consider switching to https://reader.ttsu.app to prevent issues and to ensure full features'
-        },
-        disableCloseOnClick: true
-      }
-    ]);
-  }
+  $effect(() => {
+    if (browser && isOnOldUrl(window) && !$domainHintSeen$) {
+      $domainHintSeen$ = true;
+      dialogManager.dialogs$.next([
+        {
+          component: MessageDialog,
+          props: {
+            title: 'Old Domain',
+            message:
+              'You are currently using the old domain of ッツ Reader - consider switching to https://reader.ttsu.app to prevent issues and to ensure full features'
+          },
+          disableCloseOnClick: true
+        }
+      ]);
+    }
+  });
 </script>
