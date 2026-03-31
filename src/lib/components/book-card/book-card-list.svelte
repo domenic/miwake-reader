@@ -45,7 +45,7 @@
         class:rounded-tl-xl={bookCard.id === currentBookId}
         class:mdc-elevation--z4={selectedBookIds.has(bookCard.id) || bookCard.id === currentBookId}
       >
-        <BookCard {...bookCard} on:click={() => onBookCardClick(bookCard.id)} />
+        <BookCard {...bookCard} onclick={() => onBookCardClick(bookCard.id)} />
 
         {#if selectedBookIds.has(bookCard.id)}
           <div

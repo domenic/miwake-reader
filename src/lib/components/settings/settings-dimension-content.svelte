@@ -1,20 +1,28 @@
 <script lang="ts">
   import { onMount, tick } from 'svelte';
 
-  export let dimensionValue = 0;
-  export let isVertical = true;
-  export let isFirstDimension = false;
+  interface Props {
+    dimensionValue?: number;
+    isVertical?: boolean;
+    isFirstDimension?: boolean;
+  }
+
+  let {
+    dimensionValue = $bindable(0),
+    isVertical = true,
+    isFirstDimension = false
+  }: Props = $props();
 
   const progressStep = 5;
 
-  let presetValue = 0;
+  let presetValue = $state(0);
 
-  $: calculatedValue = Math.ceil(
-    window[getDimension()] * (presetValue / 100 / (isFirstDimension ? 2 : 1))
+  let calculatedValue = $derived(
+    Math.ceil(window[getDimension()] * (presetValue / 100 / (isFirstDimension ? 2 : 1)))
   );
-  $: min = isFirstDimension ? 5 : 50;
-  $: max = isFirstDimension ? 50 : 95;
-  $: quarter = isFirstDimension ? 25 : 75;
+  let min = $derived(isFirstDimension ? 5 : 50);
+  let max = $derived(isFirstDimension ? 50 : 95);
+  let quarter = $derived(isFirstDimension ? 25 : 75);
 
   function getDimension() {
     if (isVertical) {
@@ -52,11 +60,11 @@
   {min}
   {max}
   bind:value={presetValue}
-  on:change={() => (dimensionValue = calculatedValue)}
+  onchange={() => (dimensionValue = calculatedValue)}
 />
 <div class="flex justify-evenly">
-  <button on:click={() => setToValue(quarter)}>
+  <button onclick={() => setToValue(quarter)}>
     {quarter}%
   </button>
-  <button on:click={() => setToValue(50)}> 50% </button>
+  <button onclick={() => setToValue(50)}> 50% </button>
 </div>

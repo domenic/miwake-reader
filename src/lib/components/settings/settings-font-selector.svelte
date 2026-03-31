@@ -5,8 +5,12 @@
   import { dummyFn } from '$lib/functions/utils';
   import Fa from 'svelte-fa';
 
-  export let availableFonts: LocalFont[] = [LocalFont.NOTOSANSJP];
-  export let fontValue: string;
+  interface Props {
+    availableFonts?: LocalFont[];
+    fontValue?: string;
+  }
+
+  let { availableFonts = [LocalFont.NOTOSANSJP], fontValue = $bindable('') }: Props = $props();
 
   let element: Popover;
 </script>

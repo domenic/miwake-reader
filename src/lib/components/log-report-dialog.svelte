@@ -78,9 +78,12 @@
     enableReaderWakeLock$
   } from '$lib/data/store';
 
-  export let title = 'Error';
+  interface Props {
+    title?: string;
+    message: string;
+  }
 
-  export let message: string;
+  let { title = 'Error', message }: Props = $props();
 
   const encodedLog = encodeURIComponent(
     JSON.stringify(
@@ -171,7 +174,7 @@
         },
         log: logger.history
       },
-      null,
+      undefined,
       2
     )
   );

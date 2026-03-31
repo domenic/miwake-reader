@@ -1,11 +1,18 @@
 <script lang="ts">
+  import type { MouseEventHandler, KeyboardEventHandler } from 'svelte/elements';
   import { faImage } from '@fortawesome/free-regular-svg-icons';
   import { onDestroy } from 'svelte';
   import Fa from 'svelte-fa';
 
-  export let imagePath: string | Blob;
-  export let title: string;
-  export let progress: number;
+  interface Props {
+    imagePath: string | Blob;
+    title: string;
+    progress: number;
+    onclick?: MouseEventHandler<HTMLDivElement>;
+    onkeyup?: KeyboardEventHandler<HTMLDivElement>;
+  }
+
+  let { imagePath, title, progress, onclick, onkeyup }: Props = $props();
 
   let objectUrl = '';
 
@@ -58,17 +65,15 @@
 
   const mapImagePath = mapImagePathFactory();
 
-  let imgEl: HTMLImageElement | undefined;
-  let imageLoading = true;
+  let imageLoading = $state(true);
 
-  $: imageLoadComplete = imgEl?.complete && !imageLoading;
-  $: alt = `${title}_cover`;
+  let alt = $derived(`${title}_cover`);
 </script>
 
-<div tabindex="0" role="button" class="aspect-w-2 aspect-h-3 relative" on:click on:keyup>
+<div tabindex="0" role="button" class="aspect-w-2 aspect-h-3 relative" {onclick} {onkeyup}>
   <div class="inline">
     <div class="h-full w-full text-5xl sm:text-7xl">
-      {#if !imageLoadComplete}
+      {#if imageLoading}
         <Fa class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" icon={faImage} />
       {/if}
 
@@ -78,11 +83,11 @@
           loading="lazy"
           referrerpolicy="no-referrer"
           class="book-cover relative h-full w-full object-cover transition delay-150 duration-700 ease-out"
-          class:blur={!imageLoadComplete}
+          class:blur={imageLoading}
           src={mapImagePath(imagePath)}
           {alt}
-          bind:this={imgEl}
-          on:load={() => (imageLoading = false)}
+          onload={() => (imageLoading = false)}
+          onerror={() => (imageLoading = false)}
         />
       {/if}
     </div>
