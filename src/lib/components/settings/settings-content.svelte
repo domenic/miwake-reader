@@ -54,159 +54,170 @@
   } from '$lib/functions/replication/replication-options';
   import { map } from 'rxjs';
   import Fa from 'svelte-fa';
-  import { onDestroy } from 'svelte';
-
-  export let selectedTheme: string;
-
-  export let viewMode: ViewMode;
-
-  export let fontFamilyGroupOne: string;
-
-  export let fontFamilyGroupTwo: string;
-
-  export let fontSize: number;
-
-  export let lineHeight: number;
-
-  export let textIndentation: number;
-
-  export let textMarginValue: number;
-
-  export let blurImage: boolean;
-
-  export let blurImageMode: string;
-
-  export let hideFurigana: boolean;
-
-  export let furiganaStyle: FuriganaStyle;
-
-  export let writingMode: WritingMode;
-
-  export let enableFontKerning: boolean;
-
-  export let enableFontVPAL: boolean;
-
-  export let verticalTextOrientation: VerticalTextOrientation;
-
-  export let prioritizeReaderStyles: boolean;
-
-  export let enableTextJustification: boolean;
-
-  export let enableTextWrapPretty: boolean;
-
-  export let textMarginMode: TextMarginMode;
-
-  export let enableReaderWakeLock: boolean;
-
-  export let showCharacterCounter: boolean;
-
-  export let showPercentage: boolean;
-
-  export let showFooterChapterCharacterCounter: boolean;
-
-  export let showFooterChapterPercentage: boolean;
-
-  export let secondDimensionMaxValue: number;
-
-  export let firstDimensionMargin: number;
-
-  export let swipeThreshold: number;
-
-  export let disableWheelNavigation: boolean;
-
-  export let autoPositionOnResize: boolean;
-
-  export let avoidPageBreak: boolean;
-
-  export let pauseTrackerOnCustomPointChange: boolean;
-
-  export let customReadingPointEnabled: boolean;
-
-  export let selectionToBookmarkEnabled: boolean;
-
-  export let enableTapEdgeToFlip: boolean;
-
-  export let pageColumns: number;
-
-  export let storageQuota: string;
-
-  export let persistentStorage: boolean;
-
-  export let confirmClose: boolean;
-
-  export let manualBookmark: boolean;
-
-  export let autoBookmark: boolean;
-
-  export let autoBookmarkTime: number;
-
-  export let activeSettings: string;
-
-  export let importHTMLFixMode: string;
-
-  export let restrictImportFixToAnchor: boolean;
-
-  export let cacheStorageData: boolean;
-
-  export let autoReplication: string;
-
-  export let replicationSaveBehavior: string;
-
-  export let showExternalPlaceholder: boolean;
-
-  export let keepLocalStatisticsOnDeletion: boolean;
-
-  export let overwriteBookCompletion: boolean;
-
-  export let startDayHoursForTracker: number;
-
-  export let statisticsMergeMode: string;
-
-  export let readingGoalsMergeMode: string;
-
-  export let statisticsEnabled: boolean;
-
-  export let trackerAutoPause: string;
-
-  export let openTrackerOnCompletion: boolean;
-
-  export let addCharactersOnCompletion: boolean;
-
-  export let trackerAutoStartTime: number;
-
-  export let trackerIdleTime: number;
-
-  export let trackerForwardSkipThreshold: number;
-
-  export let trackerBackwardSkipThreshold: number;
-
-  export let trackerSkipThresholdAction: string;
-
-  export let trackerPopupDetection: boolean;
-
-  export let adjustStatisticsAfterIdleTime: boolean;
-
-  $: availableThemes = (
-    browser
+  import { untrack } from 'svelte';
+
+  interface Props {
+    selectedTheme: string;
+    viewMode: ViewMode;
+    fontFamilyGroupOne: string;
+    fontFamilyGroupTwo: string;
+    fontSize: number;
+    lineHeight: number;
+    textIndentation: number;
+    textMarginValue: number;
+    blurImage: boolean;
+    blurImageMode: string;
+    hideFurigana: boolean;
+    furiganaStyle: FuriganaStyle;
+    writingMode: WritingMode;
+    enableFontKerning: boolean;
+    enableFontVPAL: boolean;
+    verticalTextOrientation: VerticalTextOrientation;
+    prioritizeReaderStyles: boolean;
+    enableTextJustification: boolean;
+    enableTextWrapPretty: boolean;
+    textMarginMode: TextMarginMode;
+    enableReaderWakeLock: boolean;
+    showCharacterCounter: boolean;
+    showPercentage: boolean;
+    showFooterChapterCharacterCounter: boolean;
+    showFooterChapterPercentage: boolean;
+    secondDimensionMaxValue: number;
+    firstDimensionMargin: number;
+    swipeThreshold: number;
+    disableWheelNavigation: boolean;
+    autoPositionOnResize: boolean;
+    avoidPageBreak: boolean;
+    pauseTrackerOnCustomPointChange: boolean;
+    customReadingPointEnabled: boolean;
+    selectionToBookmarkEnabled: boolean;
+    enableTapEdgeToFlip: boolean;
+    pageColumns: number;
+    storageQuota: string;
+    persistentStorage: boolean;
+    confirmClose: boolean;
+    manualBookmark: boolean;
+    autoBookmark: boolean;
+    autoBookmarkTime: number;
+    activeSettings: string;
+    importHTMLFixMode: string;
+    restrictImportFixToAnchor: boolean;
+    cacheStorageData: boolean;
+    autoReplication: string;
+    replicationSaveBehavior: string;
+    showExternalPlaceholder: boolean;
+    keepLocalStatisticsOnDeletion: boolean;
+    overwriteBookCompletion: boolean;
+    startDayHoursForTracker: number;
+    statisticsMergeMode: string;
+    readingGoalsMergeMode: string;
+    statisticsEnabled: boolean;
+    trackerAutoPause: string;
+    openTrackerOnCompletion: boolean;
+    addCharactersOnCompletion: boolean;
+    trackerAutoStartTime: number;
+    trackerIdleTime: number;
+    trackerForwardSkipThreshold: number;
+    trackerBackwardSkipThreshold: number;
+    trackerSkipThresholdAction: string;
+    trackerPopupDetection: boolean;
+    adjustStatisticsAfterIdleTime: boolean;
+  }
+
+  let {
+    selectedTheme = $bindable(),
+    viewMode = $bindable(),
+    fontFamilyGroupOne = $bindable(),
+    fontFamilyGroupTwo = $bindable(),
+    fontSize = $bindable(),
+    lineHeight = $bindable(),
+    textIndentation = $bindable(),
+    textMarginValue = $bindable(),
+    blurImage = $bindable(),
+    blurImageMode = $bindable(),
+    hideFurigana = $bindable(),
+    furiganaStyle = $bindable(),
+    writingMode = $bindable(),
+    enableFontKerning = $bindable(),
+    enableFontVPAL = $bindable(),
+    verticalTextOrientation = $bindable(),
+    prioritizeReaderStyles = $bindable(),
+    enableTextJustification = $bindable(),
+    enableTextWrapPretty = $bindable(),
+    textMarginMode = $bindable(),
+    enableReaderWakeLock = $bindable(),
+    showCharacterCounter = $bindable(),
+    showPercentage = $bindable(),
+    showFooterChapterCharacterCounter = $bindable(),
+    showFooterChapterPercentage = $bindable(),
+    secondDimensionMaxValue = $bindable(),
+    firstDimensionMargin = $bindable(),
+    swipeThreshold = $bindable(),
+    disableWheelNavigation = $bindable(),
+    autoPositionOnResize = $bindable(),
+    avoidPageBreak = $bindable(),
+    pauseTrackerOnCustomPointChange = $bindable(),
+    customReadingPointEnabled = $bindable(),
+    selectionToBookmarkEnabled = $bindable(),
+    enableTapEdgeToFlip = $bindable(),
+    pageColumns = $bindable(),
+    storageQuota,
+    persistentStorage = $bindable(),
+    confirmClose = $bindable(),
+    manualBookmark = $bindable(),
+    autoBookmark = $bindable(),
+    autoBookmarkTime = $bindable(),
+    activeSettings,
+    importHTMLFixMode = $bindable(),
+    restrictImportFixToAnchor = $bindable(),
+    cacheStorageData = $bindable(),
+    autoReplication = $bindable(),
+    replicationSaveBehavior = $bindable(),
+    showExternalPlaceholder = $bindable(),
+    keepLocalStatisticsOnDeletion = $bindable(),
+    overwriteBookCompletion = $bindable(),
+    startDayHoursForTracker = $bindable(),
+    statisticsMergeMode = $bindable(),
+    readingGoalsMergeMode = $bindable(),
+    statisticsEnabled = $bindable(),
+    trackerAutoPause = $bindable(),
+    openTrackerOnCompletion = $bindable(),
+    addCharactersOnCompletion = $bindable(),
+    trackerAutoStartTime = $bindable(),
+    trackerIdleTime = $bindable(),
+    trackerForwardSkipThreshold = $bindable(),
+    trackerBackwardSkipThreshold = $bindable(),
+    trackerSkipThresholdAction = $bindable(),
+    trackerPopupDetection = $bindable(),
+    adjustStatisticsAfterIdleTime = $bindable()
+  }: Props = $props();
+
+  let availableThemes = $derived(
+    (browser
       ? [...Array.from(availableThemesMap.entries()), ...Object.entries($customThemes$)]
       : Array.from(availableThemesMap.entries())
-  ).map(([theme, option]) => ({
-    theme,
-    option
-  }));
+    ).map(([theme, option]) => ({
+      theme,
+      option
+    }))
+  );
 
-  $: optionsForTheme = availableThemes.map(({ theme, option }) => ({
-    id: theme,
-    text: 'ぁあ',
-    style: {
-      color: option.fontColor,
-      'background-color': option.backgroundColor
-    },
-    thickBorders: true,
-    showIcons: true
-  }));
+  let optionsForTheme = $derived(
+    availableThemes.map(({ theme, option }) => ({
+      id: theme,
+      text: 'ぁあ',
+      style: {
+        color: option.fontColor,
+        'background-color': option.backgroundColor
+      },
+      thickBorders: true,
+      showIcons: true
+    }))
+  );
 
-  onDestroy(() => dialogManager.dialogs$.next([]));
+  $effect(() => {
+    return () => dialogManager.dialogs$.next([]);
+  });
 
   const optionsForFuriganaStyle: ToggleOption<FuriganaStyle>[] = [
     {
@@ -382,112 +393,119 @@
     ])
   );
 
-  let showSpinner = false;
-  let furiganaStyleTooltip = '';
-  let importHTMLFixModeTooltip = '';
-  let autoReplicationTypeTooltip = '';
-  let trackerAutoPauseTooltip = '';
+  let showSpinner = $state(false);
 
-  $: if ($textMarginMode$ === 'auto') {
-    $textMarginValue$ = 0;
-  }
+  $effect(() => {
+    if ($textMarginMode$ === 'auto') {
+      $textMarginValue$ = 0;
+    }
+  });
 
-  $: verticalTextOrientationTooltip =
+  let verticalTextOrientationTooltip = $derived(
     verticalTextOrientation === 'mixed'
       ? 'Rotates the characters of horizontal scripts 90° clockwise'
-      : 'Lays out the characters of horizontal scripts naturally (upright), as well as the glyphs for vertical scripts.';
-  $: autoBookmarkTooltip = `If enabled sets a bookmark after ${autoBookmarkTime} seconds without scrolling/page change`;
-  $: wakeLockSupported = browser && 'wakeLock' in navigator;
-  $: verticalMode = writingMode === 'vertical-rl';
-  $: fontCacheSupported = browser && 'caches' in window;
-  $: switch (furiganaStyle) {
-    case FuriganaStyle.Hide:
-      furiganaStyleTooltip = 'Always hidden';
-      break;
-    case FuriganaStyle.Toggle:
-      furiganaStyleTooltip = 'Hidden by default, can be toggled on click';
-      break;
-    case FuriganaStyle.Full:
-      furiganaStyleTooltip = 'Hidden by default, show on hover or click';
-      break;
-    default:
-      furiganaStyleTooltip = 'Display furigana as grayed out text';
-      break;
-  }
-  $: avoidPageBreakTooltip = avoidPageBreak
-    ? 'Avoids breaking words/sentences into different pages'
-    : 'Allow words/sentences to break into different pages';
-  $: persistentStorageTooltip = persistentStorage
-    ? 'Reader uses higher storage limit for local data'
-    : 'Uses lower temporary storage for local data.\nMay require bookmark or notification permissions for enablement';
-  $: switch (importHTMLFixMode) {
-    case ImportHTMLFixMode.OFF:
-      importHTMLFixModeTooltip = 'Imports epub files as is';
-      break;
-    case ImportHTMLFixMode.EXTENDED:
-      importHTMLFixModeTooltip =
-        'Applies additional fixes for epub imports like removing control characters, replacing html entities etc.';
-      break;
-    default:
-      importHTMLFixModeTooltip =
-        'Applies fixes for epub imports like wrong self closing elements etc.';
-      break;
-  }
-  $: cacheStorageDataTooltip = cacheStorageData
-    ? 'Storage data is cached. Saves network traffic/latency but requires to reload current/open a new tab to retrieve data changes'
-    : 'Storage data is refetched on every action. May consume more network traffic/latency but ensures current data';
-  $: replicationSaveBehaviorTooltip =
+      : 'Lays out the characters of horizontal scripts naturally (upright), as well as the glyphs for vertical scripts.'
+  );
+  let autoBookmarkTooltip = $derived(
+    `If enabled sets a bookmark after ${autoBookmarkTime} seconds without scrolling/page change`
+  );
+  let wakeLockSupported = $derived(browser && 'wakeLock' in navigator);
+  let verticalMode = $derived(writingMode === 'vertical-rl');
+  let fontCacheSupported = $derived(browser && 'caches' in window);
+  let furiganaStyleTooltip = $derived.by(() => {
+    switch (furiganaStyle) {
+      case FuriganaStyle.Hide:
+        return 'Always hidden';
+      case FuriganaStyle.Toggle:
+        return 'Hidden by default, can be toggled on click';
+      case FuriganaStyle.Full:
+        return 'Hidden by default, show on hover or click';
+      default:
+        return 'Display furigana as grayed out text';
+    }
+  });
+  let avoidPageBreakTooltip = $derived(
+    avoidPageBreak
+      ? 'Avoids breaking words/sentences into different pages'
+      : 'Allow words/sentences to break into different pages'
+  );
+  let persistentStorageTooltip = $derived(
+    persistentStorage
+      ? 'Reader uses higher storage limit for local data'
+      : 'Uses lower temporary storage for local data.\nMay require bookmark or notification permissions for enablement'
+  );
+  let importHTMLFixModeTooltip = $derived.by(() => {
+    switch (importHTMLFixMode) {
+      case ImportHTMLFixMode.OFF:
+        return 'Imports epub files as is';
+      case ImportHTMLFixMode.EXTENDED:
+        return 'Applies additional fixes for epub imports like removing control characters, replacing html entities etc.';
+      default:
+        return 'Applies fixes for epub imports like wrong self closing elements etc.';
+    }
+  });
+  let cacheStorageDataTooltip = $derived(
+    cacheStorageData
+      ? 'Storage data is cached. Saves network traffic/latency but requires to reload current/open a new tab to retrieve data changes'
+      : 'Storage data is refetched on every action. May consume more network traffic/latency but ensures current data'
+  );
+  let replicationSaveBehaviorTooltip = $derived(
     replicationSaveBehavior === ReplicationSaveBehavior.Overwrite
       ? 'Data will always be overwritten'
-      : 'Data will only be written if none exist on target, no time data is present or if target data is older';
-  $: switch (autoReplication) {
-    case AutoReplicationType.Up:
-      autoReplicationTypeTooltip =
-        'Updated data will be exported to sync target when reading once per minute';
-      break;
-    case AutoReplicationType.Down:
-      autoReplicationTypeTooltip = 'Data will be imported from sync target when opening a book';
-      break;
-    case AutoReplicationType.All:
-      autoReplicationTypeTooltip = 'Data will be synced in both directions';
-      break;
-    default:
-      autoReplicationTypeTooltip = 'No automatic import/export of data';
-      break;
-  }
-  $: showExternalPlaceholderToolTip = showExternalPlaceholder
-    ? 'Placeholder data for external books is shown in the browser source manager'
-    : 'Placeholder data for external books is hidden';
+      : 'Data will only be written if none exist on target, no time data is present or if target data is older'
+  );
+  let autoReplicationTypeTooltip = $derived.by(() => {
+    switch (autoReplication) {
+      case AutoReplicationType.Up:
+        return 'Updated data will be exported to sync target when reading once per minute';
+      case AutoReplicationType.Down:
+        return 'Data will be imported from sync target when opening a book';
+      case AutoReplicationType.All:
+        return 'Data will be synced in both directions';
+      default:
+        return 'No automatic import/export of data';
+    }
+  });
+  let showExternalPlaceholderToolTip = $derived(
+    showExternalPlaceholder
+      ? 'Placeholder data for external books is shown in the browser source manager'
+      : 'Placeholder data for external books is hidden'
+  );
 
-  $: startOfDayHours = `${`${startDayHoursForTracker}`.padStart(2, '0')}:00`;
+  let startOfDayHours = $derived(`${`${startDayHoursForTracker}`.padStart(2, '0')}:00`);
 
-  $: trackerIdleTimeInMin = secondsToMinutes(trackerIdleTime);
+  let trackerIdleTimeInMin = $state(secondsToMinutes(trackerIdleTime));
 
-  $: switch (trackerAutoPause) {
-    case TrackerAutoPause.OFF:
-      trackerAutoPauseTooltip = 'Tracker does not auto pause except for certain reader events';
-      break;
-    case TrackerAutoPause.STRICT:
-      trackerAutoPauseTooltip =
-        'Tracker will auto pause on certain reader events and any kind of site focus loss (e. g. dictionary popup)';
-      break;
-    default:
-      trackerAutoPauseTooltip =
-        'Tracker will auto pause on certain reader events and when the reader tab loses focus';
-      break;
-  }
+  $effect(() => {
+    trackerIdleTimeInMin = secondsToMinutes(trackerIdleTime);
+  });
 
-  $: if ((activeSettings === 'Data' || activeSettings === 'Statistics') && !$storageSources$) {
-    database
-      .getStorageSources()
-      .then((storageSources) => {
-        database.storageSourcesChanged$.next(storageSources);
-      })
-      .catch((error) => {
-        logger.error(`Failed to retrieve storage sources: ${error.message}`);
-        database.storageSourcesChanged$.next([]);
+  let trackerAutoPauseTooltip = $derived.by(() => {
+    switch (trackerAutoPause) {
+      case TrackerAutoPause.OFF:
+        return 'Tracker does not auto pause except for certain reader events';
+      case TrackerAutoPause.STRICT:
+        return 'Tracker will auto pause on certain reader events and any kind of site focus loss (e. g. dictionary popup)';
+      default:
+        return 'Tracker will auto pause on certain reader events and when the reader tab loses focus';
+    }
+  });
+
+  $effect(() => {
+    if ((activeSettings === 'Data' || activeSettings === 'Statistics') && !$storageSources$) {
+      untrack(() => {
+        database
+          .getStorageSources()
+          .then((storageSources) => {
+            database.storageSourcesChanged$.next(storageSources);
+          })
+          .catch((error) => {
+            logger.error(`Failed to retrieve storage sources: ${error.message}`);
+            database.storageSourcesChanged$.next([]);
+          });
       });
-  }
+    }
+  });
 </script>
 
 <div class="grid grid-cols-1 items-center sm:grid-cols-2 sm:gap-6 lg:md:gap-8 lg:grid-cols-3">
@@ -513,7 +531,7 @@
           {#if browser}
             <button
               class="m-1 rounded-md border-2 border-gray-400 p-2 text-lg"
-              on:click={() =>
+              onclick={() =>
                 dialogManager.dialogs$.next([
                   {
                     component: SettingsCustomTheme,
@@ -553,14 +571,14 @@
               tabindex="0"
               role="button"
               title="Open Custom Font Dialog"
-              on:click={() =>
+              onclick={() =>
                 dialogManager.dialogs$.next([
                   {
                     component: SettingsUserFontDialog,
                     props: { fontFamily: fontFamilyGroupOne$ }
                   }
                 ])}
-              on:keyup={dummyFn}
+              onkeyup={dummyFn}
             >
               <Fa icon={faComputer} />
             </div>
@@ -585,14 +603,14 @@
             <div
               tabindex="0"
               role="button"
-              on:click={() =>
+              onclick={() =>
                 dialogManager.dialogs$.next([
                   {
                     component: SettingsUserFontDialog,
                     props: { fontFamily: fontFamilyGroupTwo$ }
                   }
                 ])}
-              on:keyup={dummyFn}
+              onkeyup={dummyFn}
             >
               <Fa icon={faComputer} />
             </div>
@@ -616,7 +634,7 @@
         step="0.05"
         min="1"
         bind:value={lineHeight}
-        on:change={() => {
+        onchange={() => {
           if (!lineHeight || lineHeight < 1) {
             lineHeight = 1.65;
           }
@@ -633,7 +651,7 @@
         step=".5"
         min="0"
         bind:value={textIndentation}
-        on:blur={() => {
+        onblur={() => {
           const newValue = Number.parseFloat(`${textIndentation ?? 0}`);
 
           if (isNaN(newValue) || newValue < 1) {
@@ -650,7 +668,7 @@
           step=".5"
           min="0"
           bind:value={textMarginValue}
-          on:blur={() => {
+          onblur={() => {
             const newValue = Number.parseFloat(`${textMarginValue ?? 0}`);
 
             if (isNaN(newValue) || newValue < 1) {
@@ -703,7 +721,7 @@
         min="10"
         class={inputClasses}
         bind:value={swipeThreshold}
-        on:blur={() => {
+        onblur={() => {
           if (swipeThreshold < 10 || typeof swipeThreshold !== 'number') {
             swipeThreshold = 10;
           }
@@ -718,7 +736,7 @@
           min="1"
           class={inputClasses}
           bind:value={autoBookmarkTime}
-          on:blur={() => {
+          onblur={() => {
             if (autoBookmarkTime < 1 || typeof autoBookmarkTime !== 'number') {
               autoBookmarkTime = 3;
             }
@@ -880,11 +898,11 @@
               tabindex="0"
               role="button"
               class="ml-4 hover:underline"
-              on:click={() => {
+              onclick={() => {
                 verticalCustomReadingPosition$.next(100);
                 horizontalCustomReadingPosition$.next(0);
               }}
-              on:keyup={dummyFn}
+              onkeyup={dummyFn}
             >
               Reset Points
             </div>
@@ -984,7 +1002,7 @@
           tabindex="0"
           role="button"
           class="ml-4 hover:underline"
-          on:click={() => {
+          onclick={() => {
             showSpinner = true;
             database
               .clearZombieStatistics()
@@ -1001,7 +1019,7 @@
               )
               .finally(() => (showSpinner = false));
           }}
-          on:keyup={() => {}}
+          onkeyup={() => {}}
         >
           Clear Zombie Statistics
         </div>
@@ -1085,7 +1103,7 @@
           step="1"
           min="0"
           bind:value={trackerAutoStartTime}
-          on:blur={() => {
+          onblur={() => {
             const newValue = Number.parseFloat(`${trackerAutoStartTime ?? 0}`);
 
             if (isNaN(newValue) || newValue < 1) {
@@ -1104,7 +1122,7 @@
           step="0.5"
           min="0"
           bind:value={trackerIdleTimeInMin}
-          on:blur={() => {
+          onblur={() => {
             if (!trackerIdleTimeInMin || trackerIdleTimeInMin < 0) {
               trackerIdleTime = 0;
             } else if (trackerIdleTimeInMin > 43200) {
@@ -1125,7 +1143,7 @@
           step="1"
           min="0"
           bind:value={trackerForwardSkipThreshold}
-          on:blur={() => {
+          onblur={() => {
             if (trackerForwardSkipThreshold === 0) {
               trackerForwardSkipThreshold = 0;
             } else if (!trackerForwardSkipThreshold || trackerForwardSkipThreshold < 0) {
@@ -1143,7 +1161,7 @@
           class={inputClasses}
           step="1"
           bind:value={trackerBackwardSkipThreshold}
-          on:blur={() => {
+          onblur={() => {
             if (trackerBackwardSkipThreshold < 0) {
               trackerBackwardSkipThreshold = Math.abs(trackerBackwardSkipThreshold);
             } else if (trackerBackwardSkipThreshold === 0) {

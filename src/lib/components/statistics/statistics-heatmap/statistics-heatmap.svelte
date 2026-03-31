@@ -49,16 +49,28 @@
   } from '$lib/functions/statistic-util';
   import { caluclatePercentage, dummyFn, limitToRange, pluralize } from '$lib/functions/utils';
   import { debounceTime, fromEvent, tap } from 'rxjs';
-  import { onMount, tick } from 'svelte';
+  import { onMount, tick, untrack } from 'svelte';
   import Fa from 'svelte-fa';
 
-  export let heatmapType: HeatmapType = HeatmapType.STATISTICS;
-  export let heatmapAggregration: HeatmapDataAggregration;
-  export let statisticsData: BooksDbStatistic[];
-  export let readingGoals: BooksDbReadingGoal[];
-  export let statisticsTitleFilters: Map<string, boolean>;
-  export let today: Date;
-  export let todayKey: string;
+  interface Props {
+    heatmapType?: HeatmapType;
+    heatmapAggregration: HeatmapDataAggregration;
+    statisticsData: BooksDbStatistic[];
+    readingGoals: BooksDbReadingGoal[];
+    statisticsTitleFilters: Map<string, boolean>;
+    today: Date;
+    todayKey: string;
+  }
+
+  let {
+    heatmapType = HeatmapType.STATISTICS,
+    heatmapAggregration = $bindable(),
+    statisticsData,
+    readingGoals,
+    statisticsTitleFilters,
+    today,
+    todayKey
+  }: Props = $props();
 
   const resizeHandler$ = fromEvent(window, 'resize').pipe(
     debounceTime(250),
@@ -68,49 +80,65 @@
 
   const colorRanges: HeatmapColorRange[] = [];
 
-  let heatmapElement: HTMLElement;
-  let heatmapDetailDataPopover: Popover;
-  let monthLabels: HeatmapMonthLabel[] = [...monthLabelList];
-  let dayElementSize = heatmapDayElementSize;
-  let heatmapYear = today.getFullYear();
-  let globalHeatmapData: StatisticsHeatmapData | ReadingGoalsHeatmapData;
+  let heatmapElement: HTMLElement = $state()!;
+  let heatmapDetailDataPopover: Popover = $state()!;
+  let monthLabels: HeatmapMonthLabel[] = $state([...monthLabelList]);
+  let dayElementSize = $state(heatmapDayElementSize);
+  let heatmapYear = $state(untrack(() => today).getFullYear());
+  let globalHeatmapData: StatisticsHeatmapData | ReadingGoalsHeatmapData = $state()!;
   const globalHeatmapDayData = new Map<
     string,
     HeatmapGlobalDayData | ReadingGoalHeatmapGlobalDayData
   >();
   const heatmapDataByYear = new Map<number, StatisticsHeatmapData | ReadingGoalsHeatmapData>();
-  let currentHeatmapData: StatisticsHeatmapData | ReadingGoalsHeatmapData;
-  let currentHeatmapDays: StatisticsHeatmapDayData[] = [];
-  let popoverDetails: string[] = [];
-  let selectedStreak = HeatmapStreakType.NONE;
-  let selectedStreakDates = new Set<string>();
+  let currentHeatmapData: StatisticsHeatmapData | ReadingGoalsHeatmapData = $state()!;
+  let currentHeatmapDays: StatisticsHeatmapDayData[] = $state([]);
+  let popoverDetails: string[] = $state([]);
+  let selectedStreak = $state(HeatmapStreakType.NONE);
+  let selectedStreakDates: Set<string> = $state(new Set());
 
-  $: heatmapLabel = `Reading ${
-    heatmapType === HeatmapType.STATISTICS ? '' : 'Goals '
-  }Data for ${heatmapYear}`;
+  let heatmapLabel = $derived(
+    `Reading ${heatmapType === HeatmapType.STATISTICS ? '' : 'Goals '}Data for ${heatmapYear}`
+  );
 
-  $: dayLabels = [
+  let dayLabels = $derived.by(() => [
     ...daysOfWeekShort.slice($lastStartDayOfWeek$),
     ...($lastStartDayOfWeek$ ? daysOfWeekShort.slice(0, $lastStartDayOfWeek$) : [])
-  ];
+  ]);
 
-  $: if ($lastStartDayOfWeek$ > -1 || heatmapAggregration) {
-    tick().then(() => {
-      updateHeatmapData(heatmapYear);
-    });
-  }
+  $effect(() => {
+    // Track heatmapAggregration to reset streaks when it changes
+    if (heatmapAggregration) {
+      untrack(() => {
+        selectedStreak = HeatmapStreakType.NONE;
+        selectedStreakDates = new Set();
+      });
+    }
+  });
 
-  $: if (statisticsTitleFilters && statisticsData) {
-    selectedStreak = HeatmapStreakType.NONE;
-    selectedStreakDates = new Set();
+  $effect(() => {
+    // Track triggers: lastStartDayOfWeek$, heatmapAggregration, and heatmapYear
+    const year = heatmapYear;
+    if ($lastStartDayOfWeek$ > -1 || heatmapAggregration) {
+      tick().then(() => {
+        untrack(() => {
+          updateHeatmapData(year);
+        });
+      });
+    }
+  });
 
-    updateHeatmapDataAfterFilterChange();
-  }
+  $effect(() => {
+    // Track statisticsTitleFilters and statisticsData to reset and rebuild
+    if (statisticsTitleFilters && statisticsData) {
+      untrack(() => {
+        selectedStreak = HeatmapStreakType.NONE;
+        selectedStreakDates = new Set();
 
-  $: if (heatmapAggregration) {
-    selectedStreak = HeatmapStreakType.NONE;
-    selectedStreakDates = new Set();
-  }
+        updateHeatmapDataAfterFilterChange();
+      });
+    }
+  });
 
   onMount(() => {
     if (heatmapType === HeatmapType.READING_GOALS) {
@@ -1079,14 +1107,14 @@
   <button
     title="Return to current Year"
     class="mx-4 hover:text-red-500"
-    on:click={() => changeHeatmapYear(today.getFullYear() - heatmapYear)}
+    onclick={() => changeHeatmapYear(today.getFullYear() - heatmapYear)}
   >
     <Fa icon={faRepeat} />
   </button>
   <button
     title="Switch (Streak) Data between 'All Time' and 'Current Year'"
     class="text-lg hover:text-red-500"
-    on:click={() =>
+    onclick={() =>
       (heatmapAggregration =
         heatmapAggregration === HeatmapDataAggregration.ALL_TIME
           ? HeatmapDataAggregration.YEAR
@@ -1099,7 +1127,7 @@
   <button
     title="Move Backwards"
     class="hover:text-red-500"
-    on:click={() => {
+    onclick={() => {
       if (heatmapElement.scrollLeft === 0) {
         changeHeatmapYear(-1);
       } else {
@@ -1174,7 +1202,7 @@
         style:border-width={`${isSelected || isToday ? '3' : '1'}px`}
         title={`${heatmapDay.isCurrentYear ? `${heatmapDay.dayDetails.join('\n')}` : ''}`}
         data-date={heatmapDay.dateString}
-        on:click={(event) => {
+        onclick={(event) => {
           if (!heatmapDay.isCurrentYear) {
             return;
           }
@@ -1187,7 +1215,7 @@
             }
           });
         }}
-        on:keyup={dummyFn}
+        onkeyup={dummyFn}
       ></div>
     {/each}
     {#if popoverDetails.length}
@@ -1201,7 +1229,7 @@
             <button
               title="Close Details"
               class="flex w-full justify-end absolute right-2"
-              on:click={() => (popoverDetails = [])}
+              onclick={() => (popoverDetails = [])}
             >
               <Fa icon={faClose} />
             </button>
@@ -1216,7 +1244,7 @@
   <button
     title="Move Forwards"
     class="hover:text-red-500"
-    on:click={() => {
+    onclick={() => {
       const scrollWidth =
         heatmapElement.scrollWidth - heatmapElement.scrollLeft - heatmapDayMargins;
       if (scrollWidth <= heatmapElement.clientWidth) {
@@ -1263,7 +1291,7 @@
     {:else}
       <button
         title="Highlight completed Reading Goals"
-        on:click={() =>
+        onclick={() =>
           highlightStreaks(currentHeatmapData.streaks, HeatmapStreakType.READING_GOALS_COMPLETED)}
       >
         {readingGoalsCompletedLabel}
@@ -1272,7 +1300,7 @@
     <div>
       <button
         title="Highlight Streak"
-        on:click={() =>
+        onclick={() =>
           highlightStreaks(currentHeatmapData.longestStreaks, HeatmapStreakType.LONGEST)}
       >
         {longestStreaksLabel}
@@ -1281,7 +1309,7 @@
     <div>
       <button
         title="Highlight Streak"
-        on:click={() =>
+        onclick={() =>
           highlightStreaks(
             currentHeatmapData.currentStreak.duration ? [currentHeatmapData.currentStreak] : [],
             HeatmapStreakType.CURRENT
@@ -1295,7 +1323,7 @@
     {:else}
       <button
         title="Highlight completed Reading Goals"
-        on:click={() =>
+        onclick={() =>
           highlightStreaks(currentHeatmapData.streaks, HeatmapStreakType.READING_GOALS_COMPLETED)}
       >
         {currentHeatmapData.completedReadingGoals}
@@ -1304,7 +1332,7 @@
     <div>
       <button
         title="Highlight Streak"
-        on:click={() =>
+        onclick={() =>
           highlightStreaks(currentHeatmapData.longestStreaks, HeatmapStreakType.LONGEST)}
       >
         {longestStreaksDays}{longestStreaksCount}
@@ -1313,7 +1341,7 @@
     <div>
       <button
         title="Highlight Streak"
-        on:click={() =>
+        onclick={() =>
           highlightStreaks(
             currentHeatmapData.currentStreak.duration ? [currentHeatmapData.currentStreak] : [],
             HeatmapStreakType.CURRENT
@@ -1331,7 +1359,7 @@
       <button
         title="Highlight completed Reading Goals"
         class="text-left"
-        on:click={() =>
+        onclick={() =>
           highlightStreaks(currentHeatmapData.streaks, HeatmapStreakType.READING_GOALS_COMPLETED)}
       >
         {readingGoalsCompletedLabel}
@@ -1339,7 +1367,7 @@
       <button
         title="Highlight completed Reading Goals"
         class="text-left"
-        on:click={() =>
+        onclick={() =>
           highlightStreaks(currentHeatmapData.streaks, HeatmapStreakType.READING_GOALS_COMPLETED)}
       >
         {currentHeatmapData.completedReadingGoals}
@@ -1348,23 +1376,21 @@
     <button
       title="Highlight Streak"
       class="text-left"
-      on:click={() =>
-        highlightStreaks(currentHeatmapData.longestStreaks, HeatmapStreakType.LONGEST)}
+      onclick={() => highlightStreaks(currentHeatmapData.longestStreaks, HeatmapStreakType.LONGEST)}
     >
       {longestStreaksLabel}
     </button>
     <button
       title="Highlight Streak"
       class="text-left"
-      on:click={() =>
-        highlightStreaks(currentHeatmapData.longestStreaks, HeatmapStreakType.LONGEST)}
+      onclick={() => highlightStreaks(currentHeatmapData.longestStreaks, HeatmapStreakType.LONGEST)}
     >
       {longestStreaksDays}{longestStreaksCount}
     </button>
     <div>
       <button
         title="Highlight Streak"
-        on:click={() =>
+        onclick={() =>
           highlightStreaks(
             currentHeatmapData.currentStreak.duration ? [currentHeatmapData.currentStreak] : [],
             HeatmapStreakType.CURRENT
@@ -1376,7 +1402,7 @@
     <div>
       <button
         title="Highlight Streak"
-        on:click={() =>
+        onclick={() =>
           highlightStreaks(
             currentHeatmapData.currentStreak.duration ? [currentHeatmapData.currentStreak] : [],
             HeatmapStreakType.CURRENT
