@@ -260,7 +260,7 @@
             >{selectedCount}</span
           >
         {/if}
-        <div class={headerDividerClasses} />
+        <div class={headerDividerClasses}></div>
         {#if !selectMode}
           <div
             class="relative transform-gpu"
@@ -484,7 +484,7 @@
               </div>
             </Popover>
           </div>
-          <div class={headerDividerClasses} />
+          <div class={headerDividerClasses}></div>
           {#if showLoadCount}
             <button
               style:color={!!$fileCountData$ ? 'red' : null}

@@ -160,7 +160,7 @@
           </div>
         </Popover>
       </div>
-      <div class={headerDividerClasses} />
+      <div class={headerDividerClasses}></div>
     {/if}
     <HeaderNavTabs
       disableNavigation

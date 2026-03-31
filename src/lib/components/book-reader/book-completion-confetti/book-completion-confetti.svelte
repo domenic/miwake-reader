@@ -110,7 +110,7 @@
   class="flex fixed top-0 right-0 h-full w-full"
   style={`max-width: calc(100vw - ${confettiWidthModifier}rem);`}
   bind:this={confettiCanvasElement}
-/>
+></canvas>
 <svelte:window
   on:resize={() => {
     hideConfetti();

@@ -97,7 +97,7 @@
         <div
           class="h-full rounded bg-gradient-to-b from-red-600 to-red-900"
           style:width="{progress * 100}%"
-        />
+        ></div>
       </div>
     </div>
   </div>

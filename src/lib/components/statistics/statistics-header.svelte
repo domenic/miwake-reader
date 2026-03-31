@@ -58,7 +58,7 @@
             : 'Switch to Heatmap Tab'}
           on:click={() => ($lastStatisticsTab$ = StatisticsTab.OVERVIEW)}
         />
-        <div class={headerDividerClasses} />
+        <div class={headerDividerClasses}></div>
         <HeaderIconButton
           icon={faFilter}
           title="Open Title Filter Menu"
@@ -104,7 +104,7 @@
             </div>
           </Popover>
         </div>
-        <div class={headerDividerClasses} />
+        <div class={headerDividerClasses}></div>
         <HeaderNavTabs />
       </div>
     </div>
