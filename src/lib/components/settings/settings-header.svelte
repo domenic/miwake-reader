@@ -2,7 +2,6 @@
   import { faBookOpenReader, faClock, faDatabase } from '@fortawesome/free-solid-svg-icons';
   import HeaderNavTabs from '$lib/components/header-nav-tabs.svelte';
   import HeaderTab from '$lib/components/header-tab.svelte';
-  import Ripple from '$lib/components/ripple.svelte';
   import { baseHeaderClasses, pxScreen } from '$lib/css-classes';
 
   export let activeSettings: string;
@@ -32,9 +31,7 @@
           label={settingItem.label}
           active={activeSettings === settingItem.label}
           on:click={() => (activeSettings = settingItem.label)}
-        >
-          <Ripple />
-        </HeaderTab>
+        />
       {/each}
     </div>
     <div class="flex">
