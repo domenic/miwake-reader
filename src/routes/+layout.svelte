@@ -125,7 +125,7 @@
         {#if typeof dialog.component === 'string'}
           {@html dialog.component}
         {:else}
-          <svelte:component this={dialog.component} {...dialog.props} on:close={closeAllDialogs} />
+          <svelte:component this={dialog.component} {...dialog.props} onclose={closeAllDialogs} />
         {/if}
       {/each}
     </div>

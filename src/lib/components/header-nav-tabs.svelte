@@ -5,12 +5,14 @@
   import HeaderTab from '$lib/components/header-tab.svelte';
   import { pagePath } from '$lib/data/env';
   import { database } from '$lib/data/store';
-  import { createEventDispatcher } from 'svelte';
   import { map, share } from 'rxjs';
 
-  export let disableNavigation = false;
+  interface Props {
+    disableNavigation?: boolean;
+    onnavigate?: (routeId: string) => void;
+  }
 
-  const dispatch = createEventDispatcher<{ navigate: string }>();
+  let { disableNavigation = false, onnavigate }: Props = $props();
 
   const currentBookId$ = database.lastItem$.pipe(
     map((item) => item?.dataId),
@@ -24,7 +26,7 @@
   ];
 
   function handleClick(routeId: string, query = '') {
-    dispatch('navigate', routeId);
+    onnavigate?.(routeId);
 
     if (!disableNavigation) {
       goto(`${pagePath}${routeId}${query}`);

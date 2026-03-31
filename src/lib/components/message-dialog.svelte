@@ -1,16 +1,15 @@
 <script lang="ts">
-  import { createEventDispatcher } from 'svelte';
   import { buttonClasses } from '$lib/css-classes';
   import DialogTemplate from '$lib/components/dialog-template.svelte';
   import Ripple from '$lib/components/ripple.svelte';
 
-  export let title: string;
+  interface Props {
+    title: string;
+    message: string;
+    onclose?: () => void;
+  }
 
-  export let message: string;
-
-  const dispatch = createEventDispatcher<{
-    close: void;
-  }>();
+  let { title, message, onclose }: Props = $props();
 </script>
 
 <DialogTemplate>
@@ -21,7 +20,7 @@
     <p>{message}</p>
   {/snippet}
   {#snippet footer()}
-    <button class={buttonClasses} on:click={() => dispatch('close')}>
+    <button class={buttonClasses} onclick={() => onclose?.()}>
       Close
       <Ripple />
     </button>

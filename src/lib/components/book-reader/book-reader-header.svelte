@@ -164,10 +164,10 @@
     {/if}
     <HeaderNavTabs
       disableNavigation
-      on:navigate={({ detail }) => {
-        if (detail === '/statistics') dispatch('statisticsClick');
-        else if (detail === '/settings') dispatch('settingsClick');
-        else if (detail === '/manage') dispatch('bookManagerClick');
+      onnavigate={(routeId) => {
+        if (routeId === '/statistics') dispatch('statisticsClick');
+        else if (routeId === '/settings') dispatch('settingsClick');
+        else if (routeId === '/manage') dispatch('bookManagerClick');
       }}
     />
   </div>

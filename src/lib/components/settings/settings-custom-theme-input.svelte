@@ -1,20 +1,20 @@
 <script lang="ts">
   import type { CustomThemeValue, ThemeOption } from '$lib/data/theme-option';
-  import { createEventDispatcher } from 'svelte';
 
-  export let label: string;
-  export let attribute: keyof ThemeOption;
-  export let values: CustomThemeValue;
+  interface Props {
+    label: string;
+    attribute: keyof ThemeOption;
+    values: CustomThemeValue;
+    oncolor?: (data: { attribute: keyof ThemeOption; value: string }) => void;
+    onalpha?: (data: { attribute: keyof ThemeOption; value: number }) => void;
+  }
 
-  const dispatch = createEventDispatcher<{
-    color: { attribute: keyof ThemeOption; value: string };
-    alpha: { attribute: keyof ThemeOption; value: number };
-  }>();
+  let { label, attribute, values, oncolor, onalpha }: Props = $props();
 
   function handleColorChange(event: Event) {
     const target = event.target as HTMLInputElement;
 
-    dispatch('color', { attribute, value: target.value });
+    oncolor?.({ attribute, value: target.value });
   }
 
   function handleAlphaChange(event: Event) {
@@ -27,7 +27,7 @@
       target.value = '1';
     }
 
-    dispatch('alpha', { attribute, value });
+    onalpha?.({ attribute, value });
   }
 </script>
 
@@ -36,7 +36,7 @@
   type="color"
   class="border border-black"
   value={values.hexExpression}
-  on:change={handleColorChange}
+  onchange={handleColorChange}
 />
 <input
   type="number"
@@ -44,5 +44,5 @@
   min="0"
   max="1"
   value={values.alphaValue}
-  on:change={handleAlphaChange}
+  onchange={handleAlphaChange}
 />

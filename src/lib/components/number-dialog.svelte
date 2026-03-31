@@ -2,20 +2,27 @@
   import DialogTemplate from '$lib/components/dialog-template.svelte';
   import Ripple from '$lib/components/ripple.svelte';
   import { buttonClasses } from '$lib/css-classes';
-  import { createEventDispatcher } from 'svelte';
 
-  export let dialogHeader: string;
-  export let showCancel = true;
-  export let minValue = 1;
-  export let maxValue = 1;
-  export let resolver: (arg0: number | undefined) => void;
+  interface Props {
+    dialogHeader: string;
+    showCancel?: boolean;
+    minValue?: number;
+    maxValue?: number;
+    resolver: (arg0: number | undefined) => void;
+    onclose?: () => void;
+  }
 
-  let target = 1;
-  let error = '';
+  let {
+    dialogHeader,
+    showCancel = true,
+    minValue = 1,
+    maxValue = 1,
+    resolver,
+    onclose
+  }: Props = $props();
 
-  const dispatch = createEventDispatcher<{
-    close: void;
-  }>();
+  let target = $state(1);
+  let error = $state('');
 
   function closeDialog(position?: number) {
     if (typeof position === 'number' && (position < minValue || position > maxValue)) {
@@ -23,7 +30,7 @@
       return;
     }
     resolver(position);
-    dispatch('close');
+    onclose?.();
   }
 </script>
 
@@ -38,7 +45,7 @@
         min={minValue}
         max={maxValue}
         bind:value={target}
-        on:keyup={(evt) => {
+        onkeyup={(evt) => {
           if (evt.key === 'Enter') {
             closeDialog(target);
           }
@@ -52,12 +59,12 @@
       <button
         class={buttonClasses}
         class:invisible={!showCancel}
-        on:click={() => closeDialog(undefined)}
+        onclick={() => closeDialog(undefined)}
       >
         Cancel
         <Ripple />
       </button>
-      <button class={buttonClasses} on:click={() => closeDialog(target)}>
+      <button class={buttonClasses} onclick={() => closeDialog(target)}>
         Confirm
         <Ripple />
       </button>

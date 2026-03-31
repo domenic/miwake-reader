@@ -92,10 +92,13 @@
     copyTheme(availableThemes.get(themeToCopy) || $customThemes$[themeToCopy]);
   }
 
-  function handleColorValueChange(
-    event: CustomEvent<{ attribute: keyof ThemeOption; value: string }>
-  ) {
-    const { attribute, value } = event.detail;
+  function handleColorValueChange({
+    attribute,
+    value
+  }: {
+    attribute: keyof ThemeOption;
+    value: string;
+  }) {
     const entry = customTheme[attribute];
 
     customTheme = {
@@ -110,10 +113,13 @@
     };
   }
 
-  function handleAlphaValueChange(
-    event: CustomEvent<{ attribute: keyof ThemeOption; value: number }>
-  ) {
-    const { attribute, value } = event.detail;
+  function handleAlphaValueChange({
+    attribute,
+    value
+  }: {
+    attribute: keyof ThemeOption;
+    value: number;
+  }) {
     const entry = customTheme[attribute];
 
     customTheme = {
@@ -212,36 +218,36 @@
           label="Font"
           attribute="fontColor"
           values={customTheme.fontColor}
-          on:color={handleColorValueChange}
-          on:alpha={handleAlphaValueChange}
+          oncolor={handleColorValueChange}
+          onalpha={handleAlphaValueChange}
         />
         <SettingsCustomThemeInput
           label="Background"
           attribute="backgroundColor"
           values={customTheme.backgroundColor}
-          on:color={handleColorValueChange}
-          on:alpha={handleAlphaValueChange}
+          oncolor={handleColorValueChange}
+          onalpha={handleAlphaValueChange}
         />
         <SettingsCustomThemeInput
           label="Furigana Partial Hide Font"
           attribute="hintFuriganaFontColor"
           values={customTheme.hintFuriganaFontColor}
-          on:color={handleColorValueChange}
-          on:alpha={handleAlphaValueChange}
+          oncolor={handleColorValueChange}
+          onalpha={handleAlphaValueChange}
         />
         <SettingsCustomThemeInput
           label="Furigana Partial/Full Hide Shadow"
           attribute="hintFuriganaShadowColor"
           values={customTheme.hintFuriganaShadowColor}
-          on:color={handleColorValueChange}
-          on:alpha={handleAlphaValueChange}
+          oncolor={handleColorValueChange}
+          onalpha={handleAlphaValueChange}
         />
         <SettingsCustomThemeInput
           label="Footer Font"
           attribute="tooltipTextFontColor"
           values={customTheme.tooltipTextFontColor}
-          on:color={handleColorValueChange}
-          on:alpha={handleAlphaValueChange}
+          oncolor={handleColorValueChange}
+          onalpha={handleAlphaValueChange}
         />
         <input
           class="sm:col-span-2"
