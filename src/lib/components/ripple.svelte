@@ -3,16 +3,14 @@
   import { quintOut } from 'svelte/easing';
   import { fade } from 'svelte/transition';
 
-  let diameter = 0;
-  let rippleLeft = 0;
-  let rippleTop = 0;
-  let ripples: {
-    id: number;
-  }[] = [];
-  let hold = false;
-  let focus = false;
+  let diameter = $state(0);
+  let rippleLeft = $state(0);
+  let rippleTop = $state(0);
+  let ripples: { id: number }[] = $state([]);
+  let hold = $state(false);
+  let focus = $state(false);
 
-  let containerEl: HTMLElement | undefined;
+  let containerEl: HTMLElement | undefined = $state();
 
   let listeners: {
     el: HTMLElement;
@@ -20,33 +18,33 @@
     listener: (event: any) => void;
   }[] = [];
 
-  $: target = containerEl?.parentElement;
+  let target = $derived(containerEl?.parentElement);
 
-  $: {
+  $effect(() => {
     if (target) {
       target.classList.add('relative', 'overflow-hidden');
       clearEventListeners();
       const el = target;
-      addEventListener(el, 'focusin', () => (focus = true));
-      addEventListener(el, 'focusout', () => (focus = false));
-      addEventListener(el, 'mouseenter', () => (focus = true));
-      addEventListener(el, 'mouseleave', () => {
+      addListener(el, 'focusin', () => (focus = true));
+      addListener(el, 'focusout', () => (focus = false));
+      addListener(el, 'mouseenter', () => (focus = true));
+      addListener(el, 'mouseleave', () => {
         hold = false;
         focus = false;
       });
-      addEventListener(el, 'mousedown', (ev) => createRippleFromMouseEvent(ev, el));
-      addEventListener(el, 'mouseup', () => (hold = false));
-      addEventListener(el, 'touchstart', (ev) => createRippleFromTouchEvent(ev, el));
-      addEventListener(el, 'touchend', () => (hold = false));
-      addEventListener(el, 'touchcancel', () => (hold = false));
+      addListener(el, 'mousedown', (ev) => createRippleFromMouseEvent(ev, el));
+      addListener(el, 'mouseup', () => (hold = false));
+      addListener(el, 'touchstart', (ev) => createRippleFromTouchEvent(ev, el));
+      addListener(el, 'touchend', () => (hold = false));
+      addListener(el, 'touchcancel', () => (hold = false));
     }
-  }
+  });
 
   onDestroy(() => {
     clearEventListeners();
   });
 
-  function addEventListener<K extends keyof HTMLElementEventMap>(
+  function addListener<K extends keyof HTMLElementEventMap>(
     el: HTMLElement,
     type: K,
     listener: (event: HTMLElementEventMap[K]) => void
@@ -114,7 +112,7 @@
       style:top="{rippleTop}px"
       style:left="{rippleLeft}px"
       in:animateRipple|local
-      on:introend={() => (ripples = [])}
+      onintroend={() => (ripples = [])}
     ></span>
   {/each}
   {#if hold}

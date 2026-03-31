@@ -11,14 +11,18 @@
   import { onMount } from 'svelte';
   import Fa from 'svelte-fa';
 
-  export let fontFamily: BehaviorSubject<string>;
+  interface Props {
+    fontFamily: BehaviorSubject<string>;
+  }
+
+  let { fontFamily }: Props = $props();
 
   const tabs = ['Stored', 'Add'];
 
-  let isLoading = false;
-  let cacheLoaded = false;
-  let currentTab = 'Stored';
-  let fontCache: Cache | undefined;
+  let isLoading = $state(false);
+  let cacheLoaded = $state(false);
+  let currentTab = $state('Stored');
+  let fontCache: Cache | undefined = $state();
 
   onMount(async () => {
     try {
@@ -96,7 +100,7 @@
                   class:after:w-full={currentTab === tab}
                   class:after:bg-blue-700={currentTab === tab}
                   class:text-gray-500={currentTab !== tab}
-                  on:click={() => (currentTab = tab)}
+                  onclick={() => (currentTab = tab)}
                 >
                   {tab}
                 </button>
@@ -116,8 +120,8 @@
                     role="button"
                     title="Click to select Font"
                     class="hover:text-blue-700"
-                    on:click={() => selectFont(userFont.name)}
-                    on:keyup={dummyFn}
+                    onclick={() => selectFont(userFont.name)}
+                    onkeyup={dummyFn}
                   >
                     {userFont.name}
                   </div>
@@ -126,8 +130,8 @@
                     role="button"
                     title="Click to select Font"
                     class="hover:text-blue-700"
-                    on:click={() => selectFont(userFont.name)}
-                    on:keyup={dummyFn}
+                    onclick={() => selectFont(userFont.name)}
+                    onkeyup={dummyFn}
                   >
                     {userFont.fileName}
                   </div>
@@ -136,8 +140,8 @@
                     role="button"
                     title="Remove Font"
                     class="hover:text-blue-700"
-                    on:click={() => removeFont(userFont.path)}
-                    on:keyup={dummyFn}
+                    onclick={() => removeFont(userFont.path)}
+                    onkeyup={dummyFn}
                   >
                     <Fa icon={faTrashCan} />
                   </div>

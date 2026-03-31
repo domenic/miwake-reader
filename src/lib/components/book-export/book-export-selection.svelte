@@ -6,15 +6,21 @@
   import { isOnlineSourceAvailable } from '$lib/functions/utils';
   import { onMount } from 'svelte';
 
-  export let icons: StorageIconElement[];
-  export let target: StorageKey;
-  export let dataToReplicate: StorageDataType[];
-
-  $: if (!isOnlineSourceAvailable($isOnline$, target)) {
-    target = icons.find((icon) => icon.source === StorageKey.BACKUP)
-      ? StorageKey.BACKUP
-      : StorageKey.BROWSER;
+  interface Props {
+    icons: StorageIconElement[];
+    target: StorageKey;
+    dataToReplicate: StorageDataType[];
   }
+
+  let { icons, target = $bindable(), dataToReplicate = $bindable() }: Props = $props();
+
+  $effect(() => {
+    if (!isOnlineSourceAvailable($isOnline$, target)) {
+      target = icons.find((icon) => icon.source === StorageKey.BACKUP)
+        ? StorageKey.BACKUP
+        : StorageKey.BROWSER;
+    }
+  });
 
   onMount(() => {
     if (!icons.find((icon) => icon.source === target)) {

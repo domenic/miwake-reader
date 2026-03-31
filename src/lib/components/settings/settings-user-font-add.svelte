@@ -6,15 +6,19 @@
   import { faFloppyDisk } from '@fortawesome/free-solid-svg-icons';
   import Fa from 'svelte-fa';
 
-  export let isLoading: boolean;
-  export let fontCache: Cache;
+  interface Props {
+    isLoading: boolean;
+    fontCache: Cache;
+  }
+
+  let { isLoading = $bindable(), fontCache }: Props = $props();
 
   let fileElement: HTMLInputElement;
-  let fontName = '';
-  let fontFile: File | undefined;
-  let currentError = 'no error';
+  let fontName = $state('');
+  let fontFile: File | undefined = $state();
+  let currentError = $state('no error');
 
-  $: canSave = !!fontName && !!fontFile && currentError === 'no error';
+  let canSave = $derived(!!fontName && !!fontFile && currentError === 'no error');
 
   function handleFileChange(event: Event) {
     const elm = event.target as HTMLInputElement;
@@ -95,7 +99,7 @@
     class="mt-2"
     type="text"
     bind:value={fontName}
-    on:blur={() => {
+    onblur={() => {
       currentError = 'no error';
 
       if (
@@ -116,7 +120,7 @@
         accept=".woff2,.woff,.ttf,.otf,application/font-woff2,application/font-woff,application/font-ttf,application/font-otf,font/woff2,font/woff,font/ttf,font/otf,font/opentype,font/truetype"
         class="hidden"
         bind:this={fileElement}
-        on:change={handleFileChange}
+        onchange={handleFileChange}
       />
       {fontFile ? 'File selected' : 'Choose File (and click Save)'}
     </label>
@@ -126,12 +130,12 @@
       title={canSave ? 'Save' : 'Select a File and Font name to save'}
       class:text-gray-500={!canSave}
       class:cursor-not-allowed={!canSave}
-      on:click={() => {
+      onclick={() => {
         if (canSave) {
           addFont();
         }
       }}
-      on:keyup={dummyFn}
+      onkeyup={dummyFn}
     >
       <Fa class="text-xl mx-2" icon={faFloppyDisk} />
     </div>
