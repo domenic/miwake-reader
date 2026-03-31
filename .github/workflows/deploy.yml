@@ -1,8 +1,8 @@
 name: Deploy
+
 on:
   push:
-    branches:
-      - main
+    branches: [main]
 
 permissions:
   contents: read
@@ -14,16 +14,8 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  build-and-deploy:
-    name: Build and deploy
-    if: >-
-      startsWith(github.event.head_commit.message, 'feat') ||
-      startsWith(github.event.head_commit.message, 'fix') ||
-      startsWith(github.event.head_commit.message, 'perf')
+  build:
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -31,27 +23,34 @@ jobs:
       - name: Install Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: 24.14.1
+          node-version: lts/*
           cache: npm
+
+      - name: Setup Pages
+        id: pages
+        uses: actions/configure-pages@v5
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Postinstall steps
-        run: npx svelte-kit sync
-
       - name: Build
         run: npm run build
         env:
-          VITE_PAGE_PATH: /ebook-reader
-          VITE_GDRIVE_CLIENT_ID: ${{ secrets.GDRIVE_CLIENT_ID }}
-          VITE_ONEDRIVE_CLIENT_ID: ${{ secrets.ONEDRIVE_CLIENT_ID }}
+          VITE_BASE_PATH: 'https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}'
+          VITE_PAGE_PATH: '/${{ github.event.repository.name }}'
+          # TODO: VITE_GDRIVE_CLIENT_ID and VITE_ONEDRIVE_CLIENT_ID
 
       - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v4
         with:
           path: build
-
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5

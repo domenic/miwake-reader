@@ -1,18 +1,13 @@
 # ッツ Ebook Reader
 
-A revival fork of ttsu reader.
+A revival fork of [ttsu reader](https://github.com/ttu-ttu/ebook-reader/).
 
-Currently hosted on [kamperemu.github.io/ebook-reader](https://kamperemu.github.io/ebook-reader)
+Currently hosted on [domenic.github.io/ebook-reader](https://domenic.github.io/ebook-reader)
 
 ## Development
 
-1. Have [Node.js](https://nodejs.org/) installed
-2. Run the commands below
+1. Have [Node.js](https://nodejs.org/) installed.
 
-```sh
-npm ci
-npx svelte-kit sync
-npm run build
-```
+2. Run `npm install`.
 
-3. Have your server (such as [http-server](https://www.npmjs.com/package/http-server)) point towards `build`
+3. Run `npm run dev` for a development server, or `npm run build` to write the production code in the `build/` directory (which you can then use any static server to view).
