@@ -136,7 +136,7 @@
   >
     <StatisticsSettings
       on:statisticsDateChange={handleSelectedStatisticsDateChange}
-      on:close={() => (showStatisticsSettings = false)}
+      onclose={() => (showStatisticsSettings = false)}
     />
   </div>
 {/if}

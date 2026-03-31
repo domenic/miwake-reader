@@ -20,15 +20,12 @@
     secondsToMinutes
   } from '$lib/functions/statistic-util';
   import { pluralize } from '$lib/functions/utils';
-  import { createEventDispatcher, onMount, tick } from 'svelte';
+  import { onMount, tick } from 'svelte';
   import Fa from 'svelte-fa';
 
   export let newReadingGoal: ReadingGoal;
   export let resolver: (arg0: ReadingGoalSaveResult) => void;
-
-  const dispatch = createEventDispatcher<{
-    close: void;
-  }>();
+  export let onclose: (() => void) | undefined = undefined;
 
   let showSpinner = true;
   let newStartDate = newReadingGoal.goalStartDate;
@@ -108,7 +105,7 @@
 
     if (exitEarly) {
       resolver(resultObject);
-      dispatch('close');
+      onclose?.();
     }
 
     await tick();
@@ -146,7 +143,7 @@
     ];
 
     resolver(resultObject);
-    dispatch('close');
+    onclose?.();
   }
 
   function updateNextReadingGoalStartDate() {

@@ -4,7 +4,7 @@
   import { buttonClasses } from '$lib/css-classes';
   import { decrypt, type StorageUnlockAction } from '$lib/data/storage/storage-source-manager';
   import { skipKeyDownListener$ } from '$lib/data/store';
-  import { createEventDispatcher, onMount } from 'svelte';
+  import { onMount } from 'svelte';
 
   export let description: string;
   export let action: string;
@@ -13,15 +13,12 @@
   export let forwardSecret = false;
   export let encryptedData: ArrayBuffer | undefined;
   export let resolver: (arg0: StorageUnlockAction | undefined) => void;
+  export let onclose: (() => void) | undefined = undefined;
 
   let containerElm: HTMLElement;
   let passwordElm: HTMLInputElement;
   let secret = '';
   let error = '';
-
-  const dispatch = createEventDispatcher<{
-    close: void;
-  }>();
 
   async function unlock() {
     containerElm.classList.remove('error-animation');
@@ -46,7 +43,7 @@
 
   function closeDialog(data?: StorageUnlockAction) {
     resolver(data);
-    dispatch('close');
+    onclose?.();
   }
 
   onMount(() => {

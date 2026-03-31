@@ -18,7 +18,6 @@
   import { StorageKey } from '$lib/data/storage/storage-types';
   import { database, isOnline$ } from '$lib/data/store';
   import { faTriangleExclamation } from '@fortawesome/free-solid-svg-icons';
-  import { createEventDispatcher } from 'svelte';
   import Fa from 'svelte-fa';
 
   export let configuredName: string;
@@ -30,10 +29,7 @@
   export let configuredStoredInManager: boolean;
   export let configuredEncryptionDisabled: boolean;
   export let resolver: (arg0: StorageSourceSaveResult | undefined) => void;
-
-  const dispatch = createEventDispatcher<{
-    close: void;
-  }>();
+  export let onclose: (() => void) | undefined = undefined;
 
   const storageSourceRefreshToken = configuredRemoteData?.refreshToken || '';
 
@@ -239,7 +235,7 @@
 
   function closeDialog(data?: StorageSourceSaveResult) {
     resolver(data);
-    dispatch('close');
+    onclose?.();
   }
 
   function setInitialPassword(element: HTMLInputElement) {

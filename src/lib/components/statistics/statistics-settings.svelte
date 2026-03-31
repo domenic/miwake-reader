@@ -37,8 +37,9 @@
   import { createEventDispatcher, onMount } from 'svelte';
   import Fa from 'svelte-fa';
 
+  export let onclose: (() => void) | undefined = undefined;
+
   const dispatch = createEventDispatcher<{
-    close: void;
     statisticsDateChange: StatisticsDateChange;
   }>();
 
@@ -73,7 +74,7 @@
 </script>
 
 <div class="flex items-center p-4">
-  <button class="flex items-end md:items-center" on:click={() => dispatch('close')}>
+  <button class="flex items-end md:items-center" on:click={() => onclose?.()}>
     <Fa icon={faXmark} />
   </button>
   <div class="flex flex-1 justify-end">

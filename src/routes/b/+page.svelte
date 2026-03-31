@@ -1771,7 +1771,7 @@
   <BookReaderImageGallery
     fontColor={$themeOption$.fontColor}
     backgroundColor={$backgroundColor$}
-    on:close={() => (showReaderImageGallery = false)}
+    onclose={() => (showReaderImageGallery = false)}
   />
 {/if}
 

@@ -30,11 +30,11 @@
 
   export let statisticsTitleFilters: Map<string, boolean>;
   export let titlesInStatisticsDateRange: Set<string>;
+  export let onclose: (() => void) | undefined = undefined;
 
   const dispatch = createEventDispatcher<{
     applyFilter: StatisticsTitleFilterItem[];
     clearPrefilter: void;
-    close: void;
   }>();
 
   const resizeHandler$ = fromEvent(window, 'resize').pipe(
@@ -172,7 +172,7 @@
   <button
     title="Close Title Filter"
     class="flex items-end md:items-center"
-    on:click={() => dispatch('close')}
+    on:click={() => onclose?.()}
   >
     <Fa icon={faXmark} />
   </button>
@@ -191,7 +191,7 @@
       class="hover:text-red-500"
       on:click={() => {
         dispatch('applyFilter', titlesToFilter);
-        dispatch('close');
+        onclose?.();
       }}
     >
       <Fa icon={faCircleCheck} />

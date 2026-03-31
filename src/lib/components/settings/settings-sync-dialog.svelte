@@ -8,16 +8,12 @@
   import type { SyncSelection } from '$lib/data/dialog-manager';
   import { lastSyncedSettingsSource$, lastSyncedSettingsTarget$ } from '$lib/data/store';
   import { dummyFn } from '$lib/functions/utils';
-  import { createEventDispatcher } from 'svelte';
   import Fa from 'svelte-fa';
 
   export let settingsSyncHeader = '';
   export let storageSources: BooksDbStorageSource[] = [];
   export let resolver: (arg0: SyncSelection[]) => void;
-
-  const dispatch = createEventDispatcher<{
-    close: void;
-  }>();
+  export let onclose: (() => void) | undefined = undefined;
 
   const syncSources: SyncSelection[] = [
     { id: InternalStorageSources.INTERNAL_BROWSER, label: 'Browser DB', type: StorageKey.BROWSER },
@@ -53,7 +49,7 @@
             syncSources.find((entry) => entry.id === selectedTarget)!
           ]
     );
-    dispatch('close');
+    onclose?.();
   }
 </script>
 

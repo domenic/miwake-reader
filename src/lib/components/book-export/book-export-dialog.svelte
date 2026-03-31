@@ -18,16 +18,12 @@
     oneDriveStorageSource$
   } from '$lib/data/store';
   import { executeReplicate$ } from '$lib/functions/replication/replication-progress';
-  import { createEventDispatcher } from 'svelte';
+  export let onclose: (() => void) | undefined = undefined;
 
   let icons = [
     { ...getStorageIconData(StorageKey.BACKUP), source: StorageKey.BACKUP, label: 'Zip File' },
     { ...getStorageIconData(StorageKey.BROWSER), source: StorageKey.BROWSER, label: 'Browser DB' }
   ];
-
-  const dispatch = createEventDispatcher<{
-    close: void;
-  }>();
 
   $: if (browser) {
     icons = [
@@ -53,7 +49,7 @@
   function replicateData() {
     executeReplicate$.next();
 
-    dispatch('close');
+    onclose?.();
   }
 </script>
 
@@ -67,7 +63,7 @@
   {/snippet}
   {#snippet footer()}
     <div class="flex grow justify-between">
-      <button class={buttonClasses} on:click={() => dispatch('close')}>
+      <button class={buttonClasses} on:click={() => onclose?.()}>
         Cancel
         <Ripple />
       </button>

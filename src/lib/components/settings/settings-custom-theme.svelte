@@ -6,14 +6,11 @@
   import { buttonClasses } from '$lib/css-classes';
   import { customThemes$, theme$ } from '$lib/data/store';
   import { availableThemes, type CustomThemeValue, type ThemeOption } from '$lib/data/theme-option';
-  import { createEventDispatcher, onMount } from 'svelte';
+  import { onMount } from 'svelte';
 
   export let selectedTheme: string;
   export let existingThemes: ToggleOption<string>[] = [];
-
-  const dispatch = createEventDispatcher<{
-    close: void;
-  }>();
+  export let onclose: (() => void) | undefined = undefined;
 
   let customTheme: Record<keyof ThemeOption, CustomThemeValue> = {
     fontColor: { hexExpression: '#ffffff', alphaValue: 1, rgbaExpression: 'rgba(255,255,255,1)' },
@@ -164,7 +161,7 @@
 
     $customThemes$ = { ...$customThemes$, ...{ [themeName]: newTheme } };
     $theme$ = themeName;
-    dispatch('close');
+    onclose?.();
   }
 
   function copyTheme(theme: Record<keyof ThemeOption, string> | undefined) {
@@ -269,7 +266,7 @@
   {/snippet}
   {#snippet footer()}
     <div class="mt-2 flex grow justify-between">
-      <button class={buttonClasses} on:click={() => dispatch('close')}>
+      <button class={buttonClasses} on:click={() => onclose?.()}>
         Cancel
         <Ripple />
       </button>

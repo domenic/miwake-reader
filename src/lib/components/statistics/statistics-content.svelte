@@ -855,7 +855,7 @@
       {titlesInStatisticsDateRange}
       on:applyFilter={updateTitleFilter}
       on:clearPrefilter={clearPrefilter}
-      on:close={() => ($statisticsTitleFilterIsOpen$ = false)}
+      onclose={() => ($statisticsTitleFilterIsOpen$ = false)}
     />
   </div>
 {/if}

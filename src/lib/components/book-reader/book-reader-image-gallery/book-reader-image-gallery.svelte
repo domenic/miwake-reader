@@ -7,17 +7,14 @@
     readerImageGalleryKeybindMap$,
     skipKeyDownListener$
   } from '$lib/data/store';
-  import { createEventDispatcher, onMount } from 'svelte';
+  import { onMount } from 'svelte';
   import { quintInOut } from 'svelte/easing';
   import Fa from 'svelte-fa';
   import { fly } from 'svelte/transition';
 
   export let fontColor: string;
   export let backgroundColor: string;
-
-  const dispatch = createEventDispatcher<{
-    close: void;
-  }>();
+  export let onclose: (() => void) | undefined = undefined;
 
   let contentContainer: HTMLElement;
   let imageContainer: HTMLElement;
@@ -68,7 +65,7 @@
   }
 
   function closeReaderImageGallery() {
-    dispatch('close');
+    onclose?.();
   }
 
   function toggleGalleryPictureSpoiler(galleryPictureUrl: string) {
