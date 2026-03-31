@@ -761,8 +761,8 @@
   }}
 />
 
-<style lang="scss">
-  @import '../styles';
+<style>
+  @import '../styles.css';
 
   .book-content {
     :global(svg),

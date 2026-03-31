@@ -748,8 +748,8 @@
 
 <svelte:window on:keydown={onKeydown} on:resize={() => (isResizing = true)} />
 
-<style lang="scss">
-  @import '../styles';
+<style>
+  @import '../styles.css';
 
   .book-content {
     overflow: hidden;
@@ -761,7 +761,7 @@
     column-width: var(
       --book-content-child-column-width,
       auto
-    ); // required for WebKit + column-count 1
+    ); /* required for WebKit + column-count 1 */
     column-gap: 40px;
     column-fill: auto;
     height: var(--book-content-child-height, 95vh);
@@ -786,7 +786,7 @@
     }
 
     :global(.ttu-img-container) {
-      // Needed for Blink rendering engine
+      /* Needed for Blink rendering engine */
       break-inside: avoid;
     }
   }

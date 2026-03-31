@@ -169,10 +169,10 @@
   }
 }
 
-// Use :where() so EPUB class-specific margins (e.g. for section breaks) aren't
-// overridden. The :global() bypasses Svelte scoping so :where() can actually
-// zero out the specificity of the parent selectors. See
-// https://github.com/ttu-ttu/ebook-reader/issues/486 for a repro.
+/* Use :where() so EPUB class-specific margins (e.g. for section breaks) aren't
+   overridden. The :global() bypasses Svelte scoping so :where() can actually
+   zero out the specificity of the parent selectors. See
+   https://github.com/ttu-ttu/ebook-reader/issues/486 for a repro. */
 :global(:where(.book-content:not(.ttu-apply-important).book-content--writing-vertical-rl)) {
   :global(p) {
     margin-right: var(--book-content-text-margin, 0rem);
