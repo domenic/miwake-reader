@@ -58,8 +58,10 @@
 </script>
 
 <DialogTemplate>
-  <svelte:fragment slot="header">{settingsSyncHeader}</svelte:fragment>
-  <svelte:fragment slot="content">
+  {#snippet header()}
+    {settingsSyncHeader}
+  {/snippet}
+  {#snippet content()}
     <div class="flex flex-col">
       <div>Source</div>
       <select bind:value={selectedSource}>
@@ -104,15 +106,17 @@
         {/each}
       </select>
     </div>
-  </svelte:fragment>
-  <div class="flex grow justify-between" slot="footer">
-    <button class={buttonClasses} on:click={() => closeDialog(true)}>
-      Cancel
-      <Ripple />
-    </button>
-    <button class={buttonClasses} on:click={() => closeDialog()}>
-      Confirm
-      <Ripple />
-    </button>
-  </div>
+  {/snippet}
+  {#snippet footer()}
+    <div class="flex grow justify-between">
+      <button class={buttonClasses} on:click={() => closeDialog(true)}>
+        Cancel
+        <Ripple />
+      </button>
+      <button class={buttonClasses} on:click={() => closeDialog()}>
+        Confirm
+        <Ripple />
+      </button>
+    </div>
+  {/snippet}
 </DialogTemplate>

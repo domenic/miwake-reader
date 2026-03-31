@@ -31,7 +31,7 @@
       {...icon}
       {disabled}
       selected={icon.source === target}
-      on:click={() => {
+      onclick={() => {
         if (!disabled) {
           target = icon.source;
         }

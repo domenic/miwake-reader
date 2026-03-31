@@ -61,41 +61,45 @@
 </script>
 
 <DialogTemplate>
-  <div class="flex flex-col text-sm sm:text-base" slot="content" bind:this={containerElm}>
-    <div>{description}</div>
-    <div class="my-2">{action}</div>
-    {#if requiresSecret}
-      <input
-        type="password"
-        placeholder="Password"
-        bind:value={secret}
-        bind:this={passwordElm}
-        on:keyup={(evt) => {
-          if (evt.key === 'Enter') {
-            unlock();
-          }
-        }}
-      />
-    {/if}
-    <div class="text-red-500">{error}</div>
-  </div>
-  <div class="mt-2 flex grow justify-between" slot="footer">
-    {#if requiresSecret || showCancel}
-      <button
-        class={buttonClasses}
-        on:click={() => {
-          closeDialog();
-        }}
-      >
-        Cancel
+  {#snippet content()}
+    <div class="flex flex-col text-sm sm:text-base" bind:this={containerElm}>
+      <div>{description}</div>
+      <div class="my-2">{action}</div>
+      {#if requiresSecret}
+        <input
+          type="password"
+          placeholder="Password"
+          bind:value={secret}
+          bind:this={passwordElm}
+          on:keyup={(evt) => {
+            if (evt.key === 'Enter') {
+              unlock();
+            }
+          }}
+        />
+      {/if}
+      <div class="text-red-500">{error}</div>
+    </div>
+  {/snippet}
+  {#snippet footer()}
+    <div class="mt-2 flex grow justify-between">
+      {#if requiresSecret || showCancel}
+        <button
+          class={buttonClasses}
+          on:click={() => {
+            closeDialog();
+          }}
+        >
+          Cancel
+          <Ripple />
+        </button>
+      {/if}
+      <button class={buttonClasses} on:click={unlock}>
+        Confirm
         <Ripple />
       </button>
-    {/if}
-    <button class={buttonClasses} on:click={unlock}>
-      Confirm
-      <Ripple />
-    </button>
-  </div>
+    </div>
+  {/snippet}
 </DialogTemplate>
 
 <style>

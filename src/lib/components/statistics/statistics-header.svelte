@@ -47,7 +47,7 @@
           title={$lastStatisticsTab$ === StatisticsTab.SUMMARY
             ? 'You are already on the Summary Tab'
             : 'Switch to Summary Tab'}
-          on:click={() => ($lastStatisticsTab$ = StatisticsTab.SUMMARY)}
+          onclick={() => ($lastStatisticsTab$ = StatisticsTab.SUMMARY)}
         />
         <HeaderTab
           icon={faMap}
@@ -56,7 +56,7 @@
           title={$lastStatisticsTab$ === StatisticsTab.OVERVIEW
             ? 'You are already on the Heatmap Tab'
             : 'Switch to Heatmap Tab'}
-          on:click={() => ($lastStatisticsTab$ = StatisticsTab.OVERVIEW)}
+          onclick={() => ($lastStatisticsTab$ = StatisticsTab.OVERVIEW)}
         />
         <div class={headerDividerClasses}></div>
         <HeaderIconButton
@@ -64,7 +64,7 @@
           title="Open Title Filter Menu"
           label="Filter"
           disabled={!$statisticsTitleFilterEnabled$}
-          on:click={() => {
+          onclick={() => {
             if ($statisticsTitleFilterEnabled$) {
               $statisticsTitleFilterIsOpen$ = true;
             }
@@ -74,7 +74,7 @@
           icon={faSliders}
           title="Open Statistics Settings"
           label="Statistics Settings"
-          on:click={() => (showStatisticsSettings = true)}
+          onclick={() => (showStatisticsSettings = true)}
         />
       </div>
       <div class="flex">

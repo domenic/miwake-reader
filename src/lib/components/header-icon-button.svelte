@@ -1,13 +1,19 @@
 <script lang="ts">
+  import type { MouseEventHandler } from 'svelte/elements';
   import type { IconDefinition } from '@fortawesome/free-solid-svg-icons';
   import { labelIconClasses } from '$lib/css-classes';
   import { dummyFn } from '$lib/functions/utils';
   import Fa from 'svelte-fa';
 
-  export let icon: IconDefinition;
-  export let title: string;
-  export let label: string | undefined = undefined;
-  export let disabled: boolean = false;
+  interface Props {
+    icon: IconDefinition;
+    title: string;
+    label?: string;
+    disabled?: boolean;
+    onclick?: MouseEventHandler<HTMLDivElement>;
+  }
+
+  let { icon, title, label, disabled = false, onclick }: Props = $props();
 </script>
 
 <div
@@ -16,8 +22,8 @@
   {title}
   class={labelIconClasses}
   style:cursor={disabled ? 'not-allowed' : undefined}
-  on:click
-  on:keyup={dummyFn}
+  {onclick}
+  onkeyup={dummyFn}
 >
   <Fa {icon} class="text-sm xl:text-xs" />
   {#if label}<span>{label}</span>{/if}

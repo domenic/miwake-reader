@@ -252,136 +252,139 @@
 </script>
 
 <DialogTemplate>
-  <div
-    class="flex flex-col p-2 max-h-[50vh] overflow-auto sm:max-h-[75vh]"
-    slot="content"
-    bind:this={containerElm}
-  >
-    <input
-      required
-      type="text"
-      placeholder="Name"
-      bind:value={storageSourceName}
-      bind:this={nameElm}
-    />
-    <div class="mt-4 flex items-center">
-      <input id="cbx-source" type="checkbox" bind:checked={storageSourceIsSyncTarget} />
-      <label for="cbx-source" class="ml-2 mr-6">Is Sync Target</label>
-      <input id="cbx-manager" type="checkbox" bind:checked={storageSourceIsSourceDefault} />
-      <label for="cbx-manager" class="ml-2">Is Source Default</label>
-    </div>
-    <select
-      class="my-4"
-      bind:value={storageSourceType}
-      on:change={() => {
-        if (storageSourceType === StorageKey.FS) {
-          storageSourceClientId = '';
-          storageSourceClientSecret = '';
-          storageSourceStoredInManager = false;
-          storageSourceEncryptionDisabled = false;
-        } else {
-          directoryHandle = undefined;
-          handleFsPath = '';
-        }
-      }}
+  {#snippet content()}
+    <div
+      class="flex flex-col p-2 max-h-[50vh] overflow-auto sm:max-h-[75vh]"
+      bind:this={containerElm}
     >
-      {#each storageSourceTypes as sourceType (sourceType.key)}
-        <option value={sourceType.key}>
-          {sourceType.label}
-        </option>
-      {/each}
-    </select>
-    {#if storageSourceType === StorageKey.FS}
-      <button class={buttonClasses} on:click={selectDirectory}>
-        Select Directory
-        <Ripple />
-      </button>
-      <div class="my-4 text-center">{handleFsPath || 'Nothing selected'}</div>
-    {:else}
-      <input required type="text" placeholder="Client ID" bind:value={storageSourceClientId} />
       <input
-        class="mt-4"
+        required
         type="text"
-        placeholder="Client Secret"
-        bind:value={storageSourceClientSecret}
+        placeholder="Name"
+        bind:value={storageSourceName}
+        bind:this={nameElm}
       />
-      <input
-        class="mt-4"
-        type="password"
-        placeholder="Password"
-        required={!storageSourceEncryptionDisabled}
-        disabled={storageSourceEncryptionDisabled}
-        bind:this={pwElm}
-      />
-      <input
-        class="mt-4"
-        type="password"
-        placeholder="Confirm Password"
-        required={!storageSourceEncryptionDisabled}
-        disabled={storageSourceEncryptionDisabled}
-        bind:this={pwConfirmElm}
-      />
-      {#if passwordManagerAvailable}
+      <div class="mt-4 flex items-center">
+        <input id="cbx-source" type="checkbox" bind:checked={storageSourceIsSyncTarget} />
+        <label for="cbx-source" class="ml-2 mr-6">Is Sync Target</label>
+        <input id="cbx-manager" type="checkbox" bind:checked={storageSourceIsSourceDefault} />
+        <label for="cbx-source" class="ml-2">Is Source Default</label>
+      </div>
+      <select
+        class="my-4"
+        bind:value={storageSourceType}
+        on:change={() => {
+          if (storageSourceType === StorageKey.FS) {
+            storageSourceClientId = '';
+            storageSourceClientSecret = '';
+            storageSourceStoredInManager = false;
+            storageSourceEncryptionDisabled = false;
+          } else {
+            directoryHandle = undefined;
+            handleFsPath = '';
+          }
+        }}
+      >
+        {#each storageSourceTypes as sourceType (sourceType.key)}
+          <option value={sourceType.key}>
+            {sourceType.label}
+          </option>
+        {/each}
+      </select>
+      {#if storageSourceType === StorageKey.FS}
+        <button class={buttonClasses} on:click={selectDirectory}>
+          Select Directory
+          <Ripple />
+        </button>
+        <div class="my-4 text-center">{handleFsPath || 'Nothing selected'}</div>
+      {:else}
+        <input required type="text" placeholder="Client ID" bind:value={storageSourceClientId} />
+        <input
+          class="mt-4"
+          type="text"
+          placeholder="Client Secret"
+          bind:value={storageSourceClientSecret}
+        />
+        <input
+          class="mt-4"
+          type="password"
+          placeholder="Password"
+          required={!storageSourceEncryptionDisabled}
+          disabled={storageSourceEncryptionDisabled}
+          bind:this={pwElm}
+        />
+        <input
+          class="mt-4"
+          type="password"
+          placeholder="Confirm Password"
+          required={!storageSourceEncryptionDisabled}
+          disabled={storageSourceEncryptionDisabled}
+          bind:this={pwConfirmElm}
+        />
+        {#if passwordManagerAvailable}
+          <div class="mt-4">
+            <input
+              id="cbx-store-in-manager"
+              type="checkbox"
+              bind:checked={storageSourceStoredInManager}
+              on:change={() => {
+                if (storageSourceStoredInManager && storageSourceEncryptionDisabled) {
+                  storageSourceEncryptionDisabled = false;
+                }
+              }}
+            />
+            <label for="cbx-store-in-manager" class="ml-2 mr-6">Store in Password Manager</label>
+          </div>
+        {/if}
         <div class="mt-4">
           <input
-            id="cbx-store-in-manager"
+            id="cbx-disable-encryption"
             type="checkbox"
-            bind:checked={storageSourceStoredInManager}
+            bind:checked={storageSourceEncryptionDisabled}
             on:change={() => {
-              if (storageSourceStoredInManager && storageSourceEncryptionDisabled) {
-                storageSourceEncryptionDisabled = false;
+              if (storageSourceEncryptionDisabled) {
+                storageSourceStoredInManager = false;
+                pwElm.value = '';
+                pwConfirmElm.value = '';
               }
             }}
           />
-          <label for="cbx-store-in-manager" class="ml-2 mr-6">Store in Password Manager</label>
+          <label for="cbx-disable-encryption" class="ml-2 mr-6">Disable Password Encryption</label>
         </div>
       {/if}
-      <div class="mt-4">
-        <input
-          id="cbx-disable-encryption"
-          type="checkbox"
-          bind:checked={storageSourceEncryptionDisabled}
-          on:change={() => {
-            if (storageSourceEncryptionDisabled) {
-              storageSourceStoredInManager = false;
-              pwElm.value = '';
-              pwConfirmElm.value = '';
-            }
-          }}
-        />
-        <label for="cbx-disable-encryption" class="ml-2 mr-6">Disable Password Encryption</label>
-      </div>
-    {/if}
-    {#if storageSourceStoredInManager || storageSourceEncryptionDisabled}
-      <div class="flex items-center my-4 max-w-xs">
-        <Fa icon={faTriangleExclamation} />
-        <span class="ml-2">
-          Make sure to understand the
-          <a
-            class="text-red-500"
-            href="https://github.com/ttu-ttu/ebook-reader?tab=readme-ov-file#security-considerations"
-            target="_blank"
-          >
-            Implications
-          </a>
-          of your choosen Settings
-        </span>
-      </div>
-    {/if}
-    {#if error}
-      <div class="text-red-500">Error: {error}</div>
-    {/if}
-  </div>
-  <div class="mt-4 flex grow justify-between" slot="footer">
-    <button class={buttonClasses} on:click={() => closeDialog()}>
-      Cancel
-      <Ripple />
-    </button>
-    <button class={buttonClasses} on:click={save}>
-      Save
-      <Ripple />
-    </button>
-  </div>
+      {#if storageSourceStoredInManager || storageSourceEncryptionDisabled}
+        <div class="flex items-center my-4 max-w-xs">
+          <Fa icon={faTriangleExclamation} />
+          <span class="ml-2">
+            Make sure to understand the
+            <a
+              class="text-red-500"
+              href="https://github.com/ttu-ttu/ebook-reader?tab=readme-ov-file#security-considerations"
+              target="_blank"
+            >
+              Implications
+            </a>
+            of your choosen Settings
+          </span>
+        </div>
+      {/if}
+      {#if error}
+        <div class="text-red-500">Error: {error}</div>
+      {/if}
+    </div>
+  {/snippet}
+  {#snippet footer()}
+    <div class="mt-4 flex grow justify-between">
+      <button class={buttonClasses} on:click={() => closeDialog()}>
+        Cancel
+        <Ripple />
+      </button>
+      <button class={buttonClasses} on:click={save}>
+        Save
+        <Ripple />
+      </button>
+    </div>
+  {/snippet}
 </DialogTemplate>
 
 <style>

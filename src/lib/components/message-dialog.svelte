@@ -14,14 +14,16 @@
 </script>
 
 <DialogTemplate>
-  <svelte:fragment slot="header">{title}</svelte:fragment>
-  <svelte:fragment slot="content">
+  {#snippet header()}
+    {title}
+  {/snippet}
+  {#snippet content()}
     <p>{message}</p>
-  </svelte:fragment>
-  <svelte:fragment slot="footer">
+  {/snippet}
+  {#snippet footer()}
     <button class={buttonClasses} on:click={() => dispatch('close')}>
       Close
       <Ripple />
     </button>
-  </svelte:fragment>
+  {/snippet}
 </DialogTemplate>

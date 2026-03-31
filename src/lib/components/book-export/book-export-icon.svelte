@@ -1,9 +1,17 @@
 <script lang="ts">
-  export let selected: boolean;
-  export let disabled: boolean;
-  export let d: string;
-  export let viewBox: string;
-  export let label: string;
+  import type { MouseEventHandler, KeyboardEventHandler } from 'svelte/elements';
+
+  interface Props {
+    selected: boolean;
+    disabled: boolean;
+    d: string;
+    viewBox: string;
+    label: string;
+    onclick?: MouseEventHandler<HTMLDivElement>;
+    onkeyup?: KeyboardEventHandler<HTMLDivElement>;
+  }
+
+  let { selected, disabled, d, viewBox, label, onclick, onkeyup }: Props = $props();
 </script>
 
 <div
@@ -15,8 +23,8 @@
   class:opacity-5={disabled}
   class:cursor-not-allowed={disabled}
   class:hover:border-transparent={disabled}
-  on:click
-  on:keyup
+  {onclick}
+  {onkeyup}
 >
   <svg
     class="inline-block h-8 w-8 md:h-14 md:w-14 lg:h-20 lg:w-20"

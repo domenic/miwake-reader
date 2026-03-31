@@ -58,26 +58,28 @@
 </script>
 
 <DialogTemplate>
-  <svelte:fragment slot="content">
+  {#snippet content()}
     <BookExportSelection
       {icons}
       bind:target={$lastExportedTarget$}
       bind:dataToReplicate={$lastExportedTypes$}
     />
-  </svelte:fragment>
-  <div class="flex grow justify-between" slot="footer">
-    <button class={buttonClasses} on:click={() => dispatch('close')}>
-      Cancel
-      <Ripple />
-    </button>
-    <button
-      class={buttonClasses}
-      class:cursor-not-allowed={!$lastExportedTypes$.length}
-      disabled={!$lastExportedTypes$.length}
-      on:click={replicateData}
-    >
-      Start
-      <Ripple />
-    </button>
-  </div>
+  {/snippet}
+  {#snippet footer()}
+    <div class="flex grow justify-between">
+      <button class={buttonClasses} on:click={() => dispatch('close')}>
+        Cancel
+        <Ripple />
+      </button>
+      <button
+        class={buttonClasses}
+        class:cursor-not-allowed={!$lastExportedTypes$.length}
+        disabled={!$lastExportedTypes$.length}
+        on:click={replicateData}
+      >
+        Start
+        <Ripple />
+      </button>
+    </div>
+  {/snippet}
 </DialogTemplate>

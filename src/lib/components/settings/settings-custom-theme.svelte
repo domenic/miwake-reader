@@ -189,84 +189,88 @@
 </script>
 
 <DialogTemplate>
-  <div slot="content">
-    <div
-      class="grid grid-cols-1 gap-2 items-center overflow-auto max-h-[60vh] sm:grid-cols-[auto_auto_5rem] sm:gap-4"
-    >
-      <select class="sm:col-span-2" bind:value={themeToCopy}>
-        {#each existingThemes as theme (theme.id)}
-          <option value={theme.id}>
-            {theme.id}
-          </option>
-        {/each}
-      </select>
-      <button class={buttonClasses} on:click={handleCopyTheme}
-        >Copy
+  {#snippet content()}
+    <div>
+      <div
+        class="grid grid-cols-1 gap-2 items-center overflow-auto max-h-[60vh] sm:grid-cols-[auto_auto_5rem] sm:gap-4"
+      >
+        <select class="sm:col-span-2" bind:value={themeToCopy}>
+          {#each existingThemes as theme (theme.id)}
+            <option value={theme.id}>
+              {theme.id}
+            </option>
+          {/each}
+        </select>
+        <button class={buttonClasses} on:click={handleCopyTheme}
+          >Copy
+          <Ripple />
+        </button>
+        <span class="hidden sm:block">Attribute</span>
+        <span class="hidden sm:block">Color</span>
+        <span class="hidden sm:block">Alpha</span>
+        <SettingsCustomThemeInput
+          label="Font"
+          attribute="fontColor"
+          values={customTheme.fontColor}
+          on:color={handleColorValueChange}
+          on:alpha={handleAlphaValueChange}
+        />
+        <SettingsCustomThemeInput
+          label="Background"
+          attribute="backgroundColor"
+          values={customTheme.backgroundColor}
+          on:color={handleColorValueChange}
+          on:alpha={handleAlphaValueChange}
+        />
+        <SettingsCustomThemeInput
+          label="Furigana Partial Hide Font"
+          attribute="hintFuriganaFontColor"
+          values={customTheme.hintFuriganaFontColor}
+          on:color={handleColorValueChange}
+          on:alpha={handleAlphaValueChange}
+        />
+        <SettingsCustomThemeInput
+          label="Furigana Partial/Full Hide Shadow"
+          attribute="hintFuriganaShadowColor"
+          values={customTheme.hintFuriganaShadowColor}
+          on:color={handleColorValueChange}
+          on:alpha={handleAlphaValueChange}
+        />
+        <SettingsCustomThemeInput
+          label="Footer Font"
+          attribute="tooltipTextFontColor"
+          values={customTheme.tooltipTextFontColor}
+          on:color={handleColorValueChange}
+          on:alpha={handleAlphaValueChange}
+        />
+        <input
+          class="sm:col-span-2"
+          type="text"
+          placeholder="Theme Name"
+          bind:value={themeName}
+          bind:this={themeNameElm}
+        />
+        <button
+          class="flex justify-center items-center rounded-md border-2 border-gray-400 p-2 text-lg"
+          style={themeStyle}
+        >
+          ぁあ
+          <Ripple />
+        </button>
+      </div>
+      <div class="flex mt-4"></div>
+    </div>
+  {/snippet}
+  {#snippet footer()}
+    <div class="mt-2 flex grow justify-between">
+      <button class={buttonClasses} on:click={() => dispatch('close')}>
+        Cancel
         <Ripple />
       </button>
-      <span class="hidden sm:block">Attribute</span>
-      <span class="hidden sm:block">Color</span>
-      <span class="hidden sm:block">Alpha</span>
-      <SettingsCustomThemeInput
-        label="Font"
-        attribute="fontColor"
-        values={customTheme.fontColor}
-        on:color={handleColorValueChange}
-        on:alpha={handleAlphaValueChange}
-      />
-      <SettingsCustomThemeInput
-        label="Background"
-        attribute="backgroundColor"
-        values={customTheme.backgroundColor}
-        on:color={handleColorValueChange}
-        on:alpha={handleAlphaValueChange}
-      />
-      <SettingsCustomThemeInput
-        label="Furigana Partial Hide Font"
-        attribute="hintFuriganaFontColor"
-        values={customTheme.hintFuriganaFontColor}
-        on:color={handleColorValueChange}
-        on:alpha={handleAlphaValueChange}
-      />
-      <SettingsCustomThemeInput
-        label="Furigana Partial/Full Hide Shadow"
-        attribute="hintFuriganaShadowColor"
-        values={customTheme.hintFuriganaShadowColor}
-        on:color={handleColorValueChange}
-        on:alpha={handleAlphaValueChange}
-      />
-      <SettingsCustomThemeInput
-        label="Footer Font"
-        attribute="tooltipTextFontColor"
-        values={customTheme.tooltipTextFontColor}
-        on:color={handleColorValueChange}
-        on:alpha={handleAlphaValueChange}
-      />
-      <input
-        class="sm:col-span-2"
-        type="text"
-        placeholder="Theme Name"
-        bind:value={themeName}
-        bind:this={themeNameElm}
-      />
-      <button
-        class="flex justify-center items-center rounded-md border-2 border-gray-400 p-2 text-lg"
-        style={themeStyle}
-      >
-        ぁあ
+      <button class={buttonClasses} on:click={handleSave}>
+        Save
         <Ripple />
       </button>
     </div>
-    <div class="flex mt-4"></div>
-  </div>
-  <div class="mt-2 flex grow justify-between" slot="footer">
-    <button class={buttonClasses} on:click={() => dispatch('close')}>
-      Cancel
-      <Ripple />
-    </button>
-    <button class={buttonClasses} on:click={handleSave}>
-      Save
-      <Ripple />
-    </button>
-  </div>
+  {/snippet}
 </DialogTemplate>

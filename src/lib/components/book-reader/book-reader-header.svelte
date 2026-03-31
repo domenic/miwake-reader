@@ -75,21 +75,21 @@
         icon={faList}
         title="Open Table of Contents"
         label="TOC"
-        on:click={() => dispatch('tocClick')}
+        onclick={() => dispatch('tocClick')}
       />
     {/if}
     <HeaderIconButton
       icon={isBookmarkScreen ? fasBookmark : farBookmark}
       title="Create Bookmark"
       label="Bookmark"
-      on:click={() => dispatch('bookmarkClick')}
+      onclick={() => dispatch('bookmarkClick')}
     />
     {#if hasBookmarkData}
       <HeaderIconButton
         icon={faRotateLeft}
         title="Return to Bookmark"
         label="Return to Bookmark"
-        on:click={() => dispatch('scrollToBookmarkClick')}
+        onclick={() => dispatch('scrollToBookmarkClick')}
       />
     {/if}
     {#if $viewMode$ === ViewMode.Continuous && !$isMobile$}
@@ -104,14 +104,14 @@
       icon={faFlag}
       title="Complete Book"
       label="Complete Book"
-      on:click={() => dispatch('completeBook')}
+      onclick={() => dispatch('completeBook')}
     />
     {#if showFullscreenButton}
       <HeaderIconButton
         icon={faExpand}
         title="Toggle Fullscreen"
         label="Fullscreen"
-        on:click={() => dispatch('fullscreenClick')}
+        onclick={() => dispatch('fullscreenClick')}
       />
     {/if}
     {#if hasText}
@@ -119,7 +119,7 @@
         icon={faHashtag}
         title="Jump to Position"
         label="Jump"
-        on:click={() => dispatch('jumpClick')}
+        onclick={() => dispatch('jumpClick')}
       />
     {/if}
     {#if $readerImageGalleryPictures$.length}
@@ -127,7 +127,7 @@
         icon={faImages}
         title="Open Image Gallery"
         label="Images"
-        on:click={() => dispatch('readerImageGalleryClick')}
+        onclick={() => dispatch('readerImageGalleryClick')}
       />
     {/if}
   </div>

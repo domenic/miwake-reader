@@ -1,12 +1,18 @@
 <script lang="ts">
+  import type { MouseEventHandler } from 'svelte/elements';
   import type { IconDefinition } from '@fortawesome/free-solid-svg-icons';
   import Ripple from '$lib/components/ripple.svelte';
   import Fa from 'svelte-fa';
 
-  export let icon: IconDefinition;
-  export let label: string;
-  export let active: boolean = false;
-  export let title: string | undefined = undefined;
+  interface Props {
+    icon: IconDefinition;
+    label: string;
+    active?: boolean;
+    title?: string;
+    onclick?: MouseEventHandler<HTMLButtonElement>;
+  }
+
+  let { icon, label, active = false, title, onclick }: Props = $props();
 </script>
 
 <button
@@ -15,7 +21,7 @@
   class:bg-gray-900={active}
   class:hover:bg-gray-800={active}
   class:hover:bg-gray-900={!active}
-  on:click
+  {onclick}
 >
   <Fa class="mb-0.5" {icon} />
   {label}

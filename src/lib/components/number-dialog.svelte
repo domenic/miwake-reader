@@ -28,33 +28,39 @@
 </script>
 
 <DialogTemplate>
-  <svelte:fragment slot="header">{dialogHeader}</svelte:fragment>
-  <div class="flex flex-col text-sm sm:text-base" slot="content">
-    <input
-      type="number"
-      min={minValue}
-      max={maxValue}
-      bind:value={target}
-      on:keyup={(evt) => {
-        if (evt.key === 'Enter') {
-          closeDialog(target);
-        }
-      }}
-    />
-    <div class="text-red-500 mt-4">{error}</div>
-  </div>
-  <div class="flex grow justify-between" slot="footer">
-    <button
-      class={buttonClasses}
-      class:invisible={!showCancel}
-      on:click={() => closeDialog(undefined)}
-    >
-      Cancel
-      <Ripple />
-    </button>
-    <button class={buttonClasses} on:click={() => closeDialog(target)}>
-      Confirm
-      <Ripple />
-    </button>
-  </div>
+  {#snippet header()}
+    {dialogHeader}
+  {/snippet}
+  {#snippet content()}
+    <div class="flex flex-col text-sm sm:text-base">
+      <input
+        type="number"
+        min={minValue}
+        max={maxValue}
+        bind:value={target}
+        on:keyup={(evt) => {
+          if (evt.key === 'Enter') {
+            closeDialog(target);
+          }
+        }}
+      />
+      <div class="text-red-500 mt-4">{error}</div>
+    </div>
+  {/snippet}
+  {#snippet footer()}
+    <div class="flex grow justify-between">
+      <button
+        class={buttonClasses}
+        class:invisible={!showCancel}
+        on:click={() => closeDialog(undefined)}
+      >
+        Cancel
+        <Ripple />
+      </button>
+      <button class={buttonClasses} on:click={() => closeDialog(target)}>
+        Confirm
+        <Ripple />
+      </button>
+    </div>
+  {/snippet}
 </DialogTemplate>

@@ -21,18 +21,26 @@
 </script>
 
 <DialogTemplate>
-  <svelte:fragment slot="header">{dialogHeader}</svelte:fragment>
-  <svelte:fragment slot="content">
+  {#snippet header()}
+    {dialogHeader}
+  {/snippet}
+  {#snippet content()}
     <p style={contentStyles}>{dialogMessage}</p>
-  </svelte:fragment>
-  <div class="flex grow justify-between" slot="footer">
-    <button class={buttonClasses} class:invisible={!showCancel} on:click={() => closeDialog(true)}>
-      Cancel
-      <Ripple />
-    </button>
-    <button class={buttonClasses} on:click={() => closeDialog()}>
-      Confirm
-      <Ripple />
-    </button>
-  </div>
+  {/snippet}
+  {#snippet footer()}
+    <div class="flex grow justify-between">
+      <button
+        class={buttonClasses}
+        class:invisible={!showCancel}
+        on:click={() => closeDialog(true)}
+      >
+        Cancel
+        <Ripple />
+      </button>
+      <button class={buttonClasses} on:click={() => closeDialog()}>
+        Confirm
+        <Ripple />
+      </button>
+    </div>
+  {/snippet}
 </DialogTemplate>

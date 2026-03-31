@@ -272,8 +272,10 @@
   </div>
 {/if}
 <DialogTemplate>
-  <svelte:fragment slot="header">Save Reading Goal</svelte:fragment>
-  <svelte:fragment slot="content">
+  {#snippet header()}
+    Save Reading Goal
+  {/snippet}
+  {#snippet content()}
     {#if newReadingGoal.goalStartDate}
       <div>
         <span>New Reading Goal starts from</span>
@@ -340,15 +342,17 @@
         {/each}
       </details>
     {/if}
-  </svelte:fragment>
-  <div class="flex grow justify-between" slot="footer">
-    <button class={buttonClasses} on:click={() => closeDialog(true)}>
-      Cancel
-      <Ripple />
-    </button>
-    <button class={buttonClasses} on:click={() => closeDialog()}>
-      Confirm
-      <Ripple />
-    </button>
-  </div>
+  {/snippet}
+  {#snippet footer()}
+    <div class="flex grow justify-between">
+      <button class={buttonClasses} on:click={() => closeDialog(true)}>
+        Cancel
+        <Ripple />
+      </button>
+      <button class={buttonClasses} on:click={() => closeDialog()}>
+        Confirm
+        <Ripple />
+      </button>
+    </div>
+  {/snippet}
 </DialogTemplate>

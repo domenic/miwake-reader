@@ -37,7 +37,7 @@
     icon={faBookOpen}
     label="Book"
     active={$page.route.id === '/b'}
-    on:click={() => handleClick('/b', `?id=${$currentBookId$}`)}
+    onclick={() => handleClick('/b', `?id=${$currentBookId$}`)}
   />
 {/if}
 {#each tabs as tab (tab.routeId)}
@@ -45,6 +45,6 @@
     icon={tab.icon}
     label={tab.label}
     active={$page.route.id === tab.routeId}
-    on:click={() => handleClick(tab.routeId)}
+    onclick={() => handleClick(tab.routeId)}
   />
 {/each}

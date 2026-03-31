@@ -30,7 +30,7 @@
           icon={settingItem.icon}
           label={settingItem.label}
           active={activeSettings === settingItem.label}
-          on:click={() => (activeSettings = settingItem.label)}
+          onclick={() => (activeSettings = settingItem.label)}
         />
       {/each}
     </div>
