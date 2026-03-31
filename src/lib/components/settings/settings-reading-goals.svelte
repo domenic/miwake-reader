@@ -40,7 +40,7 @@
   import { replicateData } from '$lib/functions/replication/replicator';
   import { isOnlineSourceAvailable, pluralize } from '$lib/functions/utils';
   import { getDateKey, secondsToMinutes } from '$lib/functions/statistic-util';
-  import { onMount, tick, untrack } from 'svelte';
+  import { onMount, tick } from 'svelte';
   import Fa from 'svelte-fa';
 
   interface Props {
@@ -73,9 +73,7 @@
   const itemsPerPage = 1;
 
   let availableSources = $derived(
-    untrack(() => storageSources).filter((source) =>
-      isOnlineSourceAvailable($isOnline$, source.type)
-    )
+    storageSources.filter((source) => isOnlineSourceAvailable($isOnline$, source.type))
   );
 
   let saveDisabled = $derived(
