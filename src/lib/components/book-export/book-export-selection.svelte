@@ -73,7 +73,7 @@
       value="audioBook"
       bind:group={dataToReplicate}
     />
-    <label for="bookstatistic">Audiobook</label>
+    <label for="audioBook">Audiobook</label>
   </div>
   <div>
     <input
@@ -83,6 +83,6 @@
       value="subtitle"
       bind:group={dataToReplicate}
     />
-    <label for="bookstatistic">Subtitles</label>
+    <label for="subtitle">Subtitles</label>
   </div>
 </div>
