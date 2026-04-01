@@ -170,7 +170,7 @@
     getWeightedAverage
   } from '$lib/functions/utils';
   import { onKeydownReader } from './on-keydown-reader';
-  import { onDestroy, onMount, tick } from 'svelte';
+  import { onDestroy, onMount, tick, untrack } from 'svelte';
   import Fa from 'svelte-fa';
   import {
     clearRange,
@@ -180,45 +180,45 @@
     pulseElement
   } from '$lib/functions/range-util';
 
-  let showSpinner = true;
-  let showHeader = false;
-  let isBookmarkScreen = false;
-  let showFooter = true;
-  let exploredCharCount = 0;
-  let bookCharCount = 0;
-  let autoScroller: AutoScroller | undefined;
-  let bookmarkManager: BookmarkManager | undefined;
-  let pageManager: PageManager | undefined;
-  let bookmarkData: Promise<BooksDbBookmarkData | undefined> = Promise.resolve(undefined);
-  let customReadingPointTop = -2;
-  let customReadingPointLeft = -2;
-  let customReadingPoint = $verticalMode$
-    ? $verticalCustomReadingPosition$
-    : $horizontalCustomReadingPosition$;
-  let customReadingPointScrollOffset = 0;
-  let customReadingPointRange: Range | undefined;
-  let lastSelectedRange: Range | undefined;
-  let lastSelectedRangeWasEmpty = true;
-  let isSelectingCustomReadingPoint = false;
-  let showCustomReadingPoint = false;
+  let showSpinner = $state(true);
+  let showHeader = $state(false);
+  let isBookmarkScreen = $state(false);
+  let showFooter = $state(true);
+  let exploredCharCount = $state(0);
+  let bookCharCount = $state(0);
+  let autoScroller: AutoScroller | undefined = $state();
+  let bookmarkManager: BookmarkManager | undefined = $state();
+  let pageManager: PageManager | undefined = $state();
+  let bookmarkData: Promise<BooksDbBookmarkData | undefined> = $state(Promise.resolve(undefined));
+  let customReadingPointTop = $state(-2);
+  let customReadingPointLeft = $state(-2);
+  let customReadingPoint = $state(
+    $verticalMode$ ? $verticalCustomReadingPosition$ : $horizontalCustomReadingPosition$
+  );
+  let customReadingPointScrollOffset = $state(0);
+  let customReadingPointRange: Range | undefined = $state();
+  let lastSelectedRange: Range | undefined = $state();
+  let lastSelectedRangeWasEmpty = $state(true);
+  let isSelectingCustomReadingPoint = $state(false);
+  let showCustomReadingPoint = $state(false);
   let localStorageHandler: BrowserStorageHandler;
-  let dataToReplicate: StorageDataType[] = [];
+  let dataToReplicate: StorageDataType[] = $state([]);
   let dataToReplicateQueue: StorageDataType[] = [];
-  let externalStorageHandler: BaseStorageHandler | undefined;
-  let externalStorageErrors = 0;
-  let isReplicating = false;
+  let externalStorageHandler: BaseStorageHandler | undefined = $state();
+  let externalStorageErrors = $state(0);
+  let isReplicating = $state(false);
   let storedExploredCharacter = 0;
-  let hasBookmarkData = false;
-  let blockDataUpdates = false;
-  let trackerElm: BookReadingTracker;
-  let showTrackerIcon = false;
-  let wasTrackerPaused = true;
-  let frozenPosition = -1;
-  let skipFirstFreezeChange = false;
-  let bookCompleted = false;
-  let confettiWidthModifier = 36;
-  let confettiMaxRuns = 0;
-  let showReaderImageGallery = false;
+  let hasBookmarkData = $state(false);
+  let blockDataUpdates = $state(false);
+  let trackerElm: BookReadingTracker = $state()!;
+  let showTrackerIcon = $state(false);
+  let wasTrackerPaused = $state(true);
+  let frozenPosition = $state(-1);
+  let skipFirstFreezeChange = $state(false);
+  let bookCompleted = $state(false);
+  let confettiWidthModifier = $state(36);
+  let confettiMaxRuns = $state(0);
+  let showReaderImageGallery = $state(false);
   let dismissDialogs = true;
   let syncedResolver: () => void;
 
@@ -488,67 +488,86 @@
     reduceToEmptyString()
   );
 
-  $: if ($tocIsOpen$) {
-    autoScroller?.off();
-  }
-
-  $: if (browser && bookCharCount) {
-    document.dispatchEvent(new CustomEvent(PAGE_CHANGE, { detail: { exploredCharCount } }));
-  }
-
-  $: if (browser) {
-    document.dispatchEvent(new CustomEvent(PAGE_CHANGE, { detail: { bookCharCount } }));
-  }
-
-  $: if (showCustomReadingPoint) {
-    pauseTracker();
-
-    pulseElement(customReadingPointRange?.endContainer?.parentElement, 'add', 1);
-
-    fromEvent(document, 'click')
-      .pipe(skip(1), take(1))
-      .subscribe(() => {
-        showCustomReadingPoint = false;
-        pulseElement(customReadingPointRange?.endContainer?.parentElement, 'remove', 1);
-        restartTrackerAfterCharacterChangeOrTime(1);
-      });
-  }
-
-  $: if (frozenPosition !== -1 && exploredCharCount >= frozenPosition) {
-    if (skipFirstFreezeChange) {
-      skipFirstFreezeChange = false;
-    } else {
-      frozenPosition = -1;
+  $effect(() => {
+    if ($tocIsOpen$) {
+      untrack(() => autoScroller?.off());
     }
-  }
+  });
 
-  $: isPaginated = $viewMode$ === ViewMode.Paginated;
+  $effect(() => {
+    if (browser && bookCharCount) {
+      document.dispatchEvent(new CustomEvent(PAGE_CHANGE, { detail: { exploredCharCount } }));
+    }
+  });
 
-  $: firstDimensionMargin =
+  $effect(() => {
+    if (browser) {
+      document.dispatchEvent(new CustomEvent(PAGE_CHANGE, { detail: { bookCharCount } }));
+    }
+  });
+
+  $effect(() => {
+    if (showCustomReadingPoint) {
+      untrack(() => {
+        pauseTracker();
+
+        pulseElement(customReadingPointRange?.endContainer?.parentElement, 'add', 1);
+
+        fromEvent(document, 'click')
+          .pipe(skip(1), take(1))
+          .subscribe(() => {
+            showCustomReadingPoint = false;
+            pulseElement(customReadingPointRange?.endContainer?.parentElement, 'remove', 1);
+            restartTrackerAfterCharacterChangeOrTime(1);
+          });
+      });
+    }
+  });
+
+  $effect(() => {
+    if (frozenPosition !== -1 && exploredCharCount >= frozenPosition) {
+      if (skipFirstFreezeChange) {
+        skipFirstFreezeChange = false;
+      } else {
+        frozenPosition = -1;
+      }
+    }
+  });
+
+  let isPaginated = $derived($viewMode$ === ViewMode.Paginated);
+
+  let firstDimensionMargin = $derived(
     browser && $enableTapEdgeToFlip$ && isPaginated && $verticalMode$
       ? limitToRange(convertRemToPixels(window, 0.5), window.innerWidth, $firstDimensionMargin$)
-      : ($firstDimensionMargin$ ?? 0);
+      : ($firstDimensionMargin$ ?? 0)
+  );
 
-  $: tapButtonHeight = `calc(100% - ${showHeader ? 5 : 4}rem)`;
+  let tapButtonHeight = $derived(`calc(100% - ${showHeader ? 5 : 4}rem)`);
 
-  $: tapButtonTop = `${showHeader ? 3 : 2}rem`;
+  let tapButtonTop = $derived(`${showHeader ? 3 : 2}rem`);
 
-  $: footerChapterProgress = getCurrentChapterProgress($sectionData$);
+  let footerChapterProgress = $derived(getCurrentChapterProgress($sectionData$));
 
-  $: upSyncEnabled =
+  let upSyncEnabled = $derived(
     externalStorageHandler &&
-    ($autoReplication$ === AutoReplicationType.Up || $autoReplication$ === AutoReplicationType.All);
+      ($autoReplication$ === AutoReplicationType.Up ||
+        $autoReplication$ === AutoReplicationType.All)
+  );
 
-  $: bookmarkData.then((data) => {
-    hasBookmarkData = !!data;
-    storedExploredCharacter = data?.exploredCharCount || 0;
+  $effect(() => {
+    bookmarkData.then((data) => {
+      hasBookmarkData = !!data;
+      storedExploredCharacter = data?.exploredCharCount || 0;
+    });
   });
 
   /** Experimental Code - May be removed any time without warning */
 
-  $: if (browser) {
-    document.dispatchEvent(new CustomEvent(SKIPKEYLISTENER, { detail: $skipKeyDownListener$ }));
-  }
+  $effect(() => {
+    if (browser) {
+      document.dispatchEvent(new CustomEvent(SKIPKEYLISTENER, { detail: $skipKeyDownListener$ }));
+    }
+  });
 
   onMount(() => document.addEventListener('ttu-action', handleAction, false));
 
@@ -1589,7 +1608,7 @@
 {#if showHeader}
   <div
     class="elevation-4 writing-horizontal-tb fixed inset-x-0 top-0 z-10 w-full"
-    transition:fly|local={{ y: -300, easing: quintInOut }}
+    transition:fly={{ y: -300, easing: quintInOut }}
     use:clickOutside={() => (showHeader = false)}
   >
     <BookReaderHeader
@@ -1603,7 +1622,7 @@
       showFullscreenButton={fullscreenManager.fullscreenEnabled}
       autoScrollMultiplier={$multiplier$}
       {hasBookmarkData}
-      bind:isBookmarkScreen
+      {isBookmarkScreen}
       ontocClick={() => {
         pauseTracker();
 
@@ -1727,18 +1746,18 @@
     autoBookmarkTime={$autoBookmarkTime$}
     multiplier={$multiplier$}
     bind:exploredCharCount
-    bind:bookCharCount
-    bind:isBookmarkScreen
-    bind:bookmarkData
-    bind:autoScroller
-    bind:bookmarkManager
-    bind:pageManager
-    bind:customReadingPoint
+    {bookmarkData}
+    {customReadingPoint}
     bind:customReadingPointTop
     bind:customReadingPointLeft
     bind:customReadingPointScrollOffset
     bind:customReadingPointRange
     bind:showCustomReadingPoint
+    onpagemanagerchange={(pm) => (pageManager = pm)}
+    onbookmarkmanagerchange={(bm) => (bookmarkManager = bm)}
+    onautoscrollerchange={(as) => (autoScroller = as)}
+    onbookcharcountchange={(count) => (bookCharCount = count)}
+    onisbookmarkscreenchange={(value) => (isBookmarkScreen = value)}
     onbookmark={bookmarkPage}
     ontrackerPause={() => pauseTracker(true)}
   />
@@ -1751,7 +1770,7 @@
     class="writing-horizontal-tb fixed top-0 left-0 z-[60] flex h-full w-full max-w-xl flex-col justify-between"
     style:color={$themeOption$?.fontColor}
     style:background-color={$backgroundColor$}
-    in:fly|local={{ x: -100, duration: 100, easing: quintInOut }}
+    in:fly={{ x: -100, duration: 100, easing: quintInOut }}
     use:clickOutside={() => {
       if ($statisticsEnabled$ && !wasTrackerPaused) {
         isTrackerPaused$.next(false);

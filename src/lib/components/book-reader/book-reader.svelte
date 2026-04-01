@@ -63,19 +63,19 @@
     autoBookmarkTime: number;
     viewMode: ViewMode;
     exploredCharCount: number;
-    bookCharCount: number;
     multiplier: number;
     bookmarkData: Promise<BooksDbBookmarkData | undefined>;
-    autoScroller: AutoScroller | undefined;
-    bookmarkManager: BookmarkManager | undefined;
-    pageManager: PageManager | undefined;
-    isBookmarkScreen: boolean;
     customReadingPoint: number;
     customReadingPointTop: number;
     customReadingPointLeft: number;
     customReadingPointScrollOffset: number;
     customReadingPointRange: Range | undefined;
     showCustomReadingPoint: boolean;
+    onpagemanagerchange?: (pm: PageManager | undefined) => void;
+    onbookmarkmanagerchange?: (bm: BookmarkManager | undefined) => void;
+    onautoscrollerchange?: (as: AutoScroller | undefined) => void;
+    onbookcharcountchange?: (count: number) => void;
+    onisbookmarkscreenchange?: (value: boolean) => void;
     onbookmark?: () => void;
     ontrackerPause?: () => void;
   }
@@ -112,19 +112,19 @@
     autoBookmarkTime,
     viewMode,
     exploredCharCount = $bindable(),
-    bookCharCount = $bindable(),
     multiplier,
-    bookmarkData = $bindable(),
-    autoScroller = $bindable(),
-    bookmarkManager = $bindable(),
-    pageManager = $bindable(),
-    isBookmarkScreen = $bindable(),
-    customReadingPoint = $bindable(),
+    bookmarkData,
+    customReadingPoint,
     customReadingPointTop = $bindable(),
     customReadingPointLeft = $bindable(),
     customReadingPointScrollOffset = $bindable(),
     customReadingPointRange = $bindable(),
     showCustomReadingPoint = $bindable(),
+    onpagemanagerchange,
+    onbookmarkmanagerchange,
+    onautoscrollerchange,
+    onbookcharcountchange,
+    onisbookmarkscreenchange,
     onbookmark,
     ontrackerPause
   }: Props = $props();
@@ -330,19 +330,19 @@
       {autoBookmarkTime}
       {multiplier}
       loadingState={$imageLoadingState$ ?? true}
+      {bookmarkData}
+      {customReadingPoint}
       bind:exploredCharCount
-      bind:bookCharCount
-      bind:bookmarkData
-      bind:autoScroller
-      bind:bookmarkManager
-      bind:pageManager
-      bind:customReadingPoint
       bind:customReadingPointTop
       bind:customReadingPointLeft
       bind:customReadingPointScrollOffset
-      on:contentChange={(ev) => contentEl$.next(ev.detail)}
-      on:bookmark={() => onbookmark?.()}
-      on:trackerPause={() => ontrackerPause?.()}
+      {onpagemanagerchange}
+      {onbookmarkmanagerchange}
+      {onautoscrollerchange}
+      {onbookcharcountchange}
+      oncontentchange={(el) => contentEl$.next(el)}
+      onbookmark
+      ontrackerPause
     />
   {:else}
     <BookReaderPaginated
@@ -374,17 +374,17 @@
       {autoBookmark}
       {autoBookmarkTime}
       {firstDimensionMargin}
+      {bookmarkData}
       bind:exploredCharCount
-      bind:bookCharCount
-      bind:isBookmarkScreen
-      bind:bookmarkData
-      bind:bookmarkManager
-      bind:pageManager
       bind:customReadingPointRange
       bind:showCustomReadingPoint
-      on:contentChange={(ev) => contentEl$.next(ev.detail)}
-      on:bookmark={() => onbookmark?.()}
-      on:trackerPause={() => ontrackerPause?.()}
+      {onpagemanagerchange}
+      {onbookmarkmanagerchange}
+      {onbookcharcountchange}
+      {onisbookmarkscreenchange}
+      oncontentchange={(el) => contentEl$.next(el)}
+      onbookmark
+      ontrackerPause
     />
   {/if}
 </div>

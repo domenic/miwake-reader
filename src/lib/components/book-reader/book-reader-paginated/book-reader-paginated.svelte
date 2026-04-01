@@ -1,7 +1,6 @@
 <script lang="ts">
   import { browser } from '$app/environment';
   import { nextChapter$ } from '$lib/components/book-reader/book-toc/book-toc';
-  import HtmlRenderer from '$lib/components/html-renderer.svelte';
   import type { BooksDbBookmarkData } from '$lib/data/database/books-db/versions/books-db';
   import { SECTION_CHANGE } from '$lib/data/events';
   import { isStoredFont } from '$lib/data/fonts';
@@ -40,121 +39,127 @@
   import { BookmarkManagerPaginated } from './bookmark-manager-paginated';
   import { PageManagerPaginated } from './page-manager-paginated';
   import { SectionCharacterStatsCalculator } from './section-character-stats-calculator';
-  import { createEventDispatcher, onDestroy, onMount } from 'svelte';
+  import { onDestroy, onMount, untrack } from 'svelte';
 
-  export let htmlContent: string;
+  interface Props {
+    htmlContent: string;
+    width: number;
+    height: number;
+    verticalMode: boolean;
+    fontFeatureSettings: string;
+    verticalTextOrientation: string;
+    prioritizeReaderStyles: boolean;
+    enableTextJustification: boolean;
+    enableTextWrapPretty: boolean;
+    fontColor: string;
+    backgroundColor: string;
+    hintFuriganaFontColor: string;
+    hintFuriganaShadowColor: string;
+    fontFamilyGroupOne: string;
+    fontFamilyGroupTwo: string;
+    fontSize: number;
+    lineHeight: number;
+    textIndentation: number;
+    textMarginValue: number;
+    hideSpoilerImage: boolean;
+    hideFurigana: boolean;
+    furiganaStyle: FuriganaStyle;
+    loadingState: boolean;
+    bookmarkData: Promise<BooksDbBookmarkData | undefined>;
+    avoidPageBreak?: boolean;
+    pageColumns: number;
+    firstDimensionMargin: number;
+    autoBookmark?: boolean;
+    autoBookmarkTime: number;
+    exploredCharCount?: number;
+    customReadingPointRange?: Range | undefined;
+    showCustomReadingPoint?: boolean;
+    onpagemanagerchange?: (pm: PageManager) => void;
+    onbookmarkmanagerchange?: (bm: BookmarkManager) => void;
+    onbookcharcountchange?: (count: number) => void;
+    onisbookmarkscreenchange?: (value: boolean) => void;
+    onbookmark?: () => void;
+    oncontentchange?: (el: HTMLElement) => void;
+    ontrackerPause?: () => void;
+  }
 
-  export let width: number;
+  let {
+    htmlContent,
+    width,
+    height,
+    verticalMode,
+    fontFeatureSettings,
+    verticalTextOrientation,
+    prioritizeReaderStyles,
+    enableTextJustification,
+    enableTextWrapPretty,
+    fontColor,
+    backgroundColor,
+    hintFuriganaFontColor,
+    hintFuriganaShadowColor,
+    fontFamilyGroupOne,
+    fontFamilyGroupTwo,
+    fontSize,
+    lineHeight,
+    textIndentation,
+    textMarginValue,
+    hideSpoilerImage,
+    hideFurigana,
+    furiganaStyle,
+    loadingState,
+    bookmarkData,
+    avoidPageBreak = true,
+    pageColumns,
+    firstDimensionMargin,
+    autoBookmark = false,
+    autoBookmarkTime,
+    exploredCharCount = $bindable(0),
+    customReadingPointRange = $bindable(),
+    showCustomReadingPoint = $bindable(false),
+    onpagemanagerchange,
+    onbookmarkmanagerchange,
+    onbookcharcountchange,
+    onisbookmarkscreenchange,
+    onbookmark,
+    oncontentchange,
+    ontrackerPause
+  }: Props = $props();
 
-  export let height: number;
+  let scrollEl: HTMLElement | undefined = $state();
 
-  export let verticalMode: boolean;
+  let contentEl: HTMLElement | undefined = $state();
 
-  export let fontFeatureSettings: string;
+  let calculator: SectionCharacterStatsCalculator | undefined = $state();
 
-  export let verticalTextOrientation: string;
+  let sections: Element[] = $state([]);
 
-  export let prioritizeReaderStyles: boolean;
+  let concretePageManager: PageManagerPaginated | undefined = $state();
 
-  export let enableTextJustification: boolean;
+  let concreteBookmarkManager: BookmarkManagerPaginated | undefined = $state();
 
-  export let enableTextWrapPretty: boolean;
+  let scrollWhenReady: boolean = $state(false);
 
-  export let fontColor: string;
+  let allowDisplay = $state(false);
 
-  export let backgroundColor: string;
-
-  export let hintFuriganaFontColor: string;
-
-  export let hintFuriganaShadowColor: string;
-
-  export let fontFamilyGroupOne: string;
-
-  export let fontFamilyGroupTwo: string;
-
-  export let fontSize: number;
-
-  export let lineHeight: number;
-
-  export let textIndentation: number;
-
-  export let textMarginValue: number;
-
-  export let hideSpoilerImage: boolean;
-
-  export let hideFurigana: boolean;
-
-  export let furiganaStyle: FuriganaStyle;
-
-  export let loadingState: boolean;
-
-  export let bookmarkData: Promise<BooksDbBookmarkData | undefined>;
-
-  export let pageManager: PageManager | undefined;
-
-  export let bookmarkManager: BookmarkManager | undefined;
-
-  export let exploredCharCount: number;
-
-  export let bookCharCount: number;
-
-  export let isBookmarkScreen = false;
-
-  export let avoidPageBreak = true;
-
-  export let pageColumns: number;
-
-  export let firstDimensionMargin: number;
-
-  export let autoBookmark = false;
-
-  export let autoBookmarkTime: number;
-
-  export let customReadingPointRange: Range | undefined;
-
-  export let showCustomReadingPoint: boolean;
-
-  const dispatch = createEventDispatcher<{
-    bookmark: void;
-    contentChange: HTMLElement;
-    trackerPause: void;
-  }>();
-
-  let scrollEl: HTMLElement | undefined;
-
-  let contentEl: HTMLElement | undefined;
-
-  let calculator: SectionCharacterStatsCalculator | undefined;
-
-  let sections: Element[] = [];
-
-  let concretePageManager: PageManagerPaginated | undefined;
-
-  let concreteBookmarkManager: BookmarkManagerPaginated | undefined;
-
-  let scrollWhenReady: boolean;
-
-  let allowDisplay = false;
-
-  let displayedHtml = '';
-
-  let skipFirstHtmlLoad = true;
+  let displayedHtml = $state('');
 
   let previousIntendedCount = 0;
 
   let useExploredCharCount = false;
 
-  let isResizing = false;
+  let isResizing = $state(false);
 
-  let bookmarkTopAdjustment: string | undefined;
+  let isBookmarkScreen = $state(false);
 
-  let bookmarkLeftAdjustment: string | undefined;
+  let bookmarkTopAdjustment: string | undefined = $state();
 
-  let bookmarkRightAdjustment: string | undefined;
+  let bookmarkLeftAdjustment: string | undefined = $state();
+
+  let bookmarkRightAdjustment: string | undefined = $state();
 
   let fontLoadingAdded = false;
 
-  let currentSectionId = '';
+  let currentSectionId = $state('');
 
   const width$ = new Subject<number>();
 
@@ -178,61 +183,102 @@
 
   const destroy$ = new Subject<void>();
 
-  $: bookmarkData.then((data) => {
-    useExploredCharCount = false;
-    updateBookmarkScreen(data);
+  let columnCount = $derived(verticalMode ? 1 : pageColumns || Math.ceil(width / 1000));
+
+  // bookmarkData: when it changes, reset useExploredCharCount and update bookmark screen
+  $effect(() => {
+    bookmarkData.then((data) => {
+      useExploredCharCount = false;
+      updateBookmarkScreen(data);
+    });
   });
 
-  $: if (width) width$.next(width);
+  // Push width/height changes to RxJS subjects
+  $effect(() => {
+    if (width) width$.next(width);
+  });
 
-  $: if (height) height$.next(height);
+  $effect(() => {
+    if (height) height$.next(height);
+  });
 
-  $: columnCount = verticalMode ? 1 : pageColumns || Math.ceil(width / 1000);
-
-  $: {
+  // When htmlContent changes, set scrollWhenReady
+  $effect(() => {
     if (htmlContent) {
       scrollWhenReady = true;
     }
-  }
+  });
 
-  $: {
-    if (browser) {
+  // Initialize content when displayedHtml changes (section navigation).
+  // Skip only the initial empty state (before any section loads); after that,
+  // process all sections including empty ones (blank spine items / separators).
+  let contentInitialized = false;
+  $effect(() => {
+    const html = displayedHtml; // always read to keep dependency tracked
+    if (!contentInitialized && !html) return;
+    contentInitialized = true;
+    untrack(() => initContent(scrollEl!));
+  });
+
+  // When htmlContent changes, parse sections and reset sectionIndex
+  $effect(() => {
+    if (browser && htmlContent) {
       const tempContainer = document.createElement('div');
       tempContainer.innerHTML = htmlContent;
       sections = Array.from(tempContainer.children);
-      sectionIndex$.next(0);
+      // untrack because sectionIndex$.next() synchronously triggers currentSection$
+      // subscribers that write to $state (allowDisplay)
+      untrack(() => sectionIndex$.next(0));
     }
-  }
+  });
 
-  $: {
-    if (contentEl && scrollEl && sections) {
-      concretePageManager = new PageManagerPaginated(
-        contentEl,
-        scrollEl,
-        sections,
-        sectionIndex$,
-        virtualScrollPos$,
-        width,
-        height,
-        gap,
-        verticalMode,
-        pageChange$,
-        sectionRenderComplete$
-      );
-      pageManager = concretePageManager;
+  // Create/recreate PageManager and BookmarkManager when dependencies change
+  $effect(() => {
+    if (contentEl && scrollEl && sections && calculator) {
+      // Read tracked deps
+      const w = width;
+      const h = height;
+      const vm = verticalMode;
+      untrack(() => {
+        concretePageManager = new PageManagerPaginated(
+          contentEl,
+          scrollEl,
+          sections,
+          sectionIndex$,
+          virtualScrollPos$,
+          w,
+          h,
+          gap,
+          vm,
+          pageChange$,
+          sectionRenderComplete$
+        );
+        onpagemanagerchange?.(concretePageManager);
+
+        concreteBookmarkManager = new BookmarkManagerPaginated(
+          calculator,
+          concretePageManager,
+          sectionReady$,
+          sectionIndex$,
+          (c) => (previousIntendedCount = c)
+        );
+        onbookmarkmanagerchange?.(concreteBookmarkManager);
+      });
     }
-  }
+  });
 
-  $: {
+  // On content display change
+  $effect(() => {
     if (calculator && width && height && !loadingState) {
       const c = calculator;
       requestAnimationFrame(() => {
         onContentDisplayChange(c);
       });
     }
-  }
+  });
 
-  $: {
+  // Fire sectionRenderComplete when calculator is ready and not loading
+  $effect(() => {
     if (calculator && !loadingState) {
       const sectionIndex = sectionIndex$.getValue();
       const section = sections[sectionIndex];
@@ -241,27 +287,20 @@
 
       sectionRenderComplete$.next(sectionIndex);
     }
-  }
+  });
 
-  $: {
-    if (calculator && concretePageManager) {
-      concreteBookmarkManager = new BookmarkManagerPaginated(
-        calculator,
-        concretePageManager,
-        sectionReady$,
-        sectionIndex$,
-        (c) => (previousIntendedCount = c)
-      );
-      bookmarkManager = concreteBookmarkManager;
+  // Add overflow-hidden class to body
+  $effect(() => {
+    if (browser) {
+      // because Yomitan popup creates overflow on vertical-rl
+      document.body.classList.add(cssClassOverflowHidden);
     }
-  }
+  });
 
-  $: if (browser) {
-    // because Yomitan popup creates overflow on vertical-rl
-    document.body.classList.add(cssClassOverflowHidden);
-  }
-
-  $: updateAfterCustomReadingPointUpdate(customReadingPointRange);
+  // React to customReadingPointRange changes
+  $effect(() => {
+    updateAfterCustomReadingPointUpdate(customReadingPointRange);
+  });
 
   /** Experimental Code - May be removed any time without warning */
   onMount(() => document.addEventListener('ttu-action', handleAction, false));
@@ -310,7 +349,7 @@
       }
 
       if (targetSection !== sectionIndex$.getValue()) {
-        dispatch('trackerPause');
+        ontrackerPause?.();
         return;
       }
 
@@ -325,7 +364,7 @@
       );
 
       if (scrollPos !== currentScrollPos) {
-        dispatch('trackerPause');
+        ontrackerPause?.();
       }
     }
   }
@@ -426,7 +465,7 @@
       .pipe(debounceTime(autoBookmarkTime * 1000), takeUntil(destroy$))
       .subscribe((isUser) => {
         if (isUser) {
-          dispatch('bookmark');
+          onbookmark?.();
         }
       });
   }
@@ -485,27 +524,21 @@
     );
   }
 
-  function onHtmlLoad() {
-    if (skipFirstHtmlLoad) {
-      skipFirstHtmlLoad = false;
-      return;
-    }
-    if (!scrollEl) return;
-
+  function initContent(el: HTMLElement) {
     calculator = new SectionCharacterStatsCalculator(
-      scrollEl,
+      el,
       sections,
       virtualScrollPos$,
       () => width,
       () => height,
       () => gap,
       verticalMode,
-      scrollEl,
+      el,
       document
     );
     exploredCharCount = 0;
     previousIntendedCount = 0;
-    bookCharCount = calculator.charCount;
+    onbookcharcountchange?.(calculator.charCount);
 
     let fontLoaded = false;
 
@@ -538,7 +571,7 @@
     if (!calculator || !scrollEl) return;
 
     calculator.updateCurrentSection(sectionIndex$.getValue());
-    dispatch('contentChange', scrollEl);
+    oncontentchange?.(scrollEl);
   }
 
   function onContentDisplayChange(_calculator: SectionCharacterStatsCalculator) {
@@ -549,9 +582,9 @@
     if (scrollWhenReady) {
       scrollWhenReady = false;
       bookmarkData.then((data) => {
-        if (!data || !bookmarkManager) return;
+        if (!data || !concreteBookmarkManager) return;
         exploredCharCount = data.exploredCharCount || 0;
-        bookmarkManager.scrollToBookmark(data);
+        concreteBookmarkManager.scrollToBookmark(data);
       });
     } else {
       bookmarkData.then(updateBookmarkScreen);
@@ -601,6 +634,7 @@
 
     useExploredCharCount = true;
     isBookmarkScreen = result.isBookmarkScreen;
+    onisbookmarkscreenchange?.(result.isBookmarkScreen);
   }
 
   function setDefaultBookmarkPositions(dimensionAdjustment: number) {
@@ -720,7 +754,7 @@
   on:swipe={onSwipe}
 >
   <div class="book-content-container" id={currentSectionId || null} bind:this={contentEl}>
-    <HtmlRenderer html={displayedHtml} onload={onHtmlLoad} />
+    {@html displayedHtml}
   </div>
 </div>
 
@@ -746,7 +780,7 @@
   </div>
 {/if}
 
-<svelte:window on:keydown={onKeydown} on:resize={() => (isResizing = true)} />
+<svelte:window onkeydown={onKeydown} onresize={() => (isResizing = true)} />
 
 <style>
   @import '../styles.css';
