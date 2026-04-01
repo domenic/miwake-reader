@@ -263,8 +263,7 @@
   );
 
   let isLoading = $state(true);
-  let today = $state(getStartHoursDate($startDayHoursForTracker$));
-  let todayKey = $state(getDateString(today));
+  let todayKey = $state(getDateString(getStartHoursDate($startDayHoursForTracker$)));
   let statisticsTitleFilters = $state(new Map<string, boolean>());
   let titlesInStatisticsDateRange = $state(new Set<string>());
   let statisticsData: BookStatistic[] = $state([]);
@@ -282,9 +281,7 @@
       $lastStatisticsStartDate$ &&
       $lastStatisticsEndDate$
     ) {
-      const newToday = getStartHoursDate($startDayHoursForTracker$);
-      today = newToday;
-      todayKey = getDateString(newToday);
+      todayKey = getDateString(getStartHoursDate($startDayHoursForTracker$));
 
       untrack(() => updateStatisticsData());
     }

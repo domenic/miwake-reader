@@ -341,8 +341,8 @@
       {onautoscrollerchange}
       {onbookcharcountchange}
       oncontentchange={(el) => contentEl$.next(el)}
-      onbookmark
-      ontrackerPause
+      {onbookmark}
+      {ontrackerPause}
     />
   {:else}
     <BookReaderPaginated
@@ -383,8 +383,8 @@
       {onbookcharcountchange}
       {onisbookmarkscreenchange}
       oncontentchange={(el) => contentEl$.next(el)}
-      onbookmark
-      ontrackerPause
+      {onbookmark}
+      {ontrackerPause}
     />
   {/if}
 </div>

@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
   import { browser } from '$app/environment';
-  import { page } from '$app/stores';
+  import { page } from '$app/state';
   import DomainHint from '$lib/components/domain-hint.svelte';
   import { basePath, clearConsoleOnReload } from '$lib/data/env';
   import { dialogManager, type Dialog } from '$lib/data/dialog-manager';
@@ -90,7 +90,9 @@
     dialogs = d;
   });
 
-  page.subscribe((p) => (path = p.url.pathname));
+  $effect(() => {
+    path = page.url.pathname;
+  });
 </script>
 
 <svelte:window bind:online={$isOnline$} />

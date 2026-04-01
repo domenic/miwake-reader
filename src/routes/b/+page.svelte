@@ -1,6 +1,7 @@
 <script lang="ts">
   import {
     auditTime,
+    BehaviorSubject,
     debounceTime,
     EMPTY,
     filter,
@@ -22,7 +23,7 @@
   import { quintInOut } from 'svelte/easing';
   import { fly } from 'svelte/transition';
   import { browser } from '$app/environment';
-  import { page } from '$app/stores';
+  import { page } from '$app/state';
   import { goto } from '$app/navigation';
   import { faCloudBolt, faPause, faPlay, faSpinner } from '@fortawesome/free-solid-svg-icons';
   import BookReader from '$lib/components/book-reader/book-reader.svelte';
@@ -151,7 +152,6 @@
     ReplicationSaveBehavior
   } from '$lib/functions/replication/replication-options';
   import { replicateData } from '$lib/functions/replication/replicator';
-  import { readableToObservable } from '$lib/functions/rxjs/readable-to-observable';
   import { reduceToEmptyString } from '$lib/functions/rxjs/reduce-to-empty-string';
   import { takeWhenBrowser } from '$lib/functions/rxjs/take-when-browser';
   import { tapDom } from '$lib/functions/rxjs/tap-dom';
@@ -234,10 +234,13 @@
     .join(', ');
   const verticalTextOrientation = $verticalMode$ ? $verticalTextOrientation$ : '';
 
-  const bookId$ = iffBrowser(() => readableToObservable(page)).pipe(
-    map((pageObj) => Number(pageObj.url.searchParams.get('id'))),
-    shareReplay({ refCount: true, bufferSize: 1 })
-  );
+  const bookId$ = iffBrowser(() => {
+    const subject = new BehaviorSubject(Number(page.url.searchParams.get('id')));
+    $effect(() => {
+      subject.next(Number(page.url.searchParams.get('id')));
+    });
+    return subject;
+  }).pipe(shareReplay({ refCount: true, bufferSize: 1 }));
 
   const rawBookData$ = bookId$.pipe(
     switchMap(async (id) => {

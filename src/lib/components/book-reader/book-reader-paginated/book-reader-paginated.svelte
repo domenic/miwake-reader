@@ -460,14 +460,13 @@
     });
   });
 
-  if (autoBookmark) {
-    pageChange$
-      .pipe(debounceTime(autoBookmarkTime * 1000), takeUntil(destroy$))
-      .subscribe((isUser) => {
-        if (isUser) {
-          onbookmark?.();
-        }
-      });
+  if (untrack(() => autoBookmark)) {
+    const bookmarkTime = untrack(() => autoBookmarkTime);
+    pageChange$.pipe(debounceTime(bookmarkTime * 1000), takeUntil(destroy$)).subscribe((isUser) => {
+      if (isUser) {
+        onbookmark?.();
+      }
+    });
   }
 
   currentSection$.pipe(distinctUntilChanged(), takeUntil(destroy$)).subscribe(() => {
