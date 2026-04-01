@@ -338,7 +338,6 @@
     logger.clearHistory();
 
     cancelToken = new AbortController();
-    cancelSignal = cancelToken.signal;
   }
 
   function resetProgress() {

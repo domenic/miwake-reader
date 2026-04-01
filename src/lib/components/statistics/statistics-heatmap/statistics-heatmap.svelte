@@ -70,8 +70,8 @@
     statisticsTitleFilters
   }: Props = $props();
 
-  const today = getStartHoursDate($startDayHoursForTracker$);
-  const todayKey = getDateString(today);
+  let today = $derived(getStartHoursDate($startDayHoursForTracker$));
+  let todayKey = $derived(getDateString(today));
 
   const resizeHandler$ = fromEvent(window, 'resize').pipe(
     debounceTime(250),
@@ -85,7 +85,7 @@
   let heatmapDetailDataPopover: Popover = $state()!;
   let monthLabels: HeatmapMonthLabel[] = $state([...monthLabelList]);
   let dayElementSize = $state(heatmapDayElementSize);
-  let heatmapYear = $state(today.getFullYear());
+  let heatmapYear = $state(getStartHoursDate($startDayHoursForTracker$).getFullYear());
   let globalHeatmapData: StatisticsHeatmapData | ReadingGoalsHeatmapData = $state()!;
   const globalHeatmapDayData = new Map<
     string,

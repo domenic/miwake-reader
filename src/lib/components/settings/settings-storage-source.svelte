@@ -303,7 +303,7 @@
         <input id="cbx-source" type="checkbox" bind:checked={storageSourceIsSyncTarget} />
         <label for="cbx-source" class="ml-2 mr-6">Is Sync Target</label>
         <input id="cbx-manager" type="checkbox" bind:checked={storageSourceIsSourceDefault} />
-        <label for="cbx-source" class="ml-2">Is Source Default</label>
+        <label for="cbx-manager" class="ml-2">Is Source Default</label>
       </div>
       <select
         class="my-4"

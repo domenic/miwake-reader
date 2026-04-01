@@ -214,10 +214,11 @@
   // process all sections including empty ones (blank spine items / separators).
   let contentInitialized = false;
   $effect(() => {
-    const html = displayedHtml; // always read to keep dependency tracked
-    if (!contentInitialized && !html) return;
+    const html = displayedHtml;
+    const el = scrollEl;
+    if ((!contentInitialized && !html) || !el) return;
     contentInitialized = true;
-    untrack(() => initContent(scrollEl!));
+    untrack(() => initContent(el));
   });
 
   // When htmlContent changes, parse sections and reset sectionIndex
