@@ -191,7 +191,7 @@
 {$resizeHandler$ ?? ''}
 <div class="flex items-center p-4">
   <button
-    title="Close Title Filter"
+    title="Close title filter"
     class="flex items-end md:items-center"
     onclick={() => onclose?.()}
   >
@@ -208,7 +208,7 @@
   />
   <div class="flex justify-between mt-6 text-2xl">
     <button
-      title="Apply Filter"
+      title="Apply filter"
       class="hover:text-red-500"
       onclick={() => {
         onapplyFilter?.(titlesToFilter);
@@ -217,10 +217,10 @@
     >
       <Fa icon={faCircleCheck} />
     </button>
-    <button title="Select All" class="hover:text-red-500" onclick={() => handleSelectAll(true)}>
+    <button title="Select all" class="hover:text-red-500" onclick={() => handleSelectAll(true)}>
       <Fa icon={faListCheck} />
     </button>
-    <button title="Remove All" class="hover:text-red-500" onclick={() => handleSelectAll(false)}>
+    <button title="Remove all" class="hover:text-red-500" onclick={() => handleSelectAll(false)}>
       <Fa icon={faList} />
     </button>
     <button
@@ -245,7 +245,7 @@
     </button>
     {#if $preFilteredTitlesForStatistics$.size}
       <button
-        title="Remove Prefilter"
+        title="Remove prefilter"
         class="hover:text-red-500"
         onclick={() => onclearPrefilter?.()}
       >

@@ -2,7 +2,7 @@
   import { goto } from '$app/navigation';
   import { page } from '$app/state';
   import { faBookOpen, faChartLine, faCog, faSignOutAlt } from '@fortawesome/free-solid-svg-icons';
-  import HeaderTab from '$lib/components/header-tab.svelte';
+  import HeaderButton from '$lib/components/header-button.svelte';
   import { pagePath } from '$lib/data/env';
   import { database } from '$lib/data/store';
   import { map, share } from 'rxjs';
@@ -35,18 +35,20 @@
 </script>
 
 {#if $currentBookId$}
-  <HeaderTab
-    icon={faBookOpen}
+  <HeaderButton
+    faIcon={faBookOpen}
     label="Book"
-    active={page.route.id === '/b'}
+    selected={page.route.id === '/b'}
+    variant="tab"
     onclick={() => handleClick('/b', `?id=${$currentBookId$}`)}
   />
 {/if}
 {#each tabs as tab (tab.routeId)}
-  <HeaderTab
-    icon={tab.icon}
+  <HeaderButton
+    faIcon={tab.icon}
     label={tab.label}
-    active={page.route.id === tab.routeId}
+    selected={page.route.id === tab.routeId}
+    variant="tab"
     onclick={() => handleClick(tab.routeId)}
   />
 {/each}

@@ -145,7 +145,7 @@
       style:background-color={backgroundColor}
     >
       <button
-        title="Close Image Gallery"
+        title="Close image gallery"
         class="flex items-end md:items-center"
         onclick={closeReaderImageGallery}
       >
@@ -196,7 +196,7 @@
       {@const showSpoiler = $hideSpoilerImage$ && !selectedImage.unspoilered}
       <div class="flex flex-1">
         <button
-          title="Previous Image"
+          title="Previous image"
           class="mx-4 text-5xl hover:text-red-500"
           class:invisible={!selectedImageIndex}
           onclick={previousImage}
@@ -217,7 +217,7 @@
           {/if}
         </div>
         <button
-          title="Next Image"
+          title="Next image"
           class="mx-4 text-5xl hover:text-red-500"
           class:invisible={selectedImageIndex === $readerImageGalleryPictures$.length - 1}
           onclick={nextImage}

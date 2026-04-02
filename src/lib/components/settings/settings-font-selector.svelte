@@ -17,7 +17,7 @@
 
 <Popover bind:this={element} placement="bottom">
   {#snippet icon()}
-    <div class="mx-2" title="Show available default Fonts">
+    <div class="mx-2" title="Show available default fonts">
       <Fa icon={faFont} />
     </div>
   {/snippet}

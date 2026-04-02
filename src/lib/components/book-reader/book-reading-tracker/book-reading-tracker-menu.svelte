@@ -228,7 +228,7 @@
   <div
     tabindex="0"
     role="button"
-    title="Close Tracker Menu"
+    title="Close tracker menu"
     class="flex items-center hover:text-red-500 md:items-center"
     onclick={() => ontrackermenuclosed?.()}
     onkeyup={dummyFn}
@@ -423,14 +423,14 @@
               </div>
               <div class="flex">
                 <button
-                  title="Revert Item"
+                  title="Revert item"
                   class="hover:text-red-500"
                   onclick={() => onrevertstatistic?.(trackingHistoryItem)}
                 >
                   <Fa icon={faTrash} />
                 </button>
                 <div
-                  title="Item saved to Database"
+                  title="Item saved to database"
                   class="ml-4 cursor-not-allowed"
                   class:text-green-500={trackingHistoryItem.saved}
                 >

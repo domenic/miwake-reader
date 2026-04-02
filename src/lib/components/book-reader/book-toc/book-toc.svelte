@@ -140,7 +140,7 @@
   <div
     tabindex="0"
     role="button"
-    title="Close Table of Contents"
+    title="Close table of contents"
     class="flex items-end md:items-center"
     onclick={closeTocMenu}
     onkeyup={dummyFn}

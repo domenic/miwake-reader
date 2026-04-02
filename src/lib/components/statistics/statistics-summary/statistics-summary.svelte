@@ -360,7 +360,7 @@
         hasRowInEdit={rowInEdit !== undefined}
         isHidden={isTitleAggregation}
         gridRow={renderFullStatisticsSummaryTable ? undefined : 2}
-        title="Click to select/sort by this Attribute"
+        title="Click to select/sort by this attribute"
         onpropertyChange={handlePropertyChange}
       />
       <StatisticsSummaryHeader
@@ -370,7 +370,7 @@
         hasRowInEdit={rowInEdit !== undefined}
         isHidden={isDateAggregation}
         gridRow={renderFullStatisticsSummaryTable ? undefined : 3 - statisticsSummaryGridRowMod}
-        title="Click to select/sort by this Attribute"
+        title="Click to select/sort by this attribute"
         onpropertyChange={handlePropertyChange}
       />
       <StatisticsSummaryHeader

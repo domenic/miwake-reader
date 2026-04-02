@@ -1,7 +1,7 @@
 <script lang="ts">
   import { faBookOpenReader, faClock, faDatabase } from '@fortawesome/free-solid-svg-icons';
+  import HeaderButton from '$lib/components/header-button.svelte';
   import HeaderNavTabs from '$lib/components/header-nav-tabs.svelte';
-  import HeaderTab from '$lib/components/header-tab.svelte';
   import { baseHeaderClasses, pxScreen } from '$lib/css-classes';
 
   interface Props {
@@ -27,13 +27,14 @@
 </script>
 
 <div class={baseHeaderClasses}>
-  <div class="{pxScreen} flex justify-between px-0 md:px-5">
-    <div class="flex xl:h-10">
+  <div class="{pxScreen} flex h-full justify-between px-0 md:px-5">
+    <div class="flex">
       {#each settingItems as settingItem (settingItem.label)}
-        <HeaderTab
-          icon={settingItem.icon}
+        <HeaderButton
+          faIcon={settingItem.icon}
           label={settingItem.label}
-          active={activeSettings === settingItem.label}
+          selected={activeSettings === settingItem.label}
+          variant="tab"
           onclick={() => (activeSettings = settingItem.label)}
         />
       {/each}

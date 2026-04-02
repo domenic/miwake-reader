@@ -118,7 +118,7 @@
                   <div
                     tabindex="0"
                     role="button"
-                    title="Click to select Font"
+                    title="Click to select font"
                     class="hover:text-blue-700"
                     onclick={() => selectFont(userFont.name)}
                     onkeyup={dummyFn}
@@ -128,7 +128,7 @@
                   <div
                     tabindex="0"
                     role="button"
-                    title="Click to select Font"
+                    title="Click to select font"
                     class="hover:text-blue-700"
                     onclick={() => selectFont(userFont.name)}
                     onkeyup={dummyFn}
@@ -138,7 +138,7 @@
                   <div
                     tabindex="0"
                     role="button"
-                    title="Remove Font"
+                    title="Remove font"
                     class="hover:text-blue-700"
                     onclick={() => removeFont(userFont.path)}
                     onkeyup={dummyFn}

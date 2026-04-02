@@ -425,7 +425,7 @@
         onclick={() => deleteReadingGoals()}
       >
         <div
-          title="Delete all Reading Goals"
+          title="Delete all reading goals"
           class="flex items-center justify-center hover:opacity-50"
           class:cursor-not-allowed={!readingGoals.length}
         >
@@ -498,7 +498,7 @@
           <div>{historyGoal.goalFrequency}</div>
           <button
             onclick={() => deleteReadingGoals(historyGoal, dateRangeLabel)}
-            title="Delete Reading Goal"
+            title="Delete reading goal"
           >
             <Fa icon={faTrash} />
           </button>
@@ -515,7 +515,7 @@
             characters / {historyGoal.goalFrequency}
             <button
               onclick={() => deleteReadingGoals(historyGoal, dateRangeLabel)}
-              title="Delete Reading Goal"
+              title="Delete reading goal"
             >
               <Fa icon={faTrash} />
             </button>

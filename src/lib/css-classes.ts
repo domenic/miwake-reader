@@ -15,6 +15,4 @@ export const inputClasses =
 export const buttonClasses =
   'inline-block no-underline font-medium rounded-sm min-w-[32px] sm:min-w-[64px] px-4 leading-9 cursor-pointer text-cyan-900';
 export const baseIconClasses = `flex justify-center select-none items-center h-12 w-12 cursor-pointer text-xl xl:h-10 xl:w-10 xl:text-lg ${pHeaderMat} ${opacityHeaderIcon}`;
-export const labelIconClasses = `flex flex-col items-center justify-center h-12 xl:h-10 min-w-16 px-2 cursor-pointer select-none text-center text-xs xl:text-[10px] ${opacityHeaderIcon}`;
-export const labeledHeaderIconClasses = 'mb-0.5 text-sm leading-none xl:text-xs';
 export const headerDividerClasses = 'mx-1 h-6 w-px self-center bg-white/30';

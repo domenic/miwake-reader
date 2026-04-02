@@ -4,8 +4,9 @@
  * All rights reserved.
  */
 
+import { appName } from '$lib/data/env';
+
 export function formatPageTitle(title: string) {
-  const appName = 'ッツ Ebook Reader';
   if (!title) return appName;
   return `${title} | ${appName}`;
 }

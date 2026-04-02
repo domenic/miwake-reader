@@ -1849,7 +1849,7 @@
     {#if showTrackerIcon}
       <div
         role="button"
-        title="Click to open Tracker Menu or Double Click to toggle Tracker"
+        title="Click to open tracker menu or double click to toggle tracker"
         class="flex h-full w-8 items-center justify-center text-sm sm:text-lg"
         class:text-red-500={$isTrackerPaused$}
         class:animate-pulse={frozenPosition > -1}
@@ -1895,7 +1895,7 @@
     <div
       tabindex="0"
       role="button"
-      title="Click to copy Progress"
+      title="Click to copy progress"
       class="writing-horizontal-tb fixed bottom-2 right-2 z-10 text-xs leading-none select-none whitespace-pre"
       class:invisible={!$showCharacterCounter$ &&
         !$showPercentage$ &&

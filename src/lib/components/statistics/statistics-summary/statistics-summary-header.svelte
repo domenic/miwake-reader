@@ -97,7 +97,7 @@
     </button>
   {/if}
   <button
-    title="Click to select/sort by this Attribute"
+    title="Click to select/sort by this attribute"
     class="ml-4"
     class:opacity-20={!optionKeys.has($lastStatisticsSummarySortProperty$)}
     class:cursor-not-allowed={hasRowInEdit}

@@ -1106,14 +1106,14 @@
 <div class="mb-4 flex justify-center">
   {heatmapLabel}
   <button
-    title="Return to current Year"
+    title="Return to current year"
     class="mx-4 hover:text-red-500"
     onclick={() => changeHeatmapYear(today.getFullYear() - heatmapYear)}
   >
     <Fa icon={faRepeat} />
   </button>
   <button
-    title="Switch (Streak) Data between 'All Time' and 'Current Year'"
+    title="Switch (streak) data between 'all time' and 'current year'"
     class="text-lg hover:text-red-500"
     onclick={() =>
       (heatmapAggregration =
@@ -1126,7 +1126,7 @@
 </div>
 <div class="flex justify-between">
   <button
-    title="Move Backwards"
+    title="Move backward"
     class="hover:text-red-500"
     onclick={() => {
       if (heatmapElement.scrollLeft === 0) {
@@ -1228,7 +1228,7 @@
             class:w-42={heatmapType === HeatmapType.READING_GOALS}
           >
             <button
-              title="Close Details"
+              title="Close details"
               class="flex w-full justify-end absolute right-2"
               onclick={() => (popoverDetails = [])}
             >
@@ -1243,7 +1243,7 @@
     {/if}
   </div>
   <button
-    title="Move Forwards"
+    title="Move forward"
     class="hover:text-red-500"
     onclick={() => {
       const scrollWidth =
@@ -1291,7 +1291,7 @@
       <div>{daysReadLabel}</div>
     {:else}
       <button
-        title="Highlight completed Reading Goals"
+        title="Highlight completed reading goals"
         onclick={() =>
           highlightStreaks(currentHeatmapData.streaks, HeatmapStreakType.READING_GOALS_COMPLETED)}
       >
@@ -1300,7 +1300,7 @@
     {/if}
     <div>
       <button
-        title="Highlight Streak"
+        title="Highlight streak"
         onclick={() =>
           highlightStreaks(currentHeatmapData.longestStreaks, HeatmapStreakType.LONGEST)}
       >
@@ -1309,7 +1309,7 @@
     </div>
     <div>
       <button
-        title="Highlight Streak"
+        title="Highlight streak"
         onclick={() =>
           highlightStreaks(
             currentHeatmapData.currentStreak.duration ? [currentHeatmapData.currentStreak] : [],
@@ -1323,7 +1323,7 @@
       <div>{currentHeatmapData.daysRead}</div>
     {:else}
       <button
-        title="Highlight completed Reading Goals"
+        title="Highlight completed reading goals"
         onclick={() =>
           highlightStreaks(currentHeatmapData.streaks, HeatmapStreakType.READING_GOALS_COMPLETED)}
       >
@@ -1332,7 +1332,7 @@
     {/if}
     <div>
       <button
-        title="Highlight Streak"
+        title="Highlight streak"
         onclick={() =>
           highlightStreaks(currentHeatmapData.longestStreaks, HeatmapStreakType.LONGEST)}
       >
@@ -1341,7 +1341,7 @@
     </div>
     <div>
       <button
-        title="Highlight Streak"
+        title="Highlight streak"
         onclick={() =>
           highlightStreaks(
             currentHeatmapData.currentStreak.duration ? [currentHeatmapData.currentStreak] : [],
@@ -1358,7 +1358,7 @@
       <div>{currentHeatmapData.daysRead}</div>
     {:else}
       <button
-        title="Highlight completed Reading Goals"
+        title="Highlight completed reading goals"
         class="text-left"
         onclick={() =>
           highlightStreaks(currentHeatmapData.streaks, HeatmapStreakType.READING_GOALS_COMPLETED)}
@@ -1366,7 +1366,7 @@
         {readingGoalsCompletedLabel}
       </button>
       <button
-        title="Highlight completed Reading Goals"
+        title="Highlight completed reading goals"
         class="text-left"
         onclick={() =>
           highlightStreaks(currentHeatmapData.streaks, HeatmapStreakType.READING_GOALS_COMPLETED)}
@@ -1375,14 +1375,14 @@
       </button>
     {/if}
     <button
-      title="Highlight Streak"
+      title="Highlight streak"
       class="text-left"
       onclick={() => highlightStreaks(currentHeatmapData.longestStreaks, HeatmapStreakType.LONGEST)}
     >
       {longestStreaksLabel}
     </button>
     <button
-      title="Highlight Streak"
+      title="Highlight streak"
       class="text-left"
       onclick={() => highlightStreaks(currentHeatmapData.longestStreaks, HeatmapStreakType.LONGEST)}
     >
@@ -1390,7 +1390,7 @@
     </button>
     <div>
       <button
-        title="Highlight Streak"
+        title="Highlight streak"
         onclick={() =>
           highlightStreaks(
             currentHeatmapData.currentStreak.duration ? [currentHeatmapData.currentStreak] : [],
@@ -1402,7 +1402,7 @@
     </div>
     <div>
       <button
-        title="Highlight Streak"
+        title="Highlight streak"
         onclick={() =>
           highlightStreaks(
             currentHeatmapData.currentStreak.duration ? [currentHeatmapData.currentStreak] : [],

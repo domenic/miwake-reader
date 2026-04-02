@@ -120,7 +120,7 @@
 
 <StatisticsHeader bind:showStatisticsSettings />
 
-<div class="{pxScreen} flex flex-col pt-16 h-full xl:pt-14">
+<div class="{pxScreen} flex h-full flex-col pt-16 xl:pt-14">
   <StatisticsContent />
 </div>
 
