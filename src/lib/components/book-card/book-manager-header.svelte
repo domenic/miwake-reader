@@ -2,6 +2,7 @@
   import { browser } from '$app/environment';
   import type { BookCardProps } from '$lib/components/book-card/book-card-props';
   import HeaderButton from '$lib/components/header-button.svelte';
+  import HeaderMenuButton from '$lib/components/header-menu-button.svelte';
   import HeaderNavTabs from '$lib/components/header-nav-tabs.svelte';
   import Popover from '$lib/components/popover/popover.svelte';
   import { baseHeaderClasses, headerDividerClasses, pxScreen } from '$lib/css-classes';
@@ -102,8 +103,6 @@
   let folderImportElm = $state<HTMLElement>();
   let backupImportElm = $state<HTMLElement>();
   let countImportElm = $state<HTMLInputElement>();
-  let storageSourceElm = $state<Popover>();
-  let sortOptionsElm = $state<Popover>();
   let showLoadCount = $state(false);
 
   if (browser) {
@@ -140,6 +139,13 @@
     );
   }
 
+  let storageSourceMenuOptions = $derived(
+    storageSourceMenuItems.map((sourceMenuItem) => ({
+      ...sourceMenuItem,
+      disabled: sourceMenuItem.requiresConnectivity && !$isOnline$
+    }))
+  );
+
   let sortMenuItems = $derived([
     ...($storageSource$ === StorageKey.BROWSER ? [{ property: 'id', label: 'Added (id)' }] : []),
     { property: 'title', label: 'Title' },
@@ -164,27 +170,6 @@
     } catch ({ message }: any) {
       console.error(`failed to read file: ${message}`);
     }
-  }
-
-  function changeSortOptions(clickedProperty: string, newDirection: SortDirection) {
-    const { property, direction } = $booklistSortOptions$[$storageSource$];
-
-    if (property !== clickedProperty || direction !== newDirection) {
-      booklistSortOptions$.next({
-        ...$booklistSortOptions$,
-        ...{
-          [$storageSource$]: {
-            property: clickedProperty as Exclude<
-              keyof BookCardProps,
-              'imagePath' | 'isPlaceholder'
-            >,
-            direction: newDirection
-          }
-        }
-      });
-    }
-
-    sortOptionsElm?.toggleOpen();
   }
 </script>
 
@@ -324,123 +309,112 @@
             in:scale={inAnimationParams}
             out:scale={outAnimationParams}
           >
-            <Popover
-              placement="bottom"
-              fallbackPlacements={['bottom-end', 'bottom-start']}
-              yOffset={0}
-              bind:this={storageSourceElm}
+            <HeaderMenuButton
+              title="Select storage source"
+              label="Storage Source"
+              items={storageSourceMenuOptions}
+              onselect={async (sourceMenuItem) => {
+                if (sourceMenuItem.key !== $storageSource$) {
+                  if (!$cacheStorageData$) {
+                    getStorageHandler(window, sourceMenuItem.key).clearData();
+                  }
+
+                  storageSource$.next(sourceMenuItem.key);
+                }
+              }}
             >
               {#snippet icon()}
                 {#key $storageIcon$}
-                  <HeaderButton title="Select storage source" label="Storage Source ▾">
-                    {#snippet icon()}
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        viewBox={$storageIcon$.viewBox}
-                        class="h-3.5 w-3.5 xl:h-3 xl:w-3"
-                      >
-                        <path class="fill-current" d={$storageIcon$.d} />
-                      </svg>
-                    {/snippet}
-                  </HeaderButton>
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox={$storageIcon$.viewBox}
+                    class="h-3.5 w-3.5 xl:h-3 xl:w-3"
+                  >
+                    <path class="fill-current" d={$storageIcon$.d} />
+                  </svg>
                 {/key}
               {/snippet}
-              {#snippet content()}
-                <div class="w-28 bg-gray-700">
-                  {#each storageSourceMenuItems as sourceMenuItem (sourceMenuItem.key)}
-                    <button
-                      type="button"
-                      class="block w-full px-4 py-2 text-left text-sm hover:bg-white hover:text-gray-700"
-                      class:hover:bg-white={!sourceMenuItem.requiresConnectivity || $isOnline$}
-                      class:hover:text-gray-700={!sourceMenuItem.requiresConnectivity || $isOnline$}
-                      class:cursor-not-allowed={sourceMenuItem.requiresConnectivity && !$isOnline$}
-                      class:text-gray-500={sourceMenuItem.requiresConnectivity && !$isOnline$}
-                      disabled={sourceMenuItem.requiresConnectivity && !$isOnline$}
-                      onclick={async () => {
-                        if (sourceMenuItem.key !== $storageSource$) {
-                          if (!$cacheStorageData$) {
-                            getStorageHandler(window, sourceMenuItem.key).clearData();
-                          }
-
-                          storageSource$.next(sourceMenuItem.key);
-                        }
-
-                        storageSourceElm?.toggleOpen();
-                      }}
-                    >
-                      {sourceMenuItem.label}
-                    </button>
-                  {/each}
-                </div>
-              {/snippet}
-            </Popover>
+            </HeaderMenuButton>
           </div>
           <div
             class="relative transform-gpu"
             in:scale={inAnimationParams}
             out:scale={outAnimationParams}
           >
-            <Popover
-              placement="bottom"
-              fallbackPlacements={['bottom-end', 'bottom-start']}
-              yOffset={0}
-              bind:this={sortOptionsElm}
+            <HeaderMenuButton
+              title="Select sort options"
+              label="Sort"
+              faIcon={$booklistSortOptions$[$storageSource$].direction === SortDirection.ASC
+                ? faArrowDownShortWide
+                : faArrowDownWideShort}
+              items={sortMenuItems}
             >
-              {#snippet icon()}
-                <HeaderButton
-                  title="Select sort options"
-                  label="Sort ▾"
-                  faIcon={$booklistSortOptions$[$storageSource$].direction === SortDirection.ASC
-                    ? faArrowDownShortWide
-                    : faArrowDownWideShort}
-                />
-              {/snippet}
-              {#snippet content()}
-                <div class="w-44 bg-gray-700">
-                  {#each sortMenuItems as sortMenuItem (sortMenuItem.property)}
-                    {@const isCurrentSort =
-                      $booklistSortOptions$[$storageSource$].property === sortMenuItem.property}
-                    {@const isCurrentSortAsc =
-                      isCurrentSort &&
-                      $booklistSortOptions$[$storageSource$].direction === SortDirection.ASC}
-                    <div
-                      class="grid cursor-default grid-cols-[auto_auto_auto] text-sm hover:bg-white hover:text-gray-700"
-                      class:bg-white={isCurrentSort}
-                      class:text-gray-700={isCurrentSort}
-                      class:hover:opacity-70={isCurrentSort}
-                    >
-                      <button
-                        type="button"
-                        class="self-center justify-self-start"
-                        class:text-red-500={isCurrentSortAsc}
-                        class:hover:text-gray-700={isCurrentSortAsc}
-                        class:hover:text-red-500={!isCurrentSortAsc}
-                        onclick={() => {
-                          changeSortOptions(sortMenuItem.property, SortDirection.ASC);
-                        }}
-                      >
-                        <Fa icon={faSortUp} class="px-4" />
-                      </button>
-                      <div class="py-2">
-                        {sortMenuItem.label}
-                      </div>
-                      <button
-                        type="button"
-                        class="justify-self-end hover:text-red-500"
-                        class:text-red-500={isCurrentSort && !isCurrentSortAsc}
-                        class:hover:text-gray-700={isCurrentSort && !isCurrentSortAsc}
-                        class:hover:text-red-500={!isCurrentSort || isCurrentSortAsc}
-                        onclick={() => {
-                          changeSortOptions(sortMenuItem.property, SortDirection.DESC);
-                        }}
-                      >
-                        <Fa icon={faSortDown} class="mt-1 px-4" />
-                      </button>
-                    </div>
-                  {/each}
+              {#snippet item(sortMenuItem, close)}
+                {@const isCurrentSort =
+                  $booklistSortOptions$[$storageSource$].property === sortMenuItem.property}
+                {@const isCurrentSortAsc =
+                  isCurrentSort &&
+                  $booklistSortOptions$[$storageSource$].direction === SortDirection.ASC}
+                <div
+                  class="grid cursor-default grid-cols-[auto_auto_auto] text-sm hover:bg-white hover:text-gray-700"
+                  class:bg-white={isCurrentSort}
+                  class:text-gray-700={isCurrentSort}
+                  class:hover:opacity-70={isCurrentSort}
+                >
+                  <button
+                    type="button"
+                    class="self-center justify-self-start"
+                    class:text-red-500={isCurrentSortAsc}
+                    class:hover:text-gray-700={isCurrentSortAsc}
+                    class:hover:text-red-500={!isCurrentSortAsc}
+                    onclick={() => {
+                      booklistSortOptions$.next({
+                        ...$booklistSortOptions$,
+                        ...{
+                          [$storageSource$]: {
+                            property: sortMenuItem.property as Exclude<
+                              keyof BookCardProps,
+                              'imagePath' | 'isPlaceholder'
+                            >,
+                            direction: SortDirection.ASC
+                          }
+                        }
+                      });
+                      close();
+                    }}
+                  >
+                    <Fa icon={faSortUp} class="px-4" />
+                  </button>
+                  <div class="py-2">
+                    {sortMenuItem.label}
+                  </div>
+                  <button
+                    type="button"
+                    class="justify-self-end hover:text-red-500"
+                    class:text-red-500={isCurrentSort && !isCurrentSortAsc}
+                    class:hover:text-gray-700={isCurrentSort && !isCurrentSortAsc}
+                    class:hover:text-red-500={!isCurrentSort || isCurrentSortAsc}
+                    onclick={() => {
+                      booklistSortOptions$.next({
+                        ...$booklistSortOptions$,
+                        ...{
+                          [$storageSource$]: {
+                            property: sortMenuItem.property as Exclude<
+                              keyof BookCardProps,
+                              'imagePath' | 'isPlaceholder'
+                            >,
+                            direction: SortDirection.DESC
+                          }
+                        }
+                      });
+                      close();
+                    }}
+                  >
+                    <Fa icon={faSortDown} class="mt-1 px-4" />
+                  </button>
                 </div>
               {/snippet}
-            </Popover>
+            </HeaderMenuButton>
           </div>
           <div class={headerDividerClasses}></div>
           {#if showLoadCount}

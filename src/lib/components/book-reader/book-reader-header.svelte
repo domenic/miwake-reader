@@ -12,8 +12,8 @@
   } from '@fortawesome/free-solid-svg-icons';
   import { readerImageGalleryPictures$ } from '$lib/components/book-reader/book-reader-image-gallery/book-reader-image-gallery';
   import HeaderButton from '$lib/components/header-button.svelte';
+  import HeaderMenuButton from '$lib/components/header-menu-button.svelte';
   import HeaderNavTabs from '$lib/components/header-nav-tabs.svelte';
-  import Popover from '$lib/components/popover/popover.svelte';
   import {
     baseHeaderClasses,
     headerDividerClasses,
@@ -75,13 +75,6 @@
     { label: 'Set Point', action: onsetCustomReadingPoint },
     ...(hasCustomReadingPoint ? [{ label: 'Reset Point', action: onresetCustomReadingPoint }] : [])
   ]);
-
-  let customReadingPointMenuElm: Popover = $state(undefined as any);
-
-  function dispatchCustomReadingPointAction(action: (() => void) | undefined) {
-    action?.();
-    customReadingPointMenuElm.toggleOpen();
-  }
 </script>
 
 <div class="flex justify-between px-4 md:px-8 {baseHeaderClasses}">
@@ -150,29 +143,13 @@
 
   <div class="flex transform-gpu {translateXHeaderFa}">
     {#if $customReadingPointEnabled$ || $viewMode$ === ViewMode.Paginated}
-      <Popover
-        placement="bottom"
-        fallbackPlacements={['bottom-end', 'bottom-start']}
-        yOffset={0}
-        bind:this={customReadingPointMenuElm}
-      >
-        {#snippet icon()}
-          <HeaderButton faIcon={faCrosshairs} title="Open custom point actions" label="Point ▾" />
-        {/snippet}
-        {#snippet content()}
-          <div class="w-40 bg-gray-700 md:w-32">
-            {#each customReadingPointMenuItems as actionItem (actionItem.label)}
-              <button
-                type="button"
-                class="block w-full px-4 py-2 text-left text-sm hover:bg-white hover:text-gray-700"
-                onclick={() => dispatchCustomReadingPointAction(actionItem.action)}
-              >
-                {actionItem.label}
-              </button>
-            {/each}
-          </div>
-        {/snippet}
-      </Popover>
+      <HeaderMenuButton
+        faIcon={faCrosshairs}
+        title="Open custom point actions"
+        label="Point"
+        items={customReadingPointMenuItems}
+        onselect={(actionItem) => actionItem.action?.()}
+      />
       <div class={headerDividerClasses}></div>
     {/if}
     <HeaderNavTabs

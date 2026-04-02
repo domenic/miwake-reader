@@ -7,8 +7,8 @@
     faSliders
   } from '@fortawesome/free-solid-svg-icons';
   import HeaderButton from '$lib/components/header-button.svelte';
+  import HeaderMenuButton from '$lib/components/header-menu-button.svelte';
   import HeaderNavTabs from '$lib/components/header-nav-tabs.svelte';
-  import Popover from '$lib/components/popover/popover.svelte';
   import {
     StatisticsTab,
     copyStatisticsData$,
@@ -29,8 +29,6 @@
     { key: 'readingTime', label: 'Reading Time' },
     { key: 'charactersRead', label: 'Characters Read' }
   ];
-
-  let copyStatisticsDataPopover = $state<Popover>();
 </script>
 
 <div class="elevation-4 fixed inset-x-0 top-0 z-10">
@@ -77,32 +75,14 @@
         />
       </div>
       <div class="flex">
-        <Popover
-          placement="bottom"
-          fallbackPlacements={['bottom-end', 'bottom-start']}
-          yOffset={0}
-          bind:this={copyStatisticsDataPopover}
-        >
-          {#snippet icon()}
-            <HeaderButton faIcon={faCopy} title="Copy data in TMW log format" label="Copy ▾" />
-          {/snippet}
-          {#snippet content()}
-            <div class="flex w-36 flex-col justify-center bg-gray-700">
-              {#each copyStatisticsDataItems as copyStatisticsDataItem (copyStatisticsDataItem.key)}
-                <button
-                  type="button"
-                  class="p-2 hover:bg-white hover:text-gray-700"
-                  onclick={() => {
-                    copyStatisticsData$.next(copyStatisticsDataItem.key);
-                    copyStatisticsDataPopover?.toggleOpen();
-                  }}
-                >
-                  {copyStatisticsDataItem.label}
-                </button>
-              {/each}
-            </div>
-          {/snippet}
-        </Popover>
+        <HeaderMenuButton
+          faIcon={faCopy}
+          title="Copy data in TMW log format"
+          label="Copy"
+          items={copyStatisticsDataItems}
+          onselect={(copyStatisticsDataItem) =>
+            copyStatisticsData$.next(copyStatisticsDataItem.key)}
+        />
         <div class={headerDividerClasses}></div>
         <HeaderNavTabs />
       </div>
