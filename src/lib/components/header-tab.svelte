@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { MouseEventHandler } from 'svelte/elements';
   import type { IconDefinition } from '@fortawesome/free-solid-svg-icons';
-  import Ripple from '$lib/components/ripple.svelte';
+  import { ripple } from '$lib/components/ripple';
   import Fa from 'svelte-fa';
 
   interface Props {
@@ -16,6 +16,7 @@
 </script>
 
 <button
+  use:ripple
   {title}
   class="flex flex-col items-center justify-center h-12 xl:h-10 px-3 text-xs cursor-pointer"
   class:bg-gray-900={active}
@@ -25,5 +26,4 @@
 >
   <Fa class="mb-0.5" {icon} />
   {label}
-  <Ripple />
 </button>

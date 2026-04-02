@@ -1,6 +1,6 @@
 <script lang="ts">
   import DialogTemplate from '$lib/components/dialog-template.svelte';
-  import Ripple from '$lib/components/ripple.svelte';
+  import { ripple } from '$lib/components/ripple';
   import { buttonClasses } from '$lib/css-classes';
   import { decrypt, type StorageUnlockAction } from '$lib/data/storage/storage-source-manager';
   import { skipKeyDownListener$ } from '$lib/data/store';
@@ -97,19 +97,16 @@
     <div class="mt-2 flex grow justify-between">
       {#if requiresSecret || showCancel}
         <button
+          use:ripple
           class={buttonClasses}
           onclick={() => {
             closeDialog();
           }}
         >
           Cancel
-          <Ripple />
         </button>
       {/if}
-      <button class={buttonClasses} onclick={unlock}>
-        Confirm
-        <Ripple />
-      </button>
+      <button use:ripple class={buttonClasses} onclick={unlock}>Confirm</button>
     </div>
   {/snippet}
 </DialogTemplate>

@@ -1,6 +1,6 @@
 <script lang="ts">
   import DialogTemplate from '$lib/components/dialog-template.svelte';
-  import Ripple from '$lib/components/ripple.svelte';
+  import { ripple } from '$lib/components/ripple';
   import { buttonClasses } from '$lib/css-classes';
 
   interface Props {
@@ -36,14 +36,15 @@
   {/snippet}
   {#snippet footer()}
     <div class="flex grow justify-between">
-      <button class={buttonClasses} class:invisible={!showCancel} onclick={() => closeDialog(true)}>
+      <button
+        use:ripple
+        class={buttonClasses}
+        class:invisible={!showCancel}
+        onclick={() => closeDialog(true)}
+      >
         Cancel
-        <Ripple />
       </button>
-      <button class={buttonClasses} onclick={() => closeDialog()}>
-        Confirm
-        <Ripple />
-      </button>
+      <button use:ripple class={buttonClasses} onclick={() => closeDialog()}>Confirm</button>
     </div>
   {/snippet}
 </DialogTemplate>

@@ -2,7 +2,7 @@
   import { browser } from '$app/environment';
   import BookExportSelection from '$lib/components/book-export/book-export-selection.svelte';
   import DialogTemplate from '$lib/components/dialog-template.svelte';
-  import Ripple from '$lib/components/ripple.svelte';
+  import { ripple } from '$lib/components/ripple';
   import { buttonClasses } from '$lib/css-classes';
   import { StorageKey } from '$lib/data/storage/storage-types';
   import {
@@ -70,18 +70,15 @@
   {/snippet}
   {#snippet footer()}
     <div class="flex grow justify-between">
-      <button class={buttonClasses} onclick={() => onclose?.()}>
-        Cancel
-        <Ripple />
-      </button>
+      <button use:ripple class={buttonClasses} onclick={() => onclose?.()}>Cancel</button>
       <button
+        use:ripple
         class={buttonClasses}
         class:cursor-not-allowed={!$lastExportedTypes$.length}
         disabled={!$lastExportedTypes$.length}
         onclick={replicateData}
       >
         Start
-        <Ripple />
       </button>
     </div>
   {/snippet}
