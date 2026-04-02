@@ -34,7 +34,7 @@
     throttleTime
   } from 'rxjs';
   import Fa from 'svelte-fa';
-  import { swipe } from 'svelte-gestures';
+  import { useSwipe, type SwipeCustomEvent } from 'svelte-gestures';
   import type { BookmarkManager, PageManager } from '../types';
   import { BookmarkManagerPaginated } from './bookmark-manager-paginated';
   import { PageManagerPaginated } from './page-manager-paginated';
@@ -653,7 +653,7 @@
     }
   }
 
-  function onSwipe(ev: CustomEvent<{ direction: 'top' | 'right' | 'left' | 'bottom' }>) {
+  function onSwipe(ev: SwipeCustomEvent) {
     if (!concretePageManager || $skipKeyDownListener$) return;
     if (ev.detail.direction !== 'left' && ev.detail.direction !== 'right') return;
     const swipeLeft = ev.detail.direction === 'left';
@@ -750,8 +750,11 @@
   class:ttu-apply-justification={enableTextJustification}
   class:ttu-text-wrap-pretty={enableTextWrapPretty}
   class="book-content m-auto"
-  use:swipe={() => ({ timeframe: 500, minSwipeDistance: $swipeThreshold$, touchAction: 'pan-y' })}
-  onswipe={onSwipe}
+  {...useSwipe(onSwipe, () => ({
+    timeframe: 500,
+    minSwipeDistance: $swipeThreshold$,
+    touchAction: 'pan-y'
+  }))}
 >
   <div class="book-content-container" id={currentSectionId || null} bind:this={contentEl}>
     {@html displayedHtml}
