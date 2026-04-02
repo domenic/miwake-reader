@@ -1146,26 +1146,24 @@
     class="grid items-center overflow-x-auto py-1"
     style:grid-auto-columns={`${dayElementSize}px`}
     style:grid-auto-rows={`${dayElementSize}px`}
+    style:grid-template-rows={`${dayElementSize + 4}px repeat(7, ${dayElementSize}px)`}
     style:gap={`${heatmapGridGapValue}px`}
     style:margin={`0 ${heatmapDayMargins}px`}
     bind:this={heatmapElement}
   >
     {#each monthLabels as label (label.monthLabel)}
       <div
-        class="text-xs md:text-sm"
-        style:grid-row={'1/1'}
+        class="flex h-full items-end text-xs leading-none md:text-sm"
+        style:grid-row={'1/2'}
         style:grid-column={`${label.heatmapColumn}`}
-        style:height={`${dayElementSize}px`}
-        style:margin-bottom={`${dayElementSize}px`}
       >
         {label.monthLabel}
       </div>
     {/each}
     <div
       class="sticky left-0"
-      style:grid-row={'1/1'}
+      style:grid-row={'1/2'}
       style:grid-column={`1/3`}
-      style:height={`${dayElementSize * 2}px`}
       style:background-color={'var(--background-color)'}
     ></div>
     {#each dayLabels as dayLabel, index (dayLabel)}
