@@ -1,7 +1,7 @@
 <script lang="ts">
   import { faArrowsUpDown } from '@fortawesome/free-solid-svg-icons';
   import DialogTemplate from '$lib/components/dialog-template.svelte';
-  import Ripple from '$lib/components/ripple.svelte';
+  import { ripple } from '$lib/components/ripple';
   import { baseIconClasses, buttonClasses } from '$lib/css-classes';
   import { InternalStorageSources, StorageKey } from '$lib/data/storage/storage-types';
   import type { BooksDbStorageSource } from '$lib/data/database/books-db/versions/books-db';
@@ -114,14 +114,8 @@
   {/snippet}
   {#snippet footer()}
     <div class="flex grow justify-between">
-      <button class={buttonClasses} onclick={() => closeDialog(true)}>
-        Cancel
-        <Ripple />
-      </button>
-      <button class={buttonClasses} onclick={() => closeDialog()}>
-        Confirm
-        <Ripple />
-      </button>
+      <button class={buttonClasses} onclick={() => closeDialog(true)} use:ripple>Cancel</button>
+      <button class={buttonClasses} onclick={() => closeDialog()} use:ripple>Confirm</button>
     </div>
   {/snippet}
 </DialogTemplate>

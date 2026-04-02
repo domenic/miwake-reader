@@ -1,6 +1,6 @@
 <script lang="ts">
   import DialogTemplate from '$lib/components/dialog-template.svelte';
-  import Ripple from '$lib/components/ripple.svelte';
+  import { ripple } from '$lib/components/ripple';
   import { buttonClasses } from '$lib/css-classes';
   import { logger } from '$lib/data/logger';
   import { StorageSourceDefault } from '$lib/data/storage/storage-types';
@@ -194,13 +194,12 @@
       href="https://github.com/ttu-ttu/ebook-reader"
       target="_blank"
       rel="noreferrer"
+      use:ripple
     >
       Open Repository
-      <Ripple />
     </a>
-    <a class={buttonClasses} href={downloadableLog} download="log.json">
+    <a class={buttonClasses} href={downloadableLog} download="log.json" use:ripple>
       Download Report
-      <Ripple />
     </a>
   {/snippet}
 </DialogTemplate>

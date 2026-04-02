@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { ToggleOption } from '$lib/components/button-toggle-group/toggle-option';
   import DialogTemplate from '$lib/components/dialog-template.svelte';
-  import Ripple from '$lib/components/ripple.svelte';
+  import { ripple } from '$lib/components/ripple';
   import SettingsCustomThemeInput from '$lib/components/settings/settings-custom-theme-input.svelte';
   import { buttonClasses } from '$lib/css-classes';
   import { customThemes$, theme$ } from '$lib/data/store';
@@ -215,10 +215,7 @@
             </option>
           {/each}
         </select>
-        <button class={buttonClasses} onclick={handleCopyTheme}
-          >Copy
-          <Ripple />
-        </button>
+        <button class={buttonClasses} onclick={handleCopyTheme} use:ripple>Copy </button>
         <span class="hidden sm:block">Attribute</span>
         <span class="hidden sm:block">Color</span>
         <span class="hidden sm:block">Alpha</span>
@@ -267,9 +264,9 @@
         <button
           class="flex justify-center items-center rounded-md border-2 border-gray-400 p-2 text-lg"
           style={themeStyle}
+          use:ripple
         >
           ぁあ
-          <Ripple />
         </button>
       </div>
       <div class="flex mt-4"></div>
@@ -277,14 +274,8 @@
   {/snippet}
   {#snippet footer()}
     <div class="mt-2 flex grow justify-between">
-      <button class={buttonClasses} onclick={() => onclose?.()}>
-        Cancel
-        <Ripple />
-      </button>
-      <button class={buttonClasses} onclick={handleSave}>
-        Save
-        <Ripple />
-      </button>
+      <button class={buttonClasses} onclick={() => onclose?.()} use:ripple>Cancel</button>
+      <button class={buttonClasses} onclick={handleSave} use:ripple>Save</button>
     </div>
   {/snippet}
 </DialogTemplate>

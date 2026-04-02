@@ -1,7 +1,7 @@
 <script lang="ts">
   import { buttonClasses } from '$lib/css-classes';
   import DialogTemplate from '$lib/components/dialog-template.svelte';
-  import Ripple from '$lib/components/ripple.svelte';
+  import { ripple } from '$lib/components/ripple';
 
   interface Props {
     title: string;
@@ -20,9 +20,6 @@
     <p>{message}</p>
   {/snippet}
   {#snippet footer()}
-    <button class={buttonClasses} onclick={() => onclose?.()}>
-      Close
-      <Ripple />
-    </button>
+    <button class={buttonClasses} onclick={() => onclose?.()} use:ripple>Close</button>
   {/snippet}
 </DialogTemplate>

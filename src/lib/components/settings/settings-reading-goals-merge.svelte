@@ -1,7 +1,7 @@
 <script lang="ts">
   import { faSpinner } from '@fortawesome/free-solid-svg-icons';
   import DialogTemplate from '$lib/components/dialog-template.svelte';
-  import Ripple from '$lib/components/ripple.svelte';
+  import { ripple } from '$lib/components/ripple';
   import { buttonClasses } from '$lib/css-classes';
   import type { BooksDbReadingGoal } from '$lib/data/database/books-db/versions/books-db';
   import {
@@ -353,14 +353,8 @@
   {/snippet}
   {#snippet footer()}
     <div class="flex grow justify-between">
-      <button class={buttonClasses} onclick={() => closeDialog(true)}>
-        Cancel
-        <Ripple />
-      </button>
-      <button class={buttonClasses} onclick={() => closeDialog()}>
-        Confirm
-        <Ripple />
-      </button>
+      <button class={buttonClasses} onclick={() => closeDialog(true)} use:ripple>Cancel</button>
+      <button class={buttonClasses} onclick={() => closeDialog()} use:ripple>Confirm</button>
     </div>
   {/snippet}
 </DialogTemplate>

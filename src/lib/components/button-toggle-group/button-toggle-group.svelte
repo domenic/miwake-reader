@@ -1,7 +1,7 @@
 <script lang="ts">
   import { faPen, faTrash } from '@fortawesome/free-solid-svg-icons';
   import type { ToggleOption } from '$lib/components/button-toggle-group/toggle-option';
-  import Ripple from '$lib/components/ripple.svelte';
+  import { ripple } from '$lib/components/ripple';
   import { availableThemes } from '$lib/data/theme-option';
   import type { Snippet } from 'svelte';
   import Fa from 'svelte-fa';
@@ -48,9 +48,9 @@
           (option.id !== selectedOptionId && !invertColors)}
         style={mapToStyleString(option.style)}
         onclick={() => (selectedOptionId = option.id)}
+        use:ripple
       >
         {option.text}
-        <Ripple />
       </button>
       {#if option.showIcons && option.id === selectedOptionId && !availableThemes.has(option.id)}
         <div class="flex flex-col justify-around mr-2">

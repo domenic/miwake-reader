@@ -12,7 +12,7 @@
   } from '@fortawesome/free-solid-svg-icons';
   import MessageDialog from '$lib/components/message-dialog.svelte';
   import Popover from '$lib/components/popover/popover.svelte';
-  import Ripple from '$lib/components/ripple.svelte';
+  import { ripple } from '$lib/components/ripple';
   import SettingsStorageSource from '$lib/components/settings/settings-storage-source.svelte';
   import { buttonClasses } from '$lib/css-classes';
   import type { BooksDbStorageSource } from '$lib/data/database/books-db/versions/books-db';
@@ -249,12 +249,12 @@
       onclick={() => {
         modifyStorageSource();
       }}
+      use:ripple
     >
       <div class="flex items-center justify-center">
         <Fa icon={faPlus} />
         <span class="ml-1 hidden sm:block">Add</span>
       </div>
-      <Ripple />
     </button>
   </div>
   <hr class="border border-black" />

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { browser } from '$app/environment';
   import DialogTemplate from '$lib/components/dialog-template.svelte';
-  import Ripple from '$lib/components/ripple.svelte';
+  import { ripple } from '$lib/components/ripple';
   import { buttonClasses } from '$lib/css-classes';
   import type { BooksDbStorageSource } from '$lib/data/database/books-db/versions/books-db';
   import { gDriveRevokeEndpoint } from '$lib/data/env';
@@ -327,9 +327,8 @@
         {/each}
       </select>
       {#if storageSourceType === StorageKey.FS}
-        <button class={buttonClasses} onclick={selectDirectory}>
+        <button class={buttonClasses} onclick={selectDirectory} use:ripple>
           Select Directory
-          <Ripple />
         </button>
         <div class="my-4 text-center">{handleFsPath || 'Nothing selected'}</div>
       {:else}
@@ -410,14 +409,8 @@
   {/snippet}
   {#snippet footer()}
     <div class="mt-4 flex grow justify-between">
-      <button class={buttonClasses} onclick={() => closeDialog()}>
-        Cancel
-        <Ripple />
-      </button>
-      <button class={buttonClasses} onclick={save}>
-        Save
-        <Ripple />
-      </button>
+      <button class={buttonClasses} onclick={() => closeDialog()} use:ripple>Cancel</button>
+      <button class={buttonClasses} onclick={save} use:ripple>Save</button>
     </div>
   {/snippet}
 </DialogTemplate>

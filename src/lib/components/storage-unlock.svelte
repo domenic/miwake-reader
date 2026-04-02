@@ -1,6 +1,6 @@
 <script lang="ts">
   import DialogTemplate from '$lib/components/dialog-template.svelte';
-  import Ripple from '$lib/components/ripple.svelte';
+  import { ripple } from '$lib/components/ripple';
   import { buttonClasses } from '$lib/css-classes';
   import { decrypt, type StorageUnlockAction } from '$lib/data/storage/storage-source-manager';
   import { skipKeyDownListener$ } from '$lib/data/store';
@@ -99,15 +99,12 @@
           onclick={() => {
             closeDialog();
           }}
+          use:ripple
         >
           Cancel
-          <Ripple />
         </button>
       {/if}
-      <button class={buttonClasses} onclick={unlock}>
-        Confirm
-        <Ripple />
-      </button>
+      <button class={buttonClasses} onclick={unlock} use:ripple>Confirm</button>
     </div>
   {/snippet}
 </DialogTemplate>

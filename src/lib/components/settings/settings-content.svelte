@@ -11,7 +11,7 @@
     type ToggleOption
   } from '$lib/components/button-toggle-group/toggle-option';
   import MessageDialog from '$lib/components/message-dialog.svelte';
-  import Ripple from '$lib/components/ripple.svelte';
+  import { ripple } from '$lib/components/ripple';
   import SettingsCustomTheme from '$lib/components/settings/settings-custom-theme.svelte';
   import SettingsDimensionPopover from '$lib/components/settings/settings-dimension-popover.svelte';
   import SettingsFontSelector from '$lib/components/settings/settings-font-selector.svelte';
@@ -535,9 +535,9 @@
                     props: { existingThemes: optionsForTheme }
                   }
                 ])}
+              use:ripple
             >
               <Fa icon={faPlus} class="mx-2" />
-              <Ripple />
             </button>
           {/if}
         </ButtonToggleGroup>
