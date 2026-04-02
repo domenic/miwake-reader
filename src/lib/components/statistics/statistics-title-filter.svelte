@@ -254,8 +254,10 @@
         style:grid-auto-rows={`${statisticsTitleFilterBaseRowRem}rem`}
         style:row-gap={`${statisticsTitleFilterBaseRowGap}rem`}
       >
-        {#each currentTitlesToFilterRows as currentTitlesToFilterRow (currentTitlesToFilterRow.title)}
+        {#each currentTitlesToFilterRows as currentTitlesToFilterRow, rowIndex (currentTitlesToFilterRow.title)}
+          {@const checkboxId = `statistics-title-filter-${currentStatisticsTitleFilterPage}-${rowIndex}`}
           <input
+            id={checkboxId}
             type="checkbox"
             bind:checked={currentTitlesToFilterRow.isSelected}
             onchange={() => {
@@ -264,13 +266,14 @@
               }
             }}
           />
-          <div
+          <label
+            for={checkboxId}
             class="line-clamp-3"
             class:opacity-50={!titlesInStatisticsDateRange.has(currentTitlesToFilterRow.title)}
             title={currentTitlesToFilterRow.title}
           >
             {currentTitlesToFilterRow.title}
-          </div>
+          </label>
         {/each}
       </div>
     {:else}
