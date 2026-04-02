@@ -155,32 +155,35 @@
     <div class="flex flex-col overflow-auto p-2">
       {#each $readerImageGalleryPictures$ as readerImageGalleryPicture, urlIndex (readerImageGalleryPicture.url)}
         {@const showSpoiler = $hideSpoilerImage$ && !readerImageGalleryPicture.unspoilered}
-        <button
-          class="flex justify-center my-4"
-          class:spoiler={showSpoiler}
-          data-image-index={urlIndex}
-          onclick={() => {
-            if (window.matchMedia('(min-width: 1024px)').matches) {
-              selectedImageIndex = urlIndex;
-            }
-          }}
-        >
-          <img
-            src={readerImageGalleryPicture.url}
-            alt="galleryImage"
-            class="max-h-96 lg:max-h-64"
-          />
+        <div class="relative my-4 flex justify-center" class:spoiler={showSpoiler}>
+          <button
+            class="flex justify-center"
+            data-image-index={urlIndex}
+            title="Preview image"
+            aria-label={`Preview image ${urlIndex + 1}`}
+            onclick={() => {
+              if (window.matchMedia('(min-width: 1024px)').matches) {
+                selectedImageIndex = urlIndex;
+              }
+            }}
+          >
+            <img
+              src={readerImageGalleryPicture.url}
+              alt={`Gallery image ${urlIndex + 1}`}
+              class="max-h-96 lg:max-h-64"
+            />
+          </button>
           {#if showSpoiler}
             <button
-              title="Show Image"
+              title="Show image"
+              aria-label={`Reveal gallery image ${urlIndex + 1}`}
               class="spoiler-label"
-              aria-hidden="true"
               onclick={() => toggleGalleryPictureSpoiler(readerImageGalleryPicture.url)}
             >
               ネタバレ
             </button>
           {/if}
-        </button>
+        </div>
       {/each}
     </div>
   </div>
@@ -204,9 +207,9 @@
           <img class="max-h-[94vh]" src={selectedImage.url} alt="currentImage" />
           {#if showSpoiler}
             <button
-              title="Show Image"
+              title="Show image"
               class="spoiler-label"
-              aria-hidden="true"
+              aria-label={`Reveal gallery image ${selectedImageIndex + 1}`}
               onclick={() => toggleGalleryPictureSpoiler(selectedImage.url)}
             >
               ネタバレ
