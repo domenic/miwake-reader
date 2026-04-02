@@ -57,7 +57,7 @@
 
   let themeToCopy = $state(init.existingThemes[0].id);
   let themeName = $state('');
-  let themeNameElm: HTMLInputElement = $state();
+  let themeNameElm = $state<HTMLInputElement>();
 
   let themeStyle = $derived(
     `color: ${customTheme.fontColor.rgbaExpression}; background-color: ${customTheme.backgroundColor.rgbaExpression}`
@@ -143,6 +143,10 @@
   }
 
   function handleSave() {
+    if (!themeNameElm) {
+      return;
+    }
+
     themeNameElm.setCustomValidity('');
 
     if (!themeName) {

@@ -135,7 +135,7 @@
 
   let visibilityState: DocumentVisibilityState = $state('hidden');
 
-  let containerEl: HTMLElement | undefined = $state();
+  let containerEl = $state<HTMLElement>();
 
   const mutationObserver: MutationObserver = new MutationObserver(handleMutation);
 

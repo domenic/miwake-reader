@@ -125,17 +125,17 @@
     ontrackerPause
   }: Props = $props();
 
-  let scrollEl: HTMLElement | undefined = $state();
+  let scrollEl = $state<HTMLElement>();
 
-  let contentEl: HTMLElement | undefined = $state();
+  let contentEl = $state<HTMLElement>();
 
-  let calculator: SectionCharacterStatsCalculator | undefined = $state();
+  let calculator = $state<SectionCharacterStatsCalculator>();
 
   let sections: Element[] = $state([]);
 
-  let concretePageManager: PageManagerPaginated | undefined = $state();
+  let concretePageManager = $state<PageManagerPaginated>();
 
-  let concreteBookmarkManager: BookmarkManagerPaginated | undefined = $state();
+  let concreteBookmarkManager = $state<BookmarkManagerPaginated>();
 
   let scrollWhenReady: boolean = $state(false);
 
@@ -151,11 +151,11 @@
 
   let isBookmarkScreen = $state(false);
 
-  let bookmarkTopAdjustment: string | undefined = $state();
+  let bookmarkTopAdjustment = $state<string>();
 
-  let bookmarkLeftAdjustment: string | undefined = $state();
+  let bookmarkLeftAdjustment = $state<string>();
 
-  let bookmarkRightAdjustment: string | undefined = $state();
+  let bookmarkRightAdjustment = $state<string>();
 
   let fontLoadingAdded = false;
 
@@ -236,14 +236,17 @@
   // Create/recreate PageManager and BookmarkManager when dependencies change
   $effect(() => {
     if (contentEl && scrollEl && sections && calculator) {
+      const content = contentEl;
+      const scroll = scrollEl;
+      const sectionCalculator = calculator;
       // Read tracked deps
       const w = width;
       const h = height;
       const vm = verticalMode;
       untrack(() => {
         concretePageManager = new PageManagerPaginated(
-          contentEl,
-          scrollEl,
+          content,
+          scroll,
           sections,
           sectionIndex$,
           virtualScrollPos$,
@@ -257,7 +260,7 @@
         onpagemanagerchange?.(concretePageManager);
 
         concreteBookmarkManager = new BookmarkManagerPaginated(
-          calculator,
+          sectionCalculator,
           concretePageManager,
           sectionReady$,
           sectionIndex$,

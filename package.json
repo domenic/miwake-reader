@@ -9,8 +9,9 @@
     "build": "vite build",
     "preview": "vite preview",
     "prepare": "husky && svelte-kit sync",
-    "check": "eslint --fix-dry-run .",
-    "check:pretty": "prettier --debug-check .",
+    "check": "npm run check:lint && npm run check:format && npm run check:types",
+    "check:lint": "eslint .",
+    "check:format": "prettier --check .",
     "check:types": "svelte-check --tsconfig ./tsconfig.json",
     "lint": "eslint --fix .",
     "format": "prettier --write ."

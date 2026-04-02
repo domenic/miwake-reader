@@ -139,9 +139,9 @@
 
   let allowDisplay = $state(false);
 
-  let contentEl: HTMLElement | undefined = $state();
+  let contentEl = $state<HTMLElement>();
 
-  let calculator: CharacterStatsCalculator | undefined = $state();
+  let calculator = $state<CharacterStatsCalculator>();
 
   let contentReadyEvent = $state({});
 
@@ -151,7 +151,7 @@
 
   let pageManagerConcrete: PageManagerContinuous | undefined;
 
-  let bookmarkPos: BookmarkPosData | undefined = $state();
+  let bookmarkPos = $state<BookmarkPosData>();
 
   let scrollWhenReady: boolean;
 
@@ -220,8 +220,9 @@
   // Same pattern as paginated's displayedHtml watcher.
   $effect(() => {
     if (!contentEl || !htmlContent) return;
+    const el = contentEl;
     scrollWhenReady = true;
-    untrack(() => initContent(contentEl));
+    untrack(() => initContent(el));
   });
 
   // When calculator, width, height, or loadingState change, trigger content display change

@@ -346,13 +346,13 @@ export class StorageOAuthManager {
     return token;
   }
 
-  private base64Url(buffer: ArrayBuffer) {
+  private base64Url(buffer: Uint8Array) {
     if (!this.parentWindow) {
       throw new Error('Parent window not defined');
     }
 
     return this.parentWindow
-      .btoa(String.fromCharCode(...new Uint8Array(buffer)))
+      .btoa(String.fromCharCode(...buffer))
       .replace(/\+/g, '-')
       .replace(/\//g, '_')
       .replace(/=+$/, '');
@@ -417,9 +417,11 @@ export class StorageOAuthManager {
 
         event.ports[0].postMessage({
           result: this.base64Url(
-            await this.parentWindow.crypto.subtle.digest(
-              'SHA-256',
-              new TextEncoder().encode(this.codeVerifier)
+            new Uint8Array(
+              await this.parentWindow.crypto.subtle.digest(
+                'SHA-256',
+                new TextEncoder().encode(this.codeVerifier)
+              )
             )
           )
         });

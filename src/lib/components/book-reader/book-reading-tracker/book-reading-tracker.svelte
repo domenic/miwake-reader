@@ -279,7 +279,7 @@
   let currentReadingGoalStart = $state('');
   let currentReadingGoalEnd = $state('');
   let remainingTimeInReadingGoalWindow = $state('');
-  let currentReadingGoal: ReadingGoal | undefined = $state(undefined);
+  let currentReadingGoal = $state<ReadingGoal>();
   let currentTimeGoal = $state(0);
   let currentCharacterGoal = $state(0);
   let statistics = new Map<string, BooksDbStatistic>();
@@ -299,14 +299,14 @@
   );
   let bookCompletionStatistics:
     | Omit<BooksDbStatistic, 'title' | 'lastStatisticModified'>
-    | undefined = $state(undefined);
+    | undefined = $state<Omit<BooksDbStatistic, 'title' | 'lastStatisticModified'>>();
   let bookStartDate = $state(initSnapshot.todayKey);
   let timeToFinishBook = $state('N/A');
   let lastExploredCharCount = $state(initSnapshot.exploredCharCount);
   let previousLastExploredCharCount = $state(0);
   let trackingHistory: TrackingHistory[] = $state([]);
   let historyIndex = 0;
-  let autoScrollerStatistics: BooksDbStatistic | undefined = $state(undefined);
+  let autoScrollerStatistics = $state<BooksDbStatistic>();
   let autoScrollerTimer$: Observable<''> | undefined;
   let lastExploredCharCountScroller = initSnapshot.exploredCharCount;
   let statisticsToStore = $state(new Set<string>());

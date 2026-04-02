@@ -1,3 +1,4 @@
 {
-  "eslint.validate": ["javascript", "svelte", "typescript"]
+  "eslint.validate": ["javascript", "svelte", "typescript"],
+  "js/ts.tsdk.path": "node_modules/typescript/lib"
 }

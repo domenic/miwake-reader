@@ -1,4 +1,6 @@
 /// <reference types="@sveltejs/kit" />
+/// <reference types="wicg-file-system-access" />
+/// <reference types="webappsec-credential-management" />
 
 // See https://kit.svelte.dev/docs/types#the-app-namespace
 // for information about these interfaces

@@ -12,7 +12,7 @@
 
   let { availableFonts = [LocalFont.NOTOSANSJP], fontValue = $bindable('') }: Props = $props();
 
-  let element: Popover = $state(undefined!);
+  let element = $state<Popover>();
 </script>
 
 <Popover bind:this={element} placement="bottom">
@@ -30,7 +30,7 @@
           class="px-4 py-2 hover:bg-gray-900"
           onclick={() => {
             fontValue = font;
-            element.toggleOpen();
+            element?.toggleOpen();
           }}
           onkeyup={dummyFn}
         >

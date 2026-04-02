@@ -62,10 +62,10 @@
     encryptionDisabled: configuredEncryptionDisabled || false
   }));
 
-  let containerElm: HTMLElement = $state();
-  let nameElm: HTMLInputElement = $state();
-  let pwElm: HTMLInputElement = $state();
-  let pwConfirmElm: HTMLInputElement = $state();
+  let containerElm = $state<HTMLElement>();
+  let nameElm = $state<HTMLInputElement>();
+  let pwElm = $state<HTMLInputElement>();
+  let pwConfirmElm = $state<HTMLInputElement>();
   let error = $state('');
   const passwordManagerAvailable = 'PasswordCredential' in window;
   const storageSourceRefreshToken = init.refreshToken;
@@ -75,7 +75,7 @@
   let storageSourceType = $state(init.type);
   let storageSourceClientId = $state(init.clientId);
   let storageSourceClientSecret = $state(init.clientSecret);
-  let directoryHandle: FileSystemDirectoryHandle | undefined = $state(init.directoryHandle);
+  let directoryHandle = $state<FileSystemDirectoryHandle | undefined>(init.directoryHandle);
   let handleFsPath = $state(init.fsPath);
   let storageSourceStoredInManager = $state(init.storedInManager);
   let storageSourceEncryptionDisabled = $state(init.encryptionDisabled);
@@ -95,11 +95,15 @@
   });
 
   $effect(() => {
-    setInitialPassword(pwElm);
+    if (pwElm) {
+      setInitialPassword(pwElm);
+    }
   });
 
   $effect(() => {
-    setInitialPassword(pwConfirmElm);
+    if (pwConfirmElm) {
+      setInitialPassword(pwConfirmElm);
+    }
   });
 
   async function selectDirectory() {
@@ -129,24 +133,36 @@
   async function save() {
     resetCustomValidity();
 
+    const container = containerElm;
+    const nameInput = nameElm;
+    const passwordInput = pwElm;
+    const confirmPasswordInput = pwConfirmElm;
+
+    if (!container || !nameInput || !passwordInput || !confirmPasswordInput) {
+      return;
+    }
+
     if (
-      ![...containerElm.querySelectorAll('input')].every((elm) => {
+      ![...container.querySelectorAll('input')].every((elm) => {
         let isValid = elm.reportValidity();
 
         if (!isValid) {
           return false;
         }
 
-        if (elm === nameElm) {
+        if (elm === nameInput) {
           if (storageSourceType === StorageKey.FS && !directoryHandle) {
-            nameElm.setCustomValidity('You need to select a directory');
+            nameInput.setCustomValidity('You need to select a directory');
             isValid = false;
           } else if (isAppDefault(storageSourceName)) {
-            nameElm.setCustomValidity('Please select a different name');
+            nameInput.setCustomValidity('Please select a different name');
             isValid = false;
           }
-        } else if (elm === pwConfirmElm && pwElm.value !== pwConfirmElm.value) {
-          pwConfirmElm.setCustomValidity('Password does not match');
+        } else if (
+          elm === confirmPasswordInput &&
+          passwordInput.value !== confirmPasswordInput.value
+        ) {
+          confirmPasswordInput.setCustomValidity('Password does not match');
           isValid = false;
         }
 
@@ -172,7 +188,7 @@
             new PasswordCredential({
               id: storageSourceName,
               name: `${storageSourceName} (${storageSourceType})`,
-              password: pwConfirmElm.value
+              password: confirmPasswordInput.value
             })
           )
           .catch(({ message }: any) => {
@@ -215,7 +231,7 @@
               clientSecret: storageSourceClientSecret,
               refreshToken: invalidateToken ? '' : storageSourceRefreshToken
             }),
-            pwConfirmElm.value
+            confirmPasswordInput.value
           );
         }
       }
@@ -268,7 +284,7 @@
 
   function resetCustomValidity() {
     error = '';
-    nameElm.setCustomValidity('');
+    nameElm?.setCustomValidity('');
     pwConfirmElm?.setCustomValidity('');
   }
 
@@ -379,8 +395,13 @@
             onchange={() => {
               if (storageSourceEncryptionDisabled) {
                 storageSourceStoredInManager = false;
-                pwElm.value = '';
-                pwConfirmElm.value = '';
+                if (pwElm) {
+                  pwElm.value = '';
+                }
+
+                if (pwConfirmElm) {
+                  pwConfirmElm.value = '';
+                }
               }
             }}
           />

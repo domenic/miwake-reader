@@ -186,9 +186,9 @@
   let showFooter = $state(true);
   let exploredCharCount = $state(0);
   let bookCharCount = $state(0);
-  let autoScroller: AutoScroller | undefined = $state();
-  let bookmarkManager: BookmarkManager | undefined = $state();
-  let pageManager: PageManager | undefined = $state();
+  let autoScroller = $state<AutoScroller>();
+  let bookmarkManager = $state<BookmarkManager>();
+  let pageManager = $state<PageManager>();
   let bookmarkData: Promise<BooksDbBookmarkData | undefined> = $state(Promise.resolve(undefined));
   let customReadingPointTop = $state(-2);
   let customReadingPointLeft = $state(-2);
@@ -196,15 +196,15 @@
     $verticalMode$ ? $verticalCustomReadingPosition$ : $horizontalCustomReadingPosition$
   );
   let customReadingPointScrollOffset = $state(0);
-  let customReadingPointRange: Range | undefined = $state();
-  let lastSelectedRange: Range | undefined = $state();
+  let customReadingPointRange = $state<Range>();
+  let lastSelectedRange = $state<Range>();
   let lastSelectedRangeWasEmpty = $state(true);
   let isSelectingCustomReadingPoint = $state(false);
   let showCustomReadingPoint = $state(false);
   let localStorageHandler: BrowserStorageHandler;
   let dataToReplicate: StorageDataType[] = $state([]);
   let dataToReplicateQueue: StorageDataType[] = [];
-  let externalStorageHandler: BaseStorageHandler | undefined = $state();
+  let externalStorageHandler = $state<BaseStorageHandler>();
   let externalStorageErrors = $state(0);
   let isReplicating = $state(false);
   let storedExploredCharacter = 0;

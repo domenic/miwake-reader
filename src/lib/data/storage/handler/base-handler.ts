@@ -447,11 +447,15 @@ export abstract class BaseStorageHandler {
 
     if (data instanceof Blob) {
       await zipWriter.add(name, new BlobReader(data), {
-        onprogress: (...args) => this.reportFunction(...args)
+        onprogress: async (progress, total) => {
+          this.reportFunction(progress, total);
+        }
       });
     } else if (data) {
       await zipWriter.add(name, new TextReader(data), {
-        onprogress: (...args) => this.reportFunction(...args)
+        onprogress: async (progress, total) => {
+          this.reportFunction(progress, total);
+        }
       });
     }
 
@@ -486,18 +490,19 @@ export abstract class BaseStorageHandler {
     errorForNoRead: string,
     retrievedData: Entry,
     progressBase = 1
-  ) {
+  ): Promise<Blob | string> {
     this.currentLastProgressValue = 0;
     this.currentProgressBase = progressBase;
 
-    const zipData =
-      writer instanceof BlobWriter
-        ? await retrievedData.getData?.(writer, {
-            onprogress: (...args) => this.reportFunction(...args)
-          })
-        : await retrievedData.getData?.(writer, {
-            onprogress: (...args) => this.reportFunction(...args)
-          });
+    if (retrievedData.directory) {
+      throw new Error(errorForNoRead);
+    }
+
+    const zipData = await retrievedData.getData(writer, {
+      onprogress: async (progress, total) => {
+        this.reportFunction(progress, total);
+      }
+    });
 
     if (!zipData) {
       throw new Error(errorForNoRead);
@@ -614,7 +619,7 @@ export abstract class BaseStorageHandler {
   }
 
   protected async extractAsJSON(entry: Entry, errorMessage: string, progressBase = 0.9) {
-    if (!entry) {
+    if (!entry || entry.directory) {
       return undefined;
     }
 

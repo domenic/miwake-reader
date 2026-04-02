@@ -37,7 +37,7 @@
     { key: 'charactersRead', label: 'Characters Read' }
   ];
 
-  let copyStatisticsDataPopover: Popover = $state(undefined!);
+  let copyStatisticsDataPopover = $state<Popover>();
 </script>
 
 <div class="elevation-4 fixed inset-x-0 top-0 z-10">
@@ -102,7 +102,7 @@
                     class="p-2 hover:bg-white hover:text-gray-700"
                     onclick={() => {
                       copyStatisticsData$.next(copyStatisticsDataItem.key);
-                      copyStatisticsDataPopover.toggleOpen();
+                      copyStatisticsDataPopover?.toggleOpen();
                     }}
                   >
                     {copyStatisticsDataItem.label}

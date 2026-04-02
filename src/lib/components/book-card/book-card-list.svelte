@@ -22,7 +22,7 @@
     onremoveBookClick
   }: Props = $props();
 
-  let hoveringBookId: number | undefined = $state(undefined);
+  let hoveringBookId = $state<number>();
 
   function onBookCardClick(id: number) {
     onbookClick?.({ id });

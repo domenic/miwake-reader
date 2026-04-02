@@ -23,20 +23,22 @@ export default async function extract(blob: Blob) {
   if (entries.length) {
     await Promise.all(
       entries.map(async (entry) => {
-        if (entry.getData && !entry.directory) {
-          let value: string | Blob;
-          switch (entry.filename) {
-            case 'index.html':
-            case 'metadata.opf':
-            case 'style.css':
-              value = await entry.getData(new TextWriter());
-              break;
-            default: {
-              value = await entry.getData(new BlobWriter(getMimeTypeFromName(entry.filename)));
-            }
-          }
-          result[entry.filename] = value;
+        if (entry.directory) {
+          return;
         }
+
+        let value: string | Blob;
+        switch (entry.filename) {
+          case 'index.html':
+          case 'metadata.opf':
+          case 'style.css':
+            value = await entry.getData(new TextWriter());
+            break;
+          default: {
+            value = await entry.getData(new BlobWriter(getMimeTypeFromName(entry.filename)));
+          }
+        }
+        result[entry.filename] = value;
       })
     );
   }

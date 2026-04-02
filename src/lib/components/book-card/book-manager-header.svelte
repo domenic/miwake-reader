@@ -101,12 +101,12 @@
     { label: 'Browser', key: StorageKey.BROWSER, requiresConnectivity: false }
   ];
 
-  let fileImportElm: HTMLElement = $state(undefined!);
-  let folderImportElm: HTMLElement = $state(undefined!);
-  let backupImportElm: HTMLElement = $state(undefined!);
-  let countImportElm: HTMLInputElement = $state(undefined!);
-  let storageSourceElm: Popover = $state(undefined!);
-  let sortOptionsElm: Popover = $state(undefined!);
+  let fileImportElm = $state<HTMLElement>();
+  let folderImportElm = $state<HTMLElement>();
+  let backupImportElm = $state<HTMLElement>();
+  let countImportElm = $state<HTMLInputElement>();
+  let storageSourceElm = $state<Popover>();
+  let sortOptionsElm = $state<Popover>();
   let showLoadCount = $state(false);
 
   if (browser) {
@@ -162,15 +162,15 @@
   function triggerInput(target: string) {
     switch (target) {
       case mergeEntries.FOLDER_IMPORT.label:
-        folderImportElm.click();
+        folderImportElm?.click();
         break;
 
       case mergeEntries.BACKUP_IMPORT.label:
-        backupImportElm.click();
+        backupImportElm?.click();
         break;
 
       default:
-        fileImportElm.click();
+        fileImportElm?.click();
         break;
     }
   }
@@ -209,7 +209,7 @@
       });
     }
 
-    sortOptionsElm.toggleOpen();
+    sortOptionsElm?.toggleOpen();
   }
 </script>
 
@@ -425,7 +425,7 @@
                           storageSource$.next(sourceMenuItem.key);
                         }
 
-                        storageSourceElm.toggleOpen();
+                        storageSourceElm?.toggleOpen();
                       }}
                       onkeyup={dummyFn}
                     >
@@ -512,7 +512,7 @@
           {#if showLoadCount}
             <button
               style:color={!!$fileCountData$ ? 'red' : null}
-              onclick={() => countImportElm.click()}>C</button
+              onclick={() => countImportElm?.click()}>C</button
             >
           {/if}
         {/if}

@@ -60,16 +60,16 @@
   let renderFullStatisticsSummaryTable = $state(
     window && window.matchMedia('(min-width: 768px)').matches
   );
-  let statisticsSummaryTableContainerElm: HTMLElement = $state(undefined!);
-  let statisticsSummaryPopover: Popover = $state(undefined!);
-  let statisticsSummaryButtonContainer: HTMLElement = $state(undefined!);
+  let statisticsSummaryTableContainerElm = $state<HTMLElement>();
+  let statisticsSummaryPopover = $state<Popover>();
+  let statisticsSummaryButtonContainer = $state<HTMLElement>();
   let statisticsSummaryGridRowMod = $state(0);
   let currentStatisticsSummaryPage = $state(1);
   let rowsPerStatisticsSummaryPage = $state(0);
   const statisticsSummaryPageRefs: HTMLButtonElement[] = $state([]);
-  let statisticsSummaryPagesContainer: HTMLElement = $state(undefined!);
+  let statisticsSummaryPagesContainer = $state<HTMLElement>();
   let statisticsSummaryPopoverDetails: string[] = $state([]);
-  let rowInEdit: BookStatistic | undefined = $state(undefined);
+  let rowInEdit = $state<BookStatistic>();
   let rowInEditTime = $state(0);
   let rowInEditCharacters = $state(0);
   let rowInEditResetMinMaxValues = $state(false);
@@ -238,19 +238,27 @@
 
   function updateRowsPerPage() {
     tick().then(() => {
-      rowsPerStatisticsSummaryPage = renderFullStatisticsSummaryTable
-        ? Math.max(
-            1,
-            Math.ceil(
-              (getFullHeight(window, statisticsSummaryTableContainerElm) -
-                getFullHeight(window, statisticsSummaryButtonContainer, true)) /
-                convertRemToPixels(
-                  window,
-                  statisticsSummaryBaseRowRem + statisticsSummaryBaseRowGap + 0.4
-                )
-            )
+      const tableContainer = statisticsSummaryTableContainerElm;
+      const buttonContainer = statisticsSummaryButtonContainer;
+
+      if (renderFullStatisticsSummaryTable) {
+        if (!tableContainer || !buttonContainer) {
+          return;
+        }
+
+        rowsPerStatisticsSummaryPage = Math.max(
+          1,
+          Math.ceil(
+            (getFullHeight(window, tableContainer) - getFullHeight(window, buttonContainer, true)) /
+              convertRemToPixels(
+                window,
+                statisticsSummaryBaseRowRem + statisticsSummaryBaseRowGap + 0.4
+              )
           )
-        : 1;
+        );
+      } else {
+        rowsPerStatisticsSummaryPage = 1;
+      }
 
       // Clamp page to valid range after rows-per-page changes
       const maxPages = Math.ceil(sortedData.length / rowsPerStatisticsSummaryPage);
@@ -450,7 +458,7 @@
 
             tick().then(() => {
               if (event.target instanceof HTMLElement) {
-                statisticsSummaryPopover.toggleOpen(event.target);
+                statisticsSummaryPopover?.toggleOpen(event.target);
               }
             });
           }}
@@ -486,7 +494,7 @@
 
               tick().then(() => {
                 if (event.target instanceof HTMLElement) {
-                  statisticsSummaryPopover.toggleOpen(event.target);
+                  statisticsSummaryPopover?.toggleOpen(event.target);
                 }
               });
             }}
@@ -520,7 +528,7 @@
 
               tick().then(() => {
                 if (event.target instanceof HTMLElement) {
-                  statisticsSummaryPopover.toggleOpen(event.target);
+                  statisticsSummaryPopover?.toggleOpen(event.target);
                 }
               });
             }}
@@ -547,7 +555,7 @@
 
               tick().then(() => {
                 if (event.target instanceof HTMLElement) {
-                  statisticsSummaryPopover.toggleOpen(event.target);
+                  statisticsSummaryPopover?.toggleOpen(event.target);
                 }
               });
             }}

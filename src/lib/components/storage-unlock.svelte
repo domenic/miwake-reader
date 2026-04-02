@@ -4,7 +4,7 @@
   import { buttonClasses } from '$lib/css-classes';
   import { decrypt, type StorageUnlockAction } from '$lib/data/storage/storage-source-manager';
   import { skipKeyDownListener$ } from '$lib/data/store';
-  import { onMount } from 'svelte';
+  import { onMount, tick } from 'svelte';
 
   interface Props {
     description: string;
@@ -28,13 +28,13 @@
     onclose
   }: Props = $props();
 
-  let containerElm: HTMLElement = $state();
-  let passwordElm: HTMLInputElement = $state();
+  let passwordElm = $state<HTMLInputElement>();
   let secret = $state('');
   let error = $state('');
+  let showErrorAnimation = $state(false);
 
   async function unlock() {
-    containerElm.classList.remove('error-animation');
+    showErrorAnimation = false;
     error = '';
 
     try {
@@ -47,10 +47,12 @@
         throw new Error('No data to unlock found');
       }
 
+      showErrorAnimation = false;
       closeDialog({ clientId: '', clientSecret: '' });
     } catch (err: any) {
       error = `Failed to unlock Data${err.message ? `: ${err.message}` : ''}`;
-      containerElm.classList.add('error-animation');
+      await tick();
+      showErrorAnimation = true;
     }
   }
 
@@ -72,7 +74,7 @@
 
 <DialogTemplate>
   {#snippet content()}
-    <div class="flex flex-col text-sm sm:text-base" bind:this={containerElm}>
+    <div class="flex flex-col text-sm sm:text-base" class:error-animation={showErrorAnimation}>
       <div>{description}</div>
       <div class="my-2">{action}</div>
       {#if requiresSecret}

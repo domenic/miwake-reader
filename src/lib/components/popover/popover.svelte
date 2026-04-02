@@ -44,9 +44,9 @@
     content: contentSnippet
   }: Props = $props();
 
-  let contentElement: HTMLElement = $state();
-  let iconElement: HTMLElement = $state();
-  let popoverElement: HTMLElement = $state();
+  let contentElement = $state<HTMLElement>();
+  let iconElement = $state<HTMLElement>();
+  let popoverElement = $state<HTMLElement>();
 
   let id: symbol;
   let instance: Instance;
@@ -76,16 +76,23 @@
     isOpen = !isOpen;
     await tick();
 
-    if (isOpen && instance) {
-      instance.state.elements.reference = getTargetElement(referenceElement);
-      instance.state.elements.popper = popoverElement;
+    const targetElement = getTargetElement(referenceElement);
+    const popperElement = popoverElement;
+
+    if (!isOpen || !targetElement || !popperElement) {
+      return;
+    }
+
+    if (instance) {
+      instance.state.elements.reference = targetElement;
+      instance.state.elements.popper = popperElement;
       await instance.update().catch(() => {
         // no-op
       });
       await tick();
       onopen?.();
-    } else if (isOpen) {
-      instance = createPopper(getTargetElement(referenceElement), popoverElement, {
+    } else {
+      instance = createPopper(targetElement, popperElement, {
         placement,
         modifiers: [
           flip,
@@ -151,8 +158,8 @@
     };
   }
 
-  function getTargetElement(referenceElement?: HTMLElement | Event) {
-    let targetElement;
+  function getTargetElement(referenceElement?: HTMLElement | Event): HTMLElement | undefined {
+    let targetElement: HTMLElement | undefined;
 
     if (referenceElement instanceof HTMLElement) {
       targetElement = referenceElement;

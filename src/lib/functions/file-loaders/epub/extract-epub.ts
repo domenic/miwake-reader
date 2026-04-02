@@ -7,7 +7,7 @@
 import { BlobReader, BlobWriter, TextWriter, ZipReader } from '@zip.js/zip.js';
 import { isOPFType, type EpubContent, type EpubOPFContent } from './types';
 
-import type { Entry } from '@zip.js/zip.js';
+import type { Entry, FileEntry } from '@zip.js/zip.js';
 import { XMLParser } from 'fast-xml-parser';
 import initZipSettings from '../utils/init-zip-settings';
 import path from 'path-browserify';
@@ -28,7 +28,10 @@ export default async function extractEpub(blob: Blob) {
       return acc;
     }, {});
 
-    const containerXml = await fileMap['META-INF/container.xml'].getData!(new TextWriter());
+    const containerXml = await getFileEntry(
+      fileMap['META-INF/container.xml'],
+      'META-INF/container.xml'
+    ).getData(new TextWriter());
     const parser = new XMLParser({
       ignoreAttributes: false
     });
@@ -38,7 +41,9 @@ export default async function extractEpub(blob: Blob) {
 
     const contentOpfFilename = rootFile['@_full-path'];
 
-    const contentsXml = await fileMap[contentOpfFilename].getData!(new TextWriter());
+    const contentsXml = await getFileEntry(fileMap[contentOpfFilename], contentOpfFilename).getData(
+      new TextWriter()
+    );
     result[contentOpfFilename] = contentsXml;
 
     contentsDirectory = path.dirname(contentOpfFilename);
@@ -57,16 +62,15 @@ export default async function extractEpub(blob: Blob) {
           throw new Error(`item ${fileRelativePath} not found`);
         }
 
-        if (entry.getData && !entry.directory) {
-          let value: string | Blob;
-          const mediaType: string = item['@_media-type'];
-          if (mediaType.startsWith('image/')) {
-            value = await entry.getData(new BlobWriter(mediaType));
-          } else {
-            value = await entry.getData(new TextWriter());
-          }
-          result[fileRelativePath] = value;
+        const fileEntry = getFileEntry(entry, fileRelativePath);
+        let value: string | Blob;
+        const mediaType: string = item['@_media-type'];
+        if (mediaType.startsWith('image/')) {
+          value = await fileEntry.getData(new BlobWriter(mediaType));
+        } else {
+          value = await fileEntry.getData(new TextWriter());
         }
+        result[fileRelativePath] = value;
       })
     );
   }
@@ -77,4 +81,12 @@ export default async function extractEpub(blob: Blob) {
     contents,
     result
   };
+}
+
+function getFileEntry(entry: Entry | undefined, filename: string): FileEntry {
+  if (!entry || entry.directory) {
+    throw new Error(`${filename} not found`);
+  }
+
+  return entry;
 }

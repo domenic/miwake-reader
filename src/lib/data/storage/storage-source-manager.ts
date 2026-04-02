@@ -20,7 +20,7 @@ import { storageSource$ } from '$lib/data/storage/storage-view';
 const saltByteLength = 16;
 const ivByteLength = 12;
 
-async function generateKey(window: Window, salt: Uint8Array, secret: string) {
+async function generateKey(window: Window, salt: Uint8Array<ArrayBuffer>, secret: string) {
   return window.crypto.subtle.deriveKey(
     {
       name: 'PBKDF2',
@@ -130,7 +130,7 @@ export async function unlockStorageData(
   if (storageSource && storageSource.type !== StorageKey.FS) {
     if (storageSource.storedInManager && storageSource.data instanceof ArrayBuffer) {
       const passwordCredential: PasswordCredential | undefined = await navigator.credentials
-        .get({ password: true })
+        .get({ password: true } as CredentialRequestOptions)
         .then((credentials) =>
           credentials instanceof PasswordCredential ? credentials : undefined
         )

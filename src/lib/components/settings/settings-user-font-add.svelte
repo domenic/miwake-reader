@@ -13,9 +13,9 @@
 
   let { isLoading = $bindable(), fontCache }: Props = $props();
 
-  let fileElement: HTMLInputElement = $state(undefined!);
+  let fileElement = $state<HTMLInputElement>();
   let fontName = $state('');
-  let fontFile: File | undefined = $state();
+  let fontFile = $state<File>();
   let currentError = $state('no error');
 
   let canSave = $derived(!!fontName && !!fontFile && currentError === 'no error');
@@ -59,7 +59,10 @@
   }
 
   function resetFileElement() {
-    fileElement.value = '';
+    if (fileElement) {
+      fileElement.value = '';
+    }
+
     fontFile = undefined;
   }
 

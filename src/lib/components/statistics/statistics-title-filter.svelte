@@ -53,8 +53,8 @@
   const statisticsTitleFilterBaseRowRem = 4;
   const statisticsTitleFilterBaseRowGap = 2;
 
-  let statisticsTitleFilterTableContainerElm: HTMLElement = $state();
-  let statisticsTitleFilterButtonContainer: HTMLElement = $state();
+  let statisticsTitleFilterTableContainerElm = $state<HTMLElement>();
+  let statisticsTitleFilterButtonContainer = $state<HTMLElement>();
   let titleFilter = $state('');
   let titleFilterTimer: number | undefined;
   let titlesToFilter: StatisticsTitleFilterItem[] = $state([]);
@@ -140,11 +140,17 @@
 
   function updateStatisticsTitleFilterRowsPerPage(newPage?: number) {
     tick().then(() => {
+      const tableContainer = statisticsTitleFilterTableContainerElm;
+      const buttonContainer = statisticsTitleFilterButtonContainer;
+
+      if (!tableContainer || !buttonContainer) {
+        return;
+      }
+
       statisticsTitleFilterRowsPerPage = Math.max(
         1,
         Math.ceil(
-          (getFullHeight(window, statisticsTitleFilterTableContainerElm) -
-            getFullHeight(window, statisticsTitleFilterButtonContainer, true)) /
+          (getFullHeight(window, tableContainer) - getFullHeight(window, buttonContainer, true)) /
             convertRemToPixels(
               window,
               statisticsTitleFilterBaseRowRem + statisticsTitleFilterBaseRowGap + 0.4

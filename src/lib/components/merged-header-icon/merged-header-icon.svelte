@@ -25,7 +25,7 @@
     actionItems.length === 1 && actionItems[0].routeId ? actionItems[0].routeId : ''
   );
 
-  let menuElm: Popover = $state(undefined!);
+  let menuElm = $state<Popover>();
 
   function handleActionMenuItem(target: string) {
     onaction?.(target);
@@ -33,7 +33,7 @@
     if (
       !(target === mergeEntries.FILE_IMPORT.label || target === mergeEntries.FOLDER_IMPORT.label)
     ) {
-      menuElm.toggleOpen();
+      menuElm?.toggleOpen();
     }
 
     const action = actionItems.find((item) => item.label === target);

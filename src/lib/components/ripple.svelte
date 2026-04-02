@@ -10,7 +10,7 @@
   let hold = $state(false);
   let focus = $state(false);
 
-  let containerEl: HTMLElement | undefined = $state();
+  let containerEl = $state<HTMLElement>();
 
   let listeners: {
     el: HTMLElement;
@@ -21,30 +21,26 @@
   let target = $derived(containerEl?.parentElement);
 
   $effect(() => {
-    if (target) {
-      target.classList.add('relative', 'overflow-hidden');
-      const el = target;
-      addListener(el, 'focusin', () => queueMicrotask(() => (focus = true)));
-      addListener(el, 'focusout', () => queueMicrotask(() => (focus = false)));
-      addListener(el, 'mouseenter', () => queueMicrotask(() => (focus = true)));
-      addListener(el, 'mouseleave', () =>
-        queueMicrotask(() => {
-          hold = false;
-          focus = false;
-        })
-      );
-      addListener(el, 'mousedown', (ev) =>
-        queueMicrotask(() => createRippleFromMouseEvent(ev, el))
-      );
-      addListener(el, 'mouseup', () => queueMicrotask(() => (hold = false)));
-      addListener(el, 'touchstart', (ev) =>
-        queueMicrotask(() => createRippleFromTouchEvent(ev, el))
-      );
-      addListener(el, 'touchend', () => queueMicrotask(() => (hold = false)));
-      addListener(el, 'touchcancel', () => queueMicrotask(() => (hold = false)));
+    if (!target) return;
 
-      return () => clearEventListeners();
-    }
+    target.classList.add('relative', 'overflow-hidden');
+    const el = target;
+    addListener(el, 'focusin', () => queueMicrotask(() => (focus = true)));
+    addListener(el, 'focusout', () => queueMicrotask(() => (focus = false)));
+    addListener(el, 'mouseenter', () => queueMicrotask(() => (focus = true)));
+    addListener(el, 'mouseleave', () =>
+      queueMicrotask(() => {
+        hold = false;
+        focus = false;
+      })
+    );
+    addListener(el, 'mousedown', (ev) => queueMicrotask(() => createRippleFromMouseEvent(ev, el)));
+    addListener(el, 'mouseup', () => queueMicrotask(() => (hold = false)));
+    addListener(el, 'touchstart', (ev) => queueMicrotask(() => createRippleFromTouchEvent(ev, el)));
+    addListener(el, 'touchend', () => queueMicrotask(() => (hold = false)));
+    addListener(el, 'touchcancel', () => queueMicrotask(() => (hold = false)));
+
+    return () => clearEventListeners();
   });
 
   function addListener<K extends keyof HTMLElementEventMap>(
@@ -94,7 +90,7 @@
   }
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  function animateRipple(node: HTMLElement, params: any) {
+  function animateRipple(node: HTMLElement, params?: any) {
     return {
       delay: 0,
       duration: 400,

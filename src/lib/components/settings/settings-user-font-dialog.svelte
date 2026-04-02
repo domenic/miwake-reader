@@ -22,7 +22,7 @@
   let isLoading = $state(false);
   let cacheLoaded = $state(false);
   let currentTab = $state('Stored');
-  let fontCache: Cache | undefined = $state();
+  let fontCache = $state<Cache>();
 
   onMount(async () => {
     try {

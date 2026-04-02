@@ -32,7 +32,7 @@ import { lastReadingGoalsModified$, readingGoal$, syncTarget$ } from '$lib/data/
 
 import type { BaseStorageHandler } from '$lib/data/storage/handler/base-handler';
 import type { BookStatistic } from '$lib/components/statistics/statistics-types';
-import type BooksDb from '$lib/data/database/books-db/versions/books-db';
+import type { BooksDb } from '$lib/data/database/books-db/versions/books-db';
 import type { IDBPDatabase } from 'idb';
 import LogReportDialog from '$lib/components/log-report-dialog.svelte';
 import { MergeMode } from '$lib/data/merge-mode';

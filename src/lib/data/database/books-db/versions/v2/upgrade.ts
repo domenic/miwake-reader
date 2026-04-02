@@ -6,8 +6,7 @@
 
 import type { IDBPDatabase, IDBPTransaction, StoreNames } from 'idb';
 
-import type BooksDb from '../books-db';
-import type { BooksDbBookData } from '../books-db';
+import type { BooksDb, BooksDbBookData } from '../books-db';
 import type BooksDbV2 from './books-db-v2';
 
 export default async function upgradeBooksDbFromV2(

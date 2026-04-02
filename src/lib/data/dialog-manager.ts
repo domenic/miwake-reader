@@ -5,6 +5,7 @@
  */
 
 import type { StorageKey } from './storage/storage-types';
+import type { Component } from 'svelte';
 import { writableSubject } from '$lib/functions/svelte/store';
 
 export interface SyncSelection {
@@ -14,7 +15,7 @@ export interface SyncSelection {
 }
 
 export interface Dialog {
-  component: (new (...args: any[]) => any) | string;
+  component: Component<any> | string;
   props?: Record<string, any>;
   disableCloseOnClick?: boolean;
   zIndex?: string;

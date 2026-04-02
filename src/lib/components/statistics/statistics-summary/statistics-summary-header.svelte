@@ -41,7 +41,7 @@
   const tableHeaderClasses =
     'flex items-center py-2.5 px-0 text-sm w-full bg-transparent border-0 md:border-b-2 border-gray-200 appearance-none focus:outline-none focus:ring-0 focus:border-gray-200 peer lg:text-base';
 
-  let summaryHeaderPopover: Popover = $state();
+  let summaryHeaderPopover = $state<Popover>();
 
   let optionKeys = $derived(
     new Set<keyof BookStatistic>((options || []).map((option) => option.key))
@@ -74,7 +74,7 @@
               onclick={(e) => {
                 e.stopPropagation();
                 onpropertyChange?.({ property: option.key, statisticsSummaryKey });
-                summaryHeaderPopover.toggleOpen();
+                summaryHeaderPopover?.toggleOpen();
               }}
             >
               {option.label}
