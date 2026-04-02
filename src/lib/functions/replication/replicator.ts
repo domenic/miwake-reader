@@ -21,8 +21,6 @@ import {
 } from '$lib/functions/replication/replication-progress';
 import pLimit from 'p-limit';
 
-export const exporterVersion = 1;
-
 export async function importData(
   document: Document,
   targetHandler: BaseStorageHandler,

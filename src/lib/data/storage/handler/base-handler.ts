@@ -18,7 +18,7 @@ import type { Section } from '$lib/data/database/books-db/versions/v4/books-db-v
 import { storageRootName } from '$lib/data/env';
 import { MergeMode } from '$lib/data/merge-mode';
 import { InternalStorageSources, type StorageKey } from '$lib/data/storage/storage-types';
-import { exporterVersion } from '$lib/functions/replication/replicator';
+import { exporterVersion } from '$lib/functions/replication/exporter-version';
 import { throwIfAborted } from '$lib/functions/replication/replication-error';
 import { ReplicationSaveBehavior } from '$lib/functions/replication/replication-options';
 import {
