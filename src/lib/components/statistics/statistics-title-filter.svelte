@@ -10,9 +10,9 @@
     faEyeSlash,
     faList,
     faListCheck,
-    faTrash,
-    faXmark
+    faTrash
   } from '@fortawesome/free-solid-svg-icons';
+  import DialogFormButton from '$lib/components/dialog-form-button.svelte';
   import {
     preFilteredTitlesForStatistics$,
     type StatisticsTitleFilterItem
@@ -185,11 +185,7 @@
 </script>
 
 <div class="flex items-center p-4">
-  <form method="dialog" class="flex items-end md:items-center">
-    <button title="Close title filter">
-      <Fa icon={faXmark} />
-    </button>
-  </form>
+  <DialogFormButton title="Close title filter" />
 </div>
 <div class="flex flex-col flex-1 px-4">
   <input
@@ -200,17 +196,12 @@
     oninput={handleTitleFilterChange}
   />
   <div class="flex justify-between mt-6 text-2xl">
-    <form
-      method="dialog"
-      class="contents"
-      onsubmit={() => {
-        onapplyFilter?.(titlesToFilter);
-      }}
-    >
-      <button type="submit" title="Apply filter" class="hover:text-red-500">
-        <Fa icon={faCircleCheck} />
-      </button>
-    </form>
+    <DialogFormButton
+      title="Apply filter"
+      icon={faCircleCheck}
+      class="hover:text-red-500"
+      onsubmit={() => onapplyFilter?.(titlesToFilter)}
+    />
     <button title="Select all" class="hover:text-red-500" onclick={() => handleSelectAll(true)}>
       <Fa icon={faListCheck} />
     </button>
