@@ -2,11 +2,11 @@
   import StatisticsContent from '$lib/components/statistics/statistics-content.svelte';
   import StatisticsHeader from '$lib/components/statistics/statistics-header.svelte';
   import StatisticsSettings from '$lib/components/statistics/statistics-settings.svelte';
+  import SidebarOverlay from '$lib/components/sidebar-overlay.svelte';
   import {
     StatisticsRangeTemplate,
     type StatisticsDateChange,
-    preFilteredTitlesForStatistics$,
-    statisticsActionInProgress$
+    preFilteredTitlesForStatistics$
   } from '$lib/components/statistics/statistics-types';
   import { pxScreen } from '$lib/css-classes';
   import {
@@ -22,10 +22,7 @@
     getDateString,
     getStartHoursDate
   } from '$lib/functions/statistic-util';
-  import { clickOutside } from '$lib/functions/use-click-outside';
   import { onDestroy, tick } from 'svelte';
-  import { quintInOut } from 'svelte/easing';
-  import { fly } from 'svelte/transition';
 
   let showStatisticsSettings = $state(false);
 
@@ -124,19 +121,10 @@
   <StatisticsContent />
 </div>
 
-{#if showStatisticsSettings}
-  <div
-    class="writing-horizontal-tb fixed top-0 right-0 z-60 flex h-full w-full max-w-xl flex-col justify-between bg-gray-700 text-white"
-    in:fly={{ x: 100, duration: 100, easing: quintInOut }}
-    use:clickOutside={() => {
-      if (!$statisticsActionInProgress$) {
-        showStatisticsSettings = false;
-      }
-    }}
-  >
-    <StatisticsSettings
-      onstatisticsDateChange={handleSelectedStatisticsDateChange}
-      onclose={() => (showStatisticsSettings = false)}
-    />
-  </div>
-{/if}
+<SidebarOverlay
+  bind:open={showStatisticsSettings}
+  side="right"
+  class="overflow-hidden bg-gray-700 text-white"
+>
+  <StatisticsSettings onstatisticsDateChange={handleSelectedStatisticsDateChange} />
+</SidebarOverlay>

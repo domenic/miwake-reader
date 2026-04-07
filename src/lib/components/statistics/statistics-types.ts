@@ -7,6 +7,7 @@
 import type { BooksDbStatistic } from '$lib/data/database/books-db/versions/books-db';
 import { Subject } from 'rxjs';
 import { writableSubject } from '$lib/functions/svelte/store';
+import { writable } from 'svelte/store';
 
 export interface StatisticsDateChange {
   dateString: string;
@@ -95,7 +96,7 @@ export const statisticsActionInProgress$ = writableSubject<boolean>(false);
 
 export const statisticsTitleFilterEnabled$ = writableSubject<boolean>(false);
 
-export const statisticsTitleFilterIsOpen$ = writableSubject<boolean>(false);
+export const statisticsTitleFilterIsOpen$ = writable<boolean>(false);
 
 export const preFilteredTitlesForStatistics$ = writableSubject<Set<string>>(new Set());
 

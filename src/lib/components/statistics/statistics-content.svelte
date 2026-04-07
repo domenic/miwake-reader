@@ -4,6 +4,7 @@
   import { getDefaultStatistic } from '$lib/components/book-reader/book-reading-tracker/book-reading-tracker';
   import ConfirmDialog from '$lib/components/confirm-dialog.svelte';
   import MessageDialog from '$lib/components/message-dialog.svelte';
+  import SidebarOverlay from '$lib/components/sidebar-overlay.svelte';
   import { HeatmapType } from '$lib/components/statistics/statistics-heatmap/statistics-heatmap';
   import StatisticsHeatmap from '$lib/components/statistics/statistics-heatmap/statistics-heatmap.svelte';
   import StatisticsSummary from '$lib/components/statistics/statistics-summary/statistics-summary.svelte';
@@ -59,14 +60,11 @@
     getStartHoursDate,
     secondsToMinutes
   } from '$lib/functions/statistic-util';
-  import { clickOutside } from '$lib/functions/use-click-outside';
   import { pluralize } from '$lib/functions/utils';
   import pLimit from 'p-limit';
   import { tap } from 'rxjs';
   import { onDestroy, onMount, tick, untrack } from 'svelte';
   import Fa from 'svelte-fa';
-  import { quintInOut } from 'svelte/easing';
-  import { fly } from 'svelte/transition';
 
   const copyStatisticsDataHandler$ = copyStatisticsData$.pipe(
     tap((dataKeyToCopy) => {
@@ -629,6 +627,7 @@
     try {
       const db = await database.db;
       const hasPrefilteredTitlesForStatistics = !!$preFilteredTitlesForStatistics$.size;
+      const initialStatisticsTitleFilters = new Map<string, boolean>();
 
       [statisticsData, readingGoals] = await Promise.all([
         db.getAllFromIndex('statistic', 'dateKey'),
@@ -640,7 +639,7 @@
             (!hasPrefilteredTitlesForStatistics ||
               $preFilteredTitlesForStatistics$.has(statistic.title))
           ) {
-            statisticsTitleFilters.set(statistic.title, true);
+            initialStatisticsTitleFilters.set(statistic.title, true);
           }
 
           return {
@@ -658,6 +657,8 @@
         }),
         readingGoalData
       ]);
+
+      statisticsTitleFilters = initialStatisticsTitleFilters;
     } catch ({ message }: any) {
       dialogManager.dialogs$.next([
         {
@@ -841,21 +842,18 @@
     />
   {/if}
 {/if}
-{#if $statisticsTitleFilterIsOpen$}
-  <div
-    class="writing-horizontal-tb fixed top-0 right-0 z-60 flex h-full w-full max-w-xl flex-col justify-between bg-gray-700 text-white"
-    in:fly|local={{ x: 100, duration: 100, easing: quintInOut }}
-    use:clickOutside={() => ($statisticsTitleFilterIsOpen$ = false)}
-  >
-    <StatisticsTitleFilter
-      {statisticsTitleFilters}
-      {titlesInStatisticsDateRange}
-      onapplyFilter={updateTitleFilter}
-      onclearPrefilter={clearPrefilter}
-      onclose={() => ($statisticsTitleFilterIsOpen$ = false)}
-    />
-  </div>
-{/if}
+<SidebarOverlay
+  bind:open={$statisticsTitleFilterIsOpen$}
+  side="right"
+  class="overflow-hidden bg-gray-700 text-white"
+>
+  <StatisticsTitleFilter
+    {statisticsTitleFilters}
+    {titlesInStatisticsDateRange}
+    onapplyFilter={updateTitleFilter}
+    onclearPrefilter={clearPrefilter}
+  />
+</SidebarOverlay>
 {#if $statisticsActionInProgress$}
   <div class="tap-highlight-transparent fixed inset-0 bg-black/20 z-70"></div>
   <div class="flex fixed items-center justify-center inset-0 h-full w-full text-7xl">
