@@ -22,7 +22,6 @@
     setStatisticsDatesToAllTime$
   } from '$lib/components/statistics/statistics-types';
   import { daysOfWeek } from '$lib/components/statistics/statistics-heatmap/statistics-heatmap';
-  import { dialogManager } from '$lib/data/dialog-manager';
   import {
     confirmStatisticsDeletion$,
     lastCharactersDataSource$,
@@ -34,15 +33,13 @@
     lastStatisticsRangeTemplate$,
     lastStatisticsStartDate$
   } from '$lib/data/store';
-  import { onMount } from 'svelte';
   import Fa from 'svelte-fa';
 
   interface Props {
-    onclose?: () => void;
     onstatisticsDateChange?: (data: StatisticsDateChange) => void;
   }
 
-  let { onclose, onstatisticsDateChange }: Props = $props();
+  let { onstatisticsDateChange }: Props = $props();
 
   const weekDays = [...daysOfWeek.slice(1, 7), daysOfWeek[0]].map((day, index) => {
     if (day === 'Sunday') {
@@ -63,12 +60,6 @@
     selectedStatisticsEndDate = $lastStatisticsEndDate$;
   });
 
-  onMount(() => {
-    dialogManager.dialogs$.next([{ component: '<div/>' }]);
-
-    return () => dialogManager.dialogs$.next([]);
-  });
-
   async function exportStatisticsData(exportAllStatisticsData = true) {
     $statisticsActionInProgress$ = true;
 
@@ -83,9 +74,11 @@
 </script>
 
 <div class="flex items-center p-4">
-  <button class="flex items-end md:items-center" onclick={() => onclose?.()}>
-    <Fa icon={faXmark} />
-  </button>
+  <form method="dialog" class="flex items-end md:items-center">
+    <button>
+      <Fa icon={faXmark} />
+    </button>
+  </form>
   <div class="flex flex-1 justify-end">
     <button class="mr-2 sm:mr-4 hover:text-red-500" onclick={() => exportStatisticsData(false)}>
       Export Selection

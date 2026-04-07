@@ -1,6 +1,13 @@
+<script module lang="ts">
+  let openOverlayCount = 0;
+  let skipKeyDownBeforeOverlay = false;
+</script>
+
 <script lang="ts">
   import type { Snippet } from 'svelte';
   import { browser } from '$app/environment';
+  import { skipKeyDownListener$ } from '$lib/data/store';
+  import { onDestroy } from 'svelte';
 
   interface Props {
     open: boolean;
@@ -19,6 +26,28 @@
   }: Props = $props();
 
   let dialogElement = $state<HTMLDialogElement>();
+  let wasOpen = $state(false);
+
+  function startSkipKeyDownListener() {
+    if (openOverlayCount === 0) {
+      skipKeyDownBeforeOverlay = skipKeyDownListener$.getValue();
+    }
+
+    openOverlayCount += 1;
+    skipKeyDownListener$.next(true);
+  }
+
+  function stopSkipKeyDownListener() {
+    if (openOverlayCount === 0) {
+      return;
+    }
+
+    openOverlayCount -= 1;
+
+    if (openOverlayCount === 0) {
+      skipKeyDownListener$.next(skipKeyDownBeforeOverlay);
+    }
+  }
 
   $effect(() => {
     if (!browser || !dialogElement) {
@@ -33,6 +62,26 @@
       dialogElement.showModal();
     } else {
       dialogElement.close();
+    }
+  });
+
+  $effect(() => {
+    if (!browser) {
+      return;
+    }
+
+    if (open && !wasOpen) {
+      startSkipKeyDownListener();
+    } else if (!open && wasOpen) {
+      stopSkipKeyDownListener();
+    }
+
+    wasOpen = open;
+  });
+
+  onDestroy(() => {
+    if (wasOpen) {
+      stopSkipKeyDownListener();
     }
   });
 </script>

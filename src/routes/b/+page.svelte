@@ -498,8 +498,6 @@
       untrack(() => autoScroller?.off());
     }
 
-    skipKeyDownListener$.next($tocIsOpen$);
-
     if (!$statisticsEnabled$) {
       wasTocOpen = $tocIsOpen$;
       return;

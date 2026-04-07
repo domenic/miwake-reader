@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { browser } from '$app/environment';
   import {
     faCalendar,
     faCalendarXmark,
@@ -16,22 +17,17 @@
     preFilteredTitlesForStatistics$,
     type StatisticsTitleFilterItem
   } from '$lib/components/statistics/statistics-types';
-  import { dialogManager } from '$lib/data/dialog-manager';
   import {
     lastStatisticsFilterDateRangeOnly$,
-    lastStatisticsFilterShowSelectedTitlesOnly$,
-    skipKeyDownListener$
+    lastStatisticsFilterShowSelectedTitlesOnly$
   } from '$lib/data/store';
-  import { reduceToEmptyString } from '$lib/functions/rxjs/reduce-to-empty-string';
   import { convertRemToPixels, getFullHeight, limitToRange } from '$lib/functions/utils';
-  import { debounceTime, fromEvent, tap } from 'rxjs';
-  import { onMount, tick } from 'svelte';
+  import { onDestroy, tick } from 'svelte';
   import Fa from 'svelte-fa';
 
   interface Props {
     statisticsTitleFilters: Map<string, boolean>;
     titlesInStatisticsDateRange: Set<string>;
-    onclose?: () => void;
     onapplyFilter?: (data: StatisticsTitleFilterItem[]) => void;
     onclearPrefilter?: () => void;
   }
@@ -39,16 +35,9 @@
   let {
     statisticsTitleFilters,
     titlesInStatisticsDateRange,
-    onclose,
     onapplyFilter,
     onclearPrefilter
   }: Props = $props();
-
-  const resizeHandler$ = fromEvent(window, 'resize').pipe(
-    debounceTime(250),
-    tap(() => updateStatisticsTitleFilterRowsPerPage),
-    reduceToEmptyString()
-  );
 
   const statisticsTitleFilterBaseRowRem = 4;
   const statisticsTitleFilterBaseRowGap = 2;
@@ -63,7 +52,6 @@
   let statisticsTitleFilterMaxPages = $state(0);
   let currentStatisticsTitleFilterPage = $state(1);
   let statisticsTitleFilterRowsPerPage = $state(0);
-
   let statisticsTitleFilterPageLabel = $derived(
     `PAGE ${currentStatisticsTitleFilterPage} / ${statisticsTitleFilterMaxPages}`
   );
@@ -83,17 +71,25 @@
     updateStatisticsTitleFilterTableData(currentStatisticsTitleFilterPage);
   });
 
-  onMount(() => {
-    $skipKeyDownListener$ = true;
-    dialogManager.dialogs$.next([{ component: '<div/>' }]);
+  let resizeObserver: ResizeObserver | undefined;
 
-    updateStatisticsTitleFilterRowsPerPage();
+  $effect(() => {
+    if (!browser) {
+      return;
+    }
 
-    return () => {
-      dialogManager.dialogs$.next([]);
-      $skipKeyDownListener$ = false;
-    };
+    const tableContainer = statisticsTitleFilterTableContainerElm;
+
+    if (!tableContainer) {
+      return;
+    }
+
+    resizeObserver?.disconnect();
+    resizeObserver = new ResizeObserver(() => updateStatisticsTitleFilterRowsPerPage());
+    resizeObserver.observe(tableContainer);
   });
+
+  onDestroy(() => resizeObserver?.disconnect());
 
   function handleTitleFilterChange() {
     clearTimeout(titleFilterTimer);
@@ -188,15 +184,12 @@
   }
 </script>
 
-{$resizeHandler$ ?? ''}
 <div class="flex items-center p-4">
-  <button
-    title="Close title filter"
-    class="flex items-end md:items-center"
-    onclick={() => onclose?.()}
-  >
-    <Fa icon={faXmark} />
-  </button>
+  <form method="dialog" class="flex items-end md:items-center">
+    <button title="Close title filter">
+      <Fa icon={faXmark} />
+    </button>
+  </form>
 </div>
 <div class="flex flex-col flex-1 px-4">
   <input
@@ -207,16 +200,17 @@
     oninput={handleTitleFilterChange}
   />
   <div class="flex justify-between mt-6 text-2xl">
-    <button
-      title="Apply filter"
-      class="hover:text-red-500"
-      onclick={() => {
+    <form
+      method="dialog"
+      class="contents"
+      onsubmit={() => {
         onapplyFilter?.(titlesToFilter);
-        onclose?.();
       }}
     >
-      <Fa icon={faCircleCheck} />
-    </button>
+      <button type="submit" title="Apply filter" class="hover:text-red-500">
+        <Fa icon={faCircleCheck} />
+      </button>
+    </form>
     <button title="Select all" class="hover:text-red-500" onclick={() => handleSelectAll(true)}>
       <Fa icon={faListCheck} />
     </button>
