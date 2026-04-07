@@ -6,8 +6,9 @@
 
 import type { BooksDbStatistic } from '$lib/data/database/books-db/versions/books-db';
 import { writableSubject } from '$lib/functions/svelte/store';
+import { writable } from 'svelte/store';
 
-export const isTrackerMenuOpen$ = writableSubject<boolean>(false);
+export const isTrackerMenuOpen$ = writable(false);
 
 export const isTrackerPaused$ = writableSubject<boolean>(true);
 

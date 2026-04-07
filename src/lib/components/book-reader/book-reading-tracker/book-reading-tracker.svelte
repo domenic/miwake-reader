@@ -8,13 +8,13 @@
     TrackerAutoPause
   } from '$lib/components/book-reader/book-reading-tracker/book-reading-tracker';
   import BookTimerMenu from '$lib/components/book-reader/book-reading-tracker/book-reading-tracker-menu.svelte';
+  import SidebarOverlay from '$lib/components/sidebar-overlay.svelte';
   import type { SectionWithProgress } from '$lib/components/book-reader/book-toc/book-toc';
   import type { AutoScroller } from '$lib/components/book-reader/types';
   import type {
     BooksDbReadingGoal,
     BooksDbStatistic
   } from '$lib/data/database/books-db/versions/books-db';
-  import { dialogManager } from '$lib/data/dialog-manager';
   import { PAGE_CHANGE } from '$lib/data/events';
   import { logger } from '$lib/data/logger';
   import { MergeMode } from '$lib/data/merge-mode';
@@ -41,7 +41,6 @@
     getSecondsToDate,
     toTimeString
   } from '$lib/functions/statistic-util';
-  import { clickOutside } from '$lib/functions/use-click-outside';
   import { filterNotNullAndNotUndefined } from '$lib/functions/utils';
   import {
     fromEvent,
@@ -55,8 +54,6 @@
     throttleTime
   } from 'rxjs';
   import { onDestroy, onMount, tick, untrack } from 'svelte';
-  import { quintInOut } from 'svelte/easing';
-  import { fly } from 'svelte/transition';
 
   interface Props {
     fontColor: string;
@@ -71,7 +68,6 @@
     blockDataUpdates: boolean;
     ontrackeravailable?: () => void;
     onstatisticssaved?: () => void;
-    ontrackermenuclosed?: () => void;
     onfreezecurrentlocation?: () => void;
   }
 
@@ -88,7 +84,6 @@
     blockDataUpdates,
     ontrackeravailable,
     onstatisticssaved,
-    ontrackermenuclosed,
     onfreezecurrentlocation
   }: Props = $props();
 
@@ -813,50 +808,41 @@
 <svelte:window onblur={handleBlur} onfocus={handleFocus} />
 <svelte:document bind:visibilityState />
 
-{#if $isTrackerMenuOpen$}
-  <div
-    class="writing-horizontal-tb fixed top-0 left-0 z-60 flex h-full w-full max-w-xl flex-col justify-between"
-    style:color={fontColor}
-    style:background-color={backgroundColor}
-    in:fly={{ x: -100, duration: 100, easing: quintInOut }}
-    use:clickOutside={() => {
-      if (!actionInProgress) {
-        dialogManager.dialogs$.next([]);
-        ontrackermenuclosed?.();
-      }
-    }}
-  >
-    <BookTimerMenu
-      {fontColor}
-      {backgroundColor}
-      {actionInProgress}
-      {hadError}
-      {currentReadingGoal}
-      {currentTimeGoal}
-      {currentCharacterGoal}
-      {currentReadingGoalStart}
-      {currentReadingGoalEnd}
-      {remainingTimeInReadingGoalWindow}
-      {timeToFinishBook}
-      {exploredCharCount}
-      {lastExploredCharCount}
-      {previousLastExploredCharCount}
-      {frozenPosition}
-      {trackingHistory}
-      {sessionStatistics}
-      {todaysStatistics}
-      {allTimeStatistics}
-      {bookCompletionStatistics}
-      {autoScrollerStatistics}
-      {bookStartDate}
-      {sectionData}
-      canSaveStatistics={statisticsToStore.size > 0}
-      bind:wasTrackerPaused
-      {ontrackermenuclosed}
-      {onfreezecurrentlocation}
-      onupdatecurrentlocation={updateLastExploredCharCount}
-      onsavestatistics={() => flushUpdates()}
-      onrevertstatistic={revertTrackerHistory}
-    />
-  </div>
-{/if}
+<SidebarOverlay
+  bind:open={$isTrackerMenuOpen$}
+  side="left"
+  class="z-60 max-w-xl"
+  style={`color: ${fontColor}; background-color: ${backgroundColor};`}
+>
+  <BookTimerMenu
+    {fontColor}
+    {backgroundColor}
+    {actionInProgress}
+    {hadError}
+    {currentReadingGoal}
+    {currentTimeGoal}
+    {currentCharacterGoal}
+    {currentReadingGoalStart}
+    {currentReadingGoalEnd}
+    {remainingTimeInReadingGoalWindow}
+    {timeToFinishBook}
+    {exploredCharCount}
+    {lastExploredCharCount}
+    {previousLastExploredCharCount}
+    {frozenPosition}
+    {trackingHistory}
+    {sessionStatistics}
+    {todaysStatistics}
+    {allTimeStatistics}
+    {bookCompletionStatistics}
+    {autoScrollerStatistics}
+    {bookStartDate}
+    {sectionData}
+    canSaveStatistics={statisticsToStore.size > 0}
+    bind:wasTrackerPaused
+    {onfreezecurrentlocation}
+    onupdatecurrentlocation={updateLastExploredCharCount}
+    onsavestatistics={() => flushUpdates()}
+    onrevertstatistic={revertTrackerHistory}
+  />
+</SidebarOverlay>

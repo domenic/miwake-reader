@@ -221,6 +221,7 @@
   let confettiMaxRuns = $state(0);
   let showReaderImageGallery = $state(false);
   let wasTocOpen = $state(false);
+  let wasTrackerMenuOpen = $state(false);
   let dismissDialogs = true;
   let syncedResolver: () => void;
 
@@ -514,6 +515,18 @@
   });
 
   $effect(() => {
+    if (!$isTrackerMenuOpen$ && wasTrackerMenuOpen) {
+      if (!wasTrackerPaused) {
+        isTrackerPaused$.next(false);
+      }
+
+      bookCompleted = false;
+    }
+
+    wasTrackerMenuOpen = $isTrackerMenuOpen$;
+  });
+
+  $effect(() => {
     if (browser && bookCharCount) {
       document.dispatchEvent(new CustomEvent(PAGE_CHANGE, { detail: { exploredCharCount } }));
     }
@@ -647,7 +660,7 @@
 
     wasTrackerPaused = $isTrackerPaused$;
     isTrackerPaused$.next(true);
-    isTrackerMenuOpen$.next(true);
+    isTrackerMenuOpen$.set(true);
   }
 
   function trackerDblClickHandler() {
@@ -844,7 +857,7 @@
         confettiWidthModifier = 36;
         confettiMaxRuns = 0;
         bookCompleted = window.matchMedia('(min-width: 900px)').matches;
-        isTrackerMenuOpen$.next(true);
+        isTrackerMenuOpen$.set(true);
       } else {
         dialogManager.dialogs$.next([]);
         confettiWidthModifier = 0;
@@ -1722,15 +1735,6 @@
         }
       }}
       ontrackeravailable={() => (showTrackerIcon = true)}
-      ontrackermenuclosed={() => {
-        if (!wasTrackerPaused) {
-          isTrackerPaused$.next(false);
-        }
-
-        isTrackerMenuOpen$.next(false);
-
-        bookCompleted = false;
-      }}
     />
   {/if}
   <StyleSheetRenderer styleSheet={$bookData$.styleSheet} />

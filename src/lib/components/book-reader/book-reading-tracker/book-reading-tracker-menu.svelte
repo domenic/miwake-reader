@@ -9,18 +9,17 @@
     faRepeat,
     faSpinner,
     faTrash,
-    faXmark,
     type IconDefinition
   } from '@fortawesome/free-solid-svg-icons';
+  import DialogFormButton from '$lib/components/dialog-form-button.svelte';
   import type { TrackingHistory } from '$lib/components/book-reader/book-reading-tracker/book-reading-tracker';
   import {
     getChapterData,
     type SectionWithProgress
   } from '$lib/components/book-reader/book-toc/book-toc';
-  import { dialogManager } from '$lib/data/dialog-manager';
   import type { BooksDbStatistic } from '$lib/data/database/books-db/versions/books-db';
   import type { ReadingGoal } from '$lib/data/reading-goal';
-  import { lastBlurredTrackerItems$, skipKeyDownListener$ } from '$lib/data/store';
+  import { lastBlurredTrackerItems$ } from '$lib/data/store';
   import { secondsToMinutes, toTimeString } from '$lib/functions/statistic-util';
   import { caluclatePercentage, dummyFn } from '$lib/functions/utils';
   import { onMount } from 'svelte';
@@ -52,7 +51,6 @@
     bookCompletionStatistics: Omit<BooksDbStatistic, 'title' | 'lastStatisticModified'> | undefined;
     autoScrollerStatistics: BooksDbStatistic | undefined;
     bookStartDate: string;
-    ontrackermenuclosed?: () => void;
     onupdatecurrentlocation?: () => void;
     onfreezecurrentlocation?: () => void;
     onsavestatistics?: () => void;
@@ -85,7 +83,6 @@
     bookCompletionStatistics,
     autoScrollerStatistics,
     bookStartDate,
-    ontrackermenuclosed,
     onupdatecurrentlocation,
     onfreezecurrentlocation,
     onsavestatistics,
@@ -141,14 +138,6 @@
   );
 
   onMount(() => {
-    $skipKeyDownListener$ = true;
-    dialogManager.dialogs$.next([
-      {
-        component: '<div/>',
-        disableCloseOnClick: true
-      }
-    ]);
-
     if (sectionData) {
       const [mainChapters, chapterIndex] = getChapterData(sectionData);
       const currentChapter = mainChapters[chapterIndex];
@@ -166,11 +155,6 @@
           )
         : 'N/A';
     }
-
-    return () => {
-      $skipKeyDownListener$ = false;
-      dialogManager.dialogs$.next([]);
-    };
   });
 
   function executeAction(event: string) {
@@ -225,15 +209,8 @@
       Last Update failed
     {/if}
   </div>
-  <div
-    tabindex="0"
-    role="button"
-    title="Close tracker menu"
-    class="flex items-center hover:text-red-500 md:items-center"
-    onclick={() => ontrackermenuclosed?.()}
-    onkeyup={dummyFn}
-  >
-    <Fa icon={faXmark} />
+  <div class="hover:text-red-500">
+    <DialogFormButton title="Close tracker menu" class="flex items-center md:items-center" />
   </div>
 </div>
 <div class="flex flex-1 flex-col overflow-auto p-4">
