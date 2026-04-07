@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { faXmark, faChevronLeft, faChevronRight } from '@fortawesome/free-solid-svg-icons';
+  import { faChevronLeft, faChevronRight } from '@fortawesome/free-solid-svg-icons';
+  import DialogFormButton from '$lib/components/dialog-form-button.svelte';
   import {
     getChapterData,
     nextChapter$,
@@ -109,11 +110,7 @@
 
 <div class="flex justify-between p-4">
   <div>Chapter Progress: {currentChapterCharacterProgress} ({currentChapterProgress}%)</div>
-  <form method="dialog" class="flex items-end md:items-center">
-    <button title="Close table of contents">
-      <Fa icon={faXmark} />
-    </button>
-  </form>
+  <DialogFormButton title="Close table of contents" />
 </div>
 <div class="flex-1 overflow-auto p-4">
   {#each chapters as chapter (chapter.reference)}
