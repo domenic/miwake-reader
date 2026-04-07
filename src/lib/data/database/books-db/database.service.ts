@@ -35,8 +35,8 @@ import type { BookStatistic } from '$lib/components/statistics/statistics-types'
 import type { BooksDb } from '$lib/data/database/books-db/versions/books-db';
 import type { IDBPDatabase } from 'idb';
 import LogReportDialog from '$lib/components/log-report-dialog.svelte';
+import { messageDialog } from '$lib/data/simple-dialogs';
 import { MergeMode } from '$lib/data/merge-mode';
-import MessageDialog from '$lib/components/message-dialog.svelte';
 import { ReplicationSaveBehavior } from '$lib/functions/replication/replication-options';
 import { dialogManager } from '$lib/data/dialog-manager';
 import { getDefaultStatistic } from '$lib/components/book-reader/book-reading-tracker/book-reading-tracker';
@@ -86,15 +86,22 @@ export class DatabaseService {
 
               logger.warn(error.message);
 
-              dialogManager.dialogs$.next([
-                {
-                  component: showReport ? LogReportDialog : MessageDialog,
-                  props: {
-                    title: 'Failure',
-                    message: showReport ? 'Error(s) occurred' : `An Error occured: ${error.message}`
+              if (showReport) {
+                dialogManager.dialogs$.next([
+                  {
+                    component: LogReportDialog,
+                    props: {
+                      title: 'Failure',
+                      message: 'Error(s) occurred'
+                    }
                   }
-                }
-              ]);
+                ]);
+              } else {
+                messageDialog({
+                  title: 'Error',
+                  message: `An error occured: ${error.message}`
+                });
+              }
             }
 
             if (storageSource !== StorageKey.BROWSER) {
@@ -677,15 +684,10 @@ export class DatabaseService {
 
       await this.deleteStatistics(statisticsToDelete, [...lastModifiedItemsToDelete]);
     } catch (error: any) {
-      dialogManager.dialogs$.next([
-        {
-          component: MessageDialog,
-          props: {
-            title: 'Failure',
-            message: `Error on Deletion: ${error.message}`
-          }
-        }
-      ]);
+      messageDialog({
+        title: 'Error',
+        message: `An error occurred during deletion: ${error.message}`
+      });
     }
   }
 

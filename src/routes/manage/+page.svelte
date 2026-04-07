@@ -5,15 +5,14 @@
   import type { BookCardProps } from '$lib/components/book-card/book-card-props';
   import BookManagerHeader from '$lib/components/book-card/book-manager-header.svelte';
   import BookExportDialog from '$lib/components/book-export/book-export-dialog.svelte';
-  import ConfirmDialog from '$lib/components/confirm-dialog.svelte';
   import LogReportDialog from '$lib/components/log-report-dialog.svelte';
-  import MessageDialog from '$lib/components/message-dialog.svelte';
   import { preFilteredTitlesForStatistics$ } from '$lib/components/statistics/statistics-types';
   import { pxScreen } from '$lib/css-classes';
   import type { BooksDbBookmarkData } from '$lib/data/database/books-db/versions/books-db';
   import { dialogManager } from '$lib/data/dialog-manager';
   import { pagePath } from '$lib/data/env';
   import { logger } from '$lib/data/logger';
+  import { confirmDialog, messageDialog } from '$lib/data/simple-dialogs';
   import { SortDirection, type SortOption } from '$lib/data/sort-types';
   import { getStorageHandler } from '$lib/data/storage/storage-handler-factory';
   import { StorageKey } from '$lib/data/storage/storage-types';
@@ -203,15 +202,7 @@
 
         logger.warn(message);
 
-        dialogManager.dialogs$.next([
-          {
-            component: MessageDialog,
-            props: {
-              title: 'Error',
-              message
-            }
-          }
-        ]);
+        messageDialog({ title: 'Error', message });
 
         return;
       }
@@ -240,15 +231,7 @@
 
       logger.warn(message);
 
-      dialogManager.dialogs$.next([
-        {
-          component: MessageDialog,
-          props: {
-            title: 'Failure',
-            message
-          }
-        }
-      ]);
+      messageDialog({ title: 'Failure', message });
     }
 
     return !replicationToProgress && connectivityPass;
@@ -307,7 +290,7 @@
     resetProgress();
 
     if (error) {
-      showError(errorTitle, error, 'Error(s) occurred during bookimport');
+      showError(errorTitle, error, 'Error(s) occurred during book import.');
     }
   }
 
@@ -316,15 +299,19 @@
 
     logger.warn(message);
 
-    dialogManager.dialogs$.next([
-      {
-        component: showReport ? LogReportDialog : MessageDialog,
-        props: {
-          title,
-          message: showReport ? fallbackMessage : message
+    if (showReport) {
+      dialogManager.dialogs$.next([
+        {
+          component: LogReportDialog,
+          props: {
+            title,
+            message: fallbackMessage
+          }
         }
-      }
-    ]);
+      ]);
+    } else {
+      messageDialog({ title, message });
+    }
   }
 
   function initializeReplicationProgressData() {
@@ -444,27 +431,13 @@
     }
   }
 
-  function onDomainHintClick() {
-    dialogManager.dialogs$.next([
-      {
-        component: MessageDialog,
-        props: {
-          title: 'Old Domain',
-          message:
-            'You are currently using the old domain of ッツ Reader - consider switching to https://reader.ttsu.app to prevent issues and to ensure full features'
-        },
-        disableCloseOnClick: true
-      }
-    ]);
-  }
-
   function onBugReportClick() {
     dialogManager.dialogs$.next([
       {
         component: LogReportDialog,
         props: {
           title: 'Bug Report',
-          message: 'Please include the attached file for your report'
+          message: 'Please include the attached file for your report.'
         }
       }
     ]);
@@ -482,22 +455,13 @@
     let wasCanceled = false;
 
     if ($confirmStatisticsDeletion$) {
-      wasCanceled = await new Promise((resolver) => {
-        dialogManager.dialogs$.next([
-          {
-            component: ConfirmDialog,
-            props: {
-              dialogHeader: 'Delete Data',
-              dialogMessage: `This will delete all Statistics for the selected ${pluralize(
-                titles.length,
-                'Title',
-                false
-              )} (which may include start and/or completion Data)\n\nExecute a one time Sync with an export behavior of "replace" and/or statistics merge mode of "replace" to apply deletions to other devices`,
-              contentStyles: 'white-space: pre-line;',
-              resolver
-            }
-          }
-        ]);
+      wasCanceled = await confirmDialog({
+        title: 'Delete Data',
+        message: `This will delete all statistics for the selected ${pluralize(
+          titles.length,
+          'book',
+          false
+        )} (which may include start and/or completion data).\n\nExecute a one-time sync with an export behavior of "replace" and/or a statistics merge mode of "replace" to apply deletions to other devices.`
       });
     }
 

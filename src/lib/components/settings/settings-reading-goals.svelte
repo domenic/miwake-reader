@@ -9,11 +9,10 @@
     faTrash
   } from '@fortawesome/free-solid-svg-icons';
   import { ReadingGoalFrequency } from '$lib/components/book-reader/book-reading-tracker/book-reading-tracker';
-  import ConfirmDialog from '$lib/components/confirm-dialog.svelte';
-  import MessageDialog from '$lib/components/message-dialog.svelte';
   import SettingsReadingGoalsMerge from '$lib/components/settings/settings-reading-goals-merge.svelte';
   import SettingsSyncDialog from '$lib/components/settings/settings-sync-dialog.svelte';
   import { buttonClasses } from '$lib/css-classes';
+  import { confirmDialog, messageDialog } from '$lib/data/simple-dialogs';
   import type {
     BooksDbReadingGoal,
     BooksDbStorageSource
@@ -192,15 +191,10 @@
       await database.updateReadingGoals(readingGoalsToDelete, readingGoalsToInsert);
     } catch (error: any) {
       tick().then(() =>
-        dialogManager.dialogs$.next([
-          {
-            component: MessageDialog,
-            props: {
-              title: 'Error',
-              message: `Error updating Reading Goal(s): ${error.message}`
-            }
-          }
-        ])
+        messageDialog({
+          title: 'Error',
+          message: `Error updating reading goal(s): ${error.message}`
+        })
       );
     } finally {
       onspinner?.(false);
@@ -265,15 +259,7 @@
 
       await updateReadingGoalsData();
     } catch ({ message }: any) {
-      dialogManager.dialogs$.next([
-        {
-          component: MessageDialog,
-          props: {
-            title: 'Error',
-            message: `Error syncing Reading Goals: ${message}`
-          }
-        }
-      ]);
+      messageDialog({ title: 'Error', message: `Error syncing reading goals: ${message}` });
     } finally {
       onspinner?.(false);
     }
@@ -291,34 +277,24 @@
           ? 'started'
           : 'starting';
       dialogMessage = `The${
-        isCurrentReadingGoal ? ` current Reading Goal ${term} on` : ' archived Reading Goal for '
-      } ${dateRangeLabel} will be deleted${isCurrentReadingGoal ? ' without archiving' : ''}`;
+        isCurrentReadingGoal ? ` current reading goal ${term} on` : ' archived reading goal for '
+      } ${dateRangeLabel} will be deleted${isCurrentReadingGoal ? ' without archiving.' : ''}`;
     } else if (readingGoals.length > 1) {
-      dialogMessage = `All archived Reading Goals will be deleted${
-        $readingGoal$.goalStartDate ? ' (including the current One)' : ''
+      dialogMessage = `All archived reading goals will be deleted${
+        $readingGoal$.goalStartDate ? ' (including the current one).' : ''
       }`;
     } else {
       dialogMessage = $readingGoal$.goalStartDate
-        ? 'Your current Reading Goal will be deleted without archiving'
-        : 'Your archived Reading Goal will be deleted';
+        ? 'Your current reading goal will be deleted without archiving.'
+        : 'Your archived reading goal will be deleted.';
     }
 
     dialogMessage +=
-      '\n\nExecute an one time Sync with an export behavior of "overwrite" and/or reading goals merge mode of "replace" to apply deletions to other devices';
+      '\n\nExecute a one-time sync with an export behavior of "overwrite" and/or a reading goals merge mode of "replace" to apply deletions to other devices.';
 
-    const wasCanceled = await new Promise((resolver) => {
-      dialogManager.dialogs$.next([
-        {
-          component: ConfirmDialog,
-          props: {
-            dialogHeader: 'Data Deletion',
-            dialogMessage,
-            contentStyles: 'white-space: pre-line;',
-            resolver
-          },
-          disableCloseOnClick: true
-        }
-      ]);
+    const wasCanceled = await confirmDialog({
+      title: 'Data Deletion',
+      message: dialogMessage
     });
 
     if (wasCanceled) {
@@ -331,15 +307,7 @@
       await database.deleteReadingGoal(readingGoalToDelete?.goalStartDate);
       await updateReadingGoalsData();
     } catch ({ message }: any) {
-      dialogManager.dialogs$.next([
-        {
-          component: MessageDialog,
-          props: {
-            title: 'Error',
-            message: `An Error occurred: ${message}`
-          }
-        }
-      ]);
+      messageDialog({ title: 'Error', message: `An error occurred: ${message}` });
     } finally {
       onspinner?.(false);
     }
@@ -350,15 +318,7 @@
       onspinner?.(true);
       await updateReadingGoalsData();
     } catch (error: any) {
-      dialogManager.dialogs$.next([
-        {
-          component: MessageDialog,
-          props: {
-            title: 'Error',
-            message: `Error loading Reading Goals: ${error.message}`
-          }
-        }
-      ]);
+      messageDialog({ title: 'Error', message: `Error loading reading goals: ${error.message}` });
     } finally {
       onspinner?.(false);
     }
@@ -543,7 +503,7 @@
         </button>
       </div>
     {:else}
-      <div>You have no archived Reading Goals yet</div>
+      <div>You have no archived reading goals yet.</div>
     {/if}
   </details>
 </div>

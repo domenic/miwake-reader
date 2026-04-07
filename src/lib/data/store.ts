@@ -484,8 +484,6 @@ const db = browser ? createBooksDb() : import('fake-indexeddb/auto').then(() => 
 
 export const database = new DatabaseService(db);
 
-export const domainHintSeen$ = writableBooleanLocalStorageSubject()('domainHintSeen', false);
-
 export const booklistSortOptions$ = writableObjectLocalStorageSubject<Record<string, SortOption>>()(
   'booklistSortOptions',
   {

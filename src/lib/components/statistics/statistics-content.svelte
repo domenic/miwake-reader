@@ -2,8 +2,6 @@
   import { onKeyUpStatisticsTab } from '../../../routes/b/on-keydown-reader';
   import { faSpinner } from '@fortawesome/free-solid-svg-icons';
   import { getDefaultStatistic } from '$lib/components/book-reader/book-reading-tracker/book-reading-tracker';
-  import ConfirmDialog from '$lib/components/confirm-dialog.svelte';
-  import MessageDialog from '$lib/components/message-dialog.svelte';
   import SidebarOverlay from '$lib/components/sidebar-overlay.svelte';
   import { HeatmapType } from '$lib/components/statistics/statistics-heatmap/statistics-heatmap';
   import StatisticsHeatmap from '$lib/components/statistics/statistics-heatmap/statistics-heatmap.svelte';
@@ -34,6 +32,7 @@
     BooksDbReadingGoal,
     BooksDbStatistic
   } from '$lib/data/database/books-db/versions/books-db';
+  import { confirmDialog, messageDialog } from '$lib/data/simple-dialogs';
   import { dialogManager } from '$lib/data/dialog-manager';
   import { logger } from '$lib/data/logger';
   import { getDateRangeLabel } from '$lib/data/reading-goal';
@@ -63,7 +62,7 @@
   import { pluralize } from '$lib/functions/utils';
   import pLimit from 'p-limit';
   import { tap } from 'rxjs';
-  import { onDestroy, onMount, tick, untrack } from 'svelte';
+  import { onDestroy, onMount, untrack } from 'svelte';
   import Fa from 'svelte-fa';
 
   const copyStatisticsDataHandler$ = copyStatisticsData$.pipe(
@@ -218,9 +217,7 @@
         request.titlesToCheck.add(dataList[index].title);
       }
 
-      handleDeleteRequest(request).finally(() => {
-        tick().then(() => dialogManager.dialogs$.next([{ component: '<div/>' }]));
-      });
+      handleDeleteRequest(request);
     }),
     reduceToEmptyString()
   );
@@ -348,29 +345,18 @@
       return;
     }
 
-    const titleLabel = pluralize(titlesToDelete.size, 'Title');
+    const titleLabel = pluralize(titlesToDelete.size, 'book');
 
     let wasCanceled = false;
 
     if ($confirmStatisticsDeletion$) {
-      wasCanceled = await new Promise((resolver) => {
-        dialogManager.dialogs$.next([
-          {
-            component: ConfirmDialog,
-            props: {
-              dialogHeader: 'Delete Data',
-              dialogMessage: `This will delete data ${
-                startDate ? `from ${getDateRangeLabel(startDate, endDate)}` : ''
-              }  for ${titleLabel} (which may include start and/or completion Data)\n\nExecute an one time Sync with an export behavior of "overwrite" and/or statistics merge mode of "replace" to apply deletions to other devices.\n\n${titleLabel}:\n${[
-                ...titlesToDelete
-              ].join('\n\n')}`,
-              contentStyles: 'white-space: pre-line;max-height: 20rem;overflow: auto;',
-              resolver
-            },
-            disableCloseOnClick: true,
-            zIndex: '70'
-          }
-        ]);
+      wasCanceled = await confirmDialog({
+        title: 'Delete Data',
+        message: `This will delete data ${
+          startDate ? `from ${getDateRangeLabel(startDate, endDate)}` : ''
+        }  for ${titleLabel}, which may include start and/or completion data.\n\nExecute a one-time sync with an export behavior of "overwrite" and/or a statistics merge mode of "replace" to apply deletions to other devices.\n\n${titleLabel}:\n${[
+          ...titlesToDelete
+        ].join('\n\n')}`
       });
     }
 
@@ -384,20 +370,9 @@
       .catch(({ message }) => message);
 
     if (error) {
-      await new Promise((resolver) => {
-        dialogManager.dialogs$.next([
-          {
-            component: ConfirmDialog,
-            props: {
-              dialogHeader: 'Delete Data',
-              dialogMessage: `Failed to delete Data: ${error}`,
-              showCancel: false,
-              resolver
-            },
-            disableCloseOnClick: true,
-            zIndex: '70'
-          }
-        ]);
+      messageDialog({
+        title: 'Error',
+        message: `Failed to delete data: ${error}`
       });
       $statisticsActionInProgress$ = false;
     } else {
@@ -510,32 +485,19 @@
           : newStatistic.lastReadingSpeed;
     }
 
-    const wasCanceled = await new Promise((resolver) => {
-      dialogManager.dialogs$.next([
-        {
-          component: ConfirmDialog,
-          props: {
-            dialogHeader: 'Update Data',
-            dialogMessage: `This will update the Data for ${title} on ${dateKey}.\n\nTime: ${secondsToMinutes(
-              statistic.readingTime
-            )} min => ${secondsToMinutes(newReadingTime)} min\nCharacters: ${
-              statistic.charactersRead
-            } => ${newCharactersRead}\nSpeed: ${statistic.lastReadingSpeed} / h => ${
-              newStatistic.lastReadingSpeed
-            } / h\nMin Speed: ${statistic.minReadingSpeed} / h => ${
-              newStatistic.minReadingSpeed
-            } / h\nAlt Min Speed: ${statistic.altMinReadingSpeed} / h => ${
-              newStatistic.altMinReadingSpeed
-            } / h\nMax Speed: ${statistic.maxReadingSpeed} / h => ${
-              newStatistic.maxReadingSpeed
-            } / h`,
-            contentStyles: 'white-space: pre-line;max-height: 20rem;overflow: auto;',
-            resolver
-          },
-          disableCloseOnClick: true,
-          zIndex: '70'
-        }
-      ]);
+    const wasCanceled = await confirmDialog({
+      title: 'Update Data',
+      message: `This will update the data for ${title} on ${dateKey}.\n\nTime: ${secondsToMinutes(
+        statistic.readingTime
+      )} min => ${secondsToMinutes(newReadingTime)} min\nCharacters: ${
+        statistic.charactersRead
+      } => ${newCharactersRead}\nSpeed: ${statistic.lastReadingSpeed} / h => ${
+        newStatistic.lastReadingSpeed
+      } / h\nMin Speed: ${statistic.minReadingSpeed} / h => ${
+        newStatistic.minReadingSpeed
+      } / h\nAlt Min Speed: ${statistic.altMinReadingSpeed} / h => ${
+        newStatistic.altMinReadingSpeed
+      } / h\nMax Speed: ${statistic.maxReadingSpeed} / h => ${newStatistic.maxReadingSpeed} / h`
     });
 
     if (wasCanceled) {
@@ -549,15 +511,7 @@
       statisticsData[statisticIndex] = { ...statistic, ...newStatistic };
       updateStatisticsData();
     } catch ({ message }: any) {
-      dialogManager.dialogs$.next([
-        {
-          component: MessageDialog,
-          props: {
-            title: 'Error',
-            message: `Update failed: ${message}`
-          }
-        }
-      ]);
+      messageDialog({ title: 'Error', message: `Update failed: ${message}` });
     } finally {
       $statisticsActionInProgress$ = false;
     }
@@ -659,16 +613,9 @@
       ]);
 
       statisticsTitleFilters = initialStatisticsTitleFilters;
+      updateStatisticsData();
     } catch ({ message }: any) {
-      dialogManager.dialogs$.next([
-        {
-          component: MessageDialog,
-          props: {
-            title: 'Error',
-            message: `Error getting Data: ${message}`
-          }
-        }
-      ]);
+      messageDialog({ title: 'Error', message: `Error getting data: ${message}` });
     } finally {
       isLoading = false;
       $statisticsTitleFilterEnabled$ = true;

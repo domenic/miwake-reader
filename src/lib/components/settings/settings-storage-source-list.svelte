@@ -10,12 +10,12 @@
     faTrash,
     faTriangleExclamation
   } from '@fortawesome/free-solid-svg-icons';
-  import MessageDialog from '$lib/components/message-dialog.svelte';
   import Popover from '$lib/components/popover/popover.svelte';
   import { ripple } from '$lib/components/ripple';
   import SettingsStorageSource from '$lib/components/settings/settings-storage-source.svelte';
   import { buttonClasses } from '$lib/css-classes';
   import type { BooksDbStorageSource } from '$lib/data/database/books-db/versions/books-db';
+  import { messageDialog } from '$lib/data/simple-dialogs';
   import { dialogManager } from '$lib/data/dialog-manager';
   import { gDriveRevokeEndpoint } from '$lib/data/env';
   import { StorageOAuthManager, storageOAuthTokens } from '$lib/data/storage/storage-oauth-manager';
@@ -193,16 +193,10 @@
     const invalidateToken = storageSource.type === StorageKey.GDRIVE && unlockResult.refreshToken;
 
     if (invalidateToken && !$isOnline$) {
-      dialogManager.dialogs$.next([
-        {
-          component: MessageDialog,
-          props: {
-            title: 'Error',
-            message: 'You need to be online to delete this storage source'
-          },
-          disableCloseOnClick: true
-        }
-      ]);
+      messageDialog({
+        title: 'Error',
+        message: 'You need to be online to delete this storage source.'
+      });
       return;
     }
 
