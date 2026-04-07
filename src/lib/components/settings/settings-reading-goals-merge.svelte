@@ -100,7 +100,7 @@
 
       showSpinner = false;
     } catch ({ message }: any) {
-      error = `Failed to refresh Reading Goals (${message})`;
+      error = `Failed to refresh reading goals: ${message}`;
       closeDialog();
     }
   }

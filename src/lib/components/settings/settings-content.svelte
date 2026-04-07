@@ -10,7 +10,6 @@
     optionsForToggle,
     type ToggleOption
   } from '$lib/components/button-toggle-group/toggle-option';
-  import MessageDialog from '$lib/components/message-dialog.svelte';
   import { ripple } from '$lib/components/ripple';
   import SettingsCustomTheme from '$lib/components/settings/settings-custom-theme.svelte';
   import SettingsDimensionPopover from '$lib/components/settings/settings-dimension-popover.svelte';
@@ -26,6 +25,7 @@
   import { FuriganaStyle } from '$lib/data/furigana-style';
   import { ImportHTMLFixMode } from '$lib/data/import-html-fix-mode';
   import { logger } from '$lib/data/logger';
+  import { messageDialog } from '$lib/data/simple-dialogs';
   import { MergeMode } from '$lib/data/merge-mode';
   import { isAppDefault } from '$lib/data/storage/storage-source-manager';
   import { defaultStorageSources } from '$lib/data/storage/storage-types';
@@ -1004,15 +1004,10 @@
             database
               .clearZombieStatistics()
               .catch(({ message }) =>
-                dialogManager.dialogs$.next([
-                  {
-                    component: MessageDialog,
-                    props: {
-                      title: 'Error',
-                      message: `Error clearing Zombie Statistics: ${message}`
-                    }
-                  }
-                ])
+                messageDialog({
+                  title: 'Error',
+                  message: `Error clearing zombie statistics: ${message}`
+                })
               )
               .finally(() => (showSpinner = false));
           }}

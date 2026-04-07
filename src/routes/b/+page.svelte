@@ -33,7 +33,6 @@
     PageManager
   } from '$lib/components/book-reader/types';
   import LogReportDialog from '$lib/components/log-report-dialog.svelte';
-  import MessageDialog from '$lib/components/message-dialog.svelte';
   import StyleSheetRenderer from '$lib/components/style-sheet-renderer.svelte';
   import {
     autoBookmark$,
@@ -117,7 +116,6 @@
     type SectionWithProgress
   } from '$lib/components/book-reader/book-toc/book-toc';
   import BookToc from '$lib/components/book-reader/book-toc/book-toc.svelte';
-  import ConfirmDialog from '$lib/components/confirm-dialog.svelte';
   import NumberDialog from '$lib/components/number-dialog.svelte';
   import { mergeEntries } from '$lib/components/merged-header-icon/merged-entries';
   import SidebarOverlay from '$lib/components/sidebar-overlay.svelte';
@@ -133,6 +131,7 @@
   import { DB_VERSION, PAGE_CHANGE, SKIPKEYLISTENER, SYNCED } from '$lib/data/events';
   import { fullscreenManager } from '$lib/data/fullscreen-manager';
   import { logger } from '$lib/data/logger';
+  import { confirmDialog, messageDialog } from '$lib/data/simple-dialogs';
   import { MergeMode } from '$lib/data/merge-mode';
   import { getStorageHandler } from '$lib/data/storage/storage-handler-factory';
   import { BaseStorageHandler } from '$lib/data/storage/handler/base-handler';
@@ -307,15 +306,7 @@
 
         logger.warn(message);
 
-        dialogManager.dialogs$.next([
-          {
-            component: MessageDialog,
-            props: {
-              title: 'Load Error',
-              message
-            }
-          }
-        ]);
+        messageDialog({ title: 'Load Error', message });
         return undefined;
       } finally {
         syncedResolver();
@@ -737,19 +728,11 @@
       $statisticsEnabled$ && $addCharactersOnCompletion$
         ? Math.max(0, bookCharCount - exploredCharCount)
         : 0;
-    const wasCanceled = await new Promise((resolver) => {
-      dialogManager.dialogs$.next([
-        {
-          component: ConfirmDialog,
-          props: {
-            dialogHeader: 'Complete Book',
-            dialogMessage: `Would you like to complete this Book${
-              diffToComplete ? ` and capture ${diffToComplete} characters read` : ''
-            }?`,
-            resolver
-          }
-        }
-      ]);
+    const wasCanceled = await confirmDialog({
+      title: 'Complete Book',
+      message: `Would you like to complete this book${
+        diffToComplete ? ` and capture ${diffToComplete} characters read` : ''
+      }?`
     });
 
     if (wasCanceled) {
@@ -871,15 +854,7 @@
           });
       }
     } catch ({ message }: any) {
-      dialogManager.dialogs$.next([
-        {
-          component: MessageDialog,
-          props: {
-            title: 'Error',
-            message: `Error completing Book: ${message}`
-          }
-        }
-      ]);
+      messageDialog({ title: 'Error', message: `Error completing book: ${message}` });
     }
   }
 
@@ -955,16 +930,11 @@
 
     if (storageSourceName === StorageSourceDefault.GDRIVE_DEFAULT) {
       if (!$isOnline$) {
-        dialogManager.dialogs$.next([
-          {
-            component: MessageDialog,
-            props: {
-              title: 'Load Error',
-              message:
-                'Sync disabled due to missing Online Connection - refresh Page after going Online to try again'
-            }
-          }
-        ]);
+        messageDialog({
+          title: 'Cannot Sync',
+          message:
+            'Syncing is disabled due to being offline. Refresh the page after going online to try again.'
+        });
 
         return undefined;
       }
@@ -982,16 +952,11 @@
     }
     if (storageSourceName === StorageSourceDefault.ONEDRIVE_DEFAULT) {
       if (!$isOnline$) {
-        dialogManager.dialogs$.next([
-          {
-            component: MessageDialog,
-            props: {
-              title: 'Load Error',
-              message:
-                'Sync disabled due to missing Online Connection - refresh Page after going Online to try again'
-            }
-          }
-        ]);
+        messageDialog({
+          title: 'Cannot Sync',
+          message:
+            'Syncing is disabled due to being offline. Refresh the page after going online to try again.'
+        });
 
         return undefined;
       }
@@ -1013,16 +978,11 @@
 
       if (storageSource) {
         if (storageSource.type !== StorageKey.FS && !$isOnline$) {
-          dialogManager.dialogs$.next([
-            {
-              component: MessageDialog,
-              props: {
-                title: 'Load Error',
-                message:
-                  'Sync disabled due to missing Online Connection - refresh Page after going Online to try again'
-              }
-            }
-          ]);
+          messageDialog({
+            title: 'Cannot Sync',
+            message:
+              'Syncing is disabled due to being offline. Refresh the page after going online to try again.'
+          });
 
           return undefined;
         }
@@ -1043,19 +1003,11 @@
       }
     }
 
-    const message = `No storage source with name ${storageSourceName} found - skipping auto import/export`;
+    const message = `No storage source with name ${storageSourceName} found - skipping auto import/export.`;
 
     logger.warn(message);
 
-    dialogManager.dialogs$.next([
-      {
-        component: MessageDialog,
-        props: {
-          title: 'Configuration Error',
-          message
-        }
-      }
-    ]);
+    messageDialog({ title: 'Configuration Error', message });
 
     return undefined;
   }
@@ -1095,15 +1047,7 @@
 
       logger.warn(message);
 
-      dialogManager.dialogs$.next([
-        {
-          component: MessageDialog,
-          props: {
-            title: 'Update Error',
-            message
-          }
-        }
-      ]);
+      messageDialog({ title: 'Update Error', message });
     });
 
     return dataToReturn;
@@ -1237,20 +1181,6 @@
     fullscreenManager.exitFullscreen();
   }
 
-  function onDomainHintClick() {
-    dialogManager.dialogs$.next([
-      {
-        component: MessageDialog,
-        props: {
-          title: 'Old Domain',
-          message:
-            'You are currently using the old domain of ッツ Reader - consider switching to https://reader.ttsu.app to prevent issues and to ensure full features'
-        },
-        disableCloseOnClick: true
-      }
-    ]);
-  }
-
   function changeChapter(offset: number) {
     if (!$sectionData$?.length) {
       return;
@@ -1337,17 +1267,22 @@
 
         logger.warn(error);
 
-        dialogManager.dialogs$.next([
-          {
-            component: showReport ? LogReportDialog : MessageDialog,
-            props: {
-              title: 'Error Processing Data',
-              message: showReport
-                ? `Some or all data could not be stored on an external storage`
-                : error
+        if (showReport) {
+          dialogManager.dialogs$.next([
+            {
+              component: LogReportDialog,
+              props: {
+                title: 'Error Processing Data',
+                message: `Some or all data could not be saved to external storage.`
+              }
             }
-          }
-        ]);
+          ]);
+        } else {
+          messageDialog({
+            title: 'Error Processing Data',
+            message: error
+          });
+        }
       }
 
       externalStorageErrors += 1;
@@ -1403,19 +1338,9 @@
       isTrackerPaused$.next(true);
 
       if ($confirmClose$ && storedExploredCharacter !== exploredCharCount) {
-        const wasCanceled = await new Promise((resolver) => {
-          dialogManager.dialogs$.next([
-            {
-              component: ConfirmDialog,
-              props: {
-                dialogHeader: 'Confirm Exit',
-                dialogMessage: 'Your current location was not bookmarked. Continue leaving?',
-                resolver
-              },
-
-              disableCloseOnClick: true
-            }
-          ]);
+        const wasCanceled = await confirmDialog({
+          title: 'Confirm Exit',
+          message: 'Your current location was not bookmarked. Continue leaving?'
         });
 
         if (wasCanceled) {
@@ -1461,16 +1386,7 @@
       logger.error(message);
 
       dismissDialogs = false;
-      dialogManager.dialogs$.next([
-        {
-          component: MessageDialog,
-          props: {
-            title: 'Error',
-            message
-          },
-          disableCloseOnClick: true
-        }
-      ]);
+      messageDialog({ title: 'Error', message });
     }
 
     goto(`${pagePath}${routeId}`);
