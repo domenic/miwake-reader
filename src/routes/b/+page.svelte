@@ -120,6 +120,7 @@
   import ConfirmDialog from '$lib/components/confirm-dialog.svelte';
   import NumberDialog from '$lib/components/number-dialog.svelte';
   import { mergeEntries } from '$lib/components/merged-header-icon/merged-entries';
+  import SidebarOverlay from '$lib/components/sidebar-overlay.svelte';
   import { preFilteredTitlesForStatistics$ } from '$lib/components/statistics/statistics-types';
   import {
     currentDbVersion,
@@ -219,6 +220,7 @@
   let confettiWidthModifier = $state(36);
   let confettiMaxRuns = $state(0);
   let showReaderImageGallery = $state(false);
+  let wasTocOpen = $state(false);
   let dismissDialogs = true;
   let syncedResolver: () => void;
 
@@ -495,6 +497,22 @@
     if ($tocIsOpen$) {
       untrack(() => autoScroller?.off());
     }
+
+    skipKeyDownListener$.next($tocIsOpen$);
+
+    if (!$statisticsEnabled$) {
+      wasTocOpen = $tocIsOpen$;
+      return;
+    }
+
+    if ($tocIsOpen$ && !wasTocOpen) {
+      wasTrackerPaused = $isTrackerPaused$;
+      pauseTracker();
+    } else if (!$tocIsOpen$ && wasTocOpen && !wasTrackerPaused) {
+      isTrackerPaused$.next(false);
+    }
+
+    wasTocOpen = $tocIsOpen$;
   });
 
   $effect(() => {
@@ -1631,10 +1649,8 @@
       {hasBookmarkData}
       {isBookmarkScreen}
       ontocClick={() => {
-        pauseTracker();
-
         showHeader = false;
-        tocIsOpen$.next(true);
+        tocIsOpen$.set(true);
       }}
       onjumpClick={handleJump}
       oncompleteBook={completeBook}
@@ -1772,27 +1788,21 @@
   {$leaveIfBookMissing$ ?? ''}
 {/if}
 
-{#if $tocIsOpen$ && $sectionData$}
-  <div
-    class="writing-horizontal-tb fixed top-0 left-0 z-60 flex h-full w-full max-w-xl flex-col justify-between"
-    style:color={$themeOption$?.fontColor}
-    style:background-color={$backgroundColor$}
-    in:fly={{ x: -100, duration: 100, easing: quintInOut }}
-    use:clickOutside={() => {
-      if ($statisticsEnabled$ && !wasTrackerPaused) {
-        isTrackerPaused$.next(false);
-      }
-      tocIsOpen$.next(false);
-    }}
-  >
+<SidebarOverlay
+  bind:open={$tocIsOpen$}
+  side="left"
+  class="overflow-hidden bg-background-color text-(--font-color)"
+  style={`color: ${$themeOption$?.fontColor}; background-color: ${$backgroundColor$};`}
+>
+  {#if $sectionData$}
     <BookToc
       sectionData={$sectionData$}
       verticalMode={$verticalMode$}
       {exploredCharCount}
       {wasTrackerPaused}
     />
-  </div>
-{/if}
+  {/if}
+</SidebarOverlay>
 
 {#if showReaderImageGallery}
   <BookReaderImageGallery

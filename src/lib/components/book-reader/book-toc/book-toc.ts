@@ -5,13 +5,14 @@
  */
 
 import { BehaviorSubject, Subject } from 'rxjs';
+import { writable } from 'svelte/store';
 
 import type { Section } from '$lib/data/database/books-db/versions/v3/books-db-v3';
 
 export const sectionList$ = new BehaviorSubject<Section[]>([]);
 export const sectionProgress$ = new Subject<Map<string, SectionWithProgress>>();
 export const nextChapter$ = new Subject<string>();
-export const tocIsOpen$ = new Subject<boolean>();
+export const tocIsOpen$ = writable(false);
 
 export type SectionWithProgress = Section & {
   progress: number;

@@ -6,13 +6,10 @@
     tocIsOpen$,
     type SectionWithProgress
   } from '$lib/components/book-reader/book-toc/book-toc';
-  import { isTrackerPaused$ } from '$lib/components/book-reader/book-reading-tracker/book-reading-tracker';
-  import { dialogManager } from '$lib/data/dialog-manager';
   import { PAGE_CHANGE } from '$lib/data/events';
-  import { skipKeyDownListener$, statisticsEnabled$ } from '$lib/data/store';
+  import { statisticsEnabled$ } from '$lib/data/store';
   import { dummyFn, getWeightedAverage } from '$lib/functions/utils';
   import { debounceTime, fromEvent, merge, take } from 'rxjs';
-  import { onMount } from 'svelte';
   import Fa from 'svelte-fa';
 
   interface Props {
@@ -29,6 +26,7 @@
   let currentChapterIndex = $state(-1);
   let currentChapterCharacterProgress = $state('0/0');
   let currentChapterProgress = $state('0.00');
+  let currentChapterReference = $derived(currentChapter?.reference);
 
   let prevChapterAvailable = $derived(
     verticalMode ? currentChapterIndex < chapters.length - 1 : !!currentChapterIndex
@@ -67,23 +65,6 @@
     }
   });
 
-  onMount(() => {
-    $skipKeyDownListener$ = true;
-    dialogManager.dialogs$.next([
-      {
-        component: '<div/>'
-      }
-    ]);
-    if (currentChapter) {
-      scrollToChapterItem(document.getElementById(`for${currentChapter.reference}`));
-    }
-
-    return () => {
-      $skipKeyDownListener$ = false;
-      dialogManager.dialogs$.next([]);
-    };
-  });
-
   function scrollToChapterItem(elm: HTMLElement | null) {
     if (!elm) {
       return;
@@ -113,7 +94,7 @@
         .pipe(debounceTime(200), take(1))
         .subscribe(() => {
           if (closeToc) {
-            closeTocMenu();
+            tocIsOpen$.set(false);
           }
         });
     }
@@ -121,32 +102,18 @@
     nextChapter$.next(chapterId);
 
     if ((!hasCharacterChange || !$statisticsEnabled$ || wasTrackerPaused) && closeToc) {
-      closeTocMenu();
-    }
-  }
-
-  function closeTocMenu() {
-    tocIsOpen$.next(false);
-    dialogManager.dialogs$.next([]);
-
-    if ($statisticsEnabled$ && !wasTrackerPaused) {
-      isTrackerPaused$.next(false);
+      tocIsOpen$.set(false);
     }
   }
 </script>
 
 <div class="flex justify-between p-4">
   <div>Chapter Progress: {currentChapterCharacterProgress} ({currentChapterProgress}%)</div>
-  <div
-    tabindex="0"
-    role="button"
-    title="Close table of contents"
-    class="flex items-end md:items-center"
-    onclick={closeTocMenu}
-    onkeyup={dummyFn}
-  >
-    <Fa icon={faXmark} />
-  </div>
+  <form method="dialog" class="flex items-end md:items-center">
+    <button title="Close table of contents">
+      <Fa icon={faXmark} />
+    </button>
+  </form>
 </div>
 <div class="flex-1 overflow-auto p-4">
   {#each chapters as chapter (chapter.reference)}
@@ -157,15 +124,19 @@
         title={`Go to ${chapter.label}`}
         id={`for${chapter.reference}`}
         class="mr-4"
-        class:opacity-30={chapter.progress === 100 && chapter !== currentChapter}
-        class:hover:opacity-100={chapter.progress === 100 && chapter !== currentChapter}
-        class:hover:opacity-60={chapter.progress < 100 || chapter === currentChapter}
+        class:opacity-30={chapter.progress === 100 && chapter.reference !== currentChapterReference}
+        class:hover:opacity-100={chapter.progress === 100 &&
+          chapter.reference !== currentChapterReference}
+        class:hover:opacity-60={chapter.progress < 100 ||
+          chapter.reference === currentChapterReference}
         onclick={() => goToChapter(chapter.reference, true)}
         onkeyup={dummyFn}
       >
         {chapter.label}
       </div>
-      <div class:opacity-30={chapter.progress === 100 && chapter !== currentChapter}>
+      <div
+        class:opacity-30={chapter.progress === 100 && chapter.reference !== currentChapterReference}
+      >
         {chapter.startCharacter}
       </div>
     </div>
