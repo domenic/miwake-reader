@@ -185,6 +185,10 @@
 
   let columnCount = $derived(verticalMode ? 1 : pageColumns || Math.ceil(width / 1000));
 
+  // Extra width so the overflow:hidden padding box extends beyond the content,
+  // giving furigana room on the right edge in vertical-rl mode.
+  let furiganaExtra = $derived(verticalMode ? 10 : 0);
+
   // bookmarkData: when it changes, reset useExploredCharCount and update bookmark screen
   $effect(() => {
     bookmarkData.then((data) => {
@@ -720,16 +724,15 @@
   style:padding-left={verticalMode && firstDimensionMargin
     ? `${firstDimensionMargin}px`
     : undefined}
-  style:padding-right={verticalMode && firstDimensionMargin
-    ? `${firstDimensionMargin}px`
-    : undefined}
-  style:max-width={width ? `${width}px` : undefined}
+  style:padding-right={verticalMode ? `${firstDimensionMargin + furiganaExtra}px` : undefined}
+  style:max-width={width ? `${width + furiganaExtra}px` : undefined}
   style:max-height={verticalMode && height ? `${height}px` : undefined}
   style:--font-family-serif={fontFamilyGroupOne}
   style:--font-family-sans-serif={fontFamilyGroupTwo}
   style:--book-content-hint-furigana-font-color={hintFuriganaFontColor}
   style:--book-content-hint-furigana-shadow-color={hintFuriganaShadowColor}
-  style:--book-content-child-width="{width}px"
+  style:--book-content-child-width="{width + furiganaExtra}px"
+  style:margin-right={furiganaExtra ? `-${furiganaExtra}px` : undefined}
   style:--book-content-child-height="{height}px"
   style:--book-content-child-column-width={!verticalMode && columnCount === 1 ? `${width}px` : ''}
   style:--book-content-column-count={columnCount}
