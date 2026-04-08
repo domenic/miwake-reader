@@ -4,6 +4,7 @@
   import { page } from '$app/state';
   import ConfirmDialogHost from '$lib/components/confirm-dialog-host.svelte';
   import MessageDialogHost from '$lib/components/message-dialog-host.svelte';
+  import NumberDialogHost from '$lib/components/number-dialog-host.svelte';
   import { basePath, clearConsoleOnReload } from '$lib/data/env';
   import { dialogManager, type Dialog } from '$lib/data/dialog-manager';
   import { userFontsCacheName, type UserFont } from '$lib/data/fonts';
@@ -117,6 +118,7 @@
 {@render children?.()}
 <ConfirmDialogHost />
 <MessageDialogHost />
+<NumberDialogHost />
 
 {#if dialogs.length > 0}
   <div class="writing-horizontal-tb fixed inset-0 z-50 h-full w-full" style:z-index={zIndex}>

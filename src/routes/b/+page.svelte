@@ -116,7 +116,7 @@
     type SectionWithProgress
   } from '$lib/components/book-reader/book-toc/book-toc';
   import BookToc from '$lib/components/book-reader/book-toc/book-toc.svelte';
-  import NumberDialog from '$lib/components/number-dialog.svelte';
+  import { numberDialog } from '$lib/data/simple-dialogs';
   import { mergeEntries } from '$lib/components/merged-header-icon/merged-entries';
   import SidebarOverlay from '$lib/components/sidebar-overlay.svelte';
   import { preFilteredTitlesForStatistics$ } from '$lib/components/statistics/statistics-types';
@@ -674,18 +674,10 @@
     pauseTracker();
     skipKeyDownListener$.next(true);
 
-    const target = await new Promise<number | undefined>((resolver) => {
-      dialogManager.dialogs$.next([
-        {
-          component: NumberDialog,
-          props: {
-            dialogHeader: 'Jump to Position',
-            minValue: 1,
-            maxValue: bookCharCount || 1,
-            resolver
-          }
-        }
-      ]);
+    const target = await numberDialog({
+      title: 'Jump to Position',
+      minValue: 1,
+      maxValue: bookCharCount || 1
     });
 
     skipKeyDownListener$.next(false);
