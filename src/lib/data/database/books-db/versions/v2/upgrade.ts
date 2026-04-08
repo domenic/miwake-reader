@@ -1,9 +1,3 @@
-/**
- * @license BSD-3-Clause
- * Copyright (c) 2026, ッツ Reader Authors
- * All rights reserved.
- */
-
 import type { IDBPDatabase, IDBPTransaction, StoreNames } from 'idb';
 
 import type { BooksDb, BooksDbBookData } from '../books-db';

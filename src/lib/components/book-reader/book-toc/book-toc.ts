@@ -1,9 +1,3 @@
-/**
- * @license BSD-3-Clause
- * Copyright (c) 2026, ッツ Reader Authors
- * All rights reserved.
- */
-
 import { BehaviorSubject, Subject } from 'rxjs';
 import { writable } from 'svelte/store';
 

@@ -1,9 +1,3 @@
-/**
- * @license BSD-3-Clause
- * Copyright (c) 2026, ッツ Reader Authors
- * All rights reserved.
- */
-
 import { combineLatest, fromEvent, Observable, of, race } from 'rxjs';
 
 export function imageLoadingState(contentEl: HTMLElement) {

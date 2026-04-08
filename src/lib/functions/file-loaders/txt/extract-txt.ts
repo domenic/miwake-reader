@@ -1,9 +1,3 @@
-/**
- * @license BSD-3-Clause
- * Copyright (c) 2026, ッツ Reader Authors
- * All rights reserved.
- */
-
 export default function extract(file: File) {
   return new Promise<string>((resolve, reject) => {
     const reader = new FileReader();

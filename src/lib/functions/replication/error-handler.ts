@@ -1,9 +1,3 @@
-/**
- * @license BSD-3-Clause
- * Copyright (c) 2026, ッツ Reader Authors
- * All rights reserved.
- */
-
 import type { LimitFunction } from 'p-limit';
 import { logger } from '$lib/data/logger';
 import { replicationProgress$ } from '$lib/functions/replication/replication-progress';

@@ -1,9 +1,3 @@
-/**
- * @license BSD-3-Clause
- * Copyright (c) 2026, ッツ Reader Authors
- * All rights reserved.
- */
-
 function binarySearchImpl(notFoundValue: -1 | undefined) {
   const binarySearchRecursive = (arr: number[], l: number, r: number, x: number): number => {
     if (r < l) return notFoundValue ?? r;

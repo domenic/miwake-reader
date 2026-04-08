@@ -1,9 +1,3 @@
-/**
- * @license BSD-3-Clause
- * Copyright (c) 2026, ッツ Reader Authors
- * All rights reserved.
- */
-
 export const baseHeaderClasses = 'relative h-12 bg-gray-700 text-white xl:h-10';
 export const pHeaderMat = 'p-2.5';
 export const pxScreen = 'px-4 md:px-8 lg:max-w-4xl xl:max-w-none 2xl:max-w-6xl mx-auto';

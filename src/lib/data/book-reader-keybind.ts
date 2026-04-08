@@ -1,9 +1,3 @@
-/**
- * @license BSD-3-Clause
- * Copyright (c) 2026, ッツ Reader Authors
- * All rights reserved.
- */
-
 export enum BookReaderAvailableKeybind {
   AUTO_SCROLL_TOGGLE = 'autoScrollToggle',
   AUTO_SCROLL_INCREASE = 'autoScrollIncrease',

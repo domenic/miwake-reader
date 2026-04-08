@@ -1,9 +1,3 @@
-/**
- * @license BSD-3-Clause
- * Copyright (c) 2026, ッツ Reader Authors
- * All rights reserved.
- */
-
 /** Experimental Code - May be removed any time without warning */
 export const SKIPKEYLISTENER = 'ttsu:skipKeyListener';
 

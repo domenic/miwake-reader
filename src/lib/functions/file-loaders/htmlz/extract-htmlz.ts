@@ -1,9 +1,3 @@
-/**
- * @license BSD-3-Clause
- * Copyright (c) 2026, ッツ Reader Authors
- * All rights reserved.
- */
-
 import { BlobReader, BlobWriter, TextWriter, ZipReader } from '@zip.js/zip.js';
 import initZipSettings from '../utils/init-zip-settings';
 import type { HtmlzContent } from './types';

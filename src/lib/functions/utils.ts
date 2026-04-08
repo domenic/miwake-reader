@@ -1,9 +1,3 @@
-/**
- * @license BSD-3-Clause
- * Copyright (c) 2026, ッツ Reader Authors
- * All rights reserved.
- */
-
 import { StorageKey } from '$lib/data/storage/storage-types';
 import { getCharacterCount } from './get-character-count';
 import { writableSubject } from '$lib/functions/svelte/store';

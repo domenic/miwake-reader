@@ -1,9 +1,3 @@
-/**
- * @license BSD-3-Clause
- * Copyright (c) 2026, ッツ Reader Authors
- * All rights reserved.
- */
-
 import { getCharacterCount } from '$lib/functions/get-character-count';
 
 export function getFormattedElementTxt(data: string) {

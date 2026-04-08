@@ -1,9 +1,3 @@
-/**
- * @license BSD-3-Clause
- * Copyright (c) 2026, ッツ Reader Authors
- * All rights reserved.
- */
-
 import type { LoadData } from '../types';
 import { XMLParser } from 'fast-xml-parser';
 import extractHtmlz from './extract-htmlz';

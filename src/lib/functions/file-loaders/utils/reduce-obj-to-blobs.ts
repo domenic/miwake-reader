@@ -1,9 +1,3 @@
-/**
- * @license BSD-3-Clause
- * Copyright (c) 2026, ッツ Reader Authors
- * All rights reserved.
- */
-
 export default function reduceObjToBlobs<T>(data: Record<string, T | Blob>) {
   return Object.entries(data)
     .filter((d): d is [string, Blob] => d[1] instanceof Blob)

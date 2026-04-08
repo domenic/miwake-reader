@@ -1,9 +1,3 @@
-/**
- * @license BSD-3-Clause
- * Copyright (c) 2026, ッツ Reader Authors
- * All rights reserved.
- */
-
 import { Subscription, debounceTime, fromEvent, merge, tap } from 'rxjs';
 
 export function multiClickHandler(node: Node, handler: { (): void }[]) {

@@ -1,9 +1,3 @@
-/**
- * @license BSD-3-Clause
- * Copyright (c) 2026, ッツ Reader Authors
- * All rights reserved.
- */
-
 import { isOPFType, type EpubContent, type EpubOPFContent } from './types';
 import type { Section } from '../../../data/database/books-db/versions/v3/books-db-v3';
 import buildDummyBookImage from '../utils/build-dummy-book-image';

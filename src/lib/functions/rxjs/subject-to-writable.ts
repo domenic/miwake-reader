@@ -1,9 +1,3 @@
-/**
- * @license BSD-3-Clause
- * Copyright (c) 2026, ッツ Reader Authors
- * All rights reserved.
- */
-
 import type { Subject } from 'rxjs';
 
 export function subjectToSvelteWritable<S extends Subject<any>>(subject: S) {
