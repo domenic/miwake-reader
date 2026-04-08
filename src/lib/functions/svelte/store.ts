@@ -1,9 +1,3 @@
-/**
- * @license BSD-3-Clause
- * Copyright (c) 2026, ッツ Reader Authors
- * All rights reserved.
- */
-
 import { BehaviorSubject } from 'rxjs';
 import { subjectToSvelteWritable } from '../rxjs/subject-to-writable';
 

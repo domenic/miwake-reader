@@ -1,10 +1,4 @@
 /**
- * @license BSD-3-Clause
- * Copyright (c) 2026, ッツ Reader Authors
- * All rights reserved.
- */
-
-/**
  * Clear all references that aren't packed, which could be caused by:
  * - Bad input file (doesn't include the required image)
  * - Bad image file extension

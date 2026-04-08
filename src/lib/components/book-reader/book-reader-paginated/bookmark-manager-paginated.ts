@@ -1,9 +1,3 @@
-/**
- * @license BSD-3-Clause
- * Copyright (c) 2026, ッツ Reader Authors
- * All rights reserved.
- */
-
 import type { BehaviorSubject, Observable } from 'rxjs';
 
 import type { BookmarkManager } from '$lib/components/book-reader/types';

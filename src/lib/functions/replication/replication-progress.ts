@@ -1,9 +1,3 @@
-/**
- * @license BSD-3-Clause
- * Copyright (c) 2026, ッツ Reader Authors
- * All rights reserved.
- */
-
 import type { Entry } from '@zip.js/zip.js';
 import { Subject } from 'rxjs';
 

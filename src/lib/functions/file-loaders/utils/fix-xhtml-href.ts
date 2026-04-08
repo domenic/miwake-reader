@@ -1,10 +1,4 @@
 /**
- * @license BSD-3-Clause
- * Copyright (c) 2026, ッツ Reader Authors
- * All rights reserved.
- */
-
-/**
  * Converts attributes like xlink:href to href
  */
 export default function fixXHtmlHref(el: HTMLElement) {

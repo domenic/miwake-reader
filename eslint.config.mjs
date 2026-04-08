@@ -1,6 +1,5 @@
 import eslint from '@eslint/js';
 import { fixupPluginRules } from '@eslint/compat';
-import headers from 'eslint-plugin-headers';
 import eslintPluginPrettierRecommended from 'eslint-plugin-prettier/recommended';
 import rxjs from 'eslint-plugin-rxjs';
 import tseslint from 'typescript-eslint';
@@ -28,7 +27,6 @@ export default tseslint.config(
     },
     name: 'root',
     plugins: {
-      headers,
       rxjs: fixupPluginRules(rxjs)
     },
     rules: {
@@ -50,19 +48,6 @@ export default tseslint.config(
       '@typescript-eslint/no-unused-vars': [
         'error',
         { argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrorsIgnorePattern: '^_' }
-      ],
-      'headers/header-format': [
-        'error',
-        {
-          content: `@license BSD-3-Clause\nCopyright (c) {year}, ッツ Reader Authors\nAll rights reserved.`,
-          source: 'string',
-          style: 'jsdoc',
-          trailingNewlines: 2,
-          preservePragmas: false,
-          variables: {
-            year: `${new Date().getFullYear()}`
-          }
-        }
       ]
     }
   },

@@ -1,9 +1,3 @@
-/**
- * @license BSD-3-Clause
- * Copyright (c) 2026, ッツ Reader Authors
- * All rights reserved.
- */
-
 const RIPPLE_ANIMATION_DURATION = 400;
 const RIPPLE_EASING = 'linear';
 const RIPPLE_OVERLAY_TRANSITION = 'opacity 400ms cubic-bezier(0.23, 1, 0.32, 1)';

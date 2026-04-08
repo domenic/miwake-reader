@@ -1,9 +1,3 @@
-/**
- * @license BSD-3-Clause
- * Copyright (c) 2026, ッツ Reader Authors
- * All rights reserved.
- */
-
 import type { DBSchema } from 'idb';
 import type { FsHandle } from '$lib/data/storage/storage-source-manager';
 import type { StorageKey } from '$lib/data/storage/storage-types';

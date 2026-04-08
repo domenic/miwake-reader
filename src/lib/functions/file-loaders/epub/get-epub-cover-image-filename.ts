@@ -1,9 +1,3 @@
-/**
- * @license BSD-3-Clause
- * Copyright (c) 2026, ッツ Reader Authors
- * All rights reserved.
- */
-
 import { isOPFType, type EpubContent, type EpubMetadataMeta, type EpubOPFContent } from './types';
 
 export default async function getEpubCoverImageFilename(

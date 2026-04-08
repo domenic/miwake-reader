@@ -1,9 +1,3 @@
-/**
- * @license BSD-3-Clause
- * Copyright (c) 2026, ッツ Reader Authors
- * All rights reserved.
- */
-
 import { localStorage } from '$lib/data/window/local-storage';
 import { writableStorageSubject } from '$lib/data/internal/writable-storage-subject';
 

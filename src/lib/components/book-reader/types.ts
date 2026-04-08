@@ -1,9 +1,3 @@
-/**
- * @license BSD-3-Clause
- * Copyright (c) 2026, ッツ Reader Authors
- * All rights reserved.
- */
-
 import type { BehaviorSubject } from 'rxjs';
 import type { BooksDbBookmarkData } from '$lib/data/database/books-db/versions/books-db';
 

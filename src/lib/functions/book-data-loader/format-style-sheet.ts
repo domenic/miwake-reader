@@ -1,9 +1,3 @@
-/**
- * @license BSD-3-Clause
- * Copyright (c) 2026, ッツ Reader Authors
- * All rights reserved.
- */
-
 import type { BooksDbBookData } from '$lib/data/database/books-db/versions/books-db';
 import parseCss from '../css-parser/css-parser';
 import stringifyCss from '../css-parser/css-stringify';

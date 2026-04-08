@@ -1,9 +1,3 @@
-/**
- * @license BSD-3-Clause
- * Copyright (c) 2026, ッツ Reader Authors
- * All rights reserved.
- */
-
 export const basePath = import.meta.env.VITE_BASE_PATH || 'https://reader.ttsu.app';
 export const pagePath = import.meta.env.VITE_PAGE_PATH || '';
 export const appName = import.meta.env.VITE_APP_NAME || 'ッツ Ebook Reader';

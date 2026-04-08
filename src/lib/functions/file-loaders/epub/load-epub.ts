@@ -1,9 +1,3 @@
-/**
- * @license BSD-3-Clause
- * Copyright (c) 2026, ッツ Reader Authors
- * All rights reserved.
- */
-
 import type { LoadData } from '../types';
 import extractEpub from './extract-epub';
 import generateEpubHtml from './generate-epub-html';
