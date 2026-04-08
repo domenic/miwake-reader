@@ -1,297 +1,98 @@
 <script lang="ts">
-  import { browser } from '$app/environment';
-  import {
-    faCalendar,
-    faCalendarXmark,
-    faChevronLeft,
-    faChevronRight,
-    faCircleCheck,
-    faEye,
-    faEyeSlash,
-    faList,
-    faListCheck,
-    faTrash
-  } from '@fortawesome/free-solid-svg-icons';
   import DialogFormButton from '$lib/components/dialog-form-button.svelte';
-  import {
-    preFilteredTitlesForStatistics$,
-    type StatisticsTitleFilterItem
-  } from '$lib/components/statistics/statistics-types';
-  import {
-    lastStatisticsFilterDateRangeOnly$,
-    lastStatisticsFilterShowSelectedTitlesOnly$
-  } from '$lib/data/store';
-  import { convertRemToPixels, getFullHeight, limitToRange } from '$lib/functions/utils';
-  import { onDestroy, tick } from 'svelte';
-  import Fa from 'svelte-fa';
+  import ToggleSwitch from '$lib/components/toggle-switch.svelte';
+  import { lastStatisticsFilterDateRangeOnly$ } from '$lib/data/store';
 
   interface Props {
-    statisticsTitleFilters: Map<string, boolean>;
+    titleFilterSelections: [string, boolean][];
     titlesInStatisticsDateRange: Set<string>;
-    onapplyFilter?: (data: StatisticsTitleFilterItem[]) => void;
-    onclearPrefilter?: () => void;
   }
 
-  let {
-    statisticsTitleFilters,
-    titlesInStatisticsDateRange,
-    onapplyFilter,
-    onclearPrefilter
-  }: Props = $props();
+  let { titleFilterSelections = $bindable(), titlesInStatisticsDateRange }: Props = $props();
 
-  const statisticsTitleFilterBaseRowRem = 4;
-  const statisticsTitleFilterBaseRowGap = 2;
-
-  let statisticsTitleFilterTableContainerElm = $state<HTMLElement>();
-  let statisticsTitleFilterButtonContainer = $state<HTMLElement>();
   let titleFilter = $state('');
-  let titleFilterTimer: number | undefined;
-  let titlesToFilter: StatisticsTitleFilterItem[] = $state([]);
-  let filteredTitles: StatisticsTitleFilterItem[] = $state([]);
-  let currentTitlesToFilterRows: StatisticsTitleFilterItem[] = $state([]);
-  let statisticsTitleFilterMaxPages = $state(0);
-  let currentStatisticsTitleFilterPage = $state(1);
-  let statisticsTitleFilterRowsPerPage = $state(0);
-  let statisticsTitleFilterPageLabel = $derived(
-    `PAGE ${currentStatisticsTitleFilterPage} / ${statisticsTitleFilterMaxPages}`
+  let headerCheckbox = $state<HTMLInputElement>();
+
+  let filteredSelections = $derived(
+    titleFilterSelections.filter(
+      ([title]) =>
+        (!titleFilter || title.includes(titleFilter)) &&
+        (!$lastStatisticsFilterDateRangeOnly$ || titlesInStatisticsDateRange.has(title))
+    )
   );
 
-  $effect(() => {
-    setTitlesToFilter(statisticsTitleFilters);
-  });
+  let allSelected = $derived(
+    filteredSelections.length > 0 && filteredSelections.every(([, isSelected]) => isSelected)
+  );
+  let noneSelected = $derived(filteredSelections.every(([, isSelected]) => !isSelected));
 
   $effect(() => {
-    applyTitleFilters(
-      $lastStatisticsFilterDateRangeOnly$,
-      $lastStatisticsFilterShowSelectedTitlesOnly$
-    );
+    if (headerCheckbox) {
+      headerCheckbox.indeterminate = !allSelected && !noneSelected;
+    }
   });
 
-  $effect(() => {
-    updateStatisticsTitleFilterTableData(currentStatisticsTitleFilterPage);
-  });
+  function handleToggleAll() {
+    const valueToSet = !allSelected;
 
-  let resizeObserver: ResizeObserver | undefined;
-
-  $effect(() => {
-    if (!browser) {
-      return;
+    for (const item of filteredSelections) {
+      item[1] = valueToSet;
     }
-
-    const tableContainer = statisticsTitleFilterTableContainerElm;
-
-    if (!tableContainer) {
-      return;
-    }
-
-    resizeObserver?.disconnect();
-    resizeObserver = new ResizeObserver(() => updateStatisticsTitleFilterRowsPerPage());
-    resizeObserver.observe(tableContainer);
-  });
-
-  onDestroy(() => resizeObserver?.disconnect());
-
-  function handleTitleFilterChange() {
-    clearTimeout(titleFilterTimer);
-    titleFilterTimer = window.setTimeout(() => {
-      applyTitleFilters();
-    }, 500);
-  }
-
-  function handleSelectAll(valueToSet: boolean) {
-    for (let index = 0, { length } = titlesToFilter; index < length; index += 1) {
-      titlesToFilter[index].isSelected = valueToSet;
-    }
-
-    if ($lastStatisticsFilterShowSelectedTitlesOnly$) {
-      applyTitleFilters();
-    } else {
-      updateStatisticsTitleFilterTableData(currentStatisticsTitleFilterPage);
-    }
-  }
-
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  function setTitlesToFilter(_: any) {
-    const entries = [...statisticsTitleFilters.entries()];
-
-    titlesToFilter = entries.map(([title, isSelected]) => ({ title, isSelected }));
-
-    applyTitleFilters();
-  }
-
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  function applyTitleFilters(..._: any) {
-    tick().then(() => {
-      filteredTitles = titlesToFilter.filter(
-        (filterItem) =>
-          (!titleFilter || filterItem.title.includes(titleFilter)) &&
-          (!$lastStatisticsFilterDateRangeOnly$ ||
-            titlesInStatisticsDateRange.has(filterItem.title)) &&
-          (!$lastStatisticsFilterShowSelectedTitlesOnly$ || filterItem.isSelected)
-      );
-
-      updateStatisticsTitleFilterRowsPerPage(currentStatisticsTitleFilterPage);
-    });
-  }
-
-  function updateStatisticsTitleFilterRowsPerPage(newPage?: number) {
-    tick().then(() => {
-      const tableContainer = statisticsTitleFilterTableContainerElm;
-      const buttonContainer = statisticsTitleFilterButtonContainer;
-
-      if (!tableContainer || !buttonContainer) {
-        return;
-      }
-
-      statisticsTitleFilterRowsPerPage = Math.max(
-        1,
-        Math.ceil(
-          (getFullHeight(window, tableContainer) - getFullHeight(window, buttonContainer, true)) /
-            convertRemToPixels(
-              window,
-              statisticsTitleFilterBaseRowRem + statisticsTitleFilterBaseRowGap + 0.4
-            )
-        )
-      );
-
-      updateStatisticsTitleFilterPageData(newPage);
-    });
-  }
-
-  function updateStatisticsTitleFilterPageData(newPage?: number) {
-    statisticsTitleFilterMaxPages = Math.ceil(
-      filteredTitles.length / statisticsTitleFilterRowsPerPage
-    );
-
-    currentStatisticsTitleFilterPage = newPage
-      ? limitToRange(1, statisticsTitleFilterMaxPages, newPage)
-      : limitToRange(1, statisticsTitleFilterMaxPages, currentStatisticsTitleFilterPage);
-
-    updateStatisticsTitleFilterTableData(currentStatisticsTitleFilterPage);
-  }
-
-  function updateStatisticsTitleFilterTableData(pageNumber: number) {
-    if (!pageNumber) {
-      return;
-    }
-
-    const currenPageStart = (pageNumber - 1) * statisticsTitleFilterRowsPerPage;
-
-    currentTitlesToFilterRows = filteredTitles.slice(
-      currenPageStart,
-      currenPageStart + statisticsTitleFilterRowsPerPage
-    );
   }
 </script>
 
 <div class="flex items-center p-4">
-  <DialogFormButton title="Close title filter" />
+  <DialogFormButton title="Close book filter" />
 </div>
-<div class="flex flex-col flex-1 px-4">
-  <input
-    type="search"
-    placeholder="Filter Title"
-    class="w-full text-black"
-    bind:value={titleFilter}
-    oninput={handleTitleFilterChange}
-  />
-  <div class="flex justify-between mt-6 text-2xl">
-    <DialogFormButton
-      title="Apply filter"
-      icon={faCircleCheck}
-      class="hover:text-red-500"
-      onsubmit={() => onapplyFilter?.(titlesToFilter)}
+<div class="flex flex-col flex-1 px-4 min-h-0">
+  <div class="flex items-center gap-4">
+    <input
+      type="search"
+      placeholder="Filter book list"
+      class="flex-1 text-black"
+      bind:value={titleFilter}
     />
-    <button title="Select all" class="hover:text-red-500" onclick={() => handleSelectAll(true)}>
-      <Fa icon={faListCheck} />
-    </button>
-    <button title="Remove all" class="hover:text-red-500" onclick={() => handleSelectAll(false)}>
-      <Fa icon={faList} />
-    </button>
-    <button
-      title={$lastStatisticsFilterDateRangeOnly$
-        ? 'Display Titles across all Time'
-        : 'Display Titles in selected Date Range only'}
-      class="hover:text-red-500"
-      onclick={() => ($lastStatisticsFilterDateRangeOnly$ = !$lastStatisticsFilterDateRangeOnly$)}
-    >
-      <Fa icon={$lastStatisticsFilterDateRangeOnly$ ? faCalendarXmark : faCalendar} />
-    </button>
-    <button
-      title={$lastStatisticsFilterShowSelectedTitlesOnly$
-        ? 'Display all Titles'
-        : 'Display selected Titles only'}
-      class="hover:text-red-500"
-      onclick={() =>
-        ($lastStatisticsFilterShowSelectedTitlesOnly$ =
-          !$lastStatisticsFilterShowSelectedTitlesOnly$)}
-    >
-      <Fa icon={$lastStatisticsFilterShowSelectedTitlesOnly$ ? faEyeSlash : faEye} />
-    </button>
-    {#if $preFilteredTitlesForStatistics$.size}
-      <button
-        title="Remove prefilter"
-        class="hover:text-red-500"
-        onclick={() => onclearPrefilter?.()}
-      >
-        <Fa icon={faTrash} />
-      </button>
-    {/if}
   </div>
-  <div class="grow mt-8 pl-1 overflow-auto" bind:this={statisticsTitleFilterTableContainerElm}>
-    {#if filteredTitles.length}
-      <div
-        class="grid grid-cols-[max-content_auto] gap-x-8 items-center"
-        style:grid-auto-rows={`${statisticsTitleFilterBaseRowRem}rem`}
-        style:row-gap={`${statisticsTitleFilterBaseRowGap}rem`}
-      >
-        {#each currentTitlesToFilterRows as currentTitlesToFilterRow, rowIndex (currentTitlesToFilterRow.title)}
-          {@const checkboxId = `statistics-title-filter-${currentStatisticsTitleFilterPage}-${rowIndex}`}
-          <input
-            id={checkboxId}
-            type="checkbox"
-            bind:checked={currentTitlesToFilterRow.isSelected}
-            onchange={() => {
-              if ($lastStatisticsFilterShowSelectedTitlesOnly$) {
-                applyTitleFilters();
-              }
-            }}
-          />
-          <label
-            for={checkboxId}
-            class="line-clamp-3"
-            class:opacity-50={!titlesInStatisticsDateRange.has(currentTitlesToFilterRow.title)}
-            title={currentTitlesToFilterRow.title}
-          >
-            {currentTitlesToFilterRow.title}
-          </label>
-        {/each}
-      </div>
+  <ToggleSwitch
+    bind:checked={$lastStatisticsFilterDateRangeOnly$}
+    label="Only show books with statistics in the target date range"
+    class="mt-4"
+  />
+  <div class="grow mt-4 pl-1 overflow-auto">
+    {#if filteredSelections.length}
+      <table class="w-full">
+        <thead class="sticky top-0 z-10 bg-gray-700 shadow-[0_1px_0_theme(colors.gray.500)]">
+          <tr>
+            <th class="w-0 py-2 pr-4">
+              <input
+                type="checkbox"
+                checked={allSelected}
+                onchange={handleToggleAll}
+                title={allSelected ? 'Deselect all' : 'Select all'}
+                bind:this={headerCheckbox}
+              />
+            </th>
+            <th class="py-2 text-left font-semibold">Book title</th>
+          </tr>
+        </thead>
+        <tbody>
+          {#each filteredSelections as item (item[0])}
+            <tr>
+              <td class="py-2 pr-4">
+                <input type="checkbox" bind:checked={item[1]} />
+              </td>
+              <td
+                class="py-2 line-clamp-3"
+                class:opacity-50={!titlesInStatisticsDateRange.has(item[0])}
+              >
+                {item[0]}
+              </td>
+            </tr>
+          {/each}
+        </tbody>
+      </table>
     {:else}
-      <div class="mt-6 text-2xl text-center">No Titles to filter</div>
+      <div class="mt-6 text-2xl text-center">No books to filter</div>
     {/if}
-  </div>
-  <div
-    class="my-6 flex justify-between"
-    class:invisible={statisticsTitleFilterMaxPages < 2}
-    bind:this={statisticsTitleFilterButtonContainer}
-  >
-    <button
-      disabled={currentStatisticsTitleFilterPage === 1}
-      class:opacity-25={currentStatisticsTitleFilterPage === 1}
-      class:cursor-not-allowed={currentStatisticsTitleFilterPage === 1}
-      onclick={() => (currentStatisticsTitleFilterPage -= 1)}
-    >
-      <Fa icon={faChevronLeft} />
-    </button>
-    <div class="mx-6">{statisticsTitleFilterPageLabel}</div>
-    <button
-      disabled={currentStatisticsTitleFilterPage === statisticsTitleFilterMaxPages}
-      class:opacity-25={currentStatisticsTitleFilterPage === statisticsTitleFilterMaxPages}
-      class:cursor-not-allowed={currentStatisticsTitleFilterPage === statisticsTitleFilterMaxPages}
-      onclick={() => (currentStatisticsTitleFilterPage += 1)}
-    >
-      <Fa icon={faChevronRight} />
-    </button>
   </div>
 </div>

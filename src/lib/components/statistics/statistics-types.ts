@@ -13,11 +13,6 @@ export interface StatisticsDataSource {
   label: string;
 }
 
-export interface StatisticsTitleFilterItem {
-  title: string;
-  isSelected: boolean;
-}
-
 export interface BookStatistic extends BooksDbStatistic {
   id: string;
   averageReadingTime: number;

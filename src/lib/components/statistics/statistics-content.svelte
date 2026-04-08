@@ -19,7 +19,6 @@
     copyStatisticsData$,
     statisticsTitleFilterEnabled$,
     statisticsTitleFilterIsOpen$,
-    type StatisticsTitleFilterItem,
     preFilteredTitlesForStatistics$,
     statisticsDataAggregrationModes,
     exportStatisticsData$,
@@ -259,7 +258,8 @@
 
   let isLoading = $state(true);
   let todayKey = $state(getDateString(getStartHoursDate($startDayHoursForTracker$)));
-  let statisticsTitleFilters = $state(new Map<string, boolean>());
+  let titleFilterSelections: [string, boolean][] = $state([]);
+  let statisticsTitleFilters = $derived(new Map(titleFilterSelections));
   let titlesInStatisticsDateRange = $state(new Set<string>());
   let statisticsData: BookStatistic[] = $state([]);
   let statisticsForSelection: BookStatistic[] = $state([]);
@@ -272,6 +272,7 @@
 
   $effect(() => {
     if (
+      statisticsTitleFilters &&
       $lastPrimaryReadingDataAggregationMode$ &&
       $lastStatisticsStartDate$ &&
       $lastStatisticsEndDate$
@@ -399,44 +400,25 @@
         return true;
       });
 
-      const preFilteredTitlesForStatistics = [...$preFilteredTitlesForStatistics$];
+      const filteredEntries = [...filterMap.entries()];
+      const titleFilters = [...notDeletedMap.entries()];
+      const newStatisticsTitleFilterData = new Map<string, boolean>();
 
-      for (let index = 0, { length } = preFilteredTitlesForStatistics; index < length; index += 1) {
-        const preFilteredTitleForStatistics = preFilteredTitlesForStatistics[index];
+      for (let index = 0, { length } = filteredEntries; index < length; index += 1) {
+        const [title, hasData] = filteredEntries[index];
 
-        if (
-          filterMap.has(preFilteredTitleForStatistics) &&
-          !filterMap.get(preFilteredTitleForStatistics)
-        ) {
-          statisticsTitleFilters.delete(preFilteredTitleForStatistics);
-          $preFilteredTitlesForStatistics$.delete(preFilteredTitleForStatistics);
+        if (hasData) {
+          newStatisticsTitleFilterData.set(title, true);
         }
       }
 
-      if ($preFilteredTitlesForStatistics$.size) {
-        statisticsTitleFilters = statisticsTitleFilters;
-        $preFilteredTitlesForStatistics$ = $preFilteredTitlesForStatistics$;
-      } else {
-        const filteredEntries = [...filterMap.entries()];
-        const titleFilters = [...notDeletedMap.entries()];
-        const newStatisticsTitleFilterData = new Map<string, boolean>();
+      for (let index = 0, { length } = titleFilters; index < length; index += 1) {
+        const [title, isDisplayed] = titleFilters[index];
 
-        for (let index = 0, { length } = filteredEntries; index < length; index += 1) {
-          const [title, hasData] = filteredEntries[index];
-
-          if (hasData) {
-            newStatisticsTitleFilterData.set(title, true);
-          }
-        }
-
-        for (let index = 0, { length } = titleFilters; index < length; index += 1) {
-          const [title, isDisplayed] = titleFilters[index];
-
-          newStatisticsTitleFilterData.set(title, isDisplayed);
-        }
-
-        statisticsTitleFilters = newStatisticsTitleFilterData;
+        newStatisticsTitleFilterData.set(title, isDisplayed);
       }
+
+      titleFilterSelections = [...newStatisticsTitleFilterData.entries()];
 
       updateStatisticsData();
       $statisticsActionInProgress$ = false;
@@ -517,40 +499,6 @@
     }
   }
 
-  function updateTitleFilter(newStatisticsTitleFilters: StatisticsTitleFilterItem[]) {
-    const newStatisticsTitleFilterData = new Map<string, boolean>();
-
-    for (let index = 0, { length } = newStatisticsTitleFilters; index < length; index += 1) {
-      const newStatisticsTitleFilter = newStatisticsTitleFilters[index];
-
-      newStatisticsTitleFilterData.set(
-        newStatisticsTitleFilter.title,
-        newStatisticsTitleFilter.isSelected
-      );
-    }
-
-    statisticsTitleFilters = newStatisticsTitleFilterData;
-
-    updateStatisticsData();
-  }
-
-  function clearPrefilter() {
-    const newStatisticsTitleFilterData = new Map<string, boolean>();
-
-    for (let index = 0, { length } = statisticsData; index < length; index += 1) {
-      const statistic = statisticsData[index];
-
-      if (statistic.readingTime) {
-        newStatisticsTitleFilterData.set(statistic.title, true);
-      }
-    }
-
-    statisticsTitleFilters = newStatisticsTitleFilterData;
-    $preFilteredTitlesForStatistics$ = new Set();
-
-    updateStatisticsData();
-  }
-
   function toggleStatisticsRangeTemplate() {
     let nextIndex =
       statisticsRangeTemplates.findIndex(
@@ -581,19 +529,19 @@
     try {
       const db = await database.db;
       const hasPrefilteredTitlesForStatistics = !!$preFilteredTitlesForStatistics$.size;
-      const initialStatisticsTitleFilters = new Map<string, boolean>();
+      const initialTitleFilterSelections = new Map<string, boolean>();
 
       [statisticsData, readingGoals] = await Promise.all([
         db.getAllFromIndex('statistic', 'dateKey'),
         database.getReadingGoals()
       ]).then(([statistics, readingGoalData]) => [
         statistics.map((statistic) => {
-          if (
-            statistic.readingTime &&
-            (!hasPrefilteredTitlesForStatistics ||
-              $preFilteredTitlesForStatistics$.has(statistic.title))
-          ) {
-            initialStatisticsTitleFilters.set(statistic.title, true);
+          if (statistic.readingTime) {
+            initialTitleFilterSelections.set(
+              statistic.title,
+              !hasPrefilteredTitlesForStatistics ||
+                $preFilteredTitlesForStatistics$.has(statistic.title)
+            );
           }
 
           return {
@@ -612,7 +560,7 @@
         readingGoalData
       ]);
 
-      statisticsTitleFilters = initialStatisticsTitleFilters;
+      titleFilterSelections = [...initialTitleFilterSelections.entries()];
       updateStatisticsData();
     } catch ({ message }: any) {
       messageDialog({ title: 'Error', message: `Error getting data: ${message}` });
@@ -794,12 +742,7 @@
   side="right"
   class="overflow-hidden bg-gray-700 text-white"
 >
-  <StatisticsTitleFilter
-    {statisticsTitleFilters}
-    {titlesInStatisticsDateRange}
-    onapplyFilter={updateTitleFilter}
-    onclearPrefilter={clearPrefilter}
-  />
+  <StatisticsTitleFilter bind:titleFilterSelections {titlesInStatisticsDateRange} />
 </SidebarOverlay>
 {#if $statisticsActionInProgress$}
   <div class="tap-highlight-transparent fixed inset-0 bg-black/20 z-70"></div>
