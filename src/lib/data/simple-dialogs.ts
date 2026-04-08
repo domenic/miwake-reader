@@ -1,50 +1,80 @@
-import { writable } from 'svelte/store';
+import { mount, unmount, type Component } from 'svelte';
+import ConfirmDialogContent from '$lib/components/confirm-dialog-content.svelte';
+import MessageDialogContent from '$lib/components/message-dialog-content.svelte';
+import NumberDialogContent from '$lib/components/number-dialog-content.svelte';
+import { dialogSurfaceClasses } from '$lib/css-classes';
 
-export interface ConfirmDialogRequest {
-  title: string;
-  message: string;
-  resolve: (wasCanceled: boolean) => void;
-}
+function showDialog<T>(
+  component: Component<any>,
+  props: Record<string, unknown>,
+  options: { closedBy: string; resolveResult: (returnValue: string) => T }
+): Promise<T> {
+  return new Promise((resolve) => {
+    const dialog = document.createElement('dialog');
+    dialog.className = `writing-horizontal-tb fixed inset-0 m-auto border-none ${dialogSurfaceClasses}`;
+    dialog.closedBy = options.closedBy;
+    document.body.append(dialog);
 
-export const confirmDialogRequest$ = writable<ConfirmDialogRequest | undefined>(undefined);
-
-export function confirmDialog({ title, message }: Omit<ConfirmDialogRequest, 'resolve'>) {
-  return new Promise<boolean>((resolve) => {
-    confirmDialogRequest$.set({
-      title,
-      message,
-      resolve
+    const comp = mount(component, {
+      target: dialog,
+      props
     });
+
+    dialog.addEventListener(
+      'close',
+      () => {
+        const result = options.resolveResult(dialog.returnValue);
+        unmount(comp);
+        dialog.remove();
+        resolve(result);
+      },
+      { once: true }
+    );
+
+    dialog.showModal();
   });
 }
 
-export interface MessageDialogRequest {
-  title: string;
-  message: string;
+export function confirmDialog({ title, message }: { title: string; message: string }) {
+  return showDialog(
+    ConfirmDialogContent,
+    { title, message },
+    {
+      closedBy: 'any',
+      resolveResult: (returnValue) => returnValue !== 'confirm'
+    }
+  );
 }
 
-export const messageDialogRequest$ = writable<MessageDialogRequest | undefined>(undefined);
-
-export function messageDialog(request: MessageDialogRequest) {
-  messageDialogRequest$.set(request);
+export function messageDialog({ title, message }: { title: string; message: string }) {
+  showDialog(
+    MessageDialogContent,
+    { title, message },
+    {
+      closedBy: 'closerequest',
+      resolveResult: () => undefined
+    }
+  );
 }
 
-export interface NumberDialogRequest {
+export function numberDialog({
+  title,
+  minValue,
+  maxValue,
+  actionLabel
+}: {
   title: string;
   minValue: number;
   maxValue: number;
-  resolve: (value: number | undefined) => void;
-}
-
-export const numberDialogRequest$ = writable<NumberDialogRequest | undefined>(undefined);
-
-export function numberDialog({ title, minValue, maxValue }: Omit<NumberDialogRequest, 'resolve'>) {
-  return new Promise<number | undefined>((resolve) => {
-    numberDialogRequest$.set({
-      title,
-      minValue,
-      maxValue,
-      resolve
-    });
-  });
+  actionLabel?: string;
+}) {
+  let value: number | undefined;
+  return showDialog<number | undefined>(
+    NumberDialogContent,
+    { title, minValue, maxValue, actionLabel, setResult: (v: number) => (value = v) },
+    {
+      closedBy: 'any',
+      resolveResult: (returnValue) => (returnValue === 'confirm' ? value : undefined)
+    }
+  );
 }

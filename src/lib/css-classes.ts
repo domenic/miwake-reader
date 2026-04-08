@@ -10,3 +10,6 @@ export const buttonClasses =
   'inline-block no-underline font-medium rounded-sm min-w-[32px] sm:min-w-[64px] px-4 leading-9 cursor-pointer text-cyan-900';
 export const baseIconClasses = `flex justify-center select-none items-center h-12 w-12 cursor-pointer text-xl xl:h-10 xl:w-10 xl:text-lg ${pHeaderMat} ${opacityHeaderIcon}`;
 export const headerDividerClasses = 'mx-1 h-6 w-px self-center bg-white/30';
+export const dialogSurfaceClasses = 'mdc-elevation--z24 rounded-sm bg-white p-6';
+export const dialogTitleClasses = 'weight-medium mb-5 text-xl';
+export const dialogActionsClasses = 'flex grow flex-wrap items-center justify-center gap-4 pt-5';

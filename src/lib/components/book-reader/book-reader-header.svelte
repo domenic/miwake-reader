@@ -126,7 +126,7 @@
     {#if hasText}
       <HeaderButton
         faIcon={faHashtag}
-        title="Jump to position"
+        title="Jump to character"
         label="Jump"
         onclick={() => onjumpClick?.()}
       />

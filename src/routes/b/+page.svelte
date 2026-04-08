@@ -675,7 +675,8 @@
     skipKeyDownListener$.next(true);
 
     const target = await numberDialog({
-      title: 'Jump to Position',
+      title: 'Jump to Character',
+      actionLabel: 'Jump',
       minValue: 1,
       maxValue: bookCharCount || 1
     });
