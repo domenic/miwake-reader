@@ -8,61 +8,19 @@
   "start_url": "./",
   "icons": [
     {
-      "src": "icons/regular-icon@16x16.png",
-      "sizes": "16x16",
-      "type": "image/png",
+      "src": "favicon.svg",
+      "type": "image/svg+xml",
+      "sizes": "any",
       "purpose": "any"
     },
     {
-      "src": "icons/maskable-icon@16x16.png",
-      "sizes": "16x16",
-      "type": "image/png",
-      "purpose": "maskable"
-    },
-    {
-      "src": "icons/regular-icon@32x32.png",
-      "sizes": "32x32",
-      "type": "image/png",
-      "purpose": "any"
-    },
-    {
-      "src": "icons/maskable-icon@32x32.png",
-      "sizes": "32x32",
-      "type": "image/png",
-      "purpose": "maskable"
-    },
-    {
-      "src": "favicon.png",
-      "sizes": "128x128",
-      "type": "image/png",
-      "purpose": "any"
-    },
-    {
-      "src": "icons/maskable-icon@128x128.png",
-      "sizes": "128x128",
-      "type": "image/png",
-      "purpose": "maskable"
-    },
-    {
-      "src": "icons/regular-icon@192x192.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any"
-    },
-    {
-      "src": "icons/maskable-icon@192x192.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "maskable"
-    },
-    {
-      "src": "icons/regular-icon@512x512.png",
+      "src": "icon-512x512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "icons/maskable-icon@512x512.png",
+      "src": "maskable-icon-512x512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"

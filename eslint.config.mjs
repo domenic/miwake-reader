@@ -13,13 +13,28 @@ export default tseslint.config(
     ignores: ['**/build/*', '**/.svelte-kit/*', '**/*.d.ts', '**/service-worker.ts']
   },
   {
+    files: ['scripts/**/*.mjs'],
+    languageOptions: {
+      globals: {
+        console: 'readonly'
+      }
+    }
+  },
+  {
     languageOptions: {
       parserOptions: {
         parser: '@typescript-eslint/parser',
         ecmaVersion: 2020,
         extraFileExtensions: ['.svelte'],
         projectService: {
-          allowDefaultProject: ['*.js', '*.cjs', '*.mjs', '.prettierrc.cjs', 'tailwindcss/*.cjs']
+          allowDefaultProject: [
+            '*.js',
+            '*.cjs',
+            '*.mjs',
+            '.prettierrc.cjs',
+            'tailwindcss/*.cjs',
+            'scripts/*.mjs'
+          ]
         },
         sourceType: 'module',
         tsconfigRootDir: import.meta.dirname

@@ -104,7 +104,7 @@
     type: 'website',
     images: [
       {
-        url: `${basePath}/icons/regular-icon@512x512.png`,
+        url: `${basePath}/icon-512x512.png`,
         width: 512,
         height: 512
       }
