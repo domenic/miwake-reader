@@ -63,26 +63,18 @@
             tokenData.access_token,
             tokenData.expires_in,
             tokenData.scope,
-            true,
             tokenData.refresh_token
           );
         })
         .catch((error) => {
           reportError(url.origin, 'Code authorization request failed', error.message);
         });
-    } else if (hashParams.has('access_token')) {
-      checkAuthResponse(
-        url.origin,
-        hashParams.get('access_token'),
-        hashParams.get('expires_in'),
-        hashParams.get('scope'),
-        false
-      );
     } else if (url.searchParams.has('ttu-init-auth')) {
       const params = new URLSearchParams();
 
-      const { clientId, clientSecret, authEndpoint, tokenEndpoint, scope } =
-        await getDataFromOpener(url.origin, { type: 'getAuthVariables' });
+      const { clientId, authEndpoint, scope } = await getDataFromOpener(url.origin, {
+        type: 'getAuthVariables'
+      });
 
       if (!clientId || !scope || !authEndpoint) {
         return reportError(
@@ -96,18 +88,14 @@
       params.append('redirect_uri', redirectUri);
       params.append('scope', scope);
 
-      if (clientSecret && tokenEndpoint) {
-        params.append('response_type', 'code');
-        params.append('access_type', 'offline');
-        params.append('code_challenge_method', 'S256');
-        params.append(
-          'code_challenge',
-          await getDataFromOpener(url.origin, { type: 'getCodeChallenge' })
-        );
-        params.append('prompt', 'consent');
-      } else {
-        params.append('response_type', 'token');
-      }
+      params.append('response_type', 'code');
+      params.append('access_type', 'offline');
+      params.append('code_challenge_method', 'S256');
+      params.append(
+        'code_challenge',
+        await getDataFromOpener(url.origin, { type: 'getCodeChallenge' })
+      );
+      params.append('prompt', 'consent');
 
       window.location.assign(`${authEndpoint}?${params.toString()}`);
     } else if (url.searchParams.has('ttu-init-wait')) {
@@ -128,7 +116,7 @@
       return;
     }
 
-    /*     window.opener.postMessage(
+    window.opener.postMessage(
       {
         type: 'failure',
         payload: {
@@ -137,7 +125,7 @@
         }
       },
       origin
-    ); */
+    );
   }
 
   function checkAuthResponse(
@@ -145,20 +133,17 @@
     accessToken: string | null,
     expiration: string | null,
     scope: string | null,
-    withRefreshToken = false,
     refreshToken?: string | null
   ) {
     if (!window.opener) {
       return;
     }
 
-    if (!accessToken || !expiration || !scope || (withRefreshToken && !refreshToken)) {
+    if (!accessToken || !expiration || !scope || !refreshToken) {
       reportError(
         origin,
         'A required authentication property was not found',
-        `Had Token: ${!!accessToken}\nHad Expiration: ${!!expiration}\nHad Scope"${!!scope}${
-          withRefreshToken ? `\nHad Refresh Token"${!!refreshToken}` : ''
-        }`
+        `Had Token: ${!!accessToken}\nHad Expiration: ${!!expiration}\nHad Scope: ${!!scope}\nHad Refresh Token: ${!!refreshToken}`
       );
       return;
     }
