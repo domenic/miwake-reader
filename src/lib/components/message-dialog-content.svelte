@@ -13,5 +13,5 @@
 <h2 class={dialogTitleClasses}>{title}</h2>
 <p class="max-h-[60vh] overflow-auto whitespace-pre-line">{message}</p>
 <form method="dialog" class={dialogActionsClasses}>
-  <button use:ripple class={buttonClasses} value="close" type="submit">Close</button>
+  <button use:ripple class={buttonClasses} value="close" type="submit">OK</button>
 </form>

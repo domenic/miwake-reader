@@ -1,6 +1,4 @@
-import StorageUnlock from '$lib/components/storage-unlock.svelte';
 import type { BooksDbStorageSource } from '$lib/data/database/books-db/versions/books-db';
-import { dialogManager } from '$lib/data/dialog-manager';
 import {
   gDriveAuthEndpoint,
   gDriveClientId,
@@ -23,6 +21,7 @@ import {
 } from '$lib/data/storage/storage-source-manager';
 import { StorageSourceDefault, StorageKey } from '$lib/data/storage/storage-types';
 import { database } from '$lib/data/store';
+import { messageDialog } from '$lib/data/simple-dialogs';
 import { convertAuthErrorResponse } from '$lib/functions/replication/error-handler';
 import { isMobile } from '$lib/functions/utils';
 
@@ -179,20 +178,9 @@ export class StorageOAuthManager {
 
     if (!this.authWindow) {
       if (shallUnlock) {
-        await new Promise<undefined>((resolver) => {
-          dialogManager.dialogs$.next([
-            {
-              component: StorageUnlock,
-              props: {
-                description: 'You are trying to access external data',
-                action: 'Login to your account when prompted',
-                requiresSecret: false,
-                encryptedData: undefined,
-                resolver
-              },
-              disableCloseOnClick: true
-            }
-          ]);
+        await messageDialog({
+          title: 'Login Required',
+          message: 'Log in to your cloud storage account when prompted.'
         });
 
         return this.getToken(

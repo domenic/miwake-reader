@@ -47,7 +47,7 @@ export function confirmDialog({ title, message }: { title: string; message: stri
 }
 
 export function messageDialog({ title, message }: { title: string; message: string }) {
-  showDialog(
+  return showDialog(
     MessageDialogContent,
     { title, message },
     {
