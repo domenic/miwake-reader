@@ -291,7 +291,7 @@
       const sectionIndex = sectionIndex$.getValue();
       const section = sections[sectionIndex];
 
-      currentSectionId = section?.id.startsWith('ttu-') ? section.id : '';
+      currentSectionId = section?.id.startsWith('miwake-') ? section.id : '';
 
       sectionRenderComplete$.next(sectionIndex);
     }
@@ -311,7 +311,7 @@
   });
 
   /** Experimental Code - May be removed any time without warning */
-  onMount(() => document.addEventListener('ttu-action', handleAction, false));
+  onMount(() => document.addEventListener('miwake-action', handleAction, false));
 
   async function handleAction({ detail }: any) {
     if (!detail.type || !calculator || !concretePageManager) {
@@ -413,7 +413,7 @@
   /** Experimental Code - May be removed or changed any time without warning */
 
   onDestroy(() => {
-    document.removeEventListener('ttu-action', handleAction, false);
+    document.removeEventListener('miwake-action', handleAction, false);
 
     document.body.classList.remove(cssClassOverflowHidden);
 

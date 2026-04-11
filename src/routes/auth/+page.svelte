@@ -69,7 +69,7 @@
         .catch((error) => {
           reportError(url.origin, 'Code authorization request failed', error.message);
         });
-    } else if (url.searchParams.has('ttu-init-auth')) {
+    } else if (url.searchParams.has('miwake-init-auth')) {
       const params = new URLSearchParams();
 
       const { clientId, authEndpoint, scope } = await getDataFromOpener(url.origin, {
@@ -98,7 +98,7 @@
       params.append('prompt', 'consent');
 
       window.location.assign(`${authEndpoint}?${params.toString()}`);
-    } else if (url.searchParams.has('ttu-init-wait')) {
+    } else if (url.searchParams.has('miwake-init-wait')) {
       // idle until location reassign for iOS workaround of blocking popups in async context
     } else {
       reportError(

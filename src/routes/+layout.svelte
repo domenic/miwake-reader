@@ -2,7 +2,7 @@
   import type { Snippet } from 'svelte';
   import { browser } from '$app/environment';
   import { page } from '$app/state';
-  import { basePath, clearConsoleOnReload } from '$lib/data/env';
+  import { appName, basePath, clearConsoleOnReload } from '$lib/data/env';
   import { dialogManager, type Dialog } from '$lib/data/dialog-manager';
   import { userFontsCacheName, type UserFont } from '$lib/data/fonts';
   import { fontFamilyGroupOne$, isOnline$, userFonts$ } from '$lib/data/store';
@@ -97,7 +97,7 @@
 <svelte:window bind:online={$isOnline$} />
 
 <MetaTags
-  title="ッツ Ebook Reader"
+  title={appName}
   description="Online e-book reader that supports dictionary extensions like Yomitan"
   canonical="{basePath}{path !== '/' ? path : ''}"
   openGraph={{

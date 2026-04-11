@@ -192,7 +192,7 @@
     <a
       use:ripple
       class={buttonClasses}
-      href="https://github.com/ttu-ttu/ebook-reader"
+      href="https://github.com/domenic/miwake-reader"
       target="_blank"
       rel="noreferrer"
     >

@@ -75,7 +75,7 @@ function rubyTagListener(contentEl: HTMLElement, furiganaStyle: FuriganaStyle) {
 
 function spoilerImageListener(document: Document) {
   return (contentEl: HTMLElement) => {
-    const elements = Array.from(contentEl.querySelectorAll('[data-ttu-spoiler-img]'));
+    const elements = Array.from(contentEl.querySelectorAll('[data-miwake-spoiler-img]'));
     const obs$ = elements.map((el) => {
       const spoilerLabelEl = document.createElement('span');
       spoilerLabelEl.title = 'Show Image';
@@ -92,7 +92,7 @@ function spoilerImageListener(document: Document) {
         take(1),
         tap(() => {
           el.removeChild(spoilerLabelEl);
-          el.removeAttribute('data-ttu-spoiler-img');
+          el.removeAttribute('data-miwake-spoiler-img');
 
           imageElement?.classList.add('ttu-unspoilered');
 
@@ -147,7 +147,7 @@ function openImageInNewTab(
               () =>
                 !hideSpoilerImage ||
                 elm.classList.contains('ttu-unspoilered') ||
-                !elm.closest('span[data-ttu-spoiler-img]')
+                !elm.closest('span[data-miwake-spoiler-img]')
             ),
             switchMap(() => {
               pulseElement(

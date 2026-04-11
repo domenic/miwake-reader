@@ -17,7 +17,7 @@ export interface UserFont {
   fileName: string;
 }
 
-export const userFontsCacheName = 'ttu-userfonts';
+export const userFontsCacheName = 'miwake-userfonts';
 
 export const reservedFontNames = new Set([
   'KZ UDGothic',

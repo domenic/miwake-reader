@@ -592,7 +592,7 @@
     }
   });
 
-  onMount(() => document.addEventListener('ttu-action', handleAction, false));
+  onMount(() => document.addEventListener('miwake-action', handleAction, false));
 
   function handleAction({ detail }: any) {
     if (!detail.type) {
@@ -617,7 +617,7 @@
 
   onDestroy(() => {
     if (browser) {
-      document.removeEventListener('ttu-action', handleAction, false);
+      document.removeEventListener('miwake-action', handleAction, false);
       document.documentElement.lang = 'ja';
     }
 
@@ -1758,7 +1758,7 @@
 {/if}
 
 <div
-  id="ttu-page-footer"
+  id="miwake-page-footer"
   tabindex="0"
   role="button"
   class="writing-horizontal-tb fixed bottom-0 left-0 z-10 flex h-8 w-full items-center justify-between text-xs leading-none"
