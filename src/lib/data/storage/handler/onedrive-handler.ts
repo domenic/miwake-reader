@@ -47,6 +47,8 @@ interface ExternalThumbnailData {
 export class OneDriveStorageHandler extends ApiStorageHandler {
   private baseEndpoint = 'https://graph.microsoft.com/v1.0/me/drive/items';
 
+  private appRootEndpoint = 'https://graph.microsoft.com/v1.0/me/drive/special/approot';
+
   constructor(window: Window) {
     super(StorageKey.ONEDRIVE, window, oneDriveTokenEndpoint);
   }
@@ -167,10 +169,15 @@ export class OneDriveStorageHandler extends ApiStorageHandler {
 
   protected async ensureTitle(
     name = BaseStorageHandler.rootName,
-    parent = 'root',
+    _parent = 'root',
     readOnly = false
   ) {
-    if (name === BaseStorageHandler.rootName && this.rootId) {
+    if (name === BaseStorageHandler.rootName) {
+      if (!this.rootId) {
+        // AppFolder is auto-created by Microsoft on first access
+        const response = await this.request(`${this.appRootEndpoint}?$select=id`);
+        this.rootId = response.id;
+      }
       return this.rootId;
     }
 
@@ -180,40 +187,32 @@ export class OneDriveStorageHandler extends ApiStorageHandler {
       return externalId;
     }
 
-    const sanitizedName = BaseStorageHandler.sanitizeForFilename(name);
-    const params = new URLSearchParams();
-
-    params.append('select', `id,name`);
-    params.append('filter', `name eq '${sanitizedName}'`);
-
-    let titleId = '';
-
-    if (name === BaseStorageHandler.rootName) {
-      titleId = (await this.request(`${this.baseEndpoint}/${parent}/children?${params.toString()}`))
-        ?.value?.[0]?.id;
-    } else if (this.rootId) {
-      // One Drive Bug (?) - with non latin characters it will return no filter result so we need to refetch all folders
-      const remoteFolders = await this.list(this.rootId);
-
-      for (let index = 0, { length } = remoteFolders; index < length; index += 1) {
-        const remoteFolder = remoteFolders[index];
-        const title = BaseStorageHandler.desanitizeFilename(remoteFolder.name);
-
-        this.titleToId.set(title, remoteFolder.id);
-
-        if (title === name) {
-          titleId = remoteFolder.id;
-        }
-      }
-    } else {
+    if (!this.rootId) {
       throw new Error('RootId required for search');
     }
 
+    // OneDrive bug: non-latin characters return no filter results, so refetch all folders
+    const remoteFolders = await this.list(this.rootId);
+    let titleId = '';
+
+    for (let index = 0, { length } = remoteFolders; index < length; index += 1) {
+      const remoteFolder = remoteFolders[index];
+      const title = BaseStorageHandler.desanitizeFilename(remoteFolder.name);
+
+      this.titleToId.set(title, remoteFolder.id);
+
+      if (title === name) {
+        titleId = remoteFolder.id;
+      }
+    }
+
     if (!titleId && !readOnly) {
-      params.delete('filter');
+      const sanitizedName = BaseStorageHandler.sanitizeForFilename(name);
+      const params = new URLSearchParams();
+      params.append('select', 'id,name');
 
       const response = await this.request(
-        `${this.baseEndpoint}/${parent}/children?${params.toString()}`,
+        `${this.baseEndpoint}/${this.rootId}/children?${params.toString()}`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -230,14 +229,6 @@ export class OneDriveStorageHandler extends ApiStorageHandler {
 
     if (titleId) {
       this.titleToId.set(name, titleId);
-    }
-
-    if (titleId && name === BaseStorageHandler.rootName) {
-      this.rootId = titleId;
-    }
-
-    if (!titleId && name === BaseStorageHandler.rootName) {
-      throw new Error('Root folder not found');
     }
 
     return titleId;

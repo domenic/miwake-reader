@@ -4,6 +4,7 @@ import { dialogManager } from '$lib/data/dialog-manager';
 import {
   gDriveAuthEndpoint,
   gDriveClientId,
+  gDriveClientSecret,
   gDriveScope,
   gDriveTokenEndpoint,
   oneDriveAuthEndpoint,
@@ -15,7 +16,6 @@ import {
 import { logger } from '$lib/data/logger';
 import {
   encrypt,
-  isAppDefault,
   unlockStorageData,
   type RemoteContext,
   type StorageUnlockAction
@@ -49,17 +49,17 @@ export class StorageOAuthManager {
 
   private codeVerifier = '';
 
+  private static AUTH_CHANNEL = 'miwake-auth';
+
+  private static AUTH_STORAGE_KEY = 'miwake-auth-data';
+
   private authResolver: ((value: OAuthTokenData | PromiseLike<OAuthTokenData>) => void) | undefined;
 
   private authRejector: ((error: Error) => void) | undefined;
 
-  private rebindedWinHandler: ((event: MessageEvent) => void) | undefined;
+  private broadcastChannel: BroadcastChannel | undefined;
 
-  private authCloseIntervalTime = 500;
-
-  private authCloseInterval: number | undefined;
-
-  private authTimeout = 45000;
+  private authTimeout = 120000;
 
   private authTimeoutTimer: number | undefined;
 
@@ -99,7 +99,7 @@ export class StorageOAuthManager {
     if (storageSourceName === StorageSourceDefault.GDRIVE_DEFAULT) {
       this.remoteData = {
         clientId: gDriveClientId,
-        clientSecret: ''
+        clientSecret: gDriveClientSecret
       };
     } else if (storageSourceName === StorageSourceDefault.ONEDRIVE_DEFAULT) {
       this.remoteData = {
@@ -149,6 +149,10 @@ export class StorageOAuthManager {
     }
 
     this.parentWindow = window;
+
+    logger.warn(`Opening auth window for ${storageSourceName} (${this.storageType})`);
+
+    await this.stashAuthData();
 
     if (authWindow) {
       this.authWindow = authWindow;
@@ -288,6 +292,13 @@ export class StorageOAuthManager {
         this.remoteData.refreshToken
       )
     ) {
+      logger.warn(
+        `Cannot refresh token for ${this.storageSourceName} (${this.storageType}): ` +
+          `refreshEndpoint=${!!this.refreshEndpoint}, ` +
+          `clientId=${!!this.remoteData?.clientId}, ` +
+          `clientSecret=${!!this.remoteData?.clientSecret}, ` +
+          `refreshToken=${!!this.remoteData?.refreshToken}`
+      );
       return undefined;
     }
 
@@ -340,16 +351,43 @@ export class StorageOAuthManager {
     return token;
   }
 
-  private base64Url(buffer: Uint8Array) {
-    if (!this.parentWindow) {
-      throw new Error('Parent window not defined');
-    }
-
-    return this.parentWindow
-      .btoa(String.fromCharCode(...buffer))
+  private static base64Url(buffer: Uint8Array) {
+    return btoa(String.fromCharCode(...buffer))
       .replace(/\+/g, '-')
       .replace(/\//g, '_')
       .replace(/=+$/, '');
+  }
+
+  private async stashAuthData() {
+    if (!this.parentWindow || !this.remoteData) {
+      return;
+    }
+
+    if (!this.codeVerifier) {
+      const arr = new Uint8Array(32);
+      this.parentWindow.crypto.getRandomValues(arr);
+      this.codeVerifier = StorageOAuthManager.base64Url(arr);
+    }
+
+    const codeChallenge = StorageOAuthManager.base64Url(
+      new Uint8Array(
+        await this.parentWindow.crypto.subtle.digest(
+          'SHA-256',
+          new TextEncoder().encode(this.codeVerifier)
+        )
+      )
+    );
+
+    const authData = {
+      ...this.remoteData,
+      ...StorageOAuthManager.getAuthVariables(this.storageType),
+      sendSecret: this.storageType === StorageKey.GDRIVE,
+      needsRefreshToken: !this.remoteData.refreshToken,
+      codeVerifier: this.codeVerifier,
+      codeChallenge
+    };
+
+    sessionStorage.setItem(StorageOAuthManager.AUTH_STORAGE_KEY, JSON.stringify(authData));
   }
 
   private waitForAuth(window: Window): Promise<OAuthTokenData> {
@@ -361,99 +399,48 @@ export class StorageOAuthManager {
 
       this.authResolver = resolve;
       this.authRejector = reject;
-      this.rebindedWinHandler = this.winHandler.bind(this);
-      this.parentWindow.addEventListener('message', this.rebindedWinHandler, false);
 
-      this.authCloseInterval = window.setInterval(() => {
-        if (this.authWindow?.closed) {
-          reject(new Error('Window was closed before login'));
+      this.broadcastChannel = new BroadcastChannel(StorageOAuthManager.AUTH_CHANNEL);
+      this.broadcastChannel.onmessage = (event: MessageEvent) => {
+        if (!this.authResolver || !this.authRejector) {
+          return;
         }
-      }, this.authCloseIntervalTime);
+
+        switch (event.data.type) {
+          case 'auth':
+            this.authResolver(event.data.payload);
+            break;
+          case 'failure':
+            logger.error(event.data.payload.detail);
+            this.authRejector(new Error(event.data.payload.message));
+            break;
+          default:
+            break;
+        }
+      };
 
       this.authTimeoutTimer = window.setTimeout(() => {
-        reject(new Error('Login timeout'));
+        reject(
+          new Error(
+            `Login timeout for ${this.storageSourceName} (${this.storageType}) after ${this.authTimeout / 1000}s`
+          )
+        );
       }, this.authTimeout);
     });
   }
 
-  private async winHandler(event: MessageEvent) {
-    if (
-      !this.parentWindow ||
-      !this.remoteData ||
-      event.source !== this.authWindow ||
-      !this.authResolver ||
-      !this.authRejector
-    ) {
-      return;
-    }
-
-    switch (event.data.type) {
-      case 'getAuthVariables':
-        event.ports[0].postMessage({
-          result: {
-            ...this.remoteData,
-            ...StorageOAuthManager.getAuthVariables(this.storageType),
-            sendSecret:
-              this.storageType === StorageKey.GDRIVE && !isAppDefault(this.storageSourceName)
-          }
-        });
-        break;
-      case 'auth':
-        this.authResolver(event.data.payload);
-        break;
-      case 'getCodeChallenge':
-        if (!this.codeVerifier) {
-          const arr = new Uint8Array(32);
-
-          this.parentWindow.crypto.getRandomValues(arr);
-          this.codeVerifier = this.base64Url(arr);
-        }
-
-        event.ports[0].postMessage({
-          result: this.base64Url(
-            new Uint8Array(
-              await this.parentWindow.crypto.subtle.digest(
-                'SHA-256',
-                new TextEncoder().encode(this.codeVerifier)
-              )
-            )
-          )
-        });
-        break;
-      case 'getCodeVerifier':
-        event.ports[0].postMessage({
-          result: this.codeVerifier
-        });
-        break;
-      case 'failure':
-        logger.error(event.data.payload.detail);
-        this.authRejector(new Error(event.data.payload.message));
-        break;
-
-      default:
-        break;
-    }
-  }
-
   private clearAuthData() {
     clearTimeout(this.authTimeoutTimer);
-    clearInterval(this.authCloseInterval);
 
-    if (this.parentWindow && this.rebindedWinHandler) {
-      this.parentWindow.removeEventListener('message', this.rebindedWinHandler, false);
+    if (this.broadcastChannel) {
+      this.broadcastChannel.close();
+      this.broadcastChannel = undefined;
     }
 
-    try {
-      if (!this.authWindow?.closed) {
-        this.authWindow?.close();
-      }
-    } catch (_) {
-      // no-op
-    }
+    sessionStorage.removeItem(StorageOAuthManager.AUTH_STORAGE_KEY);
 
     this.authResolver = undefined;
     this.authRejector = undefined;
-    this.rebindedWinHandler = undefined;
     this.parentWindow = undefined;
     this.authWindow = null;
     this.codeVerifier = '';
