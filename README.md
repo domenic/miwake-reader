@@ -6,6 +6,14 @@ This project is a revival fork of the original [ッツ Ebook Reader](https://git
 
 Hosted on <https://reader.miwake.app/>.
 
+## Privacy policy
+
+Miwake Reader runs entirely in your browser. No personal data is collected, stored, or transmitted to any server operated by Miwake Reader.
+
+If you choose to connect a Google Drive or OneDrive account, the app accesses only files it creates in a dedicated folder (`miwake-reader-data`). OAuth tokens are stored locally in your browser and are never sent to any third party. The app requests the minimum necessary scope (`drive.file` for Google Drive, `files.readwrite` for OneDrive).
+
+No analytics, tracking, or telemetry of any kind is used.
+
 ## Development
 
 1. Have [Node.js](https://nodejs.org/) installed.
