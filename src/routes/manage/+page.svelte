@@ -10,7 +10,7 @@
   import { pxScreen } from '$lib/css-classes';
   import type { BooksDbBookmarkData } from '$lib/data/database/books-db/versions/books-db';
   import { dialogManager } from '$lib/data/dialog-manager';
-  import { pagePath } from '$lib/data/env';
+  import { appName, pagePath } from '$lib/data/env';
   import { logger } from '$lib/data/logger';
   import { confirmDialog, messageDialog } from '$lib/data/simple-dialogs';
   import { SortDirection, type SortOption } from '$lib/data/sort-types';
@@ -630,8 +630,7 @@
 </div>
 
 <div
-  tabindex="0"
-  role="button"
+  role="application"
   class="{pxScreen} h-full pt-16 xl:pt-14"
   ondragenter={(ev) => ev.preventDefault()}
   ondragover={(ev) => ev.preventDefault()}
@@ -652,19 +651,30 @@
       onremoveBookClick={({ id }) => removeBooks([id])}
     />
   {:else}
-    <div class="flex justify-center pt-44 text-gray-400/40">
-      <div class="flex w-3/6 justify-center xl:w-3/12">
-        <Fa icon={faUpload} style="width: 100%; height: auto" />
+    <div class="flex h-full flex-col items-center gap-6 pt-8 text-center">
+      <h1 class="text-2xl font-bold">{appName}</h1>
+      <p class="max-w-3xl px-8 text-gray-500">
+        An online ebook reader for Japanese language learners. Read EPUB and TXT files in your
+        browser with support for dictionary extensions like Yomitan.
+      </p>
+      <label
+        class="mt-8 flex cursor-pointer flex-col items-center gap-4 text-gray-400/40 transition-colors hover:text-gray-400/60"
+      >
+        <div class="flex w-32 justify-center">
+          <Fa icon={faUpload} style="width: 100%; height: auto" />
+        </div>
+        <span class="text-sm text-gray-500">Drop files here or click to upload</span>
+        <input
+          type="file"
+          accept="application/epub+zip,.epub,.htmlz,plain/text,.txt"
+          multiple
+          hidden
+          use:inputFile={onFilesChange}
+        />
+      </label>
+      <div class="mt-auto pb-4 text-xs text-gray-400">
+        <a href="{pagePath}/privacy" class="underline">Privacy Policy</a>
       </div>
     </div>
-    <label class="fixed inset-0 z-0">
-      <input
-        type="file"
-        accept="application/epub+zip,.epub,.htmlz,plain/text,.txt"
-        multiple
-        hidden
-        use:inputFile={onFilesChange}
-      />
-    </label>
   {/if}
 </div>
