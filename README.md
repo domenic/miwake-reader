@@ -1,8 +1,10 @@
-# ッツ Ebook Reader
+# Miwake Reader
 
-A revival fork of [ttsu reader](https://github.com/ttu-ttu/ebook-reader/).
+An online ebook reader aimed at Japanese language learners, since reading ebooks in a web browser allows the use of extensions like [Yomitan](https://yomitan.wiki/).
 
-Currently hosted on [domenic.github.io/ebook-reader](https://domenic.github.io/ebook-reader)
+This project is a revival fork of the original [ッツ Ebook Reader](https://github.com/ttu-ttu/ebook-reader/), which has been largely abandoned. It's mainly focused on bug fixes, UI polish, and behind-the-scenes dependency updates so far.
+
+Hosted on <https://reader.miwake.app/>.
 
 ## Development
 

@@ -125,7 +125,7 @@ export abstract class BaseStorageHandler {
 
   static rootName = storageRootName;
 
-  static readingGoalsFilePrefix = 'ttu-user-goals_';
+  static readingGoalsFilePrefix = 'miwake-user-goals_';
 
   storageType: StorageKey;
 

@@ -1,0 +1,20 @@
+[[redirects]]
+  from = "https://www.miwake.app/*"
+  to = "https://reader.miwake.app/:splat"
+  status = 302
+  force = true
+
+[[redirects]]
+  from = "https://miwake.app/*"
+  to = "https://reader.miwake.app/:splat"
+  status = 302
+  force = true
+
+[[headers]]
+  for = "/*"
+
+  [headers.values]
+    Strict-Transport-Security = "max-age=63072000;includeSubDomains;preload"
+    Access-Control-Allow-Origin = "*"
+    X-Content-Type-Options = "nosniff"
+    X-Frame-Options = "deny"

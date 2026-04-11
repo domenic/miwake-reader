@@ -111,7 +111,7 @@
 
     try {
       const dirHandle = await window.showDirectoryPicker({
-        id: 'ttu-reader-root',
+        id: 'miwake-reader-root',
         mode: 'readwrite'
       });
       directoryHandle = await dirHandle.getDirectoryHandle(BaseStorageHandler.rootName, {
@@ -414,7 +414,7 @@
             Make sure to understand the
             <a
               class="text-red-500"
-              href="https://github.com/ttu-ttu/ebook-reader?tab=readme-ov-file#security-considerations"
+              href="https://github.com/domenic/miwake-reader?tab=readme-ov-file#security-considerations"
               target="_blank"
             >
               Implications

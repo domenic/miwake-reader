@@ -28,7 +28,7 @@
     user-select: none;
   }
 
-  :global([data-ttu-spoiler-img]) {
+  :global([data-miwake-spoiler-img]) {
     :global(.spoiler-label) {
       display: none;
     }
@@ -188,7 +188,7 @@
 }
 
 .book-content--hide-spoiler-image {
-  :global([data-ttu-spoiler-img]) {
+  :global([data-miwake-spoiler-img]) {
     display: inline-block;
     width: 100%;
     height: 100%;

@@ -110,7 +110,7 @@ function addSpoilerTags(el: HTMLElement, document: Document, blurMode: BlurMode)
     const parentElement = tag.parentElement || childNode;
 
     imgWrapper.classList.add('ttu-img-parent');
-    imgWrapper.toggleAttribute('data-ttu-spoiler-img');
+    imgWrapper.toggleAttribute('data-miwake-spoiler-img');
 
     parentElement.insertBefore(imgWrapper, tag);
     imgWrapper.appendChild(tag);
@@ -142,7 +142,7 @@ function combineImagePairs(el: HTMLElement) {
 
   let startingIndex = 1;
 
-  if (el.children.item(0)?.id.startsWith('ttu-')) {
+  if (el.children.item(0)?.id.startsWith('miwake-')) {
     // Skip first page (index 0) as it's probably cover
     startingIndex = 2;
   }

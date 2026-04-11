@@ -372,7 +372,7 @@ export class BackupStorageHandler extends BaseStorageHandler {
       const a = document.createElement('a');
       a.href = URL.createObjectURL(await this.exportZipWriter.close());
       a.rel = 'noopener';
-      a.download = `ttu-reader-export-${new Date()
+      a.download = `miwake-reader-export-${new Date()
         .toLocaleString('en-US', {
           year: 'numeric',
           month: '2-digit',

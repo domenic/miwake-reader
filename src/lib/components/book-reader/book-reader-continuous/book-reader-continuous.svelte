@@ -312,7 +312,7 @@
 
   /** Experimental Code - May be removed any time without warning */
   onMount(() => {
-    document.addEventListener('ttu-action', handleAction, false);
+    document.addEventListener('miwake-action', handleAction, false);
 
     // Register wheel handler with { passive: false } since Svelte 5 doesn't support |nonpassive
     document.body.addEventListener('wheel', onWheel, { passive: false });
@@ -390,7 +390,7 @@
       return { scroll: true, rect };
     }
 
-    const footerElement = verticalMode ? null : document.getElementById('ttu-page-footer');
+    const footerElement = verticalMode ? null : document.getElementById('miwake-page-footer');
     const {
       elTopReferencePoint,
       elLeftReferencePoint,
@@ -421,7 +421,7 @@
   /** Experimental Code - May be removed any time without warning */
 
   onDestroy(() => {
-    document.removeEventListener('ttu-action', handleAction, false);
+    document.removeEventListener('miwake-action', handleAction, false);
 
     destroy$.next();
     destroy$.complete();

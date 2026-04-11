@@ -1,13 +1,13 @@
 /** Experimental Code - May be removed any time without warning */
-export const SKIPKEYLISTENER = 'ttsu:skipKeyListener';
+export const SKIPKEYLISTENER = 'miwake:skipKeyListener';
 
-export const SYNCED = 'ttsu:synced';
+export const SYNCED = 'miwake:synced';
 
-export const DB_VERSION = 'ttsu:db.version';
+export const DB_VERSION = 'miwake:db.version';
 
-export const SECTION_CHANGE = 'ttsu:section.change';
+export const SECTION_CHANGE = 'miwake:section.change';
 /** Experimental Code - May be removed any time without warning */
 
-export const PAGE_CHANGE = 'ttsu:page.change';
+export const PAGE_CHANGE = 'miwake:page.change';
 
-export const CLOSE_POPOVER = 'ttsu:close:popover';
+export const CLOSE_POPOVER = 'miwake:close:popover';

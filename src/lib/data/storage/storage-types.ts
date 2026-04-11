@@ -16,14 +16,14 @@ export enum StorageDataType {
 }
 
 export enum StorageSourceDefault {
-  GDRIVE_DEFAULT = 'ttu-gdrive-default',
-  ONEDRIVE_DEFAULT = 'ttu-onedrive-default'
+  GDRIVE_DEFAULT = 'miwake-gdrive-default',
+  ONEDRIVE_DEFAULT = 'miwake-onedrive-default'
 }
 
 export enum InternalStorageSources {
-  INTERNAL_DEFAULT = 'ttu-internal-source',
-  INTERNAL_BROWSER = 'ttu-internal-browser',
-  INTERNAL_ZIP = 'ttu-internal-zip'
+  INTERNAL_DEFAULT = 'miwake-internal-source',
+  INTERNAL_BROWSER = 'miwake-internal-browser',
+  INTERNAL_ZIP = 'miwake-internal-zip'
 }
 
 export const internalStorageSourceName = new Set<string>([
