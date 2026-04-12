@@ -1,7 +1,54 @@
+<script module lang="ts">
+  import LogReportDialogContent from '$lib/components/log-report-dialog-content.svelte';
+  import { showDialog, type DialogClosedBy } from '$lib/data/simple-dialogs';
+
+  export function showErrorDialogWithLogReport({
+    title,
+    message
+  }: {
+    title: string;
+    message: string;
+  }) {
+    return showLogReportDialog({
+      title,
+      message:
+        message +
+        ' Consider filing a bug report. If you do so, please include the attached log file with your report.',
+      closedBy: 'closerequest'
+    });
+  }
+
+  export function showBugReportDialog() {
+    return showLogReportDialog({
+      title: 'Bug Report',
+      message: 'Please include the attached log file with your report.',
+      closedBy: 'any'
+    });
+  }
+
+  function showLogReportDialog({
+    title,
+    message,
+    closedBy
+  }: {
+    title?: string;
+    message: string;
+    closedBy: DialogClosedBy;
+  }) {
+    return showDialog(
+      LogReportDialogContent,
+      { title, message },
+      {
+        closedBy,
+        resolveResult: () => undefined
+      }
+    );
+  }
+</script>
+
 <script lang="ts">
-  import DialogTemplate from '$lib/components/dialog-template.svelte';
   import { ripple } from '$lib/components/ripple';
-  import { buttonClasses } from '$lib/css-classes';
+  import { buttonClasses, dialogActionsClasses, dialogTitleClasses } from '$lib/css-classes';
   import { logger } from '$lib/data/logger';
   import { StorageSourceDefault } from '$lib/data/storage/storage-types';
   import {
@@ -79,11 +126,11 @@
   } from '$lib/data/store';
 
   interface Props {
-    title?: string;
+    title: string;
     message: string;
   }
 
-  let { title = 'Error', message }: Props = $props();
+  let { title, message }: Props = $props();
 
   const encodedLog = encodeURIComponent(
     JSON.stringify(
@@ -181,25 +228,16 @@
   const downloadableLog = `data:text/json;charset=utf-8,${encodedLog}`;
 </script>
 
-<DialogTemplate>
-  {#snippet header()}
-    {title}
-  {/snippet}
-  {#snippet content()}
-    <p>{message}</p>
-  {/snippet}
-  {#snippet footer()}
-    <a
-      use:ripple
-      class={buttonClasses}
-      href="https://github.com/domenic/miwake-reader"
-      target="_blank"
-      rel="noreferrer"
-    >
-      Open Repository
-    </a>
-    <a use:ripple class={buttonClasses} href={downloadableLog} download="log.json">
-      Download Report
-    </a>
-  {/snippet}
-</DialogTemplate>
+<h2 class={dialogTitleClasses}>{title}</h2>
+<p>{message}</p>
+<form method="dialog" class={dialogActionsClasses}>
+  <a
+    use:ripple
+    class={buttonClasses}
+    href="https://github.com/domenic/miwake-reader/issues"
+    target="_blank"
+    rel="noreferrer">Open Issue Tracker</a
+  >
+  <a use:ripple class={buttonClasses} href={downloadableLog} download="log.json">Download Logs</a>
+  <button use:ripple class={buttonClasses} value="close" type="submit">Close</button>
+</form>

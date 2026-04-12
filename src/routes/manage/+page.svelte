@@ -5,7 +5,10 @@
   import type { BookCardProps } from '$lib/components/book-card/book-card-props';
   import BookManagerHeader from '$lib/components/book-card/book-manager-header.svelte';
   import BookExportDialog from '$lib/components/book-export/book-export-dialog.svelte';
-  import LogReportDialog from '$lib/components/log-report-dialog.svelte';
+  import {
+    showBugReportDialog,
+    showErrorDialogWithLogReport
+  } from '$lib/components/log-report-dialog-content.svelte';
   import { preFilteredTitlesForStatistics$ } from '$lib/components/statistics/statistics-types';
   import { pxScreen } from '$lib/css-classes';
   import type { BooksDbBookmarkData } from '$lib/data/database/books-db/versions/books-db';
@@ -261,12 +264,12 @@
 
     const supportedExtRegex = /\.(?:htmlz|epub|txt)$/;
     const files = Array.from(fileList).filter((f) => supportedExtRegex.test(f.name));
-    const errorTitle = 'Bookimport failed';
+    const errorTitle = 'Book Import Failed';
 
     if (!files.length) {
       resetProgress();
 
-      showError(errorTitle, 'File(s) must be HTMLZ, TXT or EPUB', '');
+      showError(errorTitle, 'Imported files must be in EPUB, TXT, or HTMLZ format.');
       return;
     }
 
@@ -290,25 +293,17 @@
     resetProgress();
 
     if (error) {
-      showError(errorTitle, error, 'Error(s) occurred during book import.');
+      showError(errorTitle, error, 'An error occurred during book import.');
     }
   }
 
-  function showError(title: string, message: string, fallbackMessage: string) {
+  function showError(title: string, message: string, fallbackMessage: string = message) {
     const showReport = logger.errorCount > 1;
 
     logger.warn(message);
 
     if (showReport) {
-      dialogManager.dialogs$.next([
-        {
-          component: LogReportDialog,
-          props: {
-            title,
-            message: fallbackMessage
-          }
-        }
-      ]);
+      showErrorDialogWithLogReport({ title, message: fallbackMessage });
     } else {
       messageDialog({ title, message });
     }
@@ -377,7 +372,7 @@
     }
 
     if (error) {
-      showError('Deletion failed', error, 'Error(s) occurred during deletion');
+      showError('Deletion Failed', error, 'An error occurred during book deletion.');
     }
   }
 
@@ -386,7 +381,7 @@
       return;
     }
 
-    const errorTitle = 'Import failed';
+    const errorTitle = 'Import Failed';
 
     cancelTooltip = `Cancels the current Import\nAlready imported data will not be deleted`;
 
@@ -395,7 +390,7 @@
     if (!file.name.endsWith('.zip')) {
       resetProgress();
 
-      showError(errorTitle, 'Invalid file - expected zip archive', '');
+      showError(errorTitle, 'Only ZIP files can be imported.');
       return;
     }
 
@@ -427,20 +422,8 @@
     resetProgress();
 
     if (error) {
-      showError(errorTitle, error, 'Error(s) occurred during import');
+      showError(errorTitle, error, 'An error occurred during book import.');
     }
-  }
-
-  function onBugReportClick() {
-    dialogManager.dialogs$.next([
-      {
-        component: LogReportDialog,
-        props: {
-          title: 'Bug Report',
-          message: 'Please include the attached file for your report.'
-        }
-      }
-    ]);
   }
 
   function onReplicateData() {
@@ -504,9 +487,7 @@
     resetProgress();
 
     if (failed) {
-      const errorMessage = `Unable to delete statistics of ${pluralize(failed, 'Title')}`;
-
-      showError('Deletion Failed', errorMessage, errorMessage);
+      showError('Deletion Failed', `Unable to delete statistics for ${pluralize(failed, 'book')}.`);
     }
   }
 
@@ -585,7 +566,7 @@
       resetProgress();
 
       if (error) {
-        showError('Export failed', error, 'Error(s) occurred during export');
+        showError('Export Failed', error, 'Error(s) occurred during export.');
       }
     }),
     reduceToEmptyString()
@@ -616,7 +597,7 @@
     onselectAllClick={onSelectAllBooks}
     onremoveClick={() => removeBooks(Array.from(selectedBookIds))}
     onfilesChange={onFilesChange}
-    onbugReportClick={onBugReportClick}
+    onbugReportClick={showBugReportDialog}
     oncancelReplication={() => {
       if (!cancelSignal.aborted) {
         cancelToken.abort();

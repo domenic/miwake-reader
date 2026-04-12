@@ -26,11 +26,10 @@ import type { BaseStorageHandler } from '$lib/data/storage/handler/base-handler'
 import type { BookStatistic } from '$lib/components/statistics/statistics-types';
 import type { BooksDb } from '$lib/data/database/books-db/versions/books-db';
 import type { IDBPDatabase } from 'idb';
-import LogReportDialog from '$lib/components/log-report-dialog.svelte';
+import { showErrorDialogWithLogReport } from '$lib/components/log-report-dialog-content.svelte';
 import { messageDialog } from '$lib/data/simple-dialogs';
 import { MergeMode } from '$lib/data/merge-mode';
 import { ReplicationSaveBehavior } from '$lib/functions/replication/replication-options';
-import { dialogManager } from '$lib/data/dialog-manager';
 import { getDefaultStatistic } from '$lib/components/book-reader/book-reading-tracker/book-reading-tracker';
 import { getStorageHandler } from '$lib/data/storage/storage-handler-factory';
 import { handleErrorDuringReplication } from '$lib/functions/replication/error-handler';
@@ -79,15 +78,7 @@ export class DatabaseService {
               logger.warn(error.message);
 
               if (showReport) {
-                dialogManager.dialogs$.next([
-                  {
-                    component: LogReportDialog,
-                    props: {
-                      title: 'Failure',
-                      message: 'Error(s) occurred'
-                    }
-                  }
-                ]);
+                showErrorDialogWithLogReport({ title: 'Failure', message: 'Errors occurred.' });
               } else {
                 messageDialog({
                   title: 'Error',
