@@ -4,7 +4,8 @@
   import BookCardList from '$lib/components/book-card/book-card-list.svelte';
   import type { BookCardProps } from '$lib/components/book-card/book-card-props';
   import BookManagerHeader from '$lib/components/book-card/book-manager-header.svelte';
-  import BookExportDialog from '$lib/components/book-export/book-export-dialog.svelte';
+  import { showExportDialog } from '$lib/components/book-export/export-dialog-content.svelte';
+  import { showSyncDialog } from '$lib/components/book-export/sync-dialog-content.svelte';
   import {
     showBugReportDialog,
     showErrorDialogWithLogReport
@@ -18,7 +19,7 @@
   import { confirmDialog, messageDialog } from '$lib/data/simple-dialogs';
   import { SortDirection, type SortOption } from '$lib/data/sort-types';
   import { getStorageHandler } from '$lib/data/storage/storage-handler-factory';
-  import { StorageKey } from '$lib/data/storage/storage-types';
+  import { StorageKey, type StorageDataType } from '$lib/data/storage/storage-types';
   import { storageSource$ } from '$lib/data/storage/storage-view';
   import {
     booklistSortOptions$,
@@ -28,8 +29,6 @@
     fileCountData$,
     isOnline$,
     keepLocalStatisticsOnDeletion$,
-    lastExportedTarget$,
-    lastExportedTypes$,
     readingGoalsMergeMode$,
     replicationSaveBehavior$,
     showExternalPlaceholder$,
@@ -45,13 +44,11 @@
   import { throwIfAborted } from '$lib/functions/replication/replication-error';
   import {
     replicationProgress$,
-    executeReplicate$,
     type ReplicationProgress
   } from '$lib/functions/replication/replication-progress';
   import { pluralize } from '$lib/functions/utils';
-  import { reduceToEmptyString } from '$lib/functions/rxjs/reduce-to-empty-string';
   import pLimit from 'p-limit';
-  import { combineLatest, map, Observable, share, Subject, switchMap, takeUntil } from 'rxjs';
+  import { combineLatest, map, Observable, share, Subject, takeUntil } from 'rxjs';
   import { onDestroy, tick } from 'svelte';
   import Fa from 'svelte-fa';
 
@@ -427,8 +424,52 @@
     }
   }
 
-  function onReplicateData() {
-    dialogManager.dialogs$.next([{ component: BookExportDialog, disableCloseOnClick: true }]);
+  async function onExportData() {
+    const types = await showExportDialog();
+    if (!types || !operationAllowed()) return;
+
+    await runReplication(StorageKey.BACKUP, types);
+  }
+
+  async function onSyncData() {
+    const result = await showSyncDialog();
+    if (!result || !operationAllowed()) return;
+
+    await runReplication(result.target, result.types);
+  }
+
+  async function runReplication(target: StorageKey, types: StorageDataType[]) {
+    cancelTooltip = 'Cancels the current export';
+
+    initializeReplicationProgressData();
+
+    const handlers = [$storageSource$, target].map((storageType) =>
+      getStorageHandler(
+        window,
+        storageType,
+        '',
+        target === StorageKey.BROWSER,
+        $cacheStorageData$,
+        $replicationSaveBehavior$,
+        $statisticsMergeMode$,
+        $readingGoalsMergeMode$
+      )
+    );
+    const books = $bookCards$.filter((card) => selectedBookIds.has(card.id));
+    const error = await replicateData(
+      handlers[0],
+      handlers[1],
+      false,
+      books.map((book) => ({ title: book.title, imagePath: book.imagePath })),
+      types,
+      cancelSignal
+    ).catch((err: Error) => err.message);
+
+    resetProgress();
+
+    if (error) {
+      showError('Export Failed', error, 'Error(s) occurred during export.');
+    }
   }
 
   async function onDeleteStatistics() {
@@ -532,47 +573,6 @@
     }
   }
 
-  const replicator$ = executeReplicate$.pipe(
-    switchMap(async () => {
-      if (!operationAllowed()) {
-        return;
-      }
-
-      cancelTooltip = 'Cancels the current export';
-
-      initializeReplicationProgressData();
-
-      const handlers = [$storageSource$, $lastExportedTarget$].map((storageType) =>
-        getStorageHandler(
-          window,
-          storageType,
-          '',
-          $lastExportedTarget$ === StorageKey.BROWSER,
-          $cacheStorageData$,
-          $replicationSaveBehavior$,
-          $statisticsMergeMode$,
-          $readingGoalsMergeMode$
-        )
-      );
-      const books = $bookCards$.filter((card) => selectedBookIds.has(card.id));
-      const error = await replicateData(
-        handlers[0],
-        handlers[1],
-        false,
-        books.map((book) => ({ title: book.title, imagePath: book.imagePath })),
-        $lastExportedTypes$,
-        cancelSignal
-      ).catch((err) => err.message);
-
-      resetProgress();
-
-      if (error) {
-        showError('Export Failed', error, 'Error(s) occurred during export.');
-      }
-    }),
-    reduceToEmptyString()
-  );
-
   function getTimestamp(seconds: number) {
     return seconds && Number.isFinite(seconds)
       ? new Date(seconds * 1000).toISOString().substr(11, 8)
@@ -583,8 +583,6 @@
 <svelte:head>
   <title>{formatPageTitle('Book Manager')}</title>
 </svelte:head>
-
-{$replicator$ ?? ''}
 
 <div class="elevation-4 fixed inset-x-0 top-0 z-10">
   <BookManagerHeader
@@ -606,7 +604,8 @@
       }
     }}
     ondeleteStatistics={onDeleteStatistics}
-    onreplicateData={onReplicateData}
+    onexportData={onExportData}
+    onsyncData={onSyncData}
     onimportBackup={onImportBackup}
   />
 </div>

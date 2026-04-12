@@ -16,6 +16,7 @@
     type StorageUnlockAction
   } from '$lib/data/storage/storage-source-manager';
   import { StorageKey } from '$lib/data/storage/storage-types';
+  import { storageSourceLabels } from '$lib/data/storage/storage-view';
   import { database, isOnline$ } from '$lib/data/store';
   import { faTriangleExclamation } from '@fortawesome/free-solid-svg-icons';
   import Fa from 'svelte-fa';
@@ -79,18 +80,11 @@
   let handleFsPath = $state(init.fsPath);
   let storageSourceStoredInManager = $state(init.storedInManager);
   let storageSourceEncryptionDisabled = $state(init.encryptionDisabled);
-  let storageSourceTypes = $state([
-    { key: StorageKey.GDRIVE, label: 'GDrive' },
-    { key: StorageKey.ONEDRIVE, label: 'OneDrive' }
-  ]);
+  let storageSourceTypes = $state([StorageKey.GDRIVE, StorageKey.ONEDRIVE]);
 
   $effect(() => {
     if (browser && 'showDirectoryPicker' in window) {
-      storageSourceTypes = [
-        { key: StorageKey.GDRIVE, label: 'GDrive' },
-        { key: StorageKey.ONEDRIVE, label: 'OneDrive' },
-        { key: StorageKey.FS, label: 'Filesystem' }
-      ];
+      storageSourceTypes = [StorageKey.GDRIVE, StorageKey.ONEDRIVE, StorageKey.FS];
     }
   });
 
@@ -138,7 +132,7 @@
     const passwordInput = pwElm;
     const confirmPasswordInput = pwConfirmElm;
 
-    if (!container || !nameInput || !passwordInput || !confirmPasswordInput) {
+    if (!container || !nameInput) {
       return;
     }
 
@@ -160,7 +154,7 @@
           }
         } else if (
           elm === confirmPasswordInput &&
-          passwordInput.value !== confirmPasswordInput.value
+          passwordInput!.value !== confirmPasswordInput.value
         ) {
           confirmPasswordInput.setCustomValidity('Password does not match');
           isValid = false;
@@ -188,7 +182,7 @@
             new PasswordCredential({
               id: storageSourceName,
               name: `${storageSourceName} (${storageSourceType})`,
-              password: confirmPasswordInput.value
+              password: confirmPasswordInput!.value
             })
           )
           .catch(({ message }: any) => {
@@ -231,7 +225,7 @@
               clientSecret: storageSourceClientSecret,
               refreshToken: invalidateToken ? '' : storageSourceRefreshToken
             }),
-            confirmPasswordInput.value
+            confirmPasswordInput!.value
           );
         }
       }
@@ -336,9 +330,9 @@
           }
         }}
       >
-        {#each storageSourceTypes as sourceType (sourceType.key)}
-          <option value={sourceType.key}>
-            {sourceType.label}
+        {#each storageSourceTypes as sourceType (sourceType)}
+          <option value={sourceType}>
+            {storageSourceLabels[sourceType]}
           </option>
         {/each}
       </select>

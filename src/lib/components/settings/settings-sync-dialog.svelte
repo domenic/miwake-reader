@@ -4,6 +4,7 @@
   import { ripple } from '$lib/components/ripple';
   import { baseIconClasses, buttonClasses } from '$lib/css-classes';
   import { InternalStorageSources, StorageKey } from '$lib/data/storage/storage-types';
+  import { storageSourceLabels } from '$lib/data/storage/storage-view';
   import type { BooksDbStorageSource } from '$lib/data/database/books-db/versions/books-db';
   import type { SyncSelection } from '$lib/data/dialog-manager';
   import { lastSyncedSettingsSource$, lastSyncedSettingsTarget$ } from '$lib/data/store';
@@ -21,7 +22,11 @@
   let { settingsSyncHeader = '', storageSources = [], resolver, onclose }: Props = $props();
 
   const syncSources: SyncSelection[] = [
-    { id: InternalStorageSources.INTERNAL_BROWSER, label: 'Browser DB', type: StorageKey.BROWSER },
+    {
+      id: InternalStorageSources.INTERNAL_BROWSER,
+      label: storageSourceLabels[StorageKey.BROWSER],
+      type: StorageKey.BROWSER
+    },
     { id: InternalStorageSources.INTERNAL_ZIP, label: 'ZIP File', type: StorageKey.BACKUP },
     ...untrack(() => storageSources).map((storageSource) => ({
       id: storageSource.name,

@@ -2,9 +2,9 @@ import {
   faBug,
   faChartLine,
   faCog,
-  faFileArrowUp,
-  faFileZipper,
-  faFolderPlus,
+  faFile,
+  faBoxOpen,
+  faFolder,
   faSignOutAlt
 } from '@fortawesome/free-solid-svg-icons';
 
@@ -26,9 +26,14 @@ export const mergeEntries = {
   FOLDER_IMPORT: {
     routeId: '',
     label: 'Import Folder',
-    icon: faFolderPlus,
+    icon: faFolder,
     title: 'Import from Folder'
   },
-  FILE_IMPORT: { routeId: '', label: 'Import Files', icon: faFileArrowUp, title: 'Import Files' },
-  BACKUP_IMPORT: { routeId: '', label: 'Import Backup', icon: faFileZipper, title: 'Import Backup' }
+  FILE_IMPORT: { routeId: '', label: 'Import Files', icon: faFile, title: 'Import Files' },
+  BACKUP_IMPORT: {
+    routeId: '',
+    label: 'Restore Backup',
+    icon: faBoxOpen,
+    title: 'Restore a backup ZIP file'
+  }
 };

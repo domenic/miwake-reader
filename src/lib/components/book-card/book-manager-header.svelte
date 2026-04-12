@@ -12,31 +12,32 @@
   import { getStorageHandler } from '$lib/data/storage/storage-handler-factory';
   import { StorageKey } from '$lib/data/storage/storage-types';
   import {
+    getStorageSourceValue,
     isStorageSourceAvailable,
     storageIcon$,
-    storageSource$
+    storageSource$,
+    storageSourceLabels,
+    storageSourceRequiresConnectivity
   } from '$lib/data/storage/storage-view';
   import {
     booklistSortOptions$,
     cacheStorageData$,
     fileCountData$,
-    fsStorageSource$,
-    gDriveStorageSource$,
-    isOnline$,
-    oneDriveStorageSource$
+    isOnline$
   } from '$lib/data/store';
   import { inputAllowDirectory } from '$lib/functions/file-dom/input-allow-directory';
   import { inputFile } from '$lib/functions/file-dom/input-file';
   import {
     faArrowDownShortWide,
     faArrowDownWideShort,
+    faBoxArchive,
+    faBoxOpen,
     faBug,
     faCalendarXmark,
     faCircleXmark,
     faCloudArrowUp,
-    faFileArrowUp,
-    faFileZipper,
-    faFolderPlus,
+    faFile,
+    faFolder,
     faSortDown,
     faSortUp,
     faTrash
@@ -61,7 +62,8 @@
     onfilesChange?: (fileList: FileList) => void;
     onimportBackup?: (file: File) => void;
     ondeleteStatistics?: () => void;
-    onreplicateData?: () => void;
+    onexportData?: () => void;
+    onsyncData?: () => void;
     oncancelReplication?: () => void;
   }
 
@@ -79,7 +81,8 @@
     onfilesChange,
     onimportBackup,
     ondeleteStatistics,
-    onreplicateData,
+    onexportData,
+    onsyncData,
     oncancelReplication
   }: Props = $props();
 
@@ -96,9 +99,7 @@
     easing: quintOut
   };
 
-  const storageSourceMenuItems = [
-    { label: 'Browser', key: StorageKey.BROWSER, requiresConnectivity: false }
-  ];
+  const availableSources: StorageKey[] = [StorageKey.BROWSER];
 
   let fileImportElm = $state<HTMLElement>();
   let folderImportElm = $state<HTMLElement>();
@@ -109,43 +110,28 @@
   if (browser) {
     showLoadCount = new URLSearchParams(window.location.search).has('count');
 
-    storageSourceMenuItems.push(
-      ...(isStorageSourceAvailable(StorageKey.GDRIVE, $gDriveStorageSource$, window)
-        ? [
-            {
-              label: 'GDrive',
-              key: StorageKey.GDRIVE,
-              requiresConnectivity: true
-            }
-          ]
-        : []),
-      ...(isStorageSourceAvailable(StorageKey.ONEDRIVE, $oneDriveStorageSource$, window)
-        ? [
-            {
-              label: 'OneDrive',
-              key: StorageKey.ONEDRIVE,
-              requiresConnectivity: true
-            }
-          ]
-        : []),
-      ...(isStorageSourceAvailable(StorageKey.FS, $fsStorageSource$, window)
-        ? [
-            {
-              label: 'Filesystem',
-              key: StorageKey.FS,
-              requiresConnectivity: false
-            }
-          ]
-        : [])
-    );
+    for (const key of [StorageKey.GDRIVE, StorageKey.ONEDRIVE, StorageKey.FS]) {
+      if (isStorageSourceAvailable(key, getStorageSourceValue(key), window)) {
+        availableSources.push(key);
+      }
+    }
   }
 
   let storageSourceMenuOptions = $derived(
-    storageSourceMenuItems.map((sourceMenuItem) => ({
-      ...sourceMenuItem,
-      disabled: sourceMenuItem.requiresConnectivity && !$isOnline$
+    availableSources.map((key) => ({
+      key,
+      label: storageSourceLabels[key],
+      disabled: storageSourceRequiresConnectivity(key) && !$isOnline$
     }))
   );
+
+  let hasSyncTargets = $derived(
+    availableSources.some(
+      (key) => key !== $storageSource$ && (!storageSourceRequiresConnectivity(key) || $isOnline$)
+    )
+  );
+
+  let currentSourceLabel = $derived(storageSourceLabels[$storageSource$]);
 
   let sortMenuItems = $derived([
     ...($storageSource$ === StorageKey.BROWSER ? [{ property: 'id', label: 'Added (id)' }] : []),
@@ -237,23 +223,23 @@
         <div class={headerDividerClasses}></div>
         {#if !selectMode}
           <HeaderButton
-            faIcon={faFileArrowUp}
+            faIcon={faFile}
             title="Import book files"
             label="Import Files"
             onclick={() => fileImportElm?.click()}
           />
           {#if supportsDirectoryPicking}
             <HeaderButton
-              faIcon={faFolderPlus}
+              faIcon={faFolder}
               title="Import books from a folder"
               label="Import Folder"
               onclick={() => folderImportElm?.click()}
             />
           {/if}
           <HeaderButton
-            faIcon={faFileZipper}
-            title={`Import ${appName} data`}
-            label="Import Data"
+            faIcon={faBoxOpen}
+            title="Restore books and book data from a backup ZIP file"
+            label="Restore Backup"
             onclick={() => backupImportElm?.click()}
           />
           <HeaderButton
@@ -279,11 +265,19 @@
           </HeaderButton>
           {#if selectedCount > 0}
             <HeaderButton
-              faIcon={faCloudArrowUp}
-              title="Export selected book contents or data"
-              label="Export"
-              onclick={() => onreplicateData?.()}
+              faIcon={faBoxArchive}
+              title="Back up selected books and book data to a ZIP file"
+              label="Back Up"
+              onclick={() => onexportData?.()}
             />
+            {#if hasSyncTargets}
+              <HeaderButton
+                faIcon={faCloudArrowUp}
+                title="Sync selected books and book data from {currentSourceLabel} to other storage sources"
+                label="Sync"
+                onclick={() => onsyncData?.()}
+              />
+            {/if}
             {#if $storageSource$ === StorageKey.BROWSER}
               <HeaderButton
                 faIcon={faCalendarXmark}

@@ -9,6 +9,7 @@ import {
 } from '$lib/data/env';
 
 import { writableStringLocalStorageSubject } from '$lib/data/internal/writable-string-local-storage-subject';
+import { fsStorageSource$, gDriveStorageSource$, oneDriveStorageSource$ } from '$lib/data/store';
 import { writableSubject } from '$lib/functions/svelte/store';
 
 interface StorageIcon {
@@ -58,6 +59,31 @@ export function isStorageSourceAvailable(
   }
 
   return hasValidEnvironment;
+}
+
+export const storageSourceLabels: Record<StorageKey, string> = {
+  [StorageKey.BROWSER]: 'Browser Storage',
+  [StorageKey.GDRIVE]: 'Google Drive',
+  [StorageKey.ONEDRIVE]: 'OneDrive',
+  [StorageKey.FS]: 'Filesystem',
+  [StorageKey.BACKUP]: 'Backup'
+};
+
+export function getStorageSourceValue(key: StorageKey) {
+  switch (key) {
+    case StorageKey.GDRIVE:
+      return gDriveStorageSource$.getValue();
+    case StorageKey.ONEDRIVE:
+      return oneDriveStorageSource$.getValue();
+    case StorageKey.FS:
+      return fsStorageSource$.getValue();
+    default:
+      return '';
+  }
+}
+
+export function storageSourceRequiresConnectivity(storageSource: StorageKey) {
+  return storageSource === StorageKey.GDRIVE || storageSource === StorageKey.ONEDRIVE;
 }
 
 export function getStorageIconData(storageSource: StorageKey): StorageIcon {
