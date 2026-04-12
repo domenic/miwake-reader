@@ -325,6 +325,7 @@ export abstract class BaseStorageHandler {
         lastBookModified: 0,
         lastBookOpen: 0,
         progress: 0,
+        completed: false,
         lastBookmarkModified: 0,
         isPlaceholder: false
       }),

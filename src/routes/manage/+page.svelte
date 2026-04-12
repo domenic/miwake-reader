@@ -120,9 +120,10 @@
     return b?.progress
       ? {
           progress: typeof b.progress === 'string' ? +b.progress.slice(0, -1) : b.progress,
+          completed: !!b.completed,
           lastBookmarkModified: b.lastBookmarkModified || 0
         }
-      : { progress: 0, lastBookmarkModified: 0 };
+      : { progress: 0, completed: false, lastBookmarkModified: 0 };
   }
 
   function sortBookCards(

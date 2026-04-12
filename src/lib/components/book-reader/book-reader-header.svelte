@@ -36,7 +36,9 @@
     onbookmarkClick?: () => void;
     onscrollToBookmarkClick?: () => void;
     onjumpClick?: () => void;
+    isBookCompleted: boolean;
     oncompleteBook?: () => void;
+    onuncompleteBook?: () => void;
     onfullscreenClick?: () => void;
     onshowCustomReadingPoint?: () => void;
     onsetCustomReadingPoint?: () => void;
@@ -59,7 +61,9 @@
     onbookmarkClick,
     onscrollToBookmarkClick,
     onjumpClick,
+    isBookCompleted,
     oncompleteBook,
+    onuncompleteBook,
     onfullscreenClick,
     onshowCustomReadingPoint,
     onsetCustomReadingPoint,
@@ -111,9 +115,9 @@
     {/if}
     <HeaderButton
       faIcon={faFlag}
-      title="Complete book"
-      label="Complete Book"
-      onclick={() => oncompleteBook?.()}
+      title={isBookCompleted ? 'Mark book as not completed' : 'Mark book as completed'}
+      label={isBookCompleted ? 'Undo Complete' : 'Complete Book'}
+      onclick={() => (isBookCompleted ? onuncompleteBook?.() : oncompleteBook?.())}
     />
     {#if showFullscreenButton}
       <HeaderButton

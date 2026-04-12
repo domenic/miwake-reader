@@ -216,6 +216,7 @@
   let frozenPosition = $state(-1);
   let skipFirstFreezeChange = $state(false);
   let bookCompleted = $state(false);
+  let isBookCompleted = $state(false);
   let confettiWidthModifier = $state(36);
   let confettiMaxRuns = $state(0);
   let showReaderImageGallery = $state(false);
@@ -581,6 +582,7 @@
     bookmarkData.then((data) => {
       hasBookmarkData = !!data;
       storedExploredCharacter = data?.exploredCharCount || 0;
+      isBookCompleted = !!data?.completed;
     });
   });
 
@@ -812,8 +814,7 @@
       if (bookmarkManager) {
         const data = {
           ...bookmarkManager.formatBookmarkData($rawBookData$.id, customReadingPointScrollOffset),
-          exploredCharCount: Math.max(0, bookCharCount - 1),
-          progress: 1
+          completed: true
         };
 
         await database.putBookmark(data);
@@ -844,6 +845,22 @@
     } catch ({ message }: any) {
       messageDialog({ title: 'Error', message: `Error completing book: ${message}` });
     }
+  }
+
+  async function uncompleteBook() {
+    const bookId = getBookIdSync();
+    if (!bookId || !bookmarkManager) return;
+
+    const data = {
+      ...bookmarkManager.formatBookmarkData(bookId, customReadingPointScrollOffset),
+      completed: false
+    };
+
+    await database.putBookmark(data);
+
+    bookmarkData = Promise.resolve(data);
+
+    scheduleReplication(StorageDataType.PROGRESS);
   }
 
   function getCurrentChapterProgress(sectionData: SectionWithProgress[]) {
@@ -1133,6 +1150,11 @@
       }
     } else {
       data = bookmarkManager.formatBookmarkData(bookId, customReadingPointScrollOffset);
+    }
+
+    const existingData = await bookmarkData;
+    if (existingData?.completed) {
+      data.completed = true;
     }
 
     await database.putBookmark(data);
@@ -1553,7 +1575,9 @@
         tocIsOpen$.set(true);
       }}
       onjumpClick={handleJump}
+      {isBookCompleted}
       oncompleteBook={completeBook}
+      onuncompleteBook={uncompleteBook}
       onsetCustomReadingPoint={handleSetCustomReadingPoint}
       onshowCustomReadingPoint={() => {
         showHeader = false;

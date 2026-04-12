@@ -8,11 +8,12 @@
     imagePath: string | Blob;
     title: string;
     progress: number;
+    completed: boolean;
     onclick?: MouseEventHandler<HTMLDivElement>;
     onkeyup?: KeyboardEventHandler<HTMLDivElement>;
   }
 
-  let { imagePath, title, progress, onclick, onkeyup }: Props = $props();
+  let { imagePath, title, progress, completed, onclick, onkeyup }: Props = $props();
 
   let objectUrl = '';
 
@@ -100,10 +101,10 @@
       </div>
       <div class="h-2.5 bg-gray-400/80">
         <div
-          class="h-full bg-linear-to-b {progress >= 1
+          class="h-full bg-linear-to-b {completed
             ? 'from-emerald-500 to-emerald-600'
             : 'rounded-r-sm from-blue-500 to-blue-700'}"
-          style:width="{progress * 100}%"
+          style:width="{completed ? 100 : progress * 100}%"
         ></div>
       </div>
     </div>

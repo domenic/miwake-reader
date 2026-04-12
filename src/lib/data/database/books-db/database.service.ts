@@ -310,8 +310,9 @@ export class DatabaseService {
 
   async putBookmark(bookmarkData: BooksDbBookmarkData) {
     const db = await this.db;
-
-    return db.put('bookmark', bookmarkData);
+    const result = await db.put('bookmark', bookmarkData);
+    this.bookmarksChanged$.next();
+    return result;
   }
 
   async putLastItem(dataId: number) {

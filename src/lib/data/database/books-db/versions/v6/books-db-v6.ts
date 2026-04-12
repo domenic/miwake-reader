@@ -47,6 +47,7 @@ interface BooksDbV6BookmarkData {
   scrollY?: number;
   exploredCharCount?: number;
   progress: number | string | undefined;
+  completed?: boolean;
   lastBookmarkModified: number;
 }
 
