@@ -100,7 +100,9 @@
       </div>
       <div class="h-2.5 bg-gray-400/80">
         <div
-          class="h-full rounded-sm bg-linear-to-b from-red-600 to-red-900"
+          class="h-full bg-linear-to-b {progress >= 1
+            ? 'from-emerald-500 to-emerald-600'
+            : 'rounded-r-sm from-blue-500 to-blue-700'}"
           style:width="{progress * 100}%"
         ></div>
       </div>
