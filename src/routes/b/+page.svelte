@@ -824,6 +824,7 @@
       }
 
       if ($statisticsEnabled$ && $openTrackerOnCompletion$) {
+        dialogManager.dialogs$.next([]);
         confettiWidthModifier = 36;
         confettiMaxRuns = 0;
         bookCompleted = window.matchMedia('(min-width: 900px)').matches;
