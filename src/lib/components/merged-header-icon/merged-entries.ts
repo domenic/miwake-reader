@@ -22,7 +22,7 @@ export const mergeEntries = {
     icon: faChartLine,
     title: 'Go to Statistics'
   },
-  BUG_REPORT: { routeId: '', label: 'Issue Report', icon: faBug, title: 'Report an Issue' },
+  BUG_REPORT: { routeId: '', label: 'Bug Report', icon: faBug, title: 'Report a bug' },
   FOLDER_IMPORT: {
     routeId: '',
     label: 'Import Folder',

@@ -257,8 +257,8 @@
           />
           <HeaderButton
             faIcon={faBug}
-            title="Report an issue"
-            label="Issue Report"
+            title="Report a bug"
+            label="Bug Report"
             onclick={() => onbugReportClick?.()}
           />
         {:else}

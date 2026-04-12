@@ -4,10 +4,12 @@ import MessageDialogContent from '$lib/components/message-dialog-content.svelte'
 import NumberDialogContent from '$lib/components/number-dialog-content.svelte';
 import { dialogSurfaceClasses } from '$lib/css-classes';
 
-function showDialog<T>(
+export type DialogClosedBy = 'any' | 'closerequest' | 'none';
+
+export function showDialog<T>(
   component: Component<any>,
   props: Record<string, unknown>,
-  options: { closedBy: string; resolveResult: (returnValue: string) => T }
+  options: { closedBy: DialogClosedBy; resolveResult: (returnValue: string) => T }
 ): Promise<T> {
   return new Promise((resolve) => {
     const dialog = document.createElement('dialog');

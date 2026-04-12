@@ -32,7 +32,7 @@
     BookmarkManager,
     PageManager
   } from '$lib/components/book-reader/types';
-  import LogReportDialog from '$lib/components/log-report-dialog.svelte';
+  import { showErrorDialogWithLogReport } from '$lib/components/log-report-dialog-content.svelte';
   import StyleSheetRenderer from '$lib/components/style-sheet-renderer.svelte';
   import {
     autoBookmark$,
@@ -1250,15 +1250,10 @@
         logger.warn(error);
 
         if (showReport) {
-          dialogManager.dialogs$.next([
-            {
-              component: LogReportDialog,
-              props: {
-                title: 'Error Processing Data',
-                message: `Some or all data could not be saved to external storage.`
-              }
-            }
-          ]);
+          showErrorDialogWithLogReport({
+            title: 'Error Processing Data',
+            message: 'Some or all data could not be saved to external storage.'
+          });
         } else {
           messageDialog({
             title: 'Error Processing Data',
