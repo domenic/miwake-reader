@@ -63,12 +63,42 @@ export class StorageOAuthManager {
 
   private authTimeoutTimer: number | undefined;
 
+  private pendingGetToken: Promise<string | undefined> | undefined;
+
   constructor(type: StorageKey, refreshEndpoint: string) {
     this.storageType = type;
     this.refreshEndpoint = refreshEndpoint;
   }
 
   async getToken(
+    window: Window,
+    storageSourceName: string,
+    askForStorageUnlock: boolean,
+    authWindow?: Window | null,
+    oldUnlockResult?: StorageUnlockAction,
+    oldStorageSource?: BooksDbStorageSource | undefined
+  ): Promise<string | undefined> {
+    if (this.pendingGetToken) {
+      return this.pendingGetToken;
+    }
+
+    this.pendingGetToken = this.doGetToken(
+      window,
+      storageSourceName,
+      askForStorageUnlock,
+      authWindow,
+      oldUnlockResult,
+      oldStorageSource
+    );
+
+    try {
+      return await this.pendingGetToken;
+    } finally {
+      this.pendingGetToken = undefined;
+    }
+  }
+
+  private async doGetToken(
     window: Window,
     storageSourceName: string,
     askForStorageUnlock: boolean,
@@ -183,7 +213,7 @@ export class StorageOAuthManager {
           message: 'Log in to your cloud storage account when prompted.'
         });
 
-        return this.getToken(
+        return this.doGetToken(
           window,
           storageSourceName,
           false,
