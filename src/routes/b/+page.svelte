@@ -49,7 +49,6 @@
     fontFamilyGroupTwo$,
     fontSize$,
     furiganaStyle$,
-    hideFurigana$,
     hideSpoilerImage$,
     multiplier$,
     pageColumns$,
@@ -1672,7 +1671,6 @@
     textIndentation={$textIndentation$}
     textMarginValue={$textMarginValue$}
     hideSpoilerImage={$hideSpoilerImage$}
-    hideFurigana={$hideFurigana$}
     furiganaStyle={$furiganaStyle$}
     viewMode={$viewMode$}
     secondDimensionMaxValue={$secondDimensionMaxValue$}

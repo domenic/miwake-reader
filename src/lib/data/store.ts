@@ -81,10 +81,9 @@ export const hideSpoilerImageMode$ = writableStringLocalStorageSubject<BlurMode>
   'hideSpoilerImageMode',
   BlurMode.AFTER_TOC
 );
-export const hideFurigana$ = writableBooleanLocalStorageSubject()('hideFurigana', false);
 export const furiganaStyle$ = writableStringLocalStorageSubject<FuriganaStyle>()(
   'furiganaStyle',
-  FuriganaStyle.Partial
+  FuriganaStyle.Default
 );
 export const writingMode$ = writableStringLocalStorageSubject<WritingMode>()(
   'writingMode',

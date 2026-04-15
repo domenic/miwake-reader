@@ -18,7 +18,7 @@
   import BookReaderContinuous from '$lib/components/book-reader/book-reader-continuous/book-reader-continuous.svelte';
   import { pxReader } from '$lib/components/book-reader/css-classes';
   import type { BooksDbBookmarkData } from '$lib/data/database/books-db/versions/books-db';
-  import type { FuriganaStyle } from '$lib/data/furigana-style';
+  import { FuriganaStyle } from '$lib/data/furigana-style';
   import { ViewMode } from '$lib/data/view-mode';
   import { iffBrowser } from '$lib/functions/rxjs/iff-browser';
   import { reduceToEmptyString } from '$lib/functions/rxjs/reduce-to-empty-string';
@@ -52,7 +52,6 @@
     fontSize: number;
     lineHeight: number;
     hideSpoilerImage: boolean;
-    hideFurigana: boolean;
     furiganaStyle: FuriganaStyle;
     secondDimensionMaxValue: number;
     firstDimensionMargin: number;
@@ -101,7 +100,6 @@
     fontSize,
     lineHeight,
     hideSpoilerImage,
-    hideFurigana,
     furiganaStyle,
     secondDimensionMaxValue,
     firstDimensionMargin,
@@ -321,7 +319,6 @@
       {textIndentation}
       {textMarginValue}
       {hideSpoilerImage}
-      {hideFurigana}
       {furiganaStyle}
       {secondDimensionMaxValue}
       {firstDimensionMargin}
@@ -366,7 +363,6 @@
       {textIndentation}
       {textMarginValue}
       {hideSpoilerImage}
-      {hideFurigana}
       {furiganaStyle}
       loadingState={$imageLoadingState$ ?? true}
       {avoidPageBreak}

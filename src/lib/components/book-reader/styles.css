@@ -102,13 +102,13 @@
   }
 }
 
-.book-content--hide-furigana.book-content--furigana-style-hide {
+.book-content--furigana-style-hide {
   :global(rt) {
     display: none;
   }
 }
 
-.book-content--hide-furigana.book-content--furigana-style-partial {
+.book-content--furigana-style-dim {
   :global(ruby) {
     :global(rt) {
       color: var(--book-content-hint-furigana-font-color);
@@ -129,8 +129,7 @@
   }
 }
 
-.book-content--hide-furigana.book-content--furigana-style-full,
-.book-content--hide-furigana.book-content--furigana-style-toggle {
+.book-content--furigana-style-toggle {
   :global(ruby) {
     cursor: pointer;
     text-shadow: var(--book-content-hint-furigana-shadow-color) 1px 0 10px;
@@ -157,7 +156,7 @@
   }
 }
 
-.book-content--hide-furigana.book-content--furigana-style-toggle {
+.book-content--furigana-style-toggle {
   :global(ruby) {
     @media (hover: hover) {
       &:not(.reveal-rt):hover {

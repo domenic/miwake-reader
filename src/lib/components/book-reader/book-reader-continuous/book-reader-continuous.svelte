@@ -68,7 +68,6 @@
     textIndentation: number;
     textMarginValue: number;
     hideSpoilerImage: boolean;
-    hideFurigana: boolean;
     furiganaStyle: FuriganaStyle;
     secondDimensionMaxValue: number;
     firstDimensionMargin: number;
@@ -113,7 +112,6 @@
     textIndentation,
     textMarginValue,
     hideSpoilerImage,
-    hideFurigana,
     furiganaStyle,
     secondDimensionMaxValue,
     firstDimensionMargin,
@@ -730,12 +728,10 @@
   style:text-orientation={verticalTextOrientation}
   class:book-content--writing-vertical-rl={verticalMode}
   class:book-content--writing-horizontal-rl={!verticalMode}
-  class:book-content--hide-furigana={hideFurigana}
   class:book-content--hide-spoiler-image={hideSpoilerImage}
   class:book-content--furigana-style-hide={furiganaStyle === FuriganaStyle.Hide}
-  class:book-content--furigana-style-partial={furiganaStyle === FuriganaStyle.Partial}
+  class:book-content--furigana-style-dim={furiganaStyle === FuriganaStyle.Dim}
   class:book-content--furigana-style-toggle={furiganaStyle === FuriganaStyle.Toggle}
-  class:book-content--furigana-style-full={furiganaStyle === FuriganaStyle.Full}
   class:ttu-apply-important={prioritizeReaderStyles}
   class:ttu-apply-justification={enableTextJustification}
   class:ttu-text-wrap-pretty={enableTextWrapPretty}

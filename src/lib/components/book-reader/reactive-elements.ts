@@ -1,5 +1,5 @@
 import {
-  NEVER,
+  Observable,
   filter,
   fromEvent,
   merge,
@@ -12,7 +12,7 @@ import {
   timer
 } from 'rxjs';
 
-import { FuriganaStyle } from '../../data/furigana-style';
+import { FuriganaStyle, setupRubyClickListeners } from '../../data/furigana-style';
 import { nextChapter$ } from '$lib/components/book-reader/book-toc/book-toc';
 import { pulseElement } from '$lib/functions/range-util';
 import { toggleImageGalleryPictureSpoiler$ } from '$lib/components/book-reader/book-reader-image-gallery/book-reader-image-gallery';
@@ -50,27 +50,7 @@ function anchorTagListener(document: Document) {
 }
 
 function rubyTagListener(contentEl: HTMLElement, furiganaStyle: FuriganaStyle) {
-  if (furiganaStyle === FuriganaStyle.Hide) {
-    return NEVER;
-  }
-
-  const isToggle = furiganaStyle === FuriganaStyle.Toggle;
-  const rubyTags = Array.from(contentEl.getElementsByTagName('ruby'));
-  const obs$ = rubyTags.map((el) =>
-    isToggle
-      ? fromClickEvent(el).pipe(
-          tap(() => {
-            el.classList.toggle('reveal-rt');
-          })
-        )
-      : fromClickEvent(el).pipe(
-          take(1),
-          tap(() => {
-            el.classList.add('reveal-rt');
-          })
-        )
-  );
-  return merge(...obs$);
+  return new Observable<never>(() => setupRubyClickListeners(contentEl, furiganaStyle));
 }
 
 function spoilerImageListener(document: Document) {

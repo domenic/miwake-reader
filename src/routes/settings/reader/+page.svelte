@@ -8,7 +8,7 @@
     type ToggleOption
   } from '$lib/components/button-toggle-group/toggle-option';
   import { ripple } from '$lib/components/ripple';
-  import SettingsCustomTheme from '$lib/components/settings/settings-custom-theme.svelte';
+  import { showThemeEditorDialog } from '$lib/components/settings/theme-editor-dialog-content.svelte';
   import SettingsDimensionPopover from '$lib/components/settings/settings-dimension-popover.svelte';
   import SettingsFontSelector from '$lib/components/settings/settings-font-selector.svelte';
   import SettingsItemGroup from '$lib/components/settings/settings-item-group.svelte';
@@ -17,7 +17,7 @@
   import { BlurMode } from '$lib/data/blur-mode';
   import { dialogManager } from '$lib/data/dialog-manager';
   import { LocalFont } from '$lib/data/fonts';
-  import { FuriganaStyle } from '$lib/data/furigana-style';
+  import { FuriganaStyle, furiganaStyleLabels } from '$lib/data/furigana-style';
   import {
     customThemes$,
     fontFamilyGroupOne$,
@@ -42,7 +42,6 @@
     firstDimensionMargin$,
     fontSize$,
     furiganaStyle$,
-    hideFurigana$,
     hideSpoilerImage$,
     lineHeight$,
     pageColumns$,
@@ -101,11 +100,11 @@
   });
 
   const optionsForFuriganaStyle: ToggleOption<FuriganaStyle>[] = [
-    { id: FuriganaStyle.Hide, text: 'Hide' },
-    { id: FuriganaStyle.Partial, text: 'Partial' },
-    { id: FuriganaStyle.Toggle, text: 'Toggle' },
-    { id: FuriganaStyle.Full, text: 'Full' }
-  ];
+    FuriganaStyle.Default,
+    FuriganaStyle.Dim,
+    FuriganaStyle.Toggle,
+    FuriganaStyle.Hide
+  ].map((id) => ({ id, text: furiganaStyleLabels[id] }));
 
   const optionsForWritingMode: ToggleOption<WritingMode>[] = [
     { id: 'horizontal-tb', text: 'Horizontal' },
@@ -151,14 +150,16 @@
   let fontCacheSupported = $derived(browser && 'caches' in window);
   let furiganaStyleTooltip = $derived.by(() => {
     switch ($furiganaStyle$) {
+      case FuriganaStyle.Default:
+        return 'Show furigana as-is from the book';
+      case FuriganaStyle.Dim:
+        return 'Dimmed, full color on hover or click';
+      case FuriganaStyle.Toggle:
+        return 'Hidden, revealed on hover, toggled on click';
       case FuriganaStyle.Hide:
         return 'Always hidden';
-      case FuriganaStyle.Toggle:
-        return 'Hidden by default, can be toggled on click';
-      case FuriganaStyle.Full:
-        return 'Hidden by default, show on hover or click';
       default:
-        return 'Display furigana as grayed out text';
+        return '';
     }
   });
   let avoidPageBreakTooltip = $derived(
@@ -179,12 +180,7 @@
         options={optionsForTheme}
         bind:selectedOptionId={$theme$}
         onedit={(id) =>
-          dialogManager.dialogs$.next([
-            {
-              component: SettingsCustomTheme,
-              props: { selectedTheme: id, existingThemes: optionsForTheme }
-            }
-          ])}
+          showThemeEditorDialog({ selectedTheme: id, existingThemes: optionsForTheme })}
         ondelete={(id) => {
           $theme$ = optionsForTheme[optionsForTheme.length - 2]?.id || 'light-theme';
           delete $customThemes$[id];
@@ -195,13 +191,7 @@
           <button
             use:ripple
             class="m-1 rounded-md border-2 border-gray-400 p-2 text-lg"
-            onclick={() =>
-              dialogManager.dialogs$.next([
-                {
-                  component: SettingsCustomTheme,
-                  props: { existingThemes: optionsForTheme }
-                }
-              ])}
+            onclick={() => showThemeEditorDialog({ existingThemes: optionsForTheme })}
           >
             <Fa icon={faPlus} class="mx-2" />
           </button>
@@ -528,17 +518,9 @@
       />
     </SettingsItemGroup>
   {/if}
-  <SettingsItemGroup title="Hide furigana">
-    <ButtonToggleGroup options={optionsForToggle} bind:selectedOptionId={$hideFurigana$} />
+  <SettingsItemGroup title="Furigana" tooltip={furiganaStyleTooltip}>
+    <ButtonToggleGroup options={optionsForFuriganaStyle} bind:selectedOptionId={$furiganaStyle$} />
   </SettingsItemGroup>
-  {#if $hideFurigana$}
-    <SettingsItemGroup title="Hide furigana style" tooltip={furiganaStyleTooltip}>
-      <ButtonToggleGroup
-        options={optionsForFuriganaStyle}
-        bind:selectedOptionId={$furiganaStyle$}
-      />
-    </SettingsItemGroup>
-  {/if}
   {#if $statisticsEnabled$}
     <SettingsItemGroup
       title="Custom Point pauses Tracker"
