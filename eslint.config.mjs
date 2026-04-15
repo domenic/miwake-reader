@@ -1,5 +1,4 @@
 import eslint from '@eslint/js';
-import { fixupPluginRules } from '@eslint/compat';
 import eslintPluginPrettierRecommended from 'eslint-plugin-prettier/recommended';
 import rxjs from 'eslint-plugin-rxjs';
 import tseslint from 'typescript-eslint';
@@ -42,7 +41,7 @@ export default tseslint.config(
     },
     name: 'root',
     plugins: {
-      rxjs: fixupPluginRules(rxjs)
+      rxjs
     },
     rules: {
       'no-return-assign': ['error', 'except-parens'],
