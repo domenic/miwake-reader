@@ -1,19 +1,23 @@
 /**
- * Extracts the font family name from a font file (TTF, OTF, WOFF, WOFF2).
- * Falls back to the filename (minus extension) if parsing fails.
+ * Extracts the font family name from a font file (TTF, OTF, WOFF).
+ * WOFF2 is not parsed (requires Brotli) and falls back to the filename,
+ * as do any other cases where parsing fails.
  */
 export async function parseFontName(file: File): Promise<string> {
   const fallback = file.name.replace(/\.[^.]+$/, '');
+  const ext = file.name.split('.').pop()?.toLowerCase();
+
+  if (ext === 'woff2') {
+    return fallback;
+  }
+
   try {
     const buffer = await file.arrayBuffer();
     const view = new DataView(buffer);
-    const ext = file.name.split('.').pop()?.toLowerCase();
 
     let nameTableData: ArrayBuffer;
     if (ext === 'woff') {
       nameTableData = await extractWoffNameTable(view, buffer);
-    } else if (ext === 'woff2') {
-      return fallback;
     } else {
       nameTableData = extractNameTable(view, buffer);
     }

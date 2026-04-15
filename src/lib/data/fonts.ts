@@ -7,8 +7,8 @@ export enum LocalFont {
   NOTOSANSJP = 'Noto Sans JP',
   NOTOSERIFJP = 'Noto Serif JP',
   SHIPPORIMINCHO = 'Shippori Mincho',
-  SERIF = 'Browser default serif',
-  SANSSERIF = 'Browser default sans-serif'
+  SERIF = 'Serif',
+  SANSSERIF = 'Sans-Serif'
 }
 
 export interface UserFont {
@@ -19,24 +19,18 @@ export interface UserFont {
 
 export const userFontsCacheName = 'miwake-userfonts';
 
-export const reservedFontNames = new Set([
-  'KZ UDGothic',
-  'KZ UDMincho',
-  'Genei Koburi Mincho v5',
-  'Klee One',
-  'Klee One SemiBold',
-  'Noto Sans JP',
-  'Noto Serif JP',
-  'Shippori Mincho',
-  'Browser default serif',
-  'Browser default sans-serif'
-]);
+export const reservedFontNames: Set<string> = new Set(Object.values(LocalFont));
 
 export function isStoredFont(fontName: string, userFonts: UserFont[]) {
   return (
     reservedFontNames.has(fontName) || !!userFonts.find((userFont) => userFont.name === fontName)
   );
 }
+
+export const fontDisplayNames: Partial<Record<string, string>> = {
+  [LocalFont.SERIF]: 'Browser default serif',
+  [LocalFont.SANSSERIF]: 'Browser default sans-serif'
+};
 
 const genericFamilyCss: Record<string, string> = {
   [LocalFont.SERIF]: 'serif',

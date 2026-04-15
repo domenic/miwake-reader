@@ -2,6 +2,7 @@
   import {
     type FontGroup,
     fontGroupLabels,
+    fontDisplayNames,
     fontFamilyCss,
     bundledFonts,
     defaultFonts,
@@ -32,8 +33,53 @@
   let fileInput = $state<HTMLInputElement>();
   let isOpen = $state(false);
 
-  const popoverId = `font-picker-${Math.random().toString(36).slice(2, 8)}`;
+  const popoverId = $derived(`font-picker-${group}`);
   const fonts = $derived(bundledFonts[group]);
+  const allOptions = $derived([...fonts, ...$userFonts$.map((uf) => uf.name)]);
+  let focusedIndex = $state(-1);
+  let listboxEl = $state<HTMLElement>();
+
+  function displayName(name: string): string {
+    return fontDisplayNames[name] ?? name;
+  }
+
+  function focusOption(index: number) {
+    focusedIndex = index;
+    const options = listboxEl?.querySelectorAll<HTMLElement>('[role="option"]');
+    options?.[index]?.focus();
+  }
+
+  function handleListboxKeydown(e: KeyboardEvent) {
+    const count = allOptions.length;
+    if (!count) return;
+
+    switch (e.key) {
+      case 'ArrowDown':
+        e.preventDefault();
+        focusOption((focusedIndex + 1) % count);
+        break;
+      case 'ArrowUp':
+        e.preventDefault();
+        focusOption((focusedIndex - 1 + count) % count);
+        break;
+      case 'Home':
+        e.preventDefault();
+        focusOption(0);
+        break;
+      case 'End':
+        e.preventDefault();
+        focusOption(count - 1);
+        break;
+      case 'Enter':
+      case ' ':
+        e.preventDefault();
+        if (focusedIndex >= 0 && focusedIndex < count) {
+          selectFont(allOptions[focusedIndex]);
+        }
+        break;
+    }
+  }
+
   const isSystemFont = $derived(
     selectedFont &&
       !fonts.includes(selectedFont as any) &&
@@ -133,6 +179,8 @@
     if (isOpen) {
       view = 'list';
       systemFontName = isSystemFont ? selectedFont : '';
+      const idx = allOptions.indexOf(selectedFont);
+      requestAnimationFrame(() => focusOption(idx >= 0 ? idx : 0));
     }
   }
 </script>
@@ -149,7 +197,7 @@
     popovertarget={popoverId}
   >
     <div class="min-w-0">
-      <div class="truncate text-sm font-medium">{selectedFont}</div>
+      <div class="truncate text-sm font-medium">{displayName(selectedFont)}</div>
       <div class="truncate text-xs text-gray-400">
         Preview: <span style:font-family="{fontFamilyCss(selectedFont)}, {group}"
           >永遠のノベルをＡＩが3秒で書く</span
@@ -174,43 +222,93 @@
     ontoggle={handlePopoverToggle}
   >
     {#if view === 'list'}
-      <div class="max-h-96 overflow-y-auto py-2">
-        <div role="listbox" aria-label={fontGroupLabels[group]}>
-          <div role="group" aria-labelledby="{popoverId}-bundled">
-            <div id="{popoverId}-bundled" class="mb-1 mt-1 px-5 text-xs font-medium text-gray-500">
-              Bundled
+      <div
+        class="max-h-96 overflow-y-auto py-2"
+        role="listbox"
+        tabindex="-1"
+        aria-label={fontGroupLabels[group]}
+        bind:this={listboxEl}
+        onkeydown={handleListboxKeydown}
+      >
+        <div role="group" aria-labelledby="{popoverId}-bundled">
+          <div id="{popoverId}-bundled" class="mb-1 mt-1 px-5 text-xs font-medium text-gray-500">
+            Bundled
+          </div>
+
+          {#each fonts as font, i (font)}
+            <!-- svelte-ignore a11y_click_events_have_key_events -->
+            <div
+              role="option"
+              aria-selected={font === selectedFont}
+              tabindex={i === focusedIndex ? 0 : -1}
+              use:ripple
+              class="flex w-full cursor-pointer items-center justify-between px-5 py-2 text-left outline-none"
+              class:bg-gray-700={font === selectedFont}
+              class:text-white={font === selectedFont}
+              onclick={() => selectFont(font)}
+            >
+              <div class="min-w-0">
+                <div class="text-[13px]" class:font-medium={font === selectedFont}>
+                  {displayName(font)}
+                </div>
+                <div
+                  class="mt-px text-xs"
+                  class:opacity-60={font === selectedFont}
+                  class:text-gray-400={font !== selectedFont}
+                >
+                  <span style:font-family={fontFamilyCss(font)}>永遠のノベルをＡＩが3秒で書く</span>
+                </div>
+              </div>
+              {#if font === selectedFont}
+                <svg class="ml-2 shrink-0" width="14" height="14" viewBox="0 0 16 16" fill="none">
+                  <path
+                    d="M3 8.5l3.5 3.5L13 4"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                </svg>
+              {/if}
+            </div>
+          {/each}
+        </div>
+
+        {#if fontCache && $userFonts$.length > 0}
+          <hr class="mx-5 my-1.5 border-gray-300" />
+          <div role="group" aria-labelledby="{popoverId}-user">
+            <div id="{popoverId}-user" class="mb-1 mt-2 px-5 text-xs font-medium text-gray-500">
+              My Fonts
             </div>
 
-            {#each fonts as font (font)}
+            {#each $userFonts$ as userFont, i (userFont.path)}
+              {@const optionIndex = fonts.length + i}
+              <!-- svelte-ignore a11y_click_events_have_key_events -->
               <div
                 role="option"
-                aria-selected={font === selectedFont}
-                tabindex="0"
+                aria-selected={userFont.name === selectedFont}
+                tabindex={optionIndex === focusedIndex ? 0 : -1}
                 use:ripple
-                class="flex w-full cursor-pointer items-center justify-between px-5 py-2 text-left"
-                class:bg-gray-700={font === selectedFont}
-                class:text-white={font === selectedFont}
-                onclick={() => selectFont(font)}
-                onkeydown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    selectFont(font);
-                  }
-                }}
+                class="flex cursor-pointer items-center justify-between px-5 py-2 outline-none"
+                class:bg-gray-700={userFont.name === selectedFont}
+                class:text-white={userFont.name === selectedFont}
+                onclick={() => selectFont(userFont.name)}
               >
-                <div class="min-w-0">
-                  <div class="text-[13px]" class:font-medium={font === selectedFont}>{font}</div>
+                <div class="min-w-0 flex-1">
+                  <div class="text-[13px]" class:font-medium={userFont.name === selectedFont}>
+                    {userFont.name}
+                  </div>
                   <div
                     class="mt-px text-xs"
-                    class:opacity-60={font === selectedFont}
-                    class:text-gray-400={font !== selectedFont}
+                    class:opacity-60={userFont.name === selectedFont}
+                    class:text-gray-400={userFont.name !== selectedFont}
                   >
-                    <span style:font-family={fontFamilyCss(font)}
+                    <span style:font-family={fontFamilyCss(userFont.name)}
                       >永遠のノベルをＡＩが3秒で書く</span
                     >
                   </div>
                 </div>
-                {#if font === selectedFont}
+                {#if userFont.name === selectedFont}
                   <svg class="ml-2 shrink-0" width="14" height="14" viewBox="0 0 16 16" fill="none">
                     <path
                       d="M3 8.5l3.5 3.5L13 4"
@@ -220,82 +318,23 @@
                       stroke-linejoin="round"
                     />
                   </svg>
+                {:else}
+                  <button
+                    type="button"
+                    title="Remove font"
+                    class="ml-2 shrink-0 cursor-pointer p-1 text-xs text-gray-400 hover:text-gray-600"
+                    onclick={(e) => {
+                      e.stopPropagation();
+                      removeFont(userFont);
+                    }}
+                  >
+                    <Fa icon={faTrash} />
+                  </button>
                 {/if}
               </div>
             {/each}
           </div>
-          {#if fontCache && $userFonts$.length > 0}
-            <hr class="mx-5 my-1.5 border-gray-300" />
-            <div role="group" aria-labelledby="{popoverId}-user">
-              <div id="{popoverId}-user" class="mb-1 mt-2 px-5 text-xs font-medium text-gray-500">
-                My Fonts
-              </div>
-
-              {#each $userFonts$ as userFont (userFont.path)}
-                <div
-                  role="option"
-                  aria-selected={userFont.name === selectedFont}
-                  tabindex="0"
-                  use:ripple
-                  class="flex cursor-pointer items-center justify-between px-5 py-2"
-                  class:bg-gray-700={userFont.name === selectedFont}
-                  class:text-white={userFont.name === selectedFont}
-                  onclick={() => selectFont(userFont.name)}
-                  onkeydown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault();
-                      selectFont(userFont.name);
-                    }
-                  }}
-                >
-                  <div class="min-w-0 flex-1">
-                    <div class="text-[13px]" class:font-medium={userFont.name === selectedFont}>
-                      {userFont.name}
-                    </div>
-                    <div
-                      class="mt-px text-xs"
-                      class:opacity-60={userFont.name === selectedFont}
-                      class:text-gray-400={userFont.name !== selectedFont}
-                    >
-                      <span style:font-family={fontFamilyCss(userFont.name)}
-                        >永遠のノベルをＡＩが3秒で書く</span
-                      >
-                    </div>
-                  </div>
-                  {#if userFont.name === selectedFont}
-                    <svg
-                      class="ml-2 shrink-0"
-                      width="14"
-                      height="14"
-                      viewBox="0 0 16 16"
-                      fill="none"
-                    >
-                      <path
-                        d="M3 8.5l3.5 3.5L13 4"
-                        stroke="currentColor"
-                        stroke-width="1.5"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                      />
-                    </svg>
-                  {:else}
-                    <button
-                      type="button"
-                      title="Remove font"
-                      class="ml-2 shrink-0 cursor-pointer p-1 text-xs text-gray-400 hover:text-gray-600"
-                      onclick={(e) => {
-                        e.stopPropagation();
-                        removeFont(userFont);
-                      }}
-                    >
-                      <Fa icon={faTrash} />
-                    </button>
-                  {/if}
-                </div>
-              {/each}
-            </div>
-          {/if}
-        </div>
+        {/if}
 
         <hr class="mx-5 my-1.5 border-gray-300" />
 
