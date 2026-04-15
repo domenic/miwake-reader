@@ -51,7 +51,7 @@ function getHtmlWithImageSource(bookData: BooksDbBookData, isPaginated: boolean)
       objectUrls.push(url);
       urlIndexes.set(url, elementHtml.indexOf(dummyUrl));
 
-      elementHtml = elementHtml.replaceAll(dummyUrl, url).replaceAll(`ttu:${key}`, url);
+      elementHtml = elementHtml.replaceAll(dummyUrl, url).replaceAll(`miwake:${key}`, url);
     });
     subscriber.next(elementHtml);
 
