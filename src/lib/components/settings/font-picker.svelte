@@ -3,7 +3,6 @@
     type FontGroup,
     fontGroupLabels,
     fontDisplayNames,
-    fontFamilyCss,
     bundledFonts,
     defaultFonts,
     reservedFontNames,
@@ -199,7 +198,7 @@
     <div class="min-w-0">
       <div class="truncate text-sm font-medium">{displayName(selectedFont)}</div>
       <div class="truncate text-xs text-gray-400">
-        Preview: <span style:font-family="{fontFamilyCss(selectedFont)}, {group}"
+        Preview: <span style:font-family="{selectedFont}, {group}"
           >永遠のノベルをＡＩが3秒で書く</span
         >
       </div>
@@ -256,7 +255,7 @@
                   class:opacity-60={font === selectedFont}
                   class:text-gray-400={font !== selectedFont}
                 >
-                  <span style:font-family={fontFamilyCss(font)}>永遠のノベルをＡＩが3秒で書く</span>
+                  <span style:font-family="{font}, {group}">永遠のノベルをＡＩが3秒で書く</span>
                 </div>
               </div>
               {#if font === selectedFont}
@@ -303,7 +302,7 @@
                     class:opacity-60={userFont.name === selectedFont}
                     class:text-gray-400={userFont.name !== selectedFont}
                   >
-                    <span style:font-family={fontFamilyCss(userFont.name)}
+                    <span style:font-family="{userFont.name}, {group}"
                       >永遠のノベルをＡＩが3秒で書く</span
                     >
                   </div>
@@ -415,10 +414,7 @@
 
         <div class="mb-4 rounded-lg border border-gray-300 p-3">
           <div class="mb-1.5 text-[9px] uppercase tracking-widest text-gray-400">Preview</div>
-          <div
-            class="text-[15px] leading-relaxed"
-            style:font-family="{fontFamilyCss(systemFontName)}, {group}"
-          >
+          <div class="text-[15px] leading-relaxed" style:font-family="{systemFontName}, {group}">
             永遠のノベルをＡＩが3秒で書く
           </div>
         </div>

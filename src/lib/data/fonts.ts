@@ -32,15 +32,6 @@ export const fontDisplayNames: Partial<Record<string, string>> = {
   [LocalFont.SANSSERIF]: 'Browser default sans-serif'
 };
 
-const genericFamilyCss: Record<string, string> = {
-  [LocalFont.SERIF]: 'serif',
-  [LocalFont.SANSSERIF]: 'sans-serif'
-};
-
-export function fontFamilyCss(name: string): string {
-  return genericFamilyCss[name] ?? `'${name}'`;
-}
-
 export type FontGroup = 'serif' | 'sans-serif';
 
 export const fontGroupLabels: Record<FontGroup, string> = {
