@@ -1,6 +1,6 @@
 <script lang="ts">
   import { browser } from '$app/environment';
-  import { faComputer, faPlus } from '@fortawesome/free-solid-svg-icons';
+  import { faPlus } from '@fortawesome/free-solid-svg-icons';
   import { TrackerAutoPause } from '$lib/components/book-reader/book-reading-tracker/book-reading-tracker';
   import ButtonToggleGroup from '$lib/components/button-toggle-group/button-toggle-group.svelte';
   import {
@@ -9,14 +9,11 @@
   } from '$lib/components/button-toggle-group/toggle-option';
   import { ripple } from '$lib/components/ripple';
   import { showThemeEditorDialog } from '$lib/components/settings/theme-editor-dialog-content.svelte';
+  import FontPicker from '$lib/components/settings/font-picker.svelte';
   import SettingsDimensionPopover from '$lib/components/settings/settings-dimension-popover.svelte';
-  import SettingsFontSelector from '$lib/components/settings/settings-font-selector.svelte';
   import SettingsItemGroup from '$lib/components/settings/settings-item-group.svelte';
-  import SettingsUserFontDialog from '$lib/components/settings/settings-user-font-dialog.svelte';
   import { inputClasses } from '$lib/css-classes';
   import { BlurMode } from '$lib/data/blur-mode';
-  import { dialogManager } from '$lib/data/dialog-manager';
-  import { LocalFont } from '$lib/data/fonts';
   import { FuriganaStyle, furiganaStyleLabels } from '$lib/data/furigana-style';
   import {
     customThemes$,
@@ -95,10 +92,6 @@
     }))
   );
 
-  $effect(() => {
-    return () => dialogManager.dialogs$.next([]);
-  });
-
   const optionsForFuriganaStyle: ToggleOption<FuriganaStyle>[] = [
     FuriganaStyle.Default,
     FuriganaStyle.Dim,
@@ -147,7 +140,6 @@
   );
   let wakeLockSupported = $derived(browser && 'wakeLock' in navigator);
   let verticalMode = $derived($writingMode$ === 'vertical-rl');
-  let fontCacheSupported = $derived(browser && 'caches' in window);
   let furiganaStyleTooltip = $derived.by(() => {
     switch ($furiganaStyle$) {
       case FuriganaStyle.Default:
@@ -204,79 +196,8 @@
       <ButtonToggleGroup options={optionsForViewMode} bind:selectedOptionId={$viewMode$} />
     </SettingsItemGroup>
   </div>
-  <SettingsItemGroup title="Font family (Group 1)">
-    {#snippet header()}
-      <div class="flex items-center">
-        <SettingsFontSelector
-          availableFonts={[
-            LocalFont.NOTOSERIFJP,
-            LocalFont.KZUDMINCHO,
-            LocalFont.GENEI,
-            LocalFont.SHIPPORIMINCHO,
-            LocalFont.KLEEONE,
-            LocalFont.KLEEONESEMIBOLD,
-            LocalFont.SERIF
-          ]}
-          bind:fontValue={$fontFamilyGroupOne$}
-        />
-        {#if fontCacheSupported}
-          <div
-            tabindex="0"
-            role="button"
-            title="Open Custom Font Dialog"
-            onclick={() =>
-              dialogManager.dialogs$.next([
-                {
-                  component: SettingsUserFontDialog,
-                  props: { fontFamily: fontFamilyGroupOne$ }
-                }
-              ])}
-            onkeyup={dummyFn}
-          >
-            <Fa icon={faComputer} />
-          </div>
-        {/if}
-      </div>
-    {/snippet}
-    <input
-      type="text"
-      class={inputClasses}
-      placeholder="Noto Serif JP"
-      bind:value={$fontFamilyGroupOne$}
-    />
-  </SettingsItemGroup>
-  <SettingsItemGroup title="Font family (Group 2)">
-    {#snippet header()}
-      <div class="flex items-center">
-        <SettingsFontSelector
-          availableFonts={[LocalFont.NOTOSANSJP, LocalFont.KZUDGOTHIC, LocalFont.SANSSERIF]}
-          bind:fontValue={$fontFamilyGroupTwo$}
-        />
-        {#if fontCacheSupported}
-          <div
-            tabindex="0"
-            role="button"
-            onclick={() =>
-              dialogManager.dialogs$.next([
-                {
-                  component: SettingsUserFontDialog,
-                  props: { fontFamily: fontFamilyGroupTwo$ }
-                }
-              ])}
-            onkeyup={dummyFn}
-          >
-            <Fa icon={faComputer} />
-          </div>
-        {/if}
-      </div>
-    {/snippet}
-    <input
-      type="text"
-      class={inputClasses}
-      placeholder="Noto Sans JP"
-      bind:value={$fontFamilyGroupTwo$}
-    />
-  </SettingsItemGroup>
+  <FontPicker group="serif" bind:selectedFont={$fontFamilyGroupOne$} />
+  <FontPicker group="sans-serif" bind:selectedFont={$fontFamilyGroupTwo$} />
   <SettingsItemGroup title="Font size">
     <input type="number" class={inputClasses} step="1" min="1" bind:value={$fontSize$} />
   </SettingsItemGroup>

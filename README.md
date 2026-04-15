@@ -14,6 +14,7 @@ Hosted on <https://reader.miwake.app/>.
 - Dialogs, menus, and sidebars throughout the app have been rebuilt using native browser primitives, making them more consistent and behaviorally reasonable. For example, the <kbd>Esc</kbd> key always closes them. (This work is still ongoing; track progress in [issue #11](https://github.com/domenic/miwake-reader/issues/11).)
 - The "Export" functionality has been split into separate "Back Up" and "Sync" actions.
 - A new theme editor makes it easier to customize your reading colors, with live preview.
+- The font picker has been redesigned as a unified popover with font previews, bundled/uploaded/system font support, and automatic font name detection from uploaded files.
 - The statistics title filter sidebar has been redesigned for clarity.
 - A welcome screen introduces new users to the app.
 

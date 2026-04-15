@@ -5,6 +5,7 @@
   import { appName, basePath, clearConsoleOnReload } from '$lib/data/env';
   import { dialogManager, type Dialog } from '$lib/data/dialog-manager';
   import { userFontsCacheName, type UserFont } from '$lib/data/fonts';
+  import { reconcileUserFontCache } from '$lib/functions/reconcile-user-font-cache';
   import { fontFamilyGroupOne$, isOnline$, userFonts$ } from '$lib/data/store';
   import { dummyFn, isMobile, isMobile$ } from '$lib/functions/utils';
   import { MetaTags } from 'svelte-meta-tags';
@@ -27,6 +28,10 @@
       addUserFonts($userFonts$);
     }
   });
+
+  if (browser) {
+    reconcileUserFontCache();
+  }
 
   if (clearConsoleOnReload && import.meta.hot) {
     // eslint-disable-next-line no-console
