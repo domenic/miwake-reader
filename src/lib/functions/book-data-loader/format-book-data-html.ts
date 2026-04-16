@@ -16,8 +16,8 @@ export default function formatBookDataHtml(
   isPaginated: boolean,
   blurMode: BlurMode
 ) {
-  return getHtmlWithImageSource(bookData, isPaginated).pipe(
-    map((elementHtml) => {
+  return getHtmlWithImageSource(bookData).pipe(
+    map(({ elementHtml, objectUrls, urlIndexes }) => {
       const element = document.createElement('div');
       element.innerHTML = elementHtml;
 
@@ -26,14 +26,21 @@ export default function formatBookDataHtml(
       removeSvgDimensions(element);
       addSpoilerTags(element, document, blurMode);
       removeOldBrTagSolution(element);
+      publishImageGallery(element, objectUrls, urlIndexes, isPaginated);
 
       return element.innerHTML;
     })
   );
 }
 
-function getHtmlWithImageSource(bookData: BooksDbBookData, isPaginated: boolean) {
-  return new Observable<string>((subscriber) => {
+interface HtmlWithImageSource {
+  elementHtml: string;
+  objectUrls: string[];
+  urlIndexes: Map<string, number>;
+}
+
+function getHtmlWithImageSource(bookData: BooksDbBookData) {
+  return new Observable<HtmlWithImageSource>((subscriber) => {
     const { blobs } = bookData;
     const objectUrls: string[] = [];
     const urlIndexes = new Map<string, number>();
@@ -53,21 +60,7 @@ function getHtmlWithImageSource(bookData: BooksDbBookData, isPaginated: boolean)
 
       elementHtml = elementHtml.replaceAll(dummyUrl, url).replaceAll(`miwake:${key}`, url);
     });
-    subscriber.next(elementHtml);
-
-    const readerImageGalleryPictures: ReaderImageGalleryPicture[] = objectUrls.map((url) => ({
-      url,
-      unspoilered: !isPaginated
-    }));
-
-    readerImageGalleryPictures.sort((picture1, picture2) => {
-      const index1 = urlIndexes.get(picture1.url) || 0;
-      const index2 = urlIndexes.get(picture2.url) || 0;
-
-      return index1 - index2;
-    });
-
-    readerImageGalleryPictures$.next(readerImageGalleryPictures);
+    subscriber.next({ elementHtml, objectUrls, urlIndexes });
 
     return () => {
       objectUrls.forEach((url) => URL.revokeObjectURL(url));
@@ -75,34 +68,78 @@ function getHtmlWithImageSource(bookData: BooksDbBookData, isPaginated: boolean)
   });
 }
 
-function addImageContainerClass(el: HTMLElement) {
-  Array.from(el.getElementsByTagName('img'))
-    .map((imgEl) => ({ parentEl: imgEl.parentElement, isGaiji: isElementGaiji(imgEl) }))
-    .forEach(({ parentEl, isGaiji }) => {
-      parentEl?.classList.add('ttu-img-container');
+function publishImageGallery(
+  el: HTMLElement,
+  objectUrls: string[],
+  urlIndexes: Map<string, number>,
+  isPaginated: boolean
+) {
+  const inlineImageUrls = new Set<string>();
+  for (const img of el.getElementsByTagName('img')) {
+    if (isImageInline(img)) {
+      inlineImageUrls.add(img.src);
+    }
+  }
 
-      if (!isGaiji) {
-        parentEl?.classList.add('ttu-illustration-container');
-      }
-    });
+  const readerImageGalleryPictures: ReaderImageGalleryPicture[] = objectUrls
+    .filter((url) => !inlineImageUrls.has(url))
+    .map((url) => ({ url, unspoilered: !isPaginated }));
+
+  readerImageGalleryPictures.sort((picture1, picture2) => {
+    const index1 = urlIndexes.get(picture1.url) || 0;
+    const index2 = urlIndexes.get(picture2.url) || 0;
+
+    return index1 - index2;
+  });
+
+  readerImageGalleryPictures$.next(readerImageGalleryPictures);
+}
+
+function addImageContainerClass(el: HTMLElement) {
+  for (const imgEl of el.getElementsByTagName('img')) {
+    const parentEl = imgEl.parentElement!;
+    parentEl.classList.add('ttu-img-container');
+
+    if (!isImageInline(imgEl)) {
+      parentEl.classList.add('ttu-illustration-container');
+    }
+  }
+}
+
+function isImageInline(el: Element): boolean {
+  if (el instanceof HTMLImageElement && isElementGaiji(el)) {
+    return true;
+  }
+
+  const parent = el.parentElement;
+  if (!parent) return false;
+
+  for (const sibling of parent.childNodes) {
+    if (sibling === el) continue;
+    const text = sibling.textContent?.replace(/[\s\u3000]+/g, '');
+    if (text) {
+      return true;
+    }
+  }
+  return false;
 }
 
 function removeSvgDimensions(el: HTMLElement) {
-  Array.from(el.getElementsByTagName('svg')).forEach((tag) => {
+  for (const tag of el.getElementsByTagName('svg')) {
     tag.removeAttribute('width');
     tag.removeAttribute('height');
-  });
+  }
 }
 
 function addSpoilerTags(el: HTMLElement, document: Document, blurMode: BlurMode) {
   const getChildNodesAfterTableOfContents = () => {
-    let childNodes = [...el.children];
-    const afterContentsDivIndex =
-      childNodes.findIndex((childNode) => childNode.getElementsByTagName('a').length > 1) + 1;
-    if (afterContentsDivIndex > 0 && afterContentsDivIndex < childNodes.length) {
-      childNodes = childNodes.slice(afterContentsDivIndex);
-    }
-    return childNodes;
+    const childNodes = [...el.children];
+    const tocIndex = childNodes.findIndex(
+      (childNode) => childNode.getElementsByTagName('a').length > 1
+    );
+    // Skip up to and including the TOC page, or just the cover (first child) if no TOC found
+    const startIndex = tocIndex === -1 ? 1 : tocIndex + 1;
+    return childNodes.slice(startIndex);
   };
 
   const createWrapper = (tag: Element, childNode: Element) => {
@@ -121,11 +158,11 @@ function addSpoilerTags(el: HTMLElement, document: Document, blurMode: BlurMode)
     : [...el.children]
   ).forEach((childNode) => {
     Array.from(childNode.getElementsByTagName('img'))
-      .filter((tag) => !isElementGaiji(tag))
+      .filter((tag) => !isImageInline(tag))
       .forEach((tag) => createWrapper(tag, childNode));
 
     Array.from(childNode.getElementsByTagName('svg'))
-      .filter((tag) => tag.getElementsByTagName('image').length)
+      .filter((tag) => tag.getElementsByTagName('image').length && !isImageInline(tag))
       .forEach((tag) => createWrapper(tag, childNode));
   });
 }
