@@ -14,12 +14,7 @@
   import HeaderButton from '$lib/components/header-button.svelte';
   import HeaderMenuButton from '$lib/components/header-menu-button.svelte';
   import HeaderNavTabs from '$lib/components/header-nav-tabs.svelte';
-  import {
-    baseHeaderClasses,
-    headerDividerClasses,
-    nTranslateXHeaderFa,
-    translateXHeaderFa
-  } from '$lib/css-classes';
+  import { baseHeaderClasses, headerDividerClasses } from '$lib/css-classes';
   import { customReadingPointEnabled$, viewMode$ } from '$lib/data/store';
   import { ViewMode } from '$lib/data/view-mode';
   import { isMobile$ } from '$lib/functions/utils';
@@ -81,8 +76,8 @@
   ]);
 </script>
 
-<div class="flex justify-between px-4 md:px-8 {baseHeaderClasses}">
-  <div class="flex transform-gpu {nTranslateXHeaderFa}">
+<div class="flex justify-between {baseHeaderClasses}">
+  <div class="flex">
     {#if hasChapterData}
       <HeaderButton
         faIcon={faList}
@@ -106,10 +101,7 @@
       />
     {/if}
     {#if $viewMode$ === ViewMode.Continuous && !$isMobile$}
-      <div
-        class="flex items-center px-4 text-xl xl:px-3 xl:text-lg"
-        title="Current autoscroll speed"
-      >
+      <div class="flex items-center px-4 text-xl" title="Current autoscroll speed">
         {autoScrollMultiplier}x
       </div>
     {/if}
@@ -145,7 +137,7 @@
     {/if}
   </div>
 
-  <div class="flex transform-gpu {translateXHeaderFa}">
+  <div class="flex">
     {#if $customReadingPointEnabled$ || $viewMode$ === ViewMode.Paginated}
       <HeaderMenuButton
         faIcon={faCrosshairs}

@@ -152,7 +152,7 @@
   onselecttab={navigateToStatisticsTab}
 />
 
-<div class="{pxScreen} flex h-full flex-col pt-16 xl:pt-14">
+<div class="{pxScreen} flex h-full flex-col pt-16">
   {@render children?.()}
 </div>
 

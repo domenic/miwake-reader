@@ -5,7 +5,7 @@
   import HeaderMenuButton from '$lib/components/header-menu-button.svelte';
   import HeaderNavTabs from '$lib/components/header-nav-tabs.svelte';
   import Popover from '$lib/components/popover/popover.svelte';
-  import { baseHeaderClasses, headerDividerClasses, pxScreen } from '$lib/css-classes';
+  import { baseHeaderClasses, headerDividerClasses } from '$lib/css-classes';
   import { appName } from '$lib/data/env';
   import { SortDirection } from '$lib/data/sort-types';
   import { FilesystemStorageHandler } from '$lib/data/storage/handler/filesystem-handler';
@@ -85,8 +85,6 @@
     onsyncData,
     oncancelReplication
   }: Props = $props();
-
-  const nTranslateXHeaderMat = '-translate-x-3 xl:-translate-x-2.5';
 
   const inAnimationParams = {
     delay: 150,
@@ -192,8 +190,8 @@
 />
 <div class={baseHeaderClasses}>
   {#if !replicationToProgress}
-    <div class="flex h-full justify-between {pxScreen}">
-      <div class="flex transform-gpu {nTranslateXHeaderMat}">
+    <div class="flex h-full justify-between">
+      <div class="flex">
         <HeaderButton
           title={selectMode ? 'Disable book selection' : 'Enable book selection'}
           label="Select"
@@ -201,11 +199,7 @@
           onclick={() => (selectMode = hasBooks && !selectMode)}
         >
           {#snippet icon()}
-            <svg
-              viewBox="0 0 24 24"
-              xmlns="http://www.w3.org/2000/svg"
-              class="h-3.5 w-3.5 xl:h-3 xl:w-3"
-            >
+            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5">
               <path
                 class="fill-current"
                 d="M20,4v12H8V4H20 M20,2H8C6.9,2,6,2.9,6,4v12c0,1.1,0.9,2,2,2h12c1.1,0,2-0.9,2-2V4C22,2.9,21.1,2,20,2L20,2z M12.47,14 L9,10.5l1.4-1.41l2.07,2.08L17.6,6L19,7.41L12.47,14z M4,6H2v14c0,1.1,0.9,2,2,2h14v-2H4V6z"
@@ -215,7 +209,7 @@
         </HeaderButton>
         {#if selectMode}
           <span
-            class="flex items-center px-2 text-xl font-medium xl:text-lg"
+            class="flex items-center px-2 text-xl font-medium"
             title="{selectedCount} {selectedCount === 1 ? 'book' : 'books'} selected"
             >{selectedCount}</span
           >
@@ -251,11 +245,7 @@
         {:else}
           <HeaderButton title="Select all books" label="All" onclick={() => onselectAllClick?.()}>
             {#snippet icon()}
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 24 24"
-                class="h-3.5 w-3.5 xl:h-3 xl:w-3"
-              >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="h-3.5 w-3.5">
                 <path
                   class="fill-current"
                   d="M18 7l-1.41-1.41-6.34 6.34 1.41 1.41L18 7zm4.24-1.41L11.66 16.17 7.48 12l-1.41 1.41L11.66 19l12-12-1.42-1.41zM.41 13.41L6 19l1.41-1.41L1.83 12 .41 13.41z"
@@ -323,7 +313,7 @@
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
                     viewBox={$storageIcon$.viewBox}
-                    class="h-3.5 w-3.5 xl:h-3 xl:w-3"
+                    class="h-3.5 w-3.5"
                   >
                     <path class="fill-current" d={$storageIcon$.d} />
                   </svg>
@@ -426,7 +416,7 @@
   {:else}
     <div
       title="Cancel operation"
-      class="mx-auto flex h-full transform-gpu items-center justify-center px-4 md:px-8 lg:max-w-4xl xl:max-w-none 2xl:max-w-6xl"
+      class="mx-auto flex h-full items-center justify-center px-4 max-w-6xl"
       in:scale={inAnimationParams}
       out:scale={outAnimationParams}
     >

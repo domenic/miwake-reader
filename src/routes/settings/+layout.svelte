@@ -29,8 +29,6 @@
   <SettingsHeader {activeRouteId} onselect={navigateToSettingsSection} />
 </div>
 
-<div class="{pxScreen} h-full pt-16 xl:pt-14">
-  <div class="max-w-5xl">
-    {@render children?.()}
-  </div>
+<div class="{pxScreen} h-full pt-16">
+  {@render children?.()}
 </div>

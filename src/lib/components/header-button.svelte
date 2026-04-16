@@ -31,9 +31,8 @@
     icon
   }: Props = $props();
 
-  const iconWrapperBaseClasses = 'flex items-center justify-center leading-none';
-  const labeledIconWrapperClasses = `${iconWrapperBaseClasses} mb-0.5`;
-  const labeledFontAwesomeIconClasses = `${labeledIconWrapperClasses} text-sm xl:text-xs`;
+  const iconClasses = 'flex items-center justify-center leading-none mb-0.5';
+  const faIconClasses = `${iconClasses} text-sm`;
   const inAnimationParams = {
     delay: 150,
     duration: 150,
@@ -44,8 +43,8 @@
     easing: quintOut
   };
   const variantClasses = {
-    action: 'min-w-16 px-2 opacity-60 transition-opacity xl:text-[10px]',
-    tab: 'px-3'
+    action: 'opacity-60 transition-opacity',
+    tab: ''
   } satisfies Record<Variant, string>;
 </script>
 
@@ -56,7 +55,7 @@
   out:scale={outAnimationParams}
   {title}
   {disabled}
-  class={`flex h-12 flex-col items-center justify-center text-center text-xs select-none xl:h-10 ${variantClasses[variant]}`}
+  class={`flex h-12 min-w-16 flex-col items-center justify-center px-2 text-center text-xs select-none ${variantClasses[variant]}`}
   class:opacity-100={variant === 'action' && selected}
   class:bg-gray-900={variant === 'tab' && selected}
   class:hover:bg-gray-800={variant === 'tab' && selected}
@@ -67,11 +66,11 @@
   {onclick}
 >
   {#if icon}
-    <span class={labeledIconWrapperClasses}>
+    <span class={iconClasses}>
       {@render icon()}
     </span>
   {:else if faIcon}
-    <Fa icon={faIcon} class={labeledFontAwesomeIconClasses} />
+    <Fa icon={faIcon} class={faIconClasses} />
   {/if}
 
   {#if label}

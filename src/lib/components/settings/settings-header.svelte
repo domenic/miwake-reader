@@ -4,7 +4,7 @@
   import HeaderButton from '$lib/components/header-button.svelte';
   import HeaderNavTabs from '$lib/components/header-nav-tabs.svelte';
   import type { SettingsRoute } from '$lib/components/settings/settings-route';
-  import { baseHeaderClasses, pxScreen } from '$lib/css-classes';
+  import { baseHeaderClasses } from '$lib/css-classes';
 
   interface Props {
     activeRouteId?: RouteId | null;
@@ -39,7 +39,7 @@
 </script>
 
 <div class={baseHeaderClasses}>
-  <div class="{pxScreen} flex h-full justify-between px-0 md:px-5">
+  <div class="flex h-full justify-between">
     <div class="flex">
       {#each settingItems as settingItem (settingItem.label)}
         <HeaderButton

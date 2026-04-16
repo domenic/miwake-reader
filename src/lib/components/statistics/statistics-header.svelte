@@ -17,7 +17,7 @@
     statisticsTitleFilterIsOpen$,
     type StatisticsDataSource
   } from '$lib/components/statistics/statistics-types';
-  import { baseHeaderClasses, headerDividerClasses, pxScreen } from '$lib/css-classes';
+  import { baseHeaderClasses, headerDividerClasses } from '$lib/css-classes';
 
   interface Props {
     activeRouteId?: RouteId | null;
@@ -38,7 +38,7 @@
 
 <div class="elevation-4 fixed inset-x-0 top-0 z-10">
   <div class={baseHeaderClasses}>
-    <div class="{pxScreen} flex h-full justify-between px-0 md:px-5">
+    <div class="flex h-full justify-between">
       <div class="flex">
         <HeaderButton
           faIcon={faCalendarDays}

@@ -612,7 +612,7 @@
 
 <div
   role="application"
-  class="{pxScreen} h-full pt-16 xl:pt-14"
+  class="{pxScreen} h-full pt-16"
   ondragenter={(ev) => ev.preventDefault()}
   ondragover={(ev) => ev.preventDefault()}
   ondragend={(ev) => ev.preventDefault()}
