@@ -95,7 +95,12 @@
       return;
     }
 
-    // save (Phase 1 stub doesn't read form fields; real impl would pass them through)
+    // Persist the entered credentials, whether or not we activate them now.
+    cloudCustomCredentials$.next({
+      ...$cloudCustomCredentials$,
+      [provider]: result.credentials
+    });
+
     if (result.activate) {
       cloudConnection$.next({
         provider,

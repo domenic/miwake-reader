@@ -1,11 +1,11 @@
 <script module lang="ts">
   import CustomOAuthDialog from '$lib/components/settings/sync/custom-oauth-dialog.svelte';
   import { showDialog } from '$lib/data/simple-dialogs';
-  import type { CloudProviderType } from '$lib/data/sync/sync-store';
+  import type { CloudProviderType, CustomOAuthCredentials } from '$lib/data/sync/sync-store';
 
   export type CustomOAuthDialogResult =
     | { kind: 'cancel' }
-    | { kind: 'save'; activate: boolean }
+    | { kind: 'save'; activate: boolean; credentials: CustomOAuthCredentials }
     | { kind: 'clear' }
     | { kind: 'revert-to-default' };
 
@@ -18,6 +18,11 @@
     initialClientSecret?: string;
     initialTokenEndpoint?: string;
   }): Promise<CustomOAuthDialogResult> {
+    let captured: CustomOAuthCredentials = {
+      clientId: params.initialClientId ?? '',
+      clientSecret: params.initialClientSecret ?? '',
+      tokenEndpoint: params.initialTokenEndpoint ?? undefined
+    };
     return showDialog<CustomOAuthDialogResult>(
       CustomOAuthDialog,
       {
@@ -27,13 +32,18 @@
         hasStoredCredentials: params.hasStoredCredentials,
         initialClientId: params.initialClientId ?? '',
         initialClientSecret: params.initialClientSecret ?? '',
-        initialTokenEndpoint: params.initialTokenEndpoint ?? ''
+        initialTokenEndpoint: params.initialTokenEndpoint ?? '',
+        captureCredentials: (c: CustomOAuthCredentials) => {
+          captured = c;
+        }
       },
       {
         closedBy: 'closerequest',
         resolveResult: (returnValue) => {
-          if (returnValue === 'save') return { kind: 'save', activate: true };
-          if (returnValue === 'save-no-activate') return { kind: 'save', activate: false };
+          if (returnValue === 'save')
+            return { kind: 'save', activate: true, credentials: captured };
+          if (returnValue === 'save-no-activate')
+            return { kind: 'save', activate: false, credentials: captured };
           if (returnValue === 'clear') return { kind: 'clear' };
           if (returnValue === 'revert-to-default') return { kind: 'revert-to-default' };
           return { kind: 'cancel' };
@@ -58,6 +68,7 @@
     initialClientId: string;
     initialClientSecret: string;
     initialTokenEndpoint: string;
+    captureCredentials: (c: CustomOAuthCredentials) => void;
   }
 
   let {
@@ -67,7 +78,8 @@
     hasStoredCredentials,
     initialClientId,
     initialClientSecret,
-    initialTokenEndpoint
+    initialTokenEndpoint,
+    captureCredentials
   }: Props = $props();
 
   let clientId = $state(untrack(() => initialClientId));
@@ -78,6 +90,14 @@
   const isOneDrive = untrack(() => provider === StorageKey.ONEDRIVE);
 
   let canSave = $derived(clientId.trim().length > 0 && clientSecret.trim().length > 0);
+
+  $effect(() => {
+    captureCredentials({
+      clientId: clientId.trim(),
+      clientSecret: clientSecret.trim(),
+      tokenEndpoint: tokenEndpoint.trim() || undefined
+    });
+  });
 </script>
 
 <div class="w-[480px] max-w-full">

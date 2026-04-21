@@ -142,6 +142,17 @@
   <title>{formatPageTitle('Data Settings')}</title>
 </svelte:head>
 
+<div
+  class="mx-auto mb-4 max-w-3xl rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900"
+>
+  <span class="font-medium">This page is being replaced.</span>
+  The sync-related settings here are moving to the new
+  <a href="./sync" class="underline hover:no-underline" data-sveltekit-preload-data="hover">Sync</a>
+  tab as part of the ongoing sync redesign (see
+  <span class="font-mono">docs/storage-redesign.md</span>). The two screens coexist for now; only
+  the new one reflects the target UI.
+</div>
+
 <div class="grid grid-cols-1 items-center sm:grid-cols-2 sm:gap-6 lg:gap-8 lg:grid-cols-3">
   <SettingsItemGroup title="Persistent storage" tooltip={persistentStorageTooltip}>
     <div class="flex items-center">
