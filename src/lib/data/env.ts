@@ -24,5 +24,6 @@ export const oneDriveTokenEndpoint =
 export const oneDriveDiscoveryEndpoint =
   import.meta.env.VITE_ONEDRIVE_DISCOVERY ||
   'https://login.microsoftonline.com/consumers/v2.0/.well-known/openid-configuration';
-export const oneDriveScope = import.meta.env.VITE_ONEDRIVE_SCOPE || 'files.readwrite.appfolder';
+export const oneDriveScope =
+  import.meta.env.VITE_ONEDRIVE_SCOPE || 'files.readwrite.appfolder offline_access';
 export const oneDriveClientId = import.meta.env.VITE_ONEDRIVE_CLIENT_ID || '';
