@@ -1,4 +1,7 @@
 <script lang="ts">
+  import { showBackupExportDialog } from '$lib/components/backup/backup-export-dialog.svelte';
+  import { showBackupImportDialog } from '$lib/components/backup/backup-import-dialog.svelte';
+  import type { BackupCatalog } from '$lib/components/backup/backup-types';
   import { confirmDialog, messageDialog } from '$lib/data/simple-dialogs';
   import {
     cloudConnection$,
@@ -11,17 +14,44 @@
 
   let hasAnyBackend = $derived($cloudConnection$ !== null || $fsConnection$ !== null);
 
+  async function buildCurrentCatalog(): Promise<BackupCatalog> {
+    // Phase 1 stub. Phase 6 will query IndexedDB for real books / bookmarks / stats.
+    return {
+      hasAppSettings: true,
+      hasReadingGoals: true,
+      books: []
+    };
+  }
+
   async function onExport() {
-    await messageDialog({
-      title: 'Export backup',
-      message: 'Backup export dialog is not wired up yet (coming in Phase 6).'
+    const catalog = await buildCurrentCatalog();
+    await showBackupExportDialog({
+      catalog,
+      onExport: async () => {
+        await messageDialog({
+          title: 'Export backup',
+          message:
+            'Backup export is not wired up yet (coming in Phase 6). Your selection has been captured but no ZIP will be generated.'
+        });
+      }
     });
   }
 
   async function onImport() {
-    await messageDialog({
-      title: 'Import backup',
-      message: 'Backup import dialog is not wired up yet (coming in Phase 6).'
+    await showBackupImportDialog({
+      parseZip: async () => {
+        // Phase 1 stub. Phase 6 will actually open the ZIP.
+        throw new Error(
+          'Backup import is not wired up yet (coming in Phase 6). Nothing was imported.'
+        );
+      },
+      onImport: async () => ({
+        books: 0,
+        bookmarks: 0,
+        statistics: 0,
+        readingGoals: false,
+        appSettings: false
+      })
     });
   }
 
