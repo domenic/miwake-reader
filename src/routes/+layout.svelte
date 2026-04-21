@@ -4,6 +4,7 @@
   import { page } from '$app/state';
   import { appName, basePath, clearConsoleOnReload } from '$lib/data/env';
   import { dialogManager, type Dialog } from '$lib/data/dialog-manager';
+  import SyncStatusIndicator from '$lib/components/sync-status/sync-status-indicator.svelte';
   import { userFontsCacheName, type UserFont } from '$lib/data/fonts';
   import { reconcileUserFontCache } from '$lib/functions/reconcile-user-font-cache';
   import { fontFamilyGroupOne$, isOnline$, userFonts$ } from '$lib/data/store';
@@ -118,6 +119,8 @@
 />
 
 {@render children?.()}
+
+<SyncStatusIndicator />
 
 {#if dialogs.length > 0}
   <div class="writing-horizontal-tb fixed inset-0 z-50 h-full w-full" style:z-index={zIndex}>
