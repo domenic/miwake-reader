@@ -1,6 +1,5 @@
 import { gDriveClientId, oneDriveClientId } from '$lib/data/env';
 import type { BooksDbStorageSource } from '$lib/data/database/books-db/versions/books-db';
-import { BaseStorageHandler } from '$lib/data/storage/handler/base-handler';
 import { getStorageHandler } from '$lib/data/storage/storage-handler-factory';
 import type { FsHandle, RemoteContext } from '$lib/data/storage/storage-source-manager';
 import { StorageKey, StorageSourceDefault } from '$lib/data/storage/storage-types';
@@ -62,18 +61,13 @@ function read<T>(subject: unknown): T {
  * persisting the handle. Caller handles AbortError (picker cancel).
  */
 export async function connectFs(): Promise<void> {
-  const parentHandle = await window.showDirectoryPicker({
+  const directoryHandle = await window.showDirectoryPicker({
     id: 'miwake-reader-root',
     mode: 'readwrite'
   });
-  const rootHandle = await parentHandle.getDirectoryHandle(BaseStorageHandler.rootName, {
-    create: true
-  });
-  const fsPath = `${parentHandle.name === '\\' ? '' : `${parentHandle.name}/`}${
-    BaseStorageHandler.rootName
-  }`;
+  const fsPath = directoryHandle.name;
 
-  const data: FsHandle = { directoryHandle: rootHandle, fsPath };
+  const data: FsHandle = { directoryHandle, fsPath };
   const record: BooksDbStorageSource = {
     name: FS_SOURCE_NAME,
     type: StorageKey.FS,
@@ -94,7 +88,7 @@ export async function connectFs(): Promise<void> {
   fsConnection$.next({
     path: fsPath,
     connectedAt: Date.now(),
-    lastSyncedAt: Date.now()
+    lastSyncedAt: null
   });
   fsHealth$.next({ status: 'ok' });
 
@@ -181,7 +175,7 @@ export async function connectCloud(provider: CloudProviderType): Promise<void> {
     provider,
     usesCustomCredentials: useCustom,
     connectedAt: Date.now(),
-    lastSyncedAt: Date.now(),
+    lastSyncedAt: null,
     bookCount
   });
   cloudHealth$.next({ status: 'ok' });
@@ -248,7 +242,7 @@ export async function loadConnectionsFromDb(): Promise<void> {
       provider: cloudRecord.type as CloudProviderType,
       usesCustomCredentials: isCustomCloudName(cloudRecord.name),
       connectedAt: cloudRecord.lastSourceModified,
-      lastSyncedAt: cloudRecord.lastSourceModified,
+      lastSyncedAt: null,
       bookCount: null
     });
     // Fire-and-forget refresh; UI shows a placeholder until it resolves.
@@ -263,7 +257,7 @@ export async function loadConnectionsFromDb(): Promise<void> {
     fsConnection$.next({
       path: fsData.fsPath,
       connectedAt: fsRecord.lastSourceModified,
-      lastSyncedAt: fsRecord.lastSourceModified
+      lastSyncedAt: null
     });
   } else {
     fsConnection$.next(null);

@@ -187,7 +187,9 @@
           {/if}
         </div>
         <div class="mt-1 text-sm text-gray-600">
-          {#if $cloudHealth$.status === 'ok'}
+          {#if active.lastSyncedAt === null}
+            Not yet synced
+          {:else if $cloudHealth$.status === 'ok'}
             Synced {formatRelativeTime(active.lastSyncedAt)}
           {:else}
             Last successful sync {formatRelativeTime(active.lastSyncedAt)}

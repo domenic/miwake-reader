@@ -7,7 +7,13 @@ export interface CloudConnectionState {
   provider: CloudProviderType;
   usesCustomCredentials: boolean;
   connectedAt: number;
-  lastSyncedAt: number;
+  /**
+   * Timestamp of the most recent successful sync touching this source,
+   * or `null` if nothing has synced since the connection was made.
+   * Phase 4's ambient sync engine is responsible for updating this;
+   * pre-Phase-4 it stays `null` after connect.
+   */
+  lastSyncedAt: number | null;
   /**
    * Number of books at the remote source as of the last fetch (connect,
    * app boot, or explicit refresh). `null` until first fetched.
@@ -20,7 +26,7 @@ export interface CloudConnectionState {
 export interface FsConnectionState {
   path: string;
   connectedAt: number;
-  lastSyncedAt: number;
+  lastSyncedAt: number | null;
 }
 
 export interface CustomOAuthCredentials {

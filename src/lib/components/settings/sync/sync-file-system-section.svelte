@@ -86,7 +86,11 @@
         <div class="mt-1 font-mono text-xs text-gray-600">{active.path}</div>
         {#if $fsHealth$.status === 'ok'}
           <div class="text-sm text-gray-600">
-            Synced {formatRelativeTime(active.lastSyncedAt)}
+            {#if active.lastSyncedAt === null}
+              Not yet synced
+            {:else}
+              Synced {formatRelativeTime(active.lastSyncedAt)}
+            {/if}
           </div>
         {/if}
         {#if $fsHealth$.status === 'reauth-required' || $fsHealth$.status === 'permission-required'}
