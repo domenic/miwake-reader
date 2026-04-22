@@ -37,16 +37,29 @@ import { logger } from '$lib/data/logger';
 // Handler factories
 // ---------------------------------------------------------------------
 
+/**
+ * `isForBrowser` on a cloud or fs handler controls what shape its
+ * getBook/getProgress/etc. return:
+ *   - `true`: BooksDbBookData / parsed JSON — for replicating INTO
+ *     browser IndexedDB.
+ *   - `false`: raw File blobs — for replicating INTO another external
+ *     handler (e.g. cloud↔fs, or ZIP backup).
+ *
+ * Pulling from cloud/fs to the local browser needs `true`; pushing
+ * from local to cloud/fs needs `false`. Getting a book LIST is
+ * unaffected by this flag, so reconcileCloudBooks can use either.
+ */
 function getCloudHandler(
   provider: CloudProviderType,
-  name: string
+  name: string,
+  isForBrowser: boolean
 ): GDriveStorageHandler | OneDriveStorageHandler {
   return provider === StorageKey.GDRIVE
     ? getStorageHandler(
         window,
         StorageKey.GDRIVE,
         name,
-        false,
+        isForBrowser,
         read<boolean>(cacheStorageData$),
         read<ReplicationSaveBehavior>(replicationSaveBehavior$),
         read<MergeMode>(statisticsMergeMode$),
@@ -57,7 +70,7 @@ function getCloudHandler(
         window,
         StorageKey.ONEDRIVE,
         name,
-        false,
+        isForBrowser,
         read<boolean>(cacheStorageData$),
         read<ReplicationSaveBehavior>(replicationSaveBehavior$),
         read<MergeMode>(statisticsMergeMode$),
@@ -66,12 +79,12 @@ function getCloudHandler(
       );
 }
 
-function getFsHandler(name: string): BaseStorageHandler {
+function getFsHandler(name: string, isForBrowser: boolean): BaseStorageHandler {
   return getStorageHandler(
     window,
     StorageKey.FS,
     name,
-    false,
+    isForBrowser,
     read<boolean>(cacheStorageData$),
     read<ReplicationSaveBehavior>(replicationSaveBehavior$),
     read<MergeMode>(statisticsMergeMode$),
@@ -265,7 +278,8 @@ export async function reconcileCloudBooks(): Promise<void> {
   if (!cloud) return;
 
   const name = cloudSourceName(cloud.provider, cloud.usesCustomCredentials);
-  const handler = getCloudHandler(cloud.provider, name);
+  // Book-list only — isForBrowser doesn't matter; pass true for consistency.
+  const handler = getCloudHandler(cloud.provider, name, true);
 
   beginLongRunning();
   try {
@@ -416,7 +430,8 @@ async function pushOne(context: ReplicationContext, types: StorageDataType[]): P
 
   if (cloud) {
     const name = cloudSourceName(cloud.provider, cloud.usesCustomCredentials);
-    const handler = getCloudHandler(cloud.provider, name);
+    // Push: target is cloud, which receives Files from local → isForBrowser=false.
+    const handler = getCloudHandler(cloud.provider, name, false);
     try {
       await handler.authenticate(null, true);
       const error = await replicateData(local, handler, false, [context], types);
@@ -429,7 +444,8 @@ async function pushOne(context: ReplicationContext, types: StorageDataType[]): P
   }
 
   if (fs) {
-    const handler = getFsHandler(FS_SOURCE_NAME);
+    // Push: target is fs → isForBrowser=false.
+    const handler = getFsHandler(FS_SOURCE_NAME, false);
     try {
       const error = await replicateData(local, handler, false, [context], types);
       if (error) throw new Error(error);
@@ -507,7 +523,10 @@ export async function reconcileForBookOpen(context: ReplicationContext): Promise
   try {
     if (cloud) {
       const name = cloudSourceName(cloud.provider, cloud.usesCustomCredentials);
-      const handler = getCloudHandler(cloud.provider, name);
+      // Pull: source is cloud, target is browser → isForBrowser=true so
+      // the cloud handler returns parsed BooksDbBookData instead of
+      // raw File blobs (which browserHandler.saveBook silently ignores).
+      const handler = getCloudHandler(cloud.provider, name, true);
       try {
         logger.debug('reconcileForBookOpen: cloud authenticate (silent)');
         await handler.authenticate(null, true);
@@ -522,7 +541,8 @@ export async function reconcileForBookOpen(context: ReplicationContext): Promise
     }
 
     if (fs) {
-      const handler = getFsHandler(FS_SOURCE_NAME);
+      // Pull: source is fs, target is browser → isForBrowser=true.
+      const handler = getFsHandler(FS_SOURCE_NAME, true);
       try {
         logger.debug('reconcileForBookOpen: fs replicateData (pull)');
         const error = await replicateData(handler, local, false, [context], types);
@@ -581,31 +601,43 @@ export async function forceFullResync(direction: ForceResyncDirection): Promise<
 
   beginLongRunning();
   try {
-    let cloudHandler: GDriveStorageHandler | OneDriveStorageHandler | null = null;
     if (cloud) {
       const name = cloudSourceName(cloud.provider, cloud.usesCustomCredentials);
-      cloudHandler = getCloudHandler(cloud.provider, name);
       try {
-        await cloudHandler.authenticate(null, true);
+        // Auth once up front; the handler singleton is shared across
+        // direction flips below.
+        await getCloudHandler(cloud.provider, name, true).authenticate(null, true);
       } catch (err) {
-        // Surface via the indicator too, not just the dialog the caller shows.
         reportSyncError('cloud', 'forceFullResync (auth)', err);
         throw err;
       }
     }
-    const fsHandler = fs ? getFsHandler(FS_SOURCE_NAME) : null;
 
-    const pairs: Array<['cloud' | 'fs', BaseStorageHandler]> = [];
-    if (cloudHandler) pairs.push(['cloud', cloudHandler]);
-    if (fsHandler) pairs.push(['fs', fsHandler]);
+    const targets: Array<'cloud' | 'fs'> = [];
+    if (cloud) targets.push('cloud');
+    if (fs) targets.push('fs');
 
-    for (const [target, remote] of pairs) {
+    for (const target of targets) {
+      const cloudName =
+        cloud && target === 'cloud'
+          ? cloudSourceName(cloud.provider, cloud.usesCustomCredentials)
+          : '';
       try {
         if (direction === 'newest' || direction === 'remote-wins') {
-          await runPair(remote, local); // pull
+          // Pull: remote is source of BooksDbBookData → isForBrowser=true.
+          const remote =
+            target === 'cloud'
+              ? getCloudHandler(cloud!.provider, cloudName, true)
+              : getFsHandler(FS_SOURCE_NAME, true);
+          await runPair(remote, local);
         }
         if (direction === 'newest' || direction === 'local-wins') {
-          await runPair(local, remote); // push
+          // Push: remote is File sink → isForBrowser=false.
+          const remote =
+            target === 'cloud'
+              ? getCloudHandler(cloud!.provider, cloudName, false)
+              : getFsHandler(FS_SOURCE_NAME, false);
+          await runPair(local, remote);
         }
         if (target === 'cloud') {
           markCloudSynced();
