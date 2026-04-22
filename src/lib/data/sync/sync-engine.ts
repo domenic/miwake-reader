@@ -33,7 +33,6 @@ import {
 } from '$lib/data/sync/sync-store';
 import { cloudSourceName, FS_SOURCE_NAME, readSubject as read } from '$lib/data/sync/sync-helpers';
 import { logger } from '$lib/data/logger';
-import { distinctUntilChanged, skip } from 'rxjs';
 
 // ---------------------------------------------------------------------
 // Handler factories
@@ -739,14 +738,14 @@ export function isSyncingOrPending(): boolean {
  */
 export async function syncEngineStart(): Promise<void> {
   // Drain queued pushes when we come back online. Ambient pushes while
-  // offline enqueue instead of erroring, so this is where they flush.
-  // `skip(1)` so the BehaviorSubject's replay of the initial value
-  // doesn't trigger a drain on first subscribe.
-  isOnline$.pipe(skip(1), distinctUntilChanged()).subscribe((online) => {
-    if (online) {
+  // offline enqueue instead of erroring — this is where they flush.
+  let wasOnline = read<boolean>(isOnline$);
+  isOnline$.subscribe((online) => {
+    if (online && !wasOnline) {
       logger.debug('syncEngine: back online, draining replay queue');
       void drainReplayQueue();
     }
+    wasOnline = online;
   });
 
   await reconcileCloudBooks();
