@@ -8,7 +8,13 @@ export interface CloudConnectionState {
   usesCustomCredentials: boolean;
   connectedAt: number;
   lastSyncedAt: number;
-  bookCount: number;
+  /**
+   * Number of books at the remote source as of the last fetch (connect,
+   * app boot, or explicit refresh). `null` until first fetched.
+   * Expected to become derived from /manage's unified library view in
+   * Phase 5, at which point this field goes away.
+   */
+  bookCount: number | null;
 }
 
 export interface FsConnectionState {

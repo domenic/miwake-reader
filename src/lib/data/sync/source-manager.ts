@@ -17,6 +17,7 @@ import {
   cloudHealth$,
   fsConnection$,
   fsHealth$,
+  type CloudConnectionState,
   type CloudProviderType,
   type CustomOAuthCredentials
 } from '$lib/data/sync/sync-store';
@@ -186,10 +187,33 @@ export async function connectCloud(provider: CloudProviderType): Promise<void> {
   cloudHealth$.next({ status: 'ok' });
 }
 
+/**
+ * Best-effort refresh of the cloud book count by asking the handler
+ * for the current book list. Updates `cloudConnection$.bookCount` on
+ * success; silently leaves the previous value on failure. Called on
+ * boot (from `loadConnectionsFromDb`) so the UI reflects the remote
+ * library size rather than a stale snapshot from the last connect.
+ */
+async function refreshCloudBookCount(): Promise<void> {
+  const current = read<CloudConnectionState | null>(cloudConnection$);
+  if (!current) return;
+
+  const name = cloudSourceName(current.provider, current.usesCustomCredentials);
+  try {
+    const handler = getStorageHandler(window, current.provider, name);
+    const books = await handler.getBookList();
+    const latest = read<CloudConnectionState | null>(cloudConnection$);
+    if (!latest) return;
+    cloudConnection$.next({ ...latest, bookCount: books.length });
+  } catch {
+    // Leave bookCount at whatever it was. A failure here is almost
+    // certainly an auth/network issue that the user will see surface
+    // via the sync status indicator separately.
+  }
+}
+
 export async function disconnectCloud(): Promise<void> {
-  const current = read<{ provider: CloudProviderType; usesCustomCredentials: boolean } | null>(
-    cloudConnection$
-  );
+  const current = read<CloudConnectionState | null>(cloudConnection$);
   if (current) {
     const name = cloudSourceName(current.provider, current.usesCustomCredentials);
     const db = await database.db;
@@ -225,8 +249,10 @@ export async function loadConnectionsFromDb(): Promise<void> {
       usesCustomCredentials: isCustomCloudName(cloudRecord.name),
       connectedAt: cloudRecord.lastSourceModified,
       lastSyncedAt: cloudRecord.lastSourceModified,
-      bookCount: 0
+      bookCount: null
     });
+    // Fire-and-forget refresh; UI shows a placeholder until it resolves.
+    refreshCloudBookCount();
   } else {
     cloudConnection$.next(null);
   }

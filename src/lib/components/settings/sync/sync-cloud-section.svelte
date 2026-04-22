@@ -188,9 +188,12 @@
         </div>
         <div class="mt-1 text-sm text-gray-600">
           {#if $cloudHealth$.status === 'ok'}
-            Synced {formatRelativeTime(active.lastSyncedAt)} · {active.bookCount} books
+            Synced {formatRelativeTime(active.lastSyncedAt)}
           {:else}
-            Last successful sync {formatRelativeTime(active.lastSyncedAt)} · {active.bookCount} books
+            Last successful sync {formatRelativeTime(active.lastSyncedAt)}
+          {/if}
+          {#if active.bookCount !== null}
+            · {active.bookCount} book{active.bookCount === 1 ? '' : 's'}
           {/if}
         </div>
         {#if $cloudHealth$.status === 'reauth-required' || $cloudHealth$.status === 'permission-required'}
