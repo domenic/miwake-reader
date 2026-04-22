@@ -30,15 +30,15 @@
 
   async function onConnect(provider: CloudProviderType) {
     // Phase 1 stub — fakes a successful connection so UI states are exercisable.
-    cloudConnection$.next({
+    $cloudConnection$ = {
       provider,
       accountLabel: provider === StorageKey.GDRIVE ? 'domenic@example.com' : 'domenic@outlook.com',
       usesCustomCredentials: false,
       connectedAt: Date.now(),
       lastSyncedAt: Date.now(),
       bookCount: 0
-    });
-    cloudHealth$.next({ status: 'ok' });
+    };
+    $cloudHealth$ = { status: 'ok' };
   }
 
   async function onSignOut() {
@@ -48,8 +48,8 @@
         'This will disconnect from your cloud account on this device. Your cloud data will not be touched.'
     });
     if (cancelled) return;
-    cloudConnection$.next(null);
-    cloudHealth$.next({ status: 'ok' });
+    $cloudConnection$ = null;
+    $cloudHealth$ = { status: 'ok' };
   }
 
   async function onSwitch(to: CloudProviderType) {
@@ -59,7 +59,7 @@
         message: `This will sign you out of ${providerLabel(active.provider)} first.`
       });
       if (cancelled) return;
-      cloudConnection$.next(null);
+      $cloudConnection$ = null;
     }
     await onConnect(to);
   }
@@ -80,49 +80,49 @@
     if (result.kind === 'cancel') return;
 
     if (result.kind === 'clear') {
-      const next = { ...$cloudCustomCredentials$ };
-      delete next[provider];
-      cloudCustomCredentials$.next(next);
+      const nextCreds = { ...$cloudCustomCredentials$ };
+      delete nextCreds[provider];
+      $cloudCustomCredentials$ = nextCreds;
       if (active?.provider === provider && active.usesCustomCredentials) {
-        cloudConnection$.next(null);
+        $cloudConnection$ = null;
       }
       return;
     }
 
     if (result.kind === 'revert-to-default') {
       if (active?.provider === provider) {
-        cloudConnection$.next({ ...active, usesCustomCredentials: false });
+        $cloudConnection$ = { ...active, usesCustomCredentials: false };
       }
       return;
     }
 
     // Persist the entered credentials, whether or not we activate them now.
-    cloudCustomCredentials$.next({
+    $cloudCustomCredentials$ = {
       ...$cloudCustomCredentials$,
       [provider]: result.credentials
-    });
+    };
 
     if (result.activate) {
-      cloudConnection$.next({
+      $cloudConnection$ = {
         provider,
         accountLabel: provider === StorageKey.GDRIVE ? 'custom@example.com' : 'custom@outlook.com',
         usesCustomCredentials: true,
         connectedAt: Date.now(),
         lastSyncedAt: Date.now(),
         bookCount: 0
-      });
-      cloudHealth$.next({ status: 'ok' });
+      };
+      $cloudHealth$ = { status: 'ok' };
     }
   }
 
   async function onReconnect() {
     // Phase 1 stub — clears the reauth state.
-    cloudHealth$.next({ status: 'ok' });
-    if (active) cloudConnection$.next({ ...active, lastSyncedAt: Date.now() });
+    $cloudHealth$ = { status: 'ok' };
+    if (active) $cloudConnection$ = { ...active, lastSyncedAt: Date.now() };
   }
 
   async function onRetry() {
-    cloudHealth$.next({ status: 'ok' });
+    $cloudHealth$ = { status: 'ok' };
   }
 </script>
 

@@ -38,15 +38,41 @@
     });
   }
 
+  function pickZipFile(): Promise<File | null> {
+    return new Promise((resolve) => {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = '.zip,application/zip';
+      input.addEventListener('change', () => resolve(input.files?.[0] ?? null), { once: true });
+      input.addEventListener('cancel', () => resolve(null), { once: true });
+      input.click();
+    });
+  }
+
+  async function parseZipCatalog(_file: File): Promise<BackupCatalog> {
+    // Phase 1 stub. Phase 6 will actually open the ZIP and read its manifest.
+    throw new Error('Backup import is not wired up yet (coming in Phase 6). Nothing was imported.');
+  }
+
   async function onImport() {
+    const file = await pickZipFile();
+    if (!file) return;
+
+    let catalog: BackupCatalog;
+    try {
+      catalog = await parseZipCatalog(file);
+    } catch (err) {
+      await messageDialog({
+        title: "Couldn't read this backup",
+        message: err instanceof Error ? err.message : String(err)
+      });
+      return;
+    }
+
     await showBackupImportDialog({
-      parseZip: async () => {
-        // Phase 1 stub. Phase 6 will actually open the ZIP.
-        throw new Error(
-          'Backup import is not wired up yet (coming in Phase 6). Nothing was imported.'
-        );
-      },
-      onImport: async () => ({
+      fileName: file.name,
+      catalog,
+      onImport: async (_selection, _direction) => ({
         books: 0,
         bookmarks: 0,
         statistics: 0,
@@ -85,10 +111,10 @@
     });
     if (cancelled) return;
 
-    cloudConnection$.next(null);
-    fsConnection$.next(null);
-    cloudHealth$.next({ status: 'ok' });
-    fsHealth$.next({ status: 'ok' });
+    $cloudConnection$ = null;
+    $fsConnection$ = null;
+    $cloudHealth$ = { status: 'ok' };
+    $fsHealth$ = { status: 'ok' };
 
     await messageDialog({
       title: 'Not fully wired up',

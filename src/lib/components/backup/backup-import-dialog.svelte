@@ -6,9 +6,15 @@
     BackupSelection as BackupSelection_
   } from '$lib/components/backup/backup-types';
 
+  export type BackupImportDirection = 'newest' | 'zip-wins';
+
   export function showBackupImportDialog(params: {
-    parseZip: (file: File) => Promise<BackupCatalog_>;
-    onImport: (selection: BackupSelection_) => Promise<{
+    fileName: string;
+    catalog: BackupCatalog_;
+    onImport: (
+      selection: BackupSelection_,
+      direction: BackupImportDirection
+    ) => Promise<{
       books: number;
       bookmarks: number;
       statistics: number;
@@ -18,7 +24,7 @@
   }): Promise<void> {
     return showDialog<void>(
       BackupImportDialog,
-      { parseZip: params.parseZip, onImport: params.onImport },
+      { fileName: params.fileName, catalog: params.catalog, onImport: params.onImport },
       {
         closedBy: 'closerequest',
         resolveResult: () => undefined
@@ -28,20 +34,23 @@
 </script>
 
 <script lang="ts">
-  import Fa from 'svelte-fa';
-  import { faFileArrowUp } from '@fortawesome/free-solid-svg-icons';
   import BackupSelectionTree from '$lib/components/backup/backup-selection-tree.svelte';
   import SyncButton from '$lib/components/settings/sync/sync-button.svelte';
-  import { appName } from '$lib/data/env';
+  import SyncRadioGroup from '$lib/components/settings/sync/sync-radio-group.svelte';
   import {
     isEmptySelection,
     type BackupCatalog,
     type BackupSelection
   } from '$lib/components/backup/backup-types';
+  import { untrack } from 'svelte';
 
   interface Props {
-    parseZip: (file: File) => Promise<BackupCatalog>;
-    onImport: (selection: BackupSelection) => Promise<{
+    fileName: string;
+    catalog: BackupCatalog;
+    onImport: (
+      selection: BackupSelection,
+      direction: BackupImportDirection
+    ) => Promise<{
       books: number;
       bookmarks: number;
       statistics: number;
@@ -50,13 +59,10 @@
     }>;
   }
 
-  let { parseZip, onImport }: Props = $props();
+  let { fileName, catalog, onImport }: Props = $props();
 
   type Stage =
-    | { kind: 'file-pick' }
-    | { kind: 'parsing'; fileName: string }
-    | { kind: 'parse-error'; fileName: string; message: string }
-    | { kind: 'select'; fileName: string; catalog: BackupCatalog }
+    | { kind: 'select' }
     | { kind: 'importing' }
     | {
         kind: 'done';
@@ -69,55 +75,48 @@
         };
       };
 
-  let stage = $state<Stage>({ kind: 'file-pick' });
-  let selection = $state<BackupSelection>({
-    appSettings: false,
-    readingGoals: false,
-    perBook: new Map()
-  });
+  let stage = $state<Stage>({ kind: 'select' });
+  let selection = $state<BackupSelection>(
+    untrack(() => ({
+      appSettings: catalog.hasAppSettings,
+      readingGoals: catalog.hasReadingGoals,
+      perBook: new Map(
+        catalog.books.map((b) => [
+          b.id,
+          { book: true as const, bookmarks: b.hasBookmark, statistics: b.hasStatistics }
+        ])
+      )
+    }))
+  );
+  let direction = $state<BackupImportDirection>('newest');
+  let errorMessage = $state<string | null>(null);
 
-  async function onFilePicked(event: Event) {
-    const input = event.currentTarget as HTMLInputElement;
-    const file = input.files?.[0];
-    if (!file) return;
-
-    stage = { kind: 'parsing', fileName: file.name };
-    try {
-      const catalog = await parseZip(file);
-      selection = {
-        appSettings: catalog.hasAppSettings,
-        readingGoals: catalog.hasReadingGoals,
-        perBook: new Map(
-          catalog.books.map((b) => [
-            b.id,
-            { book: true as const, bookmarks: b.hasBookmark, statistics: b.hasStatistics }
-          ])
-        )
-      };
-      stage = { kind: 'select', fileName: file.name, catalog };
-    } catch (err) {
-      stage = {
-        kind: 'parse-error',
-        fileName: file.name,
-        message: err instanceof Error ? err.message : String(err)
-      };
-    } finally {
-      input.value = '';
+  const directionOptions = [
+    {
+      id: 'newest' as const,
+      label: 'Keep newest',
+      description:
+        'For each item, whichever side was modified most recently wins. If the ZIP is newer for a given item, it replaces your local copy; otherwise your local version is kept.',
+      isDefault: true
+    },
+    {
+      id: 'zip-wins' as const,
+      label: 'ZIP wins',
+      description:
+        "Always take the backup's version, overwriting your local copy regardless of modification times. Any local edits newer than what's in the ZIP will be lost."
     }
-  }
+  ];
 
   async function submit() {
     if (stage.kind !== 'select' || isEmptySelection(selection)) return;
+    errorMessage = null;
     stage = { kind: 'importing' };
     try {
-      const result = await onImport(selection);
+      const result = await onImport(selection, direction);
       stage = { kind: 'done', result };
     } catch (err) {
-      stage = {
-        kind: 'parse-error',
-        fileName: '',
-        message: err instanceof Error ? err.message : String(err)
-      };
+      errorMessage = err instanceof Error ? err.message : String(err);
+      stage = { kind: 'select' };
     }
   }
 </script>
@@ -126,44 +125,26 @@
   <header class="border-b border-black/10 pb-4">
     <h2 class="text-xl font-medium">Import backup</h2>
     <p class="mt-1 text-sm text-gray-600">
-      Restore from a ZIP backup previously exported by {appName}.
+      From <span class="font-mono">{fileName}</span>
     </p>
   </header>
 
   <div class="py-4">
-    {#if stage.kind === 'file-pick'}
-      <label
-        class="flex cursor-pointer flex-col items-center justify-center gap-3 rounded-md border-2 border-dashed border-black/15 px-6 py-10 text-center hover:bg-gray-50"
-      >
-        <Fa icon={faFileArrowUp} class="text-2xl text-gray-500" />
-        <div class="text-sm font-medium">Choose a ZIP file</div>
-        <div class="text-xs text-gray-500">or drop one here</div>
-        <input type="file" accept=".zip,application/zip" class="hidden" onchange={onFilePicked} />
-      </label>
-    {:else if stage.kind === 'parsing'}
-      <div class="py-10 text-center text-sm text-gray-600">
-        Reading <span class="font-mono">{stage.fileName}</span>
-      </div>
-    {:else if stage.kind === 'parse-error'}
-      <div class="rounded-md bg-red-50 px-3 py-3 text-sm text-red-900">
-        <div class="font-medium">Couldn't read this backup.</div>
-        <div class="mt-1 text-xs">{stage.message}</div>
-        <button
-          type="button"
-          class="mt-2 cursor-pointer text-xs underline"
-          onclick={() => (stage = { kind: 'file-pick' })}>Choose a different file</button
-        >
-      </div>
-    {:else if stage.kind === 'select'}
-      <div class="mb-3 text-xs text-gray-600">
-        From <span class="font-mono">{stage.fileName}</span>. Items will be merged with your current
-        library per your current sync settings (Advanced).
-      </div>
-      <BackupSelectionTree
-        catalog={stage.catalog}
-        {selection}
-        onchange={(next) => (selection = next)}
+    {#if stage.kind === 'select'}
+      <BackupSelectionTree {catalog} {selection} onchange={(next) => (selection = next)} />
+      <SyncRadioGroup
+        heading="When the ZIP and this device disagree"
+        name="backup-import-direction"
+        options={directionOptions}
+        selected={direction}
+        onchange={(value) => (direction = value)}
       />
+      {#if errorMessage}
+        <div class="mt-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-900">
+          <div class="font-medium">Import failed</div>
+          <div class="mt-0.5 text-xs">{errorMessage}</div>
+        </div>
+      {/if}
     {:else if stage.kind === 'importing'}
       <div class="py-10 text-center text-sm text-gray-600">Importing</div>
     {:else if stage.kind === 'done'}

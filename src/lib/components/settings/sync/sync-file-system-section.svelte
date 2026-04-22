@@ -14,12 +14,12 @@
   async function onChoose() {
     // Phase 1 stub — fakes a successful folder selection. Real impl will call
     // window.showDirectoryPicker() and persist the handle in IndexedDB.
-    fsConnection$.next({
+    $fsConnection$ = {
       path: `/Users/domenic/Documents/${appName}`,
       connectedAt: Date.now(),
       lastSyncedAt: Date.now()
-    });
-    fsHealth$.next({ status: 'ok' });
+    };
+    $fsHealth$ = { status: 'ok' };
   }
 
   async function onDisconnect() {
@@ -28,17 +28,17 @@
       message: `${appName} will stop mirroring to this folder. Files already written remain on disk.`
     });
     if (cancelled) return;
-    fsConnection$.next(null);
-    fsHealth$.next({ status: 'ok' });
+    $fsConnection$ = null;
+    $fsHealth$ = { status: 'ok' };
   }
 
   async function onGrantAccess() {
-    fsHealth$.next({ status: 'ok' });
-    if (active) fsConnection$.next({ ...active, lastSyncedAt: Date.now() });
+    $fsHealth$ = { status: 'ok' };
+    if (active) $fsConnection$ = { ...active, lastSyncedAt: Date.now() };
   }
 
   async function onRetry() {
-    fsHealth$.next({ status: 'ok' });
+    $fsHealth$ = { status: 'ok' };
   }
 </script>
 
