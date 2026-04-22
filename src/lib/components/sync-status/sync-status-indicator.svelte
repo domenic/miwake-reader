@@ -15,7 +15,8 @@
     cloudHealth$,
     fsConnection$,
     fsHealth$,
-    isSyncing$
+    isSyncing$,
+    now$
   } from '$lib/data/sync/sync-store';
   import { deriveIndicatorState } from '$lib/data/sync/sync-state';
   import { formatRelativeTime } from '$lib/components/settings/sync/sync-utils';
@@ -58,7 +59,7 @@
         return "Offline — changes will sync when you're back online";
       case 'idle':
         return indicator.lastSyncedAt
-          ? `Synced ${formatRelativeTime(indicator.lastSyncedAt)}`
+          ? `Synced ${formatRelativeTime(indicator.lastSyncedAt, $now$)}`
           : 'Up to date';
       case 'syncing':
         return 'Syncing…';

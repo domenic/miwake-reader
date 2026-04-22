@@ -78,3 +78,17 @@ export const fsHealth$ = writableObjectLocalStorageSubject<SyncLocationHealth>()
  * completes debounced pushes; UI subscribes via `$isSyncing$`.
  */
 export const isSyncing$ = new BehaviorSubject<boolean>(false);
+
+/**
+ * Coarse-grained wall-clock tick for `formatRelativeTime` consumers so
+ * "Synced 2 minutes ago" keeps rolling even when nothing else triggers
+ * a re-render. Emits every 30 seconds — finer than the minute
+ * granularity of the label, so drift is bounded.
+ *
+ * Browser-only: the `setInterval` is a no-op under SSR (module is only
+ * imported client-side in our pages), but guarding keeps it honest.
+ */
+export const now$ = new BehaviorSubject<number>(Date.now());
+if (typeof window !== 'undefined') {
+  setInterval(() => now$.next(Date.now()), 30_000);
+}

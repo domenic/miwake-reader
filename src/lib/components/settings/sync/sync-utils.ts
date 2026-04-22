@@ -27,21 +27,23 @@ export function describeSyncLocations(
   return joinWithAnd(parts);
 }
 
-const MINUTE = 60_000;
+const SECOND = 1_000;
+const MINUTE = 60 * SECOND;
 const HOUR = 60 * MINUTE;
 const DAY = 24 * HOUR;
 
+const rtf = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' });
+
+/**
+ * Format `timestamp` relative to `now` using Intl.RelativeTimeFormat,
+ * with "just now" for anything under a minute (the API's "0 seconds
+ * ago" / "now" is not great).
+ */
 export function formatRelativeTime(timestamp: number, now = Date.now()): string {
-  const diff = now - timestamp;
-  if (diff < MINUTE) return 'just now';
-  if (diff < HOUR) {
-    const minutes = Math.round(diff / MINUTE);
-    return `${minutes} minute${minutes === 1 ? '' : 's'} ago`;
-  }
-  if (diff < DAY) {
-    const hours = Math.round(diff / HOUR);
-    return `${hours} hour${hours === 1 ? '' : 's'} ago`;
-  }
-  const days = Math.round(diff / DAY);
-  return `${days} day${days === 1 ? '' : 's'} ago`;
+  const diff = timestamp - now; // negative for past
+  const absDiff = Math.abs(diff);
+  if (absDiff < MINUTE) return 'just now';
+  if (absDiff < HOUR) return rtf.format(Math.round(diff / MINUTE), 'minute');
+  if (absDiff < DAY) return rtf.format(Math.round(diff / HOUR), 'hour');
+  return rtf.format(Math.round(diff / DAY), 'day');
 }

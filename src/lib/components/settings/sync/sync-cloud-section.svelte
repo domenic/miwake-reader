@@ -6,6 +6,7 @@
     cloudConnection$,
     cloudCustomCredentials$,
     cloudHealth$,
+    now$,
     type CloudProviderType
   } from '$lib/data/sync/sync-store';
   import { connectCloud, disconnectCloud } from '$lib/data/sync/source-manager';
@@ -198,9 +199,9 @@
           {#if active.lastSyncedAt === null}
             Not yet synced
           {:else if $cloudHealth$.status === 'ok'}
-            Synced {formatRelativeTime(active.lastSyncedAt)}
+            Synced {formatRelativeTime(active.lastSyncedAt, $now$)}
           {:else}
-            Last successful sync {formatRelativeTime(active.lastSyncedAt)}
+            Last successful sync {formatRelativeTime(active.lastSyncedAt, $now$)}
           {/if}
           {#if active.bookCount !== null}
             · {active.bookCount} book{active.bookCount === 1 ? '' : 's'}

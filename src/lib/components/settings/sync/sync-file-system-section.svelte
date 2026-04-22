@@ -1,7 +1,7 @@
 <script lang="ts">
   import { appName } from '$lib/data/env';
   import { confirmDialog, messageDialog } from '$lib/data/simple-dialogs';
-  import { fsConnection$, fsHealth$ } from '$lib/data/sync/sync-store';
+  import { fsConnection$, fsHealth$, now$ } from '$lib/data/sync/sync-store';
   import { connectFs, disconnectFs } from '$lib/data/sync/source-manager';
   import { formatRelativeTime } from '$lib/components/settings/sync/sync-utils';
   import SyncAlert from '$lib/components/settings/sync/sync-alert.svelte';
@@ -89,7 +89,7 @@
             {#if active.lastSyncedAt === null}
               Not yet synced
             {:else}
-              Synced {formatRelativeTime(active.lastSyncedAt)}
+              Synced {formatRelativeTime(active.lastSyncedAt, $now$)}
             {/if}
           </div>
         {/if}
