@@ -238,6 +238,12 @@ export class DatabaseService {
 
       if (
         saveBehavior === ReplicationSaveBehavior.NewOnly &&
+        // A placeholder row is never "up to date" — it has no content,
+        // just metadata. Sync seeds placeholders with the remote's
+        // lastBookModified so /manage can sort them, which means the
+        // timestamp check below would otherwise skip the one write
+        // that actually hydrates the book.
+        oldData.elementHtml &&
         oldData.lastBookModified &&
         data.lastBookModified &&
         oldData.lastBookModified >= data.lastBookModified &&
