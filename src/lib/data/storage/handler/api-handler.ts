@@ -96,21 +96,26 @@ export abstract class ApiStorageHandler extends BaseStorageHandler {
   }
 
   /**
-   * Force an OAuth exchange using a pre-opened popup window. Used by
-   * source-manager's connectCloud so the popup is opened synchronously
-   * inside the user's click handler (preserving the user-activation),
-   * then navigated to the OAuth flow once the async setup has run.
+   * Force an OAuth exchange.
    *
-   * The popup should be opened to `/auth?miwake-init-wait=1` (an idle
-   * page) before the async work; this method then triggers the real
-   * auth exchange through it.
+   * With an `authWindow`: used by source-manager's connectCloud — the
+   * popup is opened synchronously inside the user's click handler,
+   * then this method navigates it to the OAuth flow.
+   *
+   * With `silentOnly: true`: used by the sync engine on app boot /
+   * ambient operations. Tries the cached/refreshable token path; if
+   * that fails, throws `NeedsInteractiveAuthError` instead of opening
+   * a popup (which would be blocked anyway without a user gesture).
    */
-  async authenticate(authWindow: Window): Promise<void> {
+  async authenticate(authWindow: Window | null, silentOnly = false): Promise<void> {
     await this.authManager.getToken(
       this.window,
       this.storageSourceName,
       this.askForStorageUnlock,
-      authWindow
+      authWindow,
+      undefined,
+      undefined,
+      silentOnly
     );
   }
 

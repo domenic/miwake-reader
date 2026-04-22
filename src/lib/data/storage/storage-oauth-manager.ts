@@ -34,6 +34,26 @@ interface OAuthTokenData {
 
 export const storageOAuthTokens = new Map<string, OAuthTokenData>();
 
+/**
+ * Thrown by `getToken` when it's called with `silentOnly: true` and
+ * there's no cached/refreshable token — i.e. an interactive popup
+ * would be required. Callers (like the sync engine's boot
+ * reconciliation) catch this to set a "needs attention" UI state
+ * rather than triggering auth without a user gesture.
+ */
+export class NeedsInteractiveAuthError extends Error {
+  constructor(
+    public readonly storageSourceName: string,
+    public readonly storageType: StorageKey
+  ) {
+    super(
+      `Interactive sign-in required for ${storageSourceName} (${storageType}); ` +
+        'silentOnly was set so no popup was opened.'
+    );
+    this.name = 'NeedsInteractiveAuthError';
+  }
+}
+
 export class StorageOAuthManager {
   private storageType: StorageKey;
 
@@ -76,7 +96,8 @@ export class StorageOAuthManager {
     askForStorageUnlock: boolean,
     authWindow?: Window | null,
     oldUnlockResult?: StorageUnlockAction,
-    oldStorageSource?: BooksDbStorageSource | undefined
+    oldStorageSource?: BooksDbStorageSource | undefined,
+    silentOnly = false
   ): Promise<string | undefined> {
     if (this.pendingGetToken) {
       return this.pendingGetToken;
@@ -88,7 +109,8 @@ export class StorageOAuthManager {
       askForStorageUnlock,
       authWindow,
       oldUnlockResult,
-      oldStorageSource
+      oldStorageSource,
+      silentOnly
     );
 
     try {
@@ -104,7 +126,8 @@ export class StorageOAuthManager {
     askForStorageUnlock: boolean,
     authWindow?: Window | null,
     oldUnlockResult?: StorageUnlockAction,
-    oldStorageSource?: BooksDbStorageSource | undefined
+    oldStorageSource?: BooksDbStorageSource | undefined,
+    silentOnly = false
   ): Promise<string | undefined> {
     const oldToken = storageOAuthTokens.get(storageSourceName);
     const shallUnlock = !oldToken || askForStorageUnlock;
@@ -184,7 +207,11 @@ export class StorageOAuthManager {
       return token.accessToken;
     }
 
-    // 4. No valid token — need interactive auth
+    // 4. No valid token — would need interactive auth.
+    if (silentOnly) {
+      throw new NeedsInteractiveAuthError(storageSourceName, this.storageType);
+    }
+
     this.parentWindow = window;
 
     logger.warn(`Opening auth window for ${storageSourceName} (${this.storageType})`);

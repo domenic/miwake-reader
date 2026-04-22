@@ -21,6 +21,7 @@ import {
   type CloudProviderType,
   type CustomOAuthCredentials
 } from '$lib/data/sync/sync-store';
+import { ensurePlaceholders } from '$lib/data/sync/sync-engine';
 
 /**
  * New-UI single-source-of-truth: at most one FS source and one cloud
@@ -199,6 +200,13 @@ export async function connectCloud(provider: CloudProviderType): Promise<void> {
 
     // Token is cached now; this call won't re-open the popup.
     const books = await handler.getBookList();
+
+    // Seed IndexedDB with placeholders so /manage immediately shows
+    // the user's remote library under cloud icons.
+    const created = await ensurePlaceholders(books, name);
+    if (created > 0) {
+      database.dataListChanged$.next(undefined);
+    }
 
     cloudConnection$.next({
       provider,
