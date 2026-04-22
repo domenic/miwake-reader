@@ -3,7 +3,7 @@ import type { BooksDbStorageSource } from '$lib/data/database/books-db/versions/
 import { getStorageHandler } from '$lib/data/storage/storage-handler-factory';
 import type { FsHandle, RemoteContext } from '$lib/data/storage/storage-source-manager';
 import { StorageOAuthManager } from '$lib/data/storage/storage-oauth-manager';
-import { StorageKey, StorageSourceDefault } from '$lib/data/storage/storage-types';
+import { StorageKey } from '$lib/data/storage/storage-types';
 import {
   database,
   fsStorageSource$,
@@ -22,40 +22,12 @@ import {
   type CustomOAuthCredentials
 } from '$lib/data/sync/sync-store';
 import { ensurePlaceholders } from '$lib/data/sync/sync-engine';
-
-/**
- * New-UI single-source-of-truth: at most one FS source and one cloud
- * source can exist in IndexedDB at any time. These sentinel names pin
- * each slot.
- */
-const FS_SOURCE_NAME = 'miwake-fs';
-
-/**
- * When connecting a cloud provider, we reuse the existing pre-configured
- * default sentinel for the miwake-default OAuth case (so
- * `StorageOAuthManager` picks up the env.ts client credentials) or a
- * parallel `*-custom` name for user-supplied credentials.
- */
-function cloudSourceName(provider: CloudProviderType, custom: boolean): string {
-  if (provider === StorageKey.GDRIVE) {
-    return custom ? 'miwake-gdrive-custom' : StorageSourceDefault.GDRIVE_DEFAULT;
-  }
-  return custom ? 'miwake-onedrive-custom' : StorageSourceDefault.ONEDRIVE_DEFAULT;
-}
-
-function isCustomCloudName(name: string): boolean {
-  return name === 'miwake-gdrive-custom' || name === 'miwake-onedrive-custom';
-}
-
-// `*$` stores in this codebase are BehaviorSubjects with `.getValue()`
-// and `.next()`. TypeScript's exports don't expose `.getValue()`
-// (they're typed as the wider writable interface) so we cast at the
-// call sites.
-type Readable<T> = { getValue(): T };
-
-function read<T>(subject: unknown): T {
-  return (subject as Readable<T>).getValue();
-}
+import {
+  cloudSourceName,
+  FS_SOURCE_NAME,
+  isCustomCloudName,
+  readSubject as read
+} from '$lib/data/sync/sync-helpers';
 
 /**
  * Connect (or reconnect) the filesystem slot by showing the native

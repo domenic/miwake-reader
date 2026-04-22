@@ -2,7 +2,7 @@ import type { BaseStorageHandler } from '$lib/data/storage/handler/base-handler'
 import type { GDriveStorageHandler } from '$lib/data/storage/handler/gdrive-handler';
 import type { OneDriveStorageHandler } from '$lib/data/storage/handler/onedrive-handler';
 import { NeedsInteractiveAuthError } from '$lib/data/storage/storage-oauth-manager';
-import { StorageDataType, StorageKey, StorageSourceDefault } from '$lib/data/storage/storage-types';
+import { StorageDataType, StorageKey } from '$lib/data/storage/storage-types';
 import { getStorageHandler } from '$lib/data/storage/storage-handler-factory';
 import { MergeMode } from '$lib/data/merge-mode';
 import {
@@ -24,25 +24,14 @@ import {
   cloudHealth$,
   fsConnection$,
   fsHealth$,
+  isSyncing$,
   type CloudConnectionState,
   type CloudProviderType,
-  type FsConnectionState
+  type FsConnectionState,
+  type SyncLocationHealth
 } from '$lib/data/sync/sync-store';
+import { cloudSourceName, FS_SOURCE_NAME, readSubject as read } from '$lib/data/sync/sync-helpers';
 import { logger } from '$lib/data/logger';
-
-type SubjectReader<T> = { getValue(): T };
-function read<T>(s: unknown): T {
-  return (s as SubjectReader<T>).getValue();
-}
-
-const FS_SOURCE_NAME = 'miwake-fs';
-
-function cloudSourceName(provider: CloudProviderType, custom: boolean): string {
-  if (provider === StorageKey.GDRIVE) {
-    return custom ? 'miwake-gdrive-custom' : StorageSourceDefault.GDRIVE_DEFAULT;
-  }
-  return custom ? 'miwake-onedrive-custom' : StorageSourceDefault.ONEDRIVE_DEFAULT;
-}
 
 // ---------------------------------------------------------------------
 // Handler factories
@@ -102,6 +91,66 @@ function getBrowserHandler(): BaseStorageHandler {
     read<MergeMode>(statisticsMergeMode$),
     read<MergeMode>(readingGoalsMergeMode$)
   );
+}
+
+// ---------------------------------------------------------------------
+// Connection-state updates
+//
+// Connect/disconnect lifecycle lives in source-manager.ts; here we
+// patch in per-sync metadata (`lastSyncedAt`, `bookCount`) after
+// successful engine operations. All writes go through these helpers so
+// we don't accidentally clobber unrelated fields.
+// ---------------------------------------------------------------------
+
+function patchCloudConnection(patch: Partial<CloudConnectionState>): void {
+  const current = read<CloudConnectionState | null>(cloudConnection$);
+  if (!current) return;
+  cloudConnection$.next({ ...current, ...patch });
+}
+
+function patchFsConnection(patch: Partial<FsConnectionState>): void {
+  const current = read<FsConnectionState | null>(fsConnection$);
+  if (!current) return;
+  fsConnection$.next({ ...current, ...patch });
+}
+
+function markCloudSynced(extra: Partial<CloudConnectionState> = {}): void {
+  patchCloudConnection({ lastSyncedAt: Date.now(), ...extra });
+  cloudHealth$.next({ status: 'ok' });
+}
+
+function markFsSynced(): void {
+  patchFsConnection({ lastSyncedAt: Date.now() });
+  fsHealth$.next({ status: 'ok' });
+}
+
+/**
+ * Classify a caught error and update the appropriate health store.
+ * Returns `true` if the error was a `NeedsInteractiveAuthError` so the
+ * caller can decide whether to queue the op for replay.
+ */
+function reportSyncError(target: 'cloud' | 'fs', context: string, err: unknown): boolean {
+  const healthSubject = target === 'cloud' ? cloudHealth$ : fsHealth$;
+  const isReauth = err instanceof NeedsInteractiveAuthError;
+  const message = err instanceof Error ? err.message : String(err);
+
+  if (isReauth) {
+    const health: SyncLocationHealth = {
+      status: 'reauth-required',
+      summary: 'Sign-in expired',
+      detail: 'Reconnect to resume syncing. Queued changes will be pushed on reconnect.'
+    };
+    healthSubject.next(health);
+    return true;
+  }
+
+  logger.warn(`sync ${context} failed (${target}): ${message}`);
+  healthSubject.next({
+    status: 'error',
+    summary: 'Sync failed',
+    detail: message
+  });
+  return false;
 }
 
 // ---------------------------------------------------------------------
@@ -236,25 +285,10 @@ export async function reconcileCloudBooks(): Promise<void> {
       database.dataListChanged$.next(undefined);
     }
 
-    cloudHealth$.next({ status: 'ok' });
+    markCloudSynced({ bookCount: remoteBooks.length });
     await drainReplayQueue();
   } catch (err) {
-    if (err instanceof NeedsInteractiveAuthError) {
-      cloudHealth$.next({
-        status: 'reauth-required',
-        summary: 'Sign-in expired',
-        detail:
-          'Reconnect your cloud account to resume syncing. Your data on the cloud is unchanged.'
-      });
-      return;
-    }
-
-    logger.warn(`reconcileCloudBooks failed: ${err instanceof Error ? err.message : String(err)}`);
-    cloudHealth$.next({
-      status: 'error',
-      summary: "Couldn't read your cloud library",
-      detail: err instanceof Error ? err.message : String(err)
-    });
+    reportSyncError('cloud', 'reconcileCloudBooks', err);
   }
 }
 
@@ -300,6 +334,7 @@ export function triggerSync(dataType: StorageDataType, context: ReplicationConte
     pending.set(key, { context, types: new Set([dataType]) });
   }
 
+  isSyncing$.next(true);
   schedulePushRun();
 }
 
@@ -317,11 +352,15 @@ async function runPendingPushes(): Promise<void> {
     schedulePushRun();
     return;
   }
-  if (pending.size === 0) return;
+  if (pending.size === 0) {
+    emitSyncingState();
+    return;
+  }
 
   const batch = pending;
   pending = new Map();
   pushRunning = true;
+  emitSyncingState();
 
   try {
     for (const { context, types } of batch.values()) {
@@ -331,7 +370,13 @@ async function runPendingPushes(): Promise<void> {
     pushRunning = false;
     // If anything accumulated while we were running, schedule again.
     if (pending.size > 0) schedulePushRun();
+    emitSyncingState();
   }
+}
+
+function emitSyncingState(): void {
+  const active = pushRunning || pending.size > 0 || pushTimer !== null;
+  if (isSyncing$.getValue() !== active) isSyncing$.next(active);
 }
 
 async function pushOne(context: ReplicationContext, types: StorageDataType[]): Promise<void> {
@@ -346,9 +391,10 @@ async function pushOne(context: ReplicationContext, types: StorageDataType[]): P
       await handler.authenticate(null, true);
       const error = await replicateData(local, handler, false, [context], types);
       if (error) throw new Error(error);
-      cloudHealth$.next({ status: 'ok' });
+      markCloudSynced();
     } catch (err) {
-      handlePushFailure('cloud', err, () => pushOne(context, types));
+      const wasReauth = reportSyncError('cloud', 'push', err);
+      if (wasReauth) replayQueue.push(() => pushOne(context, types));
     }
   }
 
@@ -357,37 +403,11 @@ async function pushOne(context: ReplicationContext, types: StorageDataType[]): P
     try {
       const error = await replicateData(local, handler, false, [context], types);
       if (error) throw new Error(error);
-      fsHealth$.next({ status: 'ok' });
+      markFsSynced();
     } catch (err) {
-      handlePushFailure('fs', err);
+      reportSyncError('fs', 'push', err);
     }
   }
-}
-
-function handlePushFailure(
-  target: 'cloud' | 'fs',
-  err: unknown,
-  enqueueReplay?: () => Promise<void>
-): void {
-  const healthSubject = target === 'cloud' ? cloudHealth$ : fsHealth$;
-  const message = err instanceof Error ? err.message : String(err);
-
-  if (err instanceof NeedsInteractiveAuthError) {
-    healthSubject.next({
-      status: 'reauth-required',
-      summary: 'Sign-in expired',
-      detail: 'Reconnect to resume syncing. Queued changes will be pushed on reconnect.'
-    });
-    if (enqueueReplay) replayQueue.push(enqueueReplay);
-    return;
-  }
-
-  logger.warn(`sync push failed (${target}): ${message}`);
-  healthSubject.next({
-    status: 'error',
-    summary: 'Sync failed',
-    detail: message
-  });
 }
 
 async function drainReplayQueue(): Promise<void> {
@@ -437,19 +457,9 @@ export async function reconcileForBookOpen(context: ReplicationContext): Promise
       await handler.authenticate(null, true);
       const error = await replicateData(handler, local, false, [context], types);
       if (error) throw new Error(error);
-      cloudHealth$.next({ status: 'ok' });
+      markCloudSynced();
     } catch (err) {
-      if (err instanceof NeedsInteractiveAuthError) {
-        cloudHealth$.next({
-          status: 'reauth-required',
-          summary: 'Sign-in expired',
-          detail: 'Reconnect to resume syncing.'
-        });
-      } else {
-        logger.warn(
-          `reconcileForBookOpen (cloud) failed: ${err instanceof Error ? err.message : String(err)}`
-        );
-      }
+      reportSyncError('cloud', 'reconcileForBookOpen', err);
     }
   }
 
@@ -458,11 +468,9 @@ export async function reconcileForBookOpen(context: ReplicationContext): Promise
     try {
       const error = await replicateData(handler, local, false, [context], types);
       if (error) throw new Error(error);
-      fsHealth$.next({ status: 'ok' });
+      markFsSynced();
     } catch (err) {
-      logger.warn(
-        `reconcileForBookOpen (fs) failed: ${err instanceof Error ? err.message : String(err)}`
-      );
+      reportSyncError('fs', 'reconcileForBookOpen', err);
     }
   }
 }
@@ -507,22 +515,46 @@ export async function forceFullResync(direction: ForceResyncDirection): Promise<
     if (error) throw new Error(error);
   }
 
-  const locations: BaseStorageHandler[] = [];
-  if (cloud) {
-    const name = cloudSourceName(cloud.provider, cloud.usesCustomCredentials);
-    const handler = getCloudHandler(cloud.provider, name);
-    await handler.authenticate(null, true);
-    locations.push(handler);
-  }
-  if (fs) locations.push(getFsHandler(FS_SOURCE_NAME));
+  isSyncing$.next(true);
+  try {
+    let cloudHandler: GDriveStorageHandler | OneDriveStorageHandler | null = null;
+    if (cloud) {
+      const name = cloudSourceName(cloud.provider, cloud.usesCustomCredentials);
+      cloudHandler = getCloudHandler(cloud.provider, name);
+      try {
+        await cloudHandler.authenticate(null, true);
+      } catch (err) {
+        // Surface via the indicator too, not just the dialog the caller shows.
+        reportSyncError('cloud', 'forceFullResync (auth)', err);
+        throw err;
+      }
+    }
+    const fsHandler = fs ? getFsHandler(FS_SOURCE_NAME) : null;
 
-  for (const remote of locations) {
-    if (direction === 'newest' || direction === 'remote-wins') {
-      await runPair(remote, local); // pull
+    const pairs: Array<['cloud' | 'fs', BaseStorageHandler]> = [];
+    if (cloudHandler) pairs.push(['cloud', cloudHandler]);
+    if (fsHandler) pairs.push(['fs', fsHandler]);
+
+    for (const [target, remote] of pairs) {
+      try {
+        if (direction === 'newest' || direction === 'remote-wins') {
+          await runPair(remote, local); // pull
+        }
+        if (direction === 'newest' || direction === 'local-wins') {
+          await runPair(local, remote); // push
+        }
+        if (target === 'cloud') {
+          markCloudSynced();
+        } else {
+          markFsSynced();
+        }
+      } catch (err) {
+        reportSyncError(target, 'forceFullResync', err);
+        throw err;
+      }
     }
-    if (direction === 'newest' || direction === 'local-wins') {
-      await runPair(local, remote); // push
-    }
+  } finally {
+    emitSyncingState();
   }
 }
 
@@ -530,7 +562,11 @@ export async function forceFullResync(direction: ForceResyncDirection): Promise<
 // Queries
 // ---------------------------------------------------------------------
 
-/** True if a sync is either in-flight or pending (for unload guard). */
+/**
+ * True if a sync is either in-flight or pending. Used by the reader's
+ * `beforeunload` guard. For reactive UI, subscribe to `isSyncing$`
+ * instead — this function reads the same underlying state.
+ */
 export function isSyncingOrPending(): boolean {
   return pushRunning || pending.size > 0 || pushTimer !== null;
 }

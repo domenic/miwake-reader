@@ -1,3 +1,4 @@
+import { BehaviorSubject } from 'rxjs';
 import { writableObjectLocalStorageSubject } from '$lib/data/internal/writable-object-local-storage-subject';
 import { StorageKey } from '$lib/data/storage/storage-types';
 
@@ -70,3 +71,10 @@ export const cloudHealth$ = writableObjectLocalStorageSubject<SyncLocationHealth
 export const fsHealth$ = writableObjectLocalStorageSubject<SyncLocationHealth>()('sync.fsHealth', {
   status: 'ok'
 });
+
+/**
+ * Live indicator of whether the sync engine is either actively pushing
+ * or has work pending. The engine flips this as it schedules, runs, and
+ * completes debounced pushes; UI subscribes via `$isSyncing$`.
+ */
+export const isSyncing$ = new BehaviorSubject<boolean>(false);

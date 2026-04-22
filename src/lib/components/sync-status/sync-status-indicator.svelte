@@ -14,22 +14,12 @@
     cloudConnection$,
     cloudHealth$,
     fsConnection$,
-    fsHealth$
+    fsHealth$,
+    isSyncing$
   } from '$lib/data/sync/sync-store';
   import { deriveIndicatorState } from '$lib/data/sync/sync-state';
   import { formatRelativeTime } from '$lib/components/settings/sync/sync-utils';
   import { isOnline$ } from '$lib/data/store';
-  import { isSyncingOrPending } from '$lib/data/sync/sync-engine';
-
-  // Poll the sync engine's in-flight state so the indicator reflects
-  // an active push — isSyncingOrPending is imperative, not a store.
-  let syncing = $state(false);
-  $effect(() => {
-    const interval = setInterval(() => {
-      syncing = isSyncingOrPending();
-    }, 500);
-    return () => clearInterval(interval);
-  });
 
   let indicator = $derived(
     deriveIndicatorState({
@@ -38,7 +28,7 @@
       cloudH: $cloudHealth$,
       fsH: $fsHealth$,
       online: $isOnline$,
-      syncing
+      syncing: $isSyncing$
     })
   );
 
