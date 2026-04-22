@@ -467,11 +467,19 @@ async function drainReplayQueue(): Promise<void> {
  */
 export async function reconcileForBookOpen(context: ReplicationContext): Promise<void> {
   const direction = read<AutoReplicationType>(autoReplication$);
-  if (direction !== AutoReplicationType.Down && direction !== AutoReplicationType.All) return;
+  if (direction !== AutoReplicationType.Down && direction !== AutoReplicationType.All) {
+    logger.debug(
+      `reconcileForBookOpen: skipping (autoReplication=${direction}) for ${JSON.stringify(context.title)}`
+    );
+    return;
+  }
 
   const cloud = read<CloudConnectionState | null>(cloudConnection$);
   const fs = read<FsConnectionState | null>(fsConnection$);
-  if (!cloud && !fs) return;
+  if (!cloud && !fs) {
+    logger.debug(`reconcileForBookOpen: no sync locations for ${JSON.stringify(context.title)}`);
+    return;
+  }
 
   const types = [
     StorageDataType.PROGRESS,
@@ -479,6 +487,10 @@ export async function reconcileForBookOpen(context: ReplicationContext): Promise
     StorageDataType.READING_GOALS
   ];
   const local = getBrowserHandler();
+  logger.debug(
+    `reconcileForBookOpen: start for ${JSON.stringify(context.title)} ` +
+      `(cloud=${!!cloud}, fs=${!!fs})`
+  );
 
   beginLongRunning();
   try {
@@ -486,9 +498,12 @@ export async function reconcileForBookOpen(context: ReplicationContext): Promise
       const name = cloudSourceName(cloud.provider, cloud.usesCustomCredentials);
       const handler = getCloudHandler(cloud.provider, name);
       try {
+        logger.debug('reconcileForBookOpen: cloud authenticate (silent)');
         await handler.authenticate(null, true);
+        logger.debug('reconcileForBookOpen: cloud replicateData (pull)');
         const error = await replicateData(handler, local, false, [context], types);
         if (error) throw new Error(error);
+        logger.debug('reconcileForBookOpen: cloud replicateData done');
         markCloudSynced();
       } catch (err) {
         reportSyncError('cloud', 'reconcileForBookOpen', err);
@@ -498,14 +513,17 @@ export async function reconcileForBookOpen(context: ReplicationContext): Promise
     if (fs) {
       const handler = getFsHandler(FS_SOURCE_NAME);
       try {
+        logger.debug('reconcileForBookOpen: fs replicateData (pull)');
         const error = await replicateData(handler, local, false, [context], types);
         if (error) throw new Error(error);
+        logger.debug('reconcileForBookOpen: fs replicateData done');
         markFsSynced();
       } catch (err) {
         reportSyncError('fs', 'reconcileForBookOpen', err);
       }
     }
   } finally {
+    logger.debug('reconcileForBookOpen: finally (endLongRunning)');
     endLongRunning();
   }
 }

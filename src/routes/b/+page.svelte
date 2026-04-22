@@ -229,6 +229,7 @@
   const rawBookData$ = bookId$.pipe(
     switchMap(async (id) => {
       let bookData: BooksDbBookData | undefined;
+      logger.debug(`reader/rawBookData$: start id=${id}`);
 
       try {
         localStorageHandler = getStorageHandler(
@@ -244,6 +245,13 @@
 
         localStorageHandler.startContext({ id, title: '' });
         bookData = await localStorageHandler.getBook();
+        logger.debug(
+          `reader/rawBookData$: getBook → ${
+            bookData
+              ? `{id:${bookData.id}, title:${JSON.stringify(bookData.title)}, hasHtml:${!!bookData.elementHtml}, storageSource:${JSON.stringify(bookData.storageSource ?? null)}}`
+              : 'undefined'
+          }`
+        );
 
         if (!bookData) {
           return bookData;
@@ -259,8 +267,11 @@
 
         bookData.lastBookOpen = new Date().getTime();
 
+        logger.debug('reader/rawBookData$: updateLastRead (local)');
         await localStorageHandler.updateLastRead(bookData);
+        logger.debug('reader/rawBookData$: reconcileForBookOpen start');
         await reconcileForBookOpen(currentContext);
+        logger.debug('reader/rawBookData$: reconcileForBookOpen done');
 
         if (!$statisticsEnabled$) {
           const wasNew = (
@@ -283,6 +294,11 @@
         messageDialog({ title: 'Load Error', message });
         return undefined;
       } finally {
+        logger.debug(
+          `reader/rawBookData$: finally — syncedResolver, showSpinner=false, returning ${
+            bookData ? `hasHtml=${!!bookData.elementHtml}` : 'undefined'
+          }`
+        );
         syncedResolver();
 
         showSpinner = false;
@@ -315,6 +331,9 @@
       if (!rawBookData) return EMPTY;
 
       sectionList$.next(rawBookData.sections || []);
+      logger.debug(
+        `reader/bookData$: loadBookData start (sections=${rawBookData.sections?.length ?? 0}, htmlLen=${rawBookData.elementHtml?.length ?? 0})`
+      );
 
       return loadBookData(
         rawBookData,
@@ -322,6 +341,11 @@
         document,
         $viewMode$ === ViewMode.Paginated,
         $hideSpoilerImageMode$
+      );
+    }),
+    tap((loaded) => {
+      logger.debug(
+        `reader/bookData$: loadBookData emitted (htmlLen=${loaded?.htmlContent?.length ?? 'n/a'})`
       );
     }),
     shareReplay({ refCount: true, bufferSize: 1 })
