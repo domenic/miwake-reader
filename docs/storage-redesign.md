@@ -229,10 +229,13 @@ Cloud sync:
    disclosure per provider, which opens the custom-credentials editor (§4.9). The
    flow must support a first-time user who wants to use their own OAuth app from the
    start without ever attempting auth against the miwake-default app.
-2. Connected to Google Drive. Shows account email, last-synced timestamp, number of
-   books in sync, whether miwake-default or custom credentials are in use. "Sign out"
-   button. A secondary affordance to swap between default and custom credentials
-   without signing out first.
+2. Connected to Google Drive. Shows the provider name, last-synced timestamp, number
+   of books in sync, whether miwake-default or custom credentials are in use. "Sign
+   out" button. A secondary affordance to swap between default and custom credentials
+   without signing out first. The app deliberately does not surface account email or
+   other identifying info: under the current OAuth scopes (`drive.file` for GDrive,
+   `files.readwrite.appfolder` for OneDrive) it's not known, and widening scopes to
+   fetch it isn't worth the UX/privacy cost for a single-account model.
 3. Connected to OneDrive. Same shape.
 4. Connected, reauth needed. Shows "Reconnect required" with a Reconnect button and
    an explanation.

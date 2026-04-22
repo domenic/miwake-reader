@@ -16,13 +16,13 @@ function joinWithAnd(parts: string[]): string {
   return `${parts.slice(0, -1).join(', ')}, and ${parts[parts.length - 1]}`;
 }
 
-/** "Google Drive (x@y.com) and your local folder (/Users/…)", or "" if nothing is connected. */
+/** "Google Drive and your local folder (/Users/…)", or "" if nothing is connected. */
 export function describeSyncLocations(
   cloud: CloudConnectionState | null,
   fs: FsConnectionState | null
 ): string {
   const parts: string[] = [];
-  if (cloud) parts.push(`${providerLabel(cloud.provider)} (${cloud.accountLabel})`);
+  if (cloud) parts.push(providerLabel(cloud.provider));
   if (fs) parts.push(`your local folder (${fs.path})`);
   return joinWithAnd(parts);
 }

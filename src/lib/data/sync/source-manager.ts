@@ -41,10 +41,6 @@ function cloudSourceName(provider: CloudProviderType, custom: boolean): string {
   return custom ? 'miwake-onedrive-custom' : StorageSourceDefault.ONEDRIVE_DEFAULT;
 }
 
-function providerLabelFor(provider: CloudProviderType): string {
-  return provider === StorageKey.GDRIVE ? 'Google Drive' : 'OneDrive';
-}
-
 function isCustomCloudName(name: string): boolean {
   return name === 'miwake-gdrive-custom' || name === 'miwake-onedrive-custom';
 }
@@ -182,7 +178,6 @@ export async function connectCloud(provider: CloudProviderType): Promise<void> {
 
   cloudConnection$.next({
     provider,
-    accountLabel: providerLabelFor(provider),
     usesCustomCredentials: useCustom,
     connectedAt: Date.now(),
     lastSyncedAt: Date.now(),
@@ -227,7 +222,6 @@ export async function loadConnectionsFromDb(): Promise<void> {
   if (cloudRecord) {
     cloudConnection$.next({
       provider: cloudRecord.type as CloudProviderType,
-      accountLabel: providerLabelFor(cloudRecord.type as CloudProviderType),
       usesCustomCredentials: isCustomCloudName(cloudRecord.name),
       connectedAt: cloudRecord.lastSourceModified,
       lastSyncedAt: cloudRecord.lastSourceModified,

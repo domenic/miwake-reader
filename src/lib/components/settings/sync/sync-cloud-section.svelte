@@ -186,8 +186,7 @@
             <SyncBadge variant="info">Custom OAuth</SyncBadge>
           {/if}
         </div>
-        <div class="mt-1 text-sm text-gray-600">{active.accountLabel}</div>
-        <div class="text-sm text-gray-600">
+        <div class="mt-1 text-sm text-gray-600">
           {#if $cloudHealth$.status === 'ok'}
             Synced {formatRelativeTime(active.lastSyncedAt)} · {active.bookCount} books
           {:else}

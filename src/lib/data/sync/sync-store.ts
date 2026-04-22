@@ -5,7 +5,6 @@ export type CloudProviderType = StorageKey.GDRIVE | StorageKey.ONEDRIVE;
 
 export interface CloudConnectionState {
   provider: CloudProviderType;
-  accountLabel: string;
   usesCustomCredentials: boolean;
   connectedAt: number;
   lastSyncedAt: number;
