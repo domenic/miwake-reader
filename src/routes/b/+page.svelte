@@ -273,6 +273,24 @@
         await reconcileForBookOpen(currentContext);
         logger.debug('reader/rawBookData$: reconcileForBookOpen done');
 
+        // If we started from a placeholder, reconcileForBookOpen should
+        // have written real content into the `data` row — re-read so
+        // the renderer sees the hydrated book. If it's still a
+        // placeholder, syncing didn't (or couldn't) pull the content
+        // and there's nothing to render.
+        if (!bookData.elementHtml) {
+          const refreshed = await localStorageHandler.getBook();
+          if (refreshed && !(refreshed instanceof File)) {
+            bookData = refreshed;
+          }
+          if (!bookData.elementHtml) {
+            throw new Error(
+              "This book's content hasn't been downloaded yet. " +
+                'Connect its sync location in Settings → Sync, then try again.'
+            );
+          }
+        }
+
         if (!$statisticsEnabled$) {
           const wasNew = (
             await database.setFirstBookRead(currentContext.title, $startDayHoursForTracker$)

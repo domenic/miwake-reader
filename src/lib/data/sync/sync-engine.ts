@@ -481,7 +481,17 @@ export async function reconcileForBookOpen(context: ReplicationContext): Promise
     return;
   }
 
+  // If the local row is a placeholder (no elementHtml), the book hasn't
+  // been downloaded yet — include DATA in the pull so the reader has
+  // something to render. This is the canonical download path: /manage,
+  // a direct /b?id=N URL, and "reopen a book I deleted locally" all
+  // funnel through here.
+  const localBook = context.id
+    ? await database.getData(context.id)
+    : await database.getDataByTitle(context.title);
+  const isPlaceholder = !!localBook && !localBook.elementHtml;
   const types = [
+    ...(isPlaceholder ? [StorageDataType.DATA] : []),
     StorageDataType.PROGRESS,
     StorageDataType.STATISTICS,
     StorageDataType.READING_GOALS
@@ -489,7 +499,8 @@ export async function reconcileForBookOpen(context: ReplicationContext): Promise
   const local = getBrowserHandler();
   logger.debug(
     `reconcileForBookOpen: start for ${JSON.stringify(context.title)} ` +
-      `(cloud=${!!cloud}, fs=${!!fs})`
+      `(cloud=${!!cloud}, fs=${!!fs}, isPlaceholder=${isPlaceholder}, ` +
+      `types=[${types.join(',')}])`
   );
 
   beginLongRunning();

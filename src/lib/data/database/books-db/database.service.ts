@@ -238,11 +238,6 @@ export class DatabaseService {
 
       if (
         saveBehavior === ReplicationSaveBehavior.NewOnly &&
-        // Never short-circuit a placeholder row — it has no content.
-        // Sync seeds placeholders with the remote's lastBookModified,
-        // so without this guard the equal-timestamp check below would
-        // skip the real download and leave the row empty.
-        oldData.elementHtml &&
         oldData.lastBookModified &&
         data.lastBookModified &&
         oldData.lastBookModified >= data.lastBookModified &&

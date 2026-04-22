@@ -191,114 +191,36 @@
       return;
     }
 
-    if (!selectMode) {
-      dialogManager.dialogs$.next([
-        {
-          component: '<div/>',
-          disableCloseOnClick: true
+    if (selectMode) {
+      selectedBookIds = cloneMutateSet(selectedBookIds, (set) => {
+        if (set.has(bookId)) {
+          set.delete(bookId);
+          return;
         }
-      ]);
-
-      let idToOpen = bookId;
-
-      try {
-        const bookItem = $bookCards$.find((book) => book.id === bookId);
-
-        if (!bookItem) {
-          throw new Error('Book title not found');
-        }
-
-        // If this card is a placeholder (metadata only, no elementHtml in
-        // local IndexedDB), route the open through the original source's
-        // handler so its prepareBookForReading fetches the content and
-        // caches it locally. Otherwise the browser handler serves it.
-        const handlerSource = await resolveHandlerSource(bookItem);
-        const isForBrowser = handlerSource.type === StorageKey.BROWSER;
-        const handler = getStorageHandler(
-          window,
-          handlerSource.type,
-          handlerSource.name,
-          isForBrowser,
-          $cacheStorageData$,
-          $replicationSaveBehavior$,
-          $statisticsMergeMode$,
-          $readingGoalsMergeMode$
-        );
-
-        if (!cacheStorageData$) {
-          handler.clearData(false);
-        }
-
-        handler.startContext({
-          id: isForBrowser ? bookItem.id : 0,
-          title: bookItem.title,
-          imagePath: bookItem.imagePath
-        });
-
-        idToOpen = await handler.prepareBookForReading();
-
-        // prepareBookForReading on an external handler only fetches
-        // file metadata and writes a stub (elementHtml='') into local
-        // IndexedDB. The reader would then open an empty book. Pull the
-        // actual content via replicateData before we navigate.
-        if (bookItem.isPlaceholder && !isForBrowser) {
-          const browserHandler = getStorageHandler(
-            window,
-            StorageKey.BROWSER,
-            '',
-            true,
-            $cacheStorageData$,
-            $replicationSaveBehavior$,
-            $statisticsMergeMode$,
-            $readingGoalsMergeMode$
-          );
-          const context = {
-            id: 0,
-            title: bookItem.title,
-            imagePath: bookItem.imagePath
-          };
-          const error = await replicateData(
-            handler,
-            browserHandler,
-            /* refreshDataList */ true,
-            [context],
-            [StorageDataType.DATA]
-          );
-          if (error) {
-            throw new Error(error);
-          }
-          // Re-fetch the id — saveBook may have assigned a new one.
-          const fresh = await database.getDataByTitle(bookItem.title);
-          if (fresh?.id) idToOpen = fresh.id;
-        }
-
-        dialogManager.dialogs$.next([]);
-      } catch (error: any) {
-        // Clear the loading overlay before the error dialog appears,
-        // otherwise the overlay hangs around after the user dismisses
-        // the message.
-        dialogManager.dialogs$.next([]);
-
-        const message = `Error opening book: ${error.message}`;
-
-        logger.warn(message);
-
-        messageDialog({ title: 'Error', message });
-
-        return;
-      }
-
-      openBook(idToOpen);
+        set.add(bookId);
+      });
       return;
     }
 
-    selectedBookIds = cloneMutateSet(selectedBookIds, (set) => {
-      if (set.has(bookId)) {
-        set.delete(bookId);
+    // /manage is a launcher — the reader owns downloading. For a
+    // placeholder, pre-check that the original sync source is still
+    // connected so we can surface a friendlier error than "couldn't
+    // render empty book" if not; otherwise just navigate.
+    const bookItem = $bookCards$.find((book) => book.id === bookId);
+    if (!bookItem) return;
+
+    if (bookItem.isPlaceholder) {
+      try {
+        await resolveHandlerSource(bookItem);
+      } catch (error: any) {
+        const message = `Can't open book: ${error.message}`;
+        logger.warn(message);
+        messageDialog({ title: 'Error', message });
         return;
       }
-      set.add(bookId);
-    });
+    }
+
+    openBook(bookId);
   }
 
   function operationAllowed() {
