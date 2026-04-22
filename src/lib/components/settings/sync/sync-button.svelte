@@ -1,5 +1,6 @@
 <script lang="ts">
   import { ripple } from '$lib/components/ripple';
+  import { buttonClasses } from '$lib/css-classes';
   import type { Snippet } from 'svelte';
 
   interface Props {
@@ -20,11 +21,11 @@
     children
   }: Props = $props();
 
-  const variantClasses = {
-    default: 'bg-white text-black border-black/30 hover:bg-gray-50',
-    primary: 'bg-black text-white border-black hover:bg-gray-800',
-    warning: 'bg-amber-100 text-amber-900 border-amber-500 hover:bg-amber-200',
-    danger: 'bg-white text-red-700 border-red-600 hover:bg-red-50'
+  const variantOverrides = {
+    default: '',
+    primary: '',
+    warning: '!text-amber-800',
+    danger: '!text-red-800'
   };
 </script>
 
@@ -34,9 +35,9 @@
   {value}
   {disabled}
   {onclick}
-  class="cursor-pointer rounded-md border px-3 py-1.5 text-sm font-medium whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50 {variantClasses[
+  class="{buttonClasses} {variantOverrides[
     variant
-  ]}"
+  ]} disabled:cursor-not-allowed disabled:opacity-50"
 >
   {@render children()}
 </button>

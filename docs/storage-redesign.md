@@ -164,8 +164,6 @@ Each needs real prose explaining what it does, not just a label. Copy sketches i
 
 - **Sync direction** (`AutoReplicationType`): Off / Up only / Down only / Both.
   Default: Both. Applies uniformly to both backends.
-- **Conflict behavior** (`ReplicationSaveBehavior`): Keep newest / Always overwrite.
-  Default: Keep newest (renamed from `NewOnly`).
 - **Statistics merge** (`MergeMode`): Merge / Replace / Keep local. Default: Merge.
 - **Reading goals merge** (`MergeMode`): Merge / Replace / Keep local. Default: Merge.
 - **Cache remote file lists** (`cacheStorageData`): on/off, default off.
@@ -259,10 +257,14 @@ Filesystem sync:
 Advanced (collapsed by default):
 
 - Direction radio (Off / Up only / Down only / Both).
-- Conflict behavior radio (Keep newest / Always overwrite).
 - Statistics merge radio (Merge / Replace / Keep local).
 - Reading goals merge radio (Merge / Replace / Keep local).
 - Cache remote file lists checkbox.
+
+Note: there is no user-facing "Conflict behavior" knob anymore. Ambient sync
+always uses Keep-newest (per-item timestamp comparison). When a user explicitly
+invokes Force re-sync, that dialog offers a direction / which-side-wins choice
+locally — see §4.7.
 
 (Custom OAuth credentials are _not_ in Advanced — they live in the main Cloud sync
 section per the Not-connected state above.)
@@ -400,10 +402,9 @@ done.
 2. Dialog shows the same checkbox tree as export, pre-populated with what the ZIP
    contains. Items not in the ZIP are greyed out.
 3. User chooses what to import.
-4. Import runs using the user's existing Advanced settings (conflict behavior, merge
-   modes) — no extra prompts inline in the dialog. A small note at the bottom: "Items
-   will be merged with your current library per your current sync settings
-   (Advanced)."
+4. Import runs using the user's existing Advanced settings (merge modes) — no extra
+   prompts inline in the dialog. A small note at the bottom: "Items will be merged
+   with your current library per your current sync settings (Advanced)."
 
 **Mock states:**
 
@@ -416,18 +417,43 @@ done.
 
 ### 4.7 Force full re-sync confirmation
 
-**Purpose.** Escape hatch when the user suspects something's out of sync.
+**Purpose.** Escape hatch when the user suspects something's out of sync, and the
+one place where a non-default direction / overwrite intent can be expressed
+(since ambient sync is fixed at Keep-newest).
+
+**Layout.** Two choices plus a conversational explanation.
+
+1. **Direction** (radio): which way this re-sync flows.
+   - _Keep newest (default)_ — per-item timestamp comparison, just like ambient
+     sync.
+   - _This device wins_ — push local over every sync location, regardless of
+     timestamps. Useful if you know local is the canonical copy.
+   - _Sync location wins_ — pull each sync location over local, regardless of
+     timestamps. Useful if local got corrupted or you want a clean re-download.
+2. **Confirmation button** is labelled per choice: "Reconcile", "Push over",
+   "Pull over".
 
 **Copy:**
 
 > **Force full re-sync?**
-> This will compare everything in your library to your connected backends and
-> reconcile any differences. It may take a few minutes and will use bandwidth.
+> Walks every book, bookmark, reading statistic, and reading goal in your
+> library to check for differences between {describeSyncLocations(…)} and this
+> device.
 >
-> [Cancel] [Force re-sync]
+> - _Keep newest_: for each item, whichever side was modified most recently
+>   wins. Safe default.
+> - _This device wins_: push this device's version of every item to
+>   {describeSyncLocations(…)}, ignoring modification times. Edits there not
+>   yet synced here will be lost.
+> - _Sync location wins_: pull every item from {describeSyncLocations(…)},
+>   ignoring modification times. Any unsynced local edits will be lost.
+>
+> Reading statistics and reading goals also respect the merge-mode settings
+> in Advanced, which govern how entries combine at the destination on top of
+> the direction above.
 
-After confirming: close the dialog, show the Syncing state in the status indicator,
-report completion via a toast.
+After confirming: close the dialog, show the Syncing state in the status
+indicator, report completion via a toast.
 
 ### 4.8 Sign out & wipe local data confirmation
 
@@ -535,36 +561,41 @@ available).
 >   read-only devices (a phone you only read on).
 > - **Off.** Nothing is synced. Your library stays local until you turn this back on.
 
-### 5.2 Conflict behavior
+### 5.2 Conflict handling (no knob)
 
-> **Conflict behavior**
-> When the same book or data item has been changed on multiple devices:
->
-> - **Keep newest (default).** The more recently modified version wins. Safe for most
->   users.
-> - **Always overwrite.** The version being synced always replaces the target,
->   regardless of modification time. Useful for forcing a known-good copy outward,
->   but can lose changes if misused.
+Ambient sync always uses per-item timestamp comparison: the more recently
+modified side wins. This used to be exposed as "Conflict behavior" with a
+Keep-newest / Always-overwrite choice; it was removed because "Always overwrite"
+combined with bidirectional sync produces an incoherent "last sync wins"
+race-condition semantic (see the implementation plan for details).
+
+The Force re-sync dialog (§4.7) is where any non-default direction / overwrite
+intent lives now, scoped to one explicit invocation.
 
 ### 5.3 Statistics merge
 
 > **How to combine reading statistics**
 >
-> - **Merge (default).** Reading time and character counts from multiple devices are
->   added together per day.
-> - **Replace.** Only the most recently synced device's statistics are kept for each
->   day.
-> - **Keep local.** Never overwrite this device's statistics with incoming data.
+> - **Merge (default).** Days that only exist on one side are kept. When the same
+>   day has statistics on both sides, the more recently updated entry wins.
+> - **Replace.** When sync copies statistics for a book, the receiving side's
+>   entire set for that book is replaced with the source side's set. Days that
+>   only existed on the receiving side are lost.
+> - **Keep local.** Leave this device's statistics unchanged during sync, even if
+>   the data at the sync location is newer. Outgoing sync still pushes this
+>   device's statistics out, replacing whatever is there.
 
 ### 5.4 Reading goals merge
 
 > **How to combine reading goals**
 >
-> - **Merge (default).** Goals from all devices are kept; if the same goal exists on
->   multiple devices, the most recent version wins.
-> - **Replace.** The full set of goals from the incoming device replaces the local
->   set, including deletions.
-> - **Keep local.** Never overwrite this device's goals with incoming data.
+> - **Merge (default).** Goals from both sides are combined. When the same goal
+>   exists on both sides, the more recently updated version wins.
+> - **Replace.** When sync copies goals, the receiving side's entire set of goals
+>   is replaced with the source side's set, including deletions.
+> - **Keep local.** Leave this device's goals unchanged during sync, even if the
+>   data at the sync location is newer. Outgoing sync still pushes this device's
+>   goals out, replacing whatever is there.
 
 ### 5.5 Cache remote file lists
 

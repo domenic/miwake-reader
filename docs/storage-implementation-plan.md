@@ -33,9 +33,9 @@ Steps:
    - `cloudCustomCredentials$`: `{ gdrive: Creds | null; onedrive: Creds | null }`
    - `fsConfigured$`: boolean
    - Re-export the surviving advanced knobs: `autoReplication$`,
-     `replicationSaveBehavior$` (rename `Overwrite`/`NewOnly` labels → "Always
-     overwrite" / "Keep newest"), `statisticsMergeMode$`,
-     `readingGoalsMergeMode$`, `cacheStorageData$`.
+     `statisticsMergeMode$`, `readingGoalsMergeMode$`, `cacheStorageData$`.
+     (`replicationSaveBehavior$` / "Conflict behavior" is not exposed as an
+     ambient-sync knob — see Phase 4.)
 3. Build the page itself in `src/routes/settings/sync/+page.svelte` with four
    sections (Cloud sync, Filesystem sync, Advanced, Data management). Each
    section is its own component under
@@ -148,6 +148,27 @@ Steps:
    the sync settings page), replay the queue.
 6. Delete the RxJS observables `replicator$`, `executeReplicate$`,
    `replicationProgress$`.
+7. **Hardcode "Keep newest" for ambient sync.** The old
+   `ReplicationSaveBehavior` / "Conflict behavior" knob was removed from the
+   Advanced UI because `Always overwrite` + `Both` direction had incoherent
+   semantics — each ambient sync is unidirectional, so "whichever side is
+   copied from wins, ignore timestamps" produced a "last sync wins" race. New
+   engine: ambient sync always uses per-item timestamp comparison
+   (`ReplicationSaveBehavior.NewOnly` behavior internally). The "overwrite
+   anyway" escape hatch moves to the explicit Force re-sync dialog, where the
+   user picks a direction and opts in per-invocation.
+8. **Fix `MergeMode.LOCAL` semantics** so the mode matches the label ("Keep
+   local"). Two issues in the current code to straighten out:
+   - **Reading goals**: `LOCAL` is currently identical to `REPLACE` in
+     `storeReadingGoals` — local goals are cleared and incoming is written
+     wholesale (`database.service.ts:940`). It should instead leave local goals
+     untouched on pull and still push local out on up-sync.
+   - **Statistics**: `LOCAL` skips the wholesale wipe but still `put()`s
+     incoming entries, so per-`dateKey` collisions are silently clobbered
+     (`database.service.ts:546-572`). It should reject incoming entries whose
+     `dateKey` is already present locally (or skip the write entirely on pull).
+   - Both kinds should still push local outward on up-sync (replacing the
+     remote copy), per the user-facing description.
 
 **Deliverable.** Sync works ambiently. Auto-sync up/down on bookmark save,
 stat update, book open, app open. No timer-based polling in the reader.

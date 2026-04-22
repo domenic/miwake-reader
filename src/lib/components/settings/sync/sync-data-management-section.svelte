@@ -11,8 +11,9 @@
   } from '$lib/data/sync/sync-store';
   import SyncButton from '$lib/components/settings/sync/sync-button.svelte';
   import SyncSection from '$lib/components/settings/sync/sync-section.svelte';
+  import { showForceResyncDialog } from '$lib/components/settings/sync/force-resync-dialog.svelte';
 
-  let hasAnyBackend = $derived($cloudConnection$ !== null || $fsConnection$ !== null);
+  let hasAnySyncLocation = $derived($cloudConnection$ !== null || $fsConnection$ !== null);
 
   async function buildCurrentCatalog(): Promise<BackupCatalog> {
     // Phase 1 stub. Phase 6 will query IndexedDB for real books / bookmarks / stats.
@@ -56,24 +57,23 @@
   }
 
   async function onForceResync() {
-    if (!hasAnyBackend) {
+    if (!hasAnySyncLocation) {
       await messageDialog({
-        title: 'No backends connected',
+        title: 'No sync locations connected',
         message: 'Connect a cloud account or local folder before running a full re-sync.'
       });
       return;
     }
 
-    const cancelled = await confirmDialog({
-      title: 'Force full re-sync?',
-      message:
-        'This will compare everything in your library to your connected backends and reconcile any differences. It may take a few minutes and will use bandwidth.'
+    const result = await showForceResyncDialog({
+      cloud: $cloudConnection$,
+      fs: $fsConnection$
     });
-    if (cancelled) return;
+    if (result.kind === 'cancel') return;
 
     await messageDialog({
       title: 'Force re-sync',
-      message: 'Sync engine is not wired up yet (coming in Phase 4).'
+      message: `Sync engine is not wired up yet (coming in Phase 4). Chosen direction: ${result.direction}.`
     });
   }
 
@@ -81,7 +81,7 @@
     const cancelled = await confirmDialog({
       title: 'Sign out and wipe local data?',
       message:
-        'This will disconnect all backends and remove all books, bookmarks, statistics, reading goals, and app settings from this device. Your cloud data will not be changed.'
+        'This will disconnect all sync locations and remove all books, bookmarks, statistics, reading goals, and app settings from this device. Your data stored elsewhere will not be changed.'
     });
     if (cancelled) return;
 
@@ -108,25 +108,26 @@
     {
       title: 'Export backup to ZIP',
       description: 'Save selected books, bookmarks, statistics, and settings to a ZIP file.',
-      action: 'Export…',
+      action: 'Export',
       onclick: onExport
     },
     {
       title: 'Import backup from ZIP',
       description: 'Restore from a previously exported backup file.',
-      action: 'Import…',
+      action: 'Import',
       onclick: onImport
     },
     {
       title: 'Force full re-sync',
-      description: 'Reconcile this device with all connected backends. Uses bandwidth.',
+      description:
+        'Walk every file in your library to ensure there are no differences between your sync locations and this device. Useful if you suspect something drifted.',
       action: 'Force re-sync',
       onclick: onForceResync
     },
     {
       title: 'Sign out and wipe local data',
       description:
-        'Disconnect all backends and delete everything from this device. Cloud data is unchanged.',
+        'Disconnect all sync locations and delete everything from this device. Your data stored elsewhere is unchanged.',
       action: 'Sign out and wipe',
       variant: 'danger',
       danger: true,
@@ -136,17 +137,18 @@
 </script>
 
 <SyncSection title="Data management">
-  {#each items as item (item.title)}
-    <div class="flex items-center justify-between gap-4 border-t border-black/10 px-5 py-3">
+  {#each items as item, i (item.title)}
+    <div
+      class="flex items-center justify-between gap-4 py-3"
+      class:border-t={i > 0}
+      class:border-gray-400={i > 0}
+      class:border-opacity-40={i > 0}
+    >
       <div class="flex-1">
-        <div
-          class="text-sm font-medium"
-          class:text-red-700={item.danger}
-          class:text-black={!item.danger}
-        >
+        <div class="font-medium" class:text-red-800={item.danger}>
           {item.title}
         </div>
-        <div class="mt-0.5 text-xs text-gray-600">{item.description}</div>
+        <div class="mt-0.5 text-sm text-gray-600">{item.description}</div>
       </div>
       <SyncButton variant={item.variant} onclick={item.onclick}>{item.action}</SyncButton>
     </div>

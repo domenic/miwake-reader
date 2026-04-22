@@ -58,6 +58,7 @@
   import Fa from 'svelte-fa';
   import { faCircleCheck } from '@fortawesome/free-solid-svg-icons';
   import SyncButton from '$lib/components/settings/sync/sync-button.svelte';
+  import { appName } from '$lib/data/env';
   import { StorageKey } from '$lib/data/storage/storage-types';
 
   interface Props {
@@ -85,7 +86,6 @@
   let clientId = $state(untrack(() => initialClientId));
   let clientSecret = $state(untrack(() => initialClientSecret));
   let tokenEndpoint = $state(untrack(() => initialTokenEndpoint));
-  let showSecret = $state(false);
 
   const isOneDrive = untrack(() => provider === StorageKey.ONEDRIVE);
 
@@ -100,7 +100,7 @@
   });
 </script>
 
-<div class="w-[480px] max-w-full">
+<div class="w-120 max-w-full">
   <header class="border-b border-black/10 pb-4">
     <h2 class="text-xl font-medium">Custom OAuth credentials</h2>
     <p class="mt-1 text-sm text-gray-600">{providerLabel}</p>
@@ -121,9 +121,9 @@
       </div>
     {:else}
       <p class="mb-3 text-sm text-gray-700">
-        By default, Miwake uses its own OAuth client to connect to {providerLabel}. If you'd prefer
-        to use your own OAuth application — for example, if your organization restricts third-party
-        apps — enter its credentials here.
+        By default, {appName} uses its own OAuth client to connect to {providerLabel}. If you'd
+        prefer to use your own OAuth application — for example, if your organization restricts
+        third-party apps — enter its credentials here.
       </p>
       <p class="mb-4 text-sm text-gray-700">
         Creating your own OAuth application is an advanced workflow. Most users should leave this
@@ -151,22 +151,13 @@
         <label for="custom-oauth-client-secret" class="block text-sm font-medium text-gray-700"
           >Client secret</label
         >
-        <div class="mt-1 flex gap-2">
-          <input
-            id="custom-oauth-client-secret"
-            type={showSecret ? 'text' : 'password'}
-            class="flex-1 rounded-md border border-black/15 px-2 py-1.5 font-mono text-xs focus:border-black focus:outline-none"
-            bind:value={clientSecret}
-            required
-          />
-          <button
-            type="button"
-            class="cursor-pointer text-sm text-blue-700 hover:underline"
-            onclick={() => (showSecret = !showSecret)}
-          >
-            {showSecret ? 'Hide' : 'Show'}
-          </button>
-        </div>
+        <input
+          id="custom-oauth-client-secret"
+          type="password"
+          class="mt-1 w-full rounded-md border border-black/15 px-2 py-1.5 font-mono text-xs focus:border-black focus:outline-none"
+          bind:value={clientSecret}
+          required
+        />
       </div>
       {#if isOneDrive}
         <div>

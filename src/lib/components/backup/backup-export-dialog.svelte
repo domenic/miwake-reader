@@ -90,7 +90,7 @@
         disabled={exporting || isEmptySelection(selection)}
         onclick={submit}
       >
-        {exporting ? 'Exporting…' : 'Export'}
+        {exporting ? 'Exporting' : 'Export'}
       </SyncButton>
     </form>
   </footer>

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { appName } from '$lib/data/env';
   import { confirmDialog } from '$lib/data/simple-dialogs';
   import { StorageKey } from '$lib/data/storage/storage-types';
   import {
@@ -130,19 +131,19 @@
   description="Connect a cloud account to sync your library, bookmarks, and reading data across devices."
 >
   {#if !active}
-    {#each PROVIDERS as provider (provider)}
+    {#each PROVIDERS as provider, i (provider)}
       {@const stored = $cloudCustomCredentials$[provider]}
-      <SyncRow>
+      <SyncRow first={i === 0}>
         {#snippet main()}
-          <div class="text-sm font-medium text-black">{providerLabel(provider)}</div>
+          <div class="font-medium">{providerLabel(provider)}</div>
           <div class="mt-1 text-sm text-gray-600">Not connected</div>
           <div class="mt-1.5 flex flex-wrap items-center gap-2 text-xs text-gray-600">
-            <span>Using {stored ? 'your stored custom' : "Miwake's default"} OAuth app.</span>
+            <span>Using {stored ? 'your stored custom' : `${appName}'s default`} OAuth app.</span>
             <button
               type="button"
               class="cursor-pointer text-gray-600 underline hover:text-black"
               onclick={() => onUseCustom(provider)}
-              >{stored ? 'Manage credentials…' : 'Use custom credentials…'}</button
+              >{stored ? 'Manage credentials' : 'Use custom credentials'}</button
             >
           </div>
         {/snippet}
@@ -152,10 +153,10 @@
       </SyncRow>
     {/each}
   {:else}
-    <SyncRow>
+    <SyncRow first>
       {#snippet main()}
         <div class="flex flex-wrap items-center gap-2">
-          <span class="text-sm font-medium text-black">{providerLabel(active.provider)}</span>
+          <span class="font-medium">{providerLabel(active.provider)}</span>
           {#if $cloudHealth$.status === 'ok'}
             <SyncBadge variant="success">Connected</SyncBadge>
           {:else if $cloudHealth$.status === 'reauth-required'}
@@ -190,14 +191,16 @@
           />
         {/if}
         <div class="mt-1.5 flex flex-wrap items-center gap-2 text-xs text-gray-600">
-          <span>Using {active.usesCustomCredentials ? 'your' : "Miwake's default"} OAuth app.</span>
+          <span
+            >Using {active.usesCustomCredentials ? 'your' : `${appName}'s default`} OAuth app.</span
+          >
           <button
             type="button"
             class="cursor-pointer text-gray-600 underline hover:text-black"
             onclick={() => onUseCustom(active.provider)}
             >{active.usesCustomCredentials
-              ? 'Manage credentials…'
-              : 'Use custom credentials…'}</button
+              ? 'Manage credentials'
+              : 'Use custom credentials'}</button
           >
         </div>
       {/snippet}
@@ -214,7 +217,7 @@
     {#if inactiveProvider}
       <SyncRow>
         {#snippet main()}
-          <div class="text-sm font-medium text-gray-500">{providerLabel(inactiveProvider)}</div>
+          <div class="font-medium text-gray-500">{providerLabel(inactiveProvider)}</div>
           <div class="mt-1 text-xs text-gray-500">
             Switching providers will sign you out of {providerLabel(active.provider)} first.
           </div>

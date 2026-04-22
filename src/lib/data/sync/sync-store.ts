@@ -2,10 +2,7 @@ import { writableStringLocalStorageSubject } from '$lib/data/internal/writable-s
 import { writableObjectLocalStorageSubject } from '$lib/data/internal/writable-object-local-storage-subject';
 import { StorageKey } from '$lib/data/storage/storage-types';
 import { MergeMode } from '$lib/data/merge-mode';
-import {
-  AutoReplicationType,
-  ReplicationSaveBehavior
-} from '$lib/functions/replication/replication-options';
+import { AutoReplicationType } from '$lib/functions/replication/replication-options';
 
 export type CloudProviderType = StorageKey.GDRIVE | StorageKey.ONEDRIVE;
 
@@ -30,7 +27,7 @@ export interface CustomOAuthCredentials {
   tokenEndpoint?: string;
 }
 
-export type BackendHealth =
+export type SyncLocationHealth =
   | { status: 'ok' }
   | { status: 'reauth-required'; summary: string; detail?: string }
   | { status: 'permission-required'; summary: string; detail?: string }
@@ -55,22 +52,20 @@ export const cloudCustomCredentials$ = writableObjectLocalStorageSubject<
   Partial<Record<CloudProviderType, CustomOAuthCredentials>>
 >()('sync.cloudCustomCredentials', {});
 
-export const cloudHealth$ = writableObjectLocalStorageSubject<BackendHealth>()('sync.cloudHealth', {
-  status: 'ok'
-});
+export const cloudHealth$ = writableObjectLocalStorageSubject<SyncLocationHealth>()(
+  'sync.cloudHealth',
+  {
+    status: 'ok'
+  }
+);
 
-export const fsHealth$ = writableObjectLocalStorageSubject<BackendHealth>()('sync.fsHealth', {
+export const fsHealth$ = writableObjectLocalStorageSubject<SyncLocationHealth>()('sync.fsHealth', {
   status: 'ok'
 });
 
 export const syncDirection$ = writableStringLocalStorageSubject<AutoReplicationType>()(
   'sync.direction',
   AutoReplicationType.All
-);
-
-export const conflictBehavior$ = writableStringLocalStorageSubject<ReplicationSaveBehavior>()(
-  'sync.conflictBehavior',
-  ReplicationSaveBehavior.NewOnly
 );
 
 export const statisticsMerge$ = writableStringLocalStorageSubject<MergeMode>()(

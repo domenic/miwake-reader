@@ -32,6 +32,7 @@
   import { faFileArrowUp } from '@fortawesome/free-solid-svg-icons';
   import BackupSelectionTree from '$lib/components/backup/backup-selection-tree.svelte';
   import SyncButton from '$lib/components/settings/sync/sync-button.svelte';
+  import { appName } from '$lib/data/env';
   import {
     isEmptySelection,
     type BackupCatalog,
@@ -125,7 +126,7 @@
   <header class="border-b border-black/10 pb-4">
     <h2 class="text-xl font-medium">Import backup</h2>
     <p class="mt-1 text-sm text-gray-600">
-      Restore from a ZIP backup previously exported by Miwake.
+      Restore from a ZIP backup previously exported by {appName}.
     </p>
   </header>
 
@@ -141,7 +142,7 @@
       </label>
     {:else if stage.kind === 'parsing'}
       <div class="py-10 text-center text-sm text-gray-600">
-        Reading <span class="font-mono">{stage.fileName}</span>…
+        Reading <span class="font-mono">{stage.fileName}</span>
       </div>
     {:else if stage.kind === 'parse-error'}
       <div class="rounded-md bg-red-50 px-3 py-3 text-sm text-red-900">
@@ -164,7 +165,7 @@
         onchange={(next) => (selection = next)}
       />
     {:else if stage.kind === 'importing'}
-      <div class="py-10 text-center text-sm text-gray-600">Importing…</div>
+      <div class="py-10 text-center text-sm text-gray-600">Importing</div>
     {:else if stage.kind === 'done'}
       <div class="rounded-md bg-green-50 px-3 py-3 text-sm text-green-900">
         <div class="font-medium">Import complete.</div>

@@ -1,4 +1,4 @@
-import type { cloudConnection$, fsConnection$, BackendHealth } from './sync-store';
+import type { cloudConnection$, fsConnection$, SyncLocationHealth } from './sync-store';
 
 export type SyncIndicatorState =
   | { kind: 'disabled' }
@@ -7,13 +7,13 @@ export type SyncIndicatorState =
   | { kind: 'syncing' }
   | {
       kind: 'needs-attention';
-      backend: 'cloud' | 'fs';
+      location: 'cloud' | 'fs';
       reason: 'reauth' | 'permission';
       summary: string;
     }
   | {
       kind: 'error';
-      backend: 'cloud' | 'fs';
+      location: 'cloud' | 'fs';
       summary: string;
     };
 
@@ -27,8 +27,8 @@ export function deriveIndicatorState({
 }: {
   cloud: ReturnType<typeof cloudConnection$.getValue>;
   fs: ReturnType<typeof fsConnection$.getValue>;
-  cloudH: BackendHealth;
-  fsH: BackendHealth;
+  cloudH: SyncLocationHealth;
+  fsH: SyncLocationHealth;
   online: boolean;
   syncing: boolean;
 }): SyncIndicatorState {
@@ -41,19 +41,19 @@ export function deriveIndicatorState({
     if (cloudH.status === 'reauth-required') {
       candidates.push({
         kind: 'needs-attention',
-        backend: 'cloud',
+        location: 'cloud',
         reason: 'reauth',
         summary: cloudH.summary
       });
     } else if (cloudH.status === 'permission-required') {
       candidates.push({
         kind: 'needs-attention',
-        backend: 'cloud',
+        location: 'cloud',
         reason: 'permission',
         summary: cloudH.summary
       });
     } else if (cloudH.status === 'error') {
-      candidates.push({ kind: 'error', backend: 'cloud', summary: cloudH.summary });
+      candidates.push({ kind: 'error', location: 'cloud', summary: cloudH.summary });
     }
   }
 
@@ -61,12 +61,12 @@ export function deriveIndicatorState({
     if (fsH.status === 'reauth-required' || fsH.status === 'permission-required') {
       candidates.push({
         kind: 'needs-attention',
-        backend: 'fs',
+        location: 'fs',
         reason: fsH.status === 'reauth-required' ? 'reauth' : 'permission',
         summary: fsH.summary
       });
     } else if (fsH.status === 'error') {
-      candidates.push({ kind: 'error', backend: 'fs', summary: fsH.summary });
+      candidates.push({ kind: 'error', location: 'fs', summary: fsH.summary });
     }
   }
 

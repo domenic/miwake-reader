@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { appName } from '$lib/data/env';
   import { confirmDialog } from '$lib/data/simple-dialogs';
   import { fsConnection$, fsHealth$ } from '$lib/data/sync/sync-store';
   import { formatRelativeTime } from '$lib/components/settings/sync/sync-utils';
@@ -14,7 +15,7 @@
     // Phase 1 stub — fakes a successful folder selection. Real impl will call
     // window.showDirectoryPicker() and persist the handle in IndexedDB.
     fsConnection$.next({
-      path: '/Users/domenic/Documents/Miwake',
+      path: `/Users/domenic/Documents/${appName}`,
       connectedAt: Date.now(),
       lastSyncedAt: Date.now()
     });
@@ -24,7 +25,7 @@
   async function onDisconnect() {
     const cancelled = await confirmDialog({
       title: 'Disconnect local folder?',
-      message: 'Miwake will stop mirroring to this folder. Files already written remain on disk.'
+      message: `${appName} will stop mirroring to this folder. Files already written remain on disk.`
     });
     if (cancelled) return;
     fsConnection$.next(null);
@@ -42,24 +43,24 @@
 </script>
 
 <SyncSection
-  title="Filesystem sync"
+  title="File system sync"
   description="Mirror your library to a local folder on this device."
 >
   {#if !active}
-    <SyncRow>
+    <SyncRow first>
       {#snippet main()}
-        <div class="text-sm font-medium text-black">Local folder</div>
+        <div class="font-medium">Local folder</div>
         <div class="mt-1 text-sm text-gray-600">Not configured</div>
       {/snippet}
       {#snippet actions()}
-        <SyncButton variant="primary" onclick={onChoose}>Choose folder…</SyncButton>
+        <SyncButton variant="primary" onclick={onChoose}>Choose folder</SyncButton>
       {/snippet}
     </SyncRow>
   {:else}
-    <SyncRow>
+    <SyncRow first>
       {#snippet main()}
         <div class="flex flex-wrap items-center gap-2">
-          <span class="text-sm font-medium text-black">Local folder</span>
+          <span class="font-medium">Local folder</span>
           {#if $fsHealth$.status === 'ok'}
             <SyncBadge variant="success">Connected</SyncBadge>
           {:else if $fsHealth$.status === 'permission-required'}
