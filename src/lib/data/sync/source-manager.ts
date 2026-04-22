@@ -181,11 +181,15 @@ export async function connectCloud(provider: CloudProviderType): Promise<void> {
       database.dataListChanged$.next(undefined);
     }
 
+    const now = Date.now();
     cloudConnection$.next({
       provider,
       usesCustomCredentials: useCustom,
-      connectedAt: Date.now(),
-      lastSyncedAt: null,
+      connectedAt: now,
+      // The getBookList call above + placeholder seed IS a successful
+      // sync — record it so the UI doesn't sit at "Not yet synced"
+      // until the first ambient push.
+      lastSyncedAt: now,
       bookCount: books.length
     });
     cloudHealth$.next({ status: 'ok' });
