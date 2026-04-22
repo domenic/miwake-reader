@@ -162,7 +162,7 @@
       title: 'Force full re-sync',
       description:
         'Walk every file in your library to ensure there are no differences between your sync locations and this device. Useful if you suspect something drifted.',
-      action: $isSyncing$ ? 'Syncing…' : 'Force re-sync',
+      action: $isSyncing$ ? 'Syncing…' : 'Re-sync',
       disabled: $isSyncing$,
       onclick: onForceResync
     },
