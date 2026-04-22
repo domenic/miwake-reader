@@ -216,34 +216,6 @@ export async function connectCloud(provider: CloudProviderType): Promise<void> {
   }
 }
 
-/**
- * Best-effort refresh of the cloud book count by asking the handler
- * for the current book list. Updates `cloudConnection$.bookCount` on
- * success; silently leaves the previous value on failure. Called on
- * boot (from `loadConnectionsFromDb`) so the UI reflects the remote
- * library size rather than a stale snapshot from the last connect.
- */
-async function refreshCloudBookCount(): Promise<void> {
-  const current = read<CloudConnectionState | null>(cloudConnection$);
-  if (!current) return;
-
-  const name = cloudSourceName(current.provider, current.usesCustomCredentials);
-  try {
-    const handler =
-      current.provider === StorageKey.GDRIVE
-        ? getStorageHandler(window, StorageKey.GDRIVE, name)
-        : getStorageHandler(window, StorageKey.ONEDRIVE, name);
-    const books = await handler.getBookList();
-    const latest = read<CloudConnectionState | null>(cloudConnection$);
-    if (!latest) return;
-    cloudConnection$.next({ ...latest, bookCount: books.length });
-  } catch {
-    // Leave bookCount at whatever it was. A failure here is almost
-    // certainly an auth/network issue that the user will see surface
-    // via the sync status indicator separately.
-  }
-}
-
 export async function disconnectCloud(): Promise<void> {
   const current = read<CloudConnectionState | null>(cloudConnection$);
   if (current) {
@@ -283,8 +255,12 @@ export async function loadConnectionsFromDb(): Promise<void> {
       lastSyncedAt: null,
       bookCount: null
     });
-    // Fire-and-forget refresh; UI shows a placeholder until it resolves.
-    refreshCloudBookCount();
+    // Intentionally NO book-count refresh here: getBookList triggers the
+    // OAuth manager, and if the cached refresh token is missing/invalid
+    // the fallback popup path fires with no user gesture, which both
+    // gets blocked and surfaces a "login to your cloud provider" dialog
+    // on every page load. The count stays null until Phase 5's unified
+    // /manage view sources it from the local library.
   } else {
     cloudConnection$.next(null);
   }
