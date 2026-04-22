@@ -239,6 +239,11 @@
 
         dialogManager.dialogs$.next([]);
       } catch (error: any) {
+        // Clear the loading overlay before the error dialog appears,
+        // otherwise the overlay hangs around after the user dismisses
+        // the message.
+        dialogManager.dialogs$.next([]);
+
         const message = `Error opening book: ${error.message}`;
 
         logger.warn(message);

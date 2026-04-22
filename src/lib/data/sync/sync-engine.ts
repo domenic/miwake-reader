@@ -41,10 +41,33 @@ export async function ensurePlaceholders(
   }>,
   storageSourceName: string
 ): Promise<number> {
-  let created = 0;
+  let touched = 0;
+
+  // Look up all currently-registered storage-source names once so we
+  // can detect placeholders whose `storageSource` points at a record
+  // that no longer exists (e.g. user disconnected OneDrive and
+  // connected GDrive instead — existing placeholders get orphaned).
+  const db = await database.db;
+  const liveSourceNames = new Set((await db.getAll('storageSource')).map((s) => s.name));
+
   for (const card of remoteCards) {
     const existing = await database.getDataByTitle(card.title);
-    if (existing) continue;
+
+    if (existing) {
+      // Repoint orphaned placeholders at the current source so their
+      // download-on-click flow works again.
+      const isOrphanedPlaceholder =
+        !existing.elementHtml &&
+        existing.storageSource &&
+        !liveSourceNames.has(existing.storageSource);
+      const notYetAssigned = !existing.elementHtml && !existing.storageSource;
+
+      if (isOrphanedPlaceholder || notYetAssigned) {
+        await db.put('data', { ...existing, storageSource: storageSourceName });
+        touched += 1;
+      }
+      continue;
+    }
 
     await database.upsertData(
       {
@@ -64,9 +87,10 @@ export async function ensurePlaceholders(
       true,
       /* removeStorageContext */ false
     );
-    created += 1;
+    touched += 1;
   }
-  return created;
+
+  return touched;
 }
 
 /**
