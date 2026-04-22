@@ -193,6 +193,18 @@ export class StorageOAuthManager {
 
     if (authWindow) {
       this.authWindow = authWindow;
+      // If the popup was opened BEFORE we stashed, its copy-on-open of
+      // the opener's sessionStorage didn't capture the stash. Same-origin
+      // so we can write into it directly before navigating.
+      try {
+        const stash = sessionStorage.getItem(StorageOAuthManager.AUTH_STORAGE_KEY);
+        if (stash) {
+          authWindow.sessionStorage.setItem(StorageOAuthManager.AUTH_STORAGE_KEY, stash);
+        }
+      } catch {
+        // Cross-origin or closed popup — give up on the pre-copy and
+        // rely on the popup's own (possibly empty) sessionStorage.
+      }
       this.authWindow.location.assign(`${pagePath}/auth?miwake-init-auth=1`);
     } else if (shallUnlock) {
       this.authWindow = StorageOAuthManager.createWindow(
