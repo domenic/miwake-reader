@@ -204,7 +204,7 @@ export const cacheStorageData$ = writableBooleanLocalStorageSubject()('cacheStor
 
 export const autoReplication$ = writableStringLocalStorageSubject<AutoReplicationType>()(
   'autoReplication',
-  AutoReplicationType.Off
+  AutoReplicationType.All
 );
 
 export const replicationSaveBehavior$ =

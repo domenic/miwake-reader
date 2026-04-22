@@ -581,9 +581,9 @@ intent lives now, scoped to one explicit invocation.
 > - **Replace.** When sync copies statistics for a book, the receiving side's
 >   entire set for that book is replaced with the source side's set. Days that
 >   only existed on the receiving side are lost.
-> - **Keep local.** Leave this device's statistics unchanged during sync, even if
->   the data at the sync location is newer. Outgoing sync still pushes this
->   device's statistics out, replacing whatever is there.
+
+`MergeMode.LOCAL` exists in the enum but is not exposed in the UI — matches the
+old `/settings/statistics` tab which also only surfaced Merge / Replace.
 
 ### 5.4 Reading goals merge
 
@@ -593,16 +593,16 @@ intent lives now, scoped to one explicit invocation.
 >   exists on both sides, the more recently updated version wins.
 > - **Replace.** When sync copies goals, the receiving side's entire set of goals
 >   is replaced with the source side's set, including deletions.
-> - **Keep local.** Leave this device's goals unchanged during sync, even if the
->   data at the sync location is newer. Outgoing sync still pushes this device's
->   goals out, replacing whatever is there.
+
+Same UI-exposure note as statistics merge: `MergeMode.LOCAL` is enum-only.
 
 ### 5.5 Cache remote file lists
 
 > **Cache remote file lists in memory**
-> When on, the app remembers the list of files in your cloud account or local folder
-> during a session, so it doesn't have to refetch it for every sync. Off by default
-> because the trade-off favors freshness over traffic for most users.
+> When on, the app remembers the list of files at your sync locations for the
+> rest of the session. This saves network traffic, but edits made from other
+> devices won't appear until you reload the page or open a new tab. Off by
+> default because the trade-off favors freshness for most users.
 
 ---
 

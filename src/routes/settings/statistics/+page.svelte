@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
   import { faSpinner } from '@fortawesome/free-solid-svg-icons';
   import {
     TrackerAutoPause,
@@ -12,12 +11,7 @@
   } from '$lib/components/button-toggle-group/toggle-option';
   import SettingsItemGroup from '$lib/components/settings/settings-item-group.svelte';
   import SettingsReadingGoals from '$lib/components/settings/settings-reading-goals.svelte';
-  import {
-    ensureStorageSources,
-    storageSources$
-  } from '$lib/components/settings/settings-storage-sources';
   import { inputClasses } from '$lib/css-classes';
-  import { MergeMode } from '$lib/data/merge-mode';
   import {
     addCharactersOnCompletion$,
     adjustStatisticsAfterIdleTime$,
@@ -25,10 +19,8 @@
     keepLocalStatisticsOnDeletion$,
     openTrackerOnCompletion$,
     overwriteBookCompletion$,
-    readingGoalsMergeMode$,
     startDayHoursForTracker$,
     statisticsEnabled$,
-    statisticsMergeMode$,
     trackerAutoPause$,
     trackerAutostartTime$,
     trackerBackwardSkipThreshold$,
@@ -53,18 +45,9 @@
     { id: TrackerSkipThresholdAction.PAUSE, text: 'Pause Tracker' }
   ];
 
-  const optionsForMergeMode: ToggleOption<MergeMode>[] = [
-    { id: MergeMode.MERGE, text: 'Merge' },
-    { id: MergeMode.REPLACE, text: 'Replace' }
-  ];
-
   let showSpinner = $state(false);
   let startOfDayHours = $derived(`${`${$startDayHoursForTracker$}`.padStart(2, '0')}:00`);
   let trackerIdleTimeInMin = $state(secondsToMinutes($trackerIdleTime$));
-
-  onMount(() => {
-    ensureStorageSources();
-  });
 
   $effect(() => {
     trackerIdleTimeInMin = secondsToMinutes($trackerIdleTime$);
@@ -136,24 +119,6 @@
       max="23"
       class={inputClasses}
       bind:value={$startDayHoursForTracker$}
-    />
-  </SettingsItemGroup>
-  <SettingsItemGroup
-    title="Statistics Merge"
-    tooltip={`Determines if statistics will be merged entry by entry or replaced completely on a sync`}
-  >
-    <ButtonToggleGroup
-      options={optionsForMergeMode}
-      bind:selectedOptionId={$statisticsMergeMode$}
-    />
-  </SettingsItemGroup>
-  <SettingsItemGroup
-    title="Reading Goals Merge"
-    tooltip={`Determines if reading goals will be merged entry by entry or replaced completely on a sync`}
-  >
-    <ButtonToggleGroup
-      options={optionsForMergeMode}
-      bind:selectedOptionId={$readingGoalsMergeMode$}
     />
   </SettingsItemGroup>
   <SettingsItemGroup
@@ -296,10 +261,7 @@
         />
       </SettingsItemGroup>
     {/if}
-    <SettingsReadingGoals
-      storageSources={$storageSources$}
-      onspinner={(value) => (showSpinner = value)}
-    />
+    <SettingsReadingGoals onspinner={(value) => (showSpinner = value)} />
   {/if}
   {#if showSpinner}
     <div class="tap-highlight-transparent fixed inset-0 bg-black/20"></div>

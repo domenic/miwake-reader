@@ -157,18 +157,13 @@ Steps:
    (`ReplicationSaveBehavior.NewOnly` behavior internally). The "overwrite
    anyway" escape hatch moves to the explicit Force re-sync dialog, where the
    user picks a direction and opts in per-invocation.
-8. **Fix `MergeMode.LOCAL` semantics** so the mode matches the label ("Keep
-   local"). Two issues in the current code to straighten out:
-   - **Reading goals**: `LOCAL` is currently identical to `REPLACE` in
-     `storeReadingGoals` — local goals are cleared and incoming is written
-     wholesale (`database.service.ts:940`). It should instead leave local goals
-     untouched on pull and still push local out on up-sync.
-   - **Statistics**: `LOCAL` skips the wholesale wipe but still `put()`s
-     incoming entries, so per-`dateKey` collisions are silently clobbered
-     (`database.service.ts:546-572`). It should reject incoming entries whose
-     `dateKey` is already present locally (or skip the write entirely on pull).
-   - Both kinds should still push local outward on up-sync (replacing the
-     remote copy), per the user-facing description.
+8. **Consider dropping `MergeMode.LOCAL` entirely.** It was never surfaced in
+   the old UI, is not surfaced in the new UI, and its existing implementation
+   is inconsistent (identical to `REPLACE` for reading goals; a per-`dateKey`
+   clobber with no "wipe" for statistics). In the engine rewrite, options are:
+   either strip it from the enum and all code paths, or leave the enum value
+   but make it a documented no-op. Favor the former unless there's
+   stored-state to preserve.
 
 **Deliverable.** Sync works ambiently. Auto-sync up/down on bookmark save,
 stat update, book open, app open. No timer-based polling in the reader.

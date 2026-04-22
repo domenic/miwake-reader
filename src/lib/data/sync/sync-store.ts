@@ -1,8 +1,5 @@
-import { writableStringLocalStorageSubject } from '$lib/data/internal/writable-string-local-storage-subject';
 import { writableObjectLocalStorageSubject } from '$lib/data/internal/writable-object-local-storage-subject';
 import { StorageKey } from '$lib/data/storage/storage-types';
-import { MergeMode } from '$lib/data/merge-mode';
-import { AutoReplicationType } from '$lib/functions/replication/replication-options';
 
 export type CloudProviderType = StorageKey.GDRIVE | StorageKey.ONEDRIVE;
 
@@ -62,23 +59,3 @@ export const cloudHealth$ = writableObjectLocalStorageSubject<SyncLocationHealth
 export const fsHealth$ = writableObjectLocalStorageSubject<SyncLocationHealth>()('sync.fsHealth', {
   status: 'ok'
 });
-
-export const syncDirection$ = writableStringLocalStorageSubject<AutoReplicationType>()(
-  'sync.direction',
-  AutoReplicationType.All
-);
-
-export const statisticsMerge$ = writableStringLocalStorageSubject<MergeMode>()(
-  'sync.statisticsMerge',
-  MergeMode.MERGE
-);
-
-export const readingGoalsMerge$ = writableStringLocalStorageSubject<MergeMode>()(
-  'sync.readingGoalsMerge',
-  MergeMode.MERGE
-);
-
-export const cacheRemoteFileLists$ = writableStringLocalStorageSubject<'on' | 'off'>()(
-  'sync.cacheRemoteFileLists',
-  'off'
-);

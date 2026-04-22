@@ -2,13 +2,12 @@
   import { MergeMode } from '$lib/data/merge-mode';
   import { AutoReplicationType } from '$lib/functions/replication/replication-options';
   import {
-    cacheRemoteFileLists$,
-    cloudConnection$,
-    fsConnection$,
-    readingGoalsMerge$,
-    statisticsMerge$,
-    syncDirection$
-  } from '$lib/data/sync/sync-store';
+    autoReplication$,
+    cacheStorageData$,
+    readingGoalsMergeMode$,
+    statisticsMergeMode$
+  } from '$lib/data/store';
+  import { cloudConnection$, fsConnection$ } from '$lib/data/sync/sync-store';
   import Fa from 'svelte-fa';
   import { faChevronRight } from '@fortawesome/free-solid-svg-icons';
   import SyncRadioGroup from '$lib/components/settings/sync/sync-radio-group.svelte';
@@ -42,7 +41,7 @@
     }
   ]);
 
-  let statisticsMergeOptions = $derived([
+  let statisticsMergeOptions = [
     {
       id: MergeMode.MERGE,
       label: 'Merge',
@@ -54,15 +53,10 @@
       id: MergeMode.REPLACE,
       label: 'Replace',
       description: `When sync copies statistics for a book, the receiving side's entire set for that book is replaced with the source side's set. Days that only existed on the receiving side are lost.`
-    },
-    {
-      id: MergeMode.LOCAL,
-      label: 'Keep local',
-      description: `Leave this device's statistics unchanged during sync, even if the data at ${locationsOrFallback} is newer. Outgoing sync still pushes this device's statistics out, replacing whatever is there.`
     }
-  ]);
+  ];
 
-  let goalsMergeOptions = $derived([
+  let goalsMergeOptions = [
     {
       id: MergeMode.MERGE,
       label: 'Merge',
@@ -74,13 +68,8 @@
       id: MergeMode.REPLACE,
       label: 'Replace',
       description: `When sync copies goals, the receiving side's entire set of goals is replaced with the source side's set, including deletions.`
-    },
-    {
-      id: MergeMode.LOCAL,
-      label: 'Keep local',
-      description: `Leave this device's goals unchanged during sync, even if the data at ${locationsOrFallback} is newer. Outgoing sync still pushes this device's goals out, replacing whatever is there.`
     }
-  ]);
+  ];
 </script>
 
 <details class="pb-8">
@@ -99,42 +88,37 @@
     heading="Sync direction"
     name="sync-direction"
     options={directionOptions}
-    selected={$syncDirection$}
-    onchange={(value) => syncDirection$.next(value)}
+    selected={$autoReplication$}
+    onchange={(value) => ($autoReplication$ = value)}
   />
 
   <SyncRadioGroup
     heading="How to combine reading statistics"
     name="sync-statistics-merge"
     options={statisticsMergeOptions}
-    selected={$statisticsMerge$}
-    onchange={(value) => statisticsMerge$.next(value)}
+    selected={$statisticsMergeMode$}
+    onchange={(value) => ($statisticsMergeMode$ = value)}
   />
 
   <SyncRadioGroup
     heading="How to combine reading goals"
     name="sync-goals-merge"
     options={goalsMergeOptions}
-    selected={$readingGoalsMerge$}
-    onchange={(value) => readingGoalsMerge$.next(value)}
+    selected={$readingGoalsMergeMode$}
+    onchange={(value) => ($readingGoalsMergeMode$ = value)}
   />
 
   <div class="mt-5">
     <div class="mb-1 text-base font-medium">Cache remote file lists</div>
     <label class="flex cursor-pointer items-start gap-3 rounded p-2 hover:bg-gray-400/15">
-      <input
-        type="checkbox"
-        class="mt-1"
-        checked={$cacheRemoteFileLists$ === 'on'}
-        onchange={(e) =>
-          cacheRemoteFileLists$.next((e.currentTarget as HTMLInputElement).checked ? 'on' : 'off')}
-      />
+      <input type="checkbox" class="mt-1" bind:checked={$cacheStorageData$} />
       <div>
         <div class="font-medium">Cache remote file lists in memory</div>
         <div class="text-sm text-gray-600">
-          When on, the app remembers the list of files at your sync locations during a session, so
-          it doesn't have to refetch it for every sync. Off by default because the trade-off favors
-          freshness over traffic for most users.
+          When on, the app remembers the list of files at your sync locations for the rest of the
+          session. This saves network traffic, but edits made from other devices won't appear until
+          you reload the page or open a new tab. Off by default because the trade-off favors
+          freshness for most users.
         </div>
       </div>
     </label>
