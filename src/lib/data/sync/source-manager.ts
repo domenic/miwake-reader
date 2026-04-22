@@ -199,7 +199,14 @@ export async function connectCloud(provider: CloudProviderType): Promise<void> {
     }
 
     // Token is cached now; this call won't re-open the popup.
-    const books = await handler.getBookList();
+    let books: Awaited<ReturnType<typeof handler.getBookList>>;
+    try {
+      books = await handler.getBookList();
+    } finally {
+      // getBookList flips listLoading to true at its start; reset so
+      // /manage doesn't show a stuck "Loading…".
+      database.listLoading$.next(false);
+    }
 
     // Seed IndexedDB with placeholders so /manage immediately shows
     // the user's remote library under cloud icons.

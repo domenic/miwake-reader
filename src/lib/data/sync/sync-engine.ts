@@ -150,6 +150,12 @@ export async function reconcileCloudBooks(): Promise<void> {
       summary: "Couldn't read your cloud library",
       detail: err instanceof Error ? err.message : String(err)
     });
+  } finally {
+    // Every handler's getBookList flips database.listLoading$ to true
+    // at its start, but only database.dataList$'s tap flips it back to
+    // false — and we're calling getBookList out-of-band. Reset here so
+    // /manage doesn't get stuck showing "Loading…".
+    database.listLoading$.next(false);
   }
 }
 
