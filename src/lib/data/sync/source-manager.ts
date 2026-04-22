@@ -110,6 +110,7 @@ export async function disconnectFs(): Promise<void> {
       read<string>(syncTarget$) === FS_SOURCE_NAME,
       read<string>(fsStorageSource$) === FS_SOURCE_NAME
     );
+    await pruneLocalPlaceholdersBySource(FS_SOURCE_NAME);
   }
   fsConnection$.next(null);
   fsHealth$.next({ status: 'ok' });
@@ -239,9 +240,23 @@ export async function disconnectCloud(): Promise<void> {
         read<string>(slotStore) === name
       );
     }
+    // Delete any placeholder rows that pointed at this source — their
+    // content is no longer reachable.
+    await pruneLocalPlaceholdersBySource(name);
   }
   cloudConnection$.next(null);
   cloudHealth$.next({ status: 'ok' });
+}
+
+async function pruneLocalPlaceholdersBySource(sourceName: string): Promise<void> {
+  const db = await database.db;
+  const all = await db.getAll('data');
+  for (const book of all) {
+    if (!book.elementHtml && book.storageSource === sourceName) {
+      await db.delete('data', book.id);
+    }
+  }
+  database.dataListChanged$.next(undefined);
 }
 
 /**

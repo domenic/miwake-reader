@@ -62,12 +62,23 @@ export async function ensurePlaceholders(
         !liveSourceNames.has(existing.storageSource);
       const notYetAssigned = !existing.elementHtml && !existing.storageSource;
 
+      logger.debug(
+        `ensurePlaceholders: existing match for ${JSON.stringify(existing.title)} — ` +
+          `hasHtml=${!!existing.elementHtml}, ` +
+          `storageSource=${JSON.stringify(existing.storageSource ?? null)}, ` +
+          `orphaned=${isOrphanedPlaceholder}, notYetAssigned=${notYetAssigned}`
+      );
+
       if (isOrphanedPlaceholder || notYetAssigned) {
         await db.put('data', { ...existing, storageSource: storageSourceName });
         touched += 1;
       }
       continue;
     }
+
+    logger.debug(
+      `ensurePlaceholders: no local record for ${JSON.stringify(card.title)}, creating placeholder`
+    );
 
     await database.upsertData(
       {
@@ -91,6 +102,39 @@ export async function ensurePlaceholders(
   }
 
   return touched;
+}
+
+/**
+ * Remove local placeholder rows whose `storageSource` points at a
+ * record that no longer exists in the storage-source table AND whose
+ * title is not in the current remote list. Those books are
+ * unreachable — the source they came from is disconnected, and they
+ * aren't on whatever source is currently being reconciled, so there
+ * is no way for the user to download them.
+ *
+ * Deliberately conservative: only touches rows without `elementHtml`
+ * (never deletes an actually-downloaded book) and only rows whose
+ * storageSource is non-empty and orphaned (never deletes a local
+ * import with no sync source attached).
+ */
+export async function pruneOrphanedPlaceholders(currentRemoteTitles: Set<string>): Promise<number> {
+  const db = await database.db;
+  const liveSourceNames = new Set((await db.getAll('storageSource')).map((s) => s.name));
+  const allBooks = await db.getAll('data');
+
+  let pruned = 0;
+  for (const book of allBooks) {
+    const isPlaceholder = !book.elementHtml;
+    const hasOrphanedSource = !!book.storageSource && !liveSourceNames.has(book.storageSource);
+    const reachableOnCurrentRemote = currentRemoteTitles.has(book.title);
+
+    if (isPlaceholder && hasOrphanedSource && !reachableOnCurrentRemote) {
+      await db.delete('data', book.id);
+      pruned += 1;
+    }
+  }
+
+  return pruned;
 }
 
 /**
@@ -148,11 +192,23 @@ export async function reconcileCloudBooks(): Promise<void> {
     await handler.authenticate(null, true);
 
     const remoteBooks = await handler.getBookList();
-    const created = await ensurePlaceholders(remoteBooks, name);
+    logger.debug(
+      `reconcileCloudBooks: ${name} returned ${remoteBooks.length} remote book(s): ` +
+        remoteBooks.map((b) => JSON.stringify(b.title)).join(', ')
+    );
 
-    if (created > 0) {
-      // Nudge /manage to re-fetch the dataList so the new placeholders
-      // appear without a page reload.
+    const touched = await ensurePlaceholders(remoteBooks, name);
+
+    // Prune local placeholders that reference a disconnected source
+    // AND aren't on the currently-reconciling source — those are
+    // ghosts from a past sync location that the user disconnected,
+    // with no way to download them.
+    const remoteTitles = new Set(remoteBooks.map((b) => b.title));
+    const pruned = await pruneOrphanedPlaceholders(remoteTitles);
+    logger.debug(`reconcileCloudBooks: touched=${touched}, pruned=${pruned}`);
+
+    if (touched > 0 || pruned > 0) {
+      // Nudge /manage to re-fetch the dataList so changes appear.
       database.dataListChanged$.next(undefined);
     }
 
