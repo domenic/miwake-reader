@@ -95,6 +95,25 @@ export abstract class ApiStorageHandler extends BaseStorageHandler {
     this.setInternalSettings(storageSourceName);
   }
 
+  /**
+   * Force an OAuth exchange using a pre-opened popup window. Used by
+   * source-manager's connectCloud so the popup is opened synchronously
+   * inside the user's click handler (preserving the user-activation),
+   * then navigated to the OAuth flow once the async setup has run.
+   *
+   * The popup should be opened to `/auth?miwake-init-wait=1` (an idle
+   * page) before the async work; this method then triggers the real
+   * auth exchange through it.
+   */
+  async authenticate(authWindow: Window): Promise<void> {
+    await this.authManager.getToken(
+      this.window,
+      this.storageSourceName,
+      this.askForStorageUnlock,
+      authWindow
+    );
+  }
+
   clearData(clearAll = true) {
     this.titleToFiles.clear();
     this.rootFiles.clear();

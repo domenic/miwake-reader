@@ -1,7 +1,8 @@
-import { gDriveClientId, oneDriveClientId } from '$lib/data/env';
+import { gDriveClientId, oneDriveClientId, pagePath } from '$lib/data/env';
 import type { BooksDbStorageSource } from '$lib/data/database/books-db/versions/books-db';
 import { getStorageHandler } from '$lib/data/storage/storage-handler-factory';
 import type { FsHandle, RemoteContext } from '$lib/data/storage/storage-source-manager';
+import { StorageOAuthManager } from '$lib/data/storage/storage-oauth-manager';
 import { StorageKey, StorageSourceDefault } from '$lib/data/storage/storage-types';
 import {
   database,
@@ -121,64 +122,92 @@ export async function disconnectFs(): Promise<void> {
  * token back into the same record). Rolls back on failure.
  */
 export async function connectCloud(provider: CloudProviderType): Promise<void> {
-  const customCreds =
-    read<Partial<Record<CloudProviderType, CustomOAuthCredentials>>>(cloudCustomCredentials$)[
-      provider
-    ];
-  const useCustom = !!customCreds;
-  const name = cloudSourceName(provider, useCustom);
-
-  const remoteData: RemoteContext = useCustom
-    ? {
-        clientId: customCreds.clientId,
-        clientSecret: customCreds.clientSecret,
-        refreshToken: ''
-      }
-    : {
-        clientId: provider === StorageKey.GDRIVE ? gDriveClientId : oneDriveClientId,
-        clientSecret: '',
-        refreshToken: ''
-      };
-
-  const record: BooksDbStorageSource = {
-    name,
-    type: provider,
-    data: remoteData,
-    storedInManager: false,
-    encryptionDisabled: true,
-    lastSourceModified: Date.now()
-  };
-
-  const slotStore = provider === StorageKey.GDRIVE ? gDriveStorageSource$ : oneDriveStorageSource$;
-  const priorName = read<string>(slotStore);
-  await database.saveStorageSource(record, priorName === name ? priorName : '', true, true);
-
-  // Force OAuth by doing a trivial API call. The popup opens, the user
-  // signs in, and on success the refresh token is written into the same
-  // record by StorageOAuthManager.
-  let bookCount: number;
-  try {
-    const handler = getStorageHandler(window, provider, name);
-    const books = await handler.getBookList();
-    bookCount = books.length;
-  } catch (err) {
-    // Roll back on failure so the UI doesn't show a phantom connection.
-    const db = await database.db;
-    const existing = await db.get('storageSource', name);
-    if (existing) {
-      await database.deleteStorageSource(existing, true, true);
-    }
-    throw err;
+  // Open the popup synchronously under the caller's user-activation so
+  // the browser allows it. We navigate it to OAuth once the async DB
+  // work is done — later navigations via location.assign inside
+  // StorageOAuthManager don't need user activation. This sidesteps the
+  // existing "popup blocked → messageDialog → retry" fallback path,
+  // which has been observed producing PKCE mismatches.
+  const authWindow = StorageOAuthManager.createWindow(
+    `${pagePath}/auth?miwake-init-wait=1`,
+    'auth',
+    Math.min(Math.max(window.innerWidth, 300), 560),
+    Math.min(Math.max(window.innerHeight, 300), 560),
+    window
+  );
+  if (!authWindow) {
+    throw new Error('Unable to open the sign-in window. Check your popup blocker settings.');
   }
 
-  cloudConnection$.next({
-    provider,
-    usesCustomCredentials: useCustom,
-    connectedAt: Date.now(),
-    lastSyncedAt: null,
-    bookCount
-  });
-  cloudHealth$.next({ status: 'ok' });
+  let didSucceed = false;
+  try {
+    const customCreds =
+      read<Partial<Record<CloudProviderType, CustomOAuthCredentials>>>(cloudCustomCredentials$)[
+        provider
+      ];
+    const useCustom = !!customCreds;
+    const name = cloudSourceName(provider, useCustom);
+
+    const remoteData: RemoteContext = useCustom
+      ? {
+          clientId: customCreds.clientId,
+          clientSecret: customCreds.clientSecret,
+          refreshToken: ''
+        }
+      : {
+          clientId: provider === StorageKey.GDRIVE ? gDriveClientId : oneDriveClientId,
+          clientSecret: '',
+          refreshToken: ''
+        };
+
+    const record: BooksDbStorageSource = {
+      name,
+      type: provider,
+      data: remoteData,
+      storedInManager: false,
+      encryptionDisabled: true,
+      lastSourceModified: Date.now()
+    };
+
+    const slotStore =
+      provider === StorageKey.GDRIVE ? gDriveStorageSource$ : oneDriveStorageSource$;
+    const priorName = read<string>(slotStore);
+    await database.saveStorageSource(record, priorName === name ? priorName : '', true, true);
+
+    const handler =
+      provider === StorageKey.GDRIVE
+        ? getStorageHandler(window, StorageKey.GDRIVE, name)
+        : getStorageHandler(window, StorageKey.ONEDRIVE, name);
+
+    try {
+      await handler.authenticate(authWindow);
+    } catch (err) {
+      // OAuth failed — roll back the DB record.
+      const db = await database.db;
+      const existing = await db.get('storageSource', name);
+      if (existing) {
+        await database.deleteStorageSource(existing, true, true);
+      }
+      throw err;
+    }
+
+    // Token is cached now; this call won't re-open the popup.
+    const books = await handler.getBookList();
+
+    cloudConnection$.next({
+      provider,
+      usesCustomCredentials: useCustom,
+      connectedAt: Date.now(),
+      lastSyncedAt: null,
+      bookCount: books.length
+    });
+    cloudHealth$.next({ status: 'ok' });
+    didSucceed = true;
+  } finally {
+    if (!didSucceed && !authWindow.closed) {
+      authWindow.close();
+    }
+  }
 }
 
 /**
@@ -194,7 +223,10 @@ async function refreshCloudBookCount(): Promise<void> {
 
   const name = cloudSourceName(current.provider, current.usesCustomCredentials);
   try {
-    const handler = getStorageHandler(window, current.provider, name);
+    const handler =
+      current.provider === StorageKey.GDRIVE
+        ? getStorageHandler(window, StorageKey.GDRIVE, name)
+        : getStorageHandler(window, StorageKey.ONEDRIVE, name);
     const books = await handler.getBookList();
     const latest = read<CloudConnectionState | null>(cloudConnection$);
     if (!latest) return;
@@ -261,5 +293,25 @@ export async function loadConnectionsFromDb(): Promise<void> {
     });
   } else {
     fsConnection$.next(null);
+  }
+
+  // Keep the legacy sync-target / per-type-default stores in lockstep
+  // with what the new UI considers connected. In the new model there's
+  // no separate "sync target" concept — connected = syncs. Cloud wins
+  // over FS as the primary when both are present.
+  if (cloudRecord) {
+    syncTarget$.next(cloudRecord.name);
+    if (cloudRecord.type === StorageKey.GDRIVE) {
+      gDriveStorageSource$.next(cloudRecord.name);
+    } else {
+      oneDriveStorageSource$.next(cloudRecord.name);
+    }
+  } else if (fsRecord) {
+    syncTarget$.next(fsRecord.name);
+  } else {
+    syncTarget$.next('');
+  }
+  if (fsRecord) {
+    fsStorageSource$.next(fsRecord.name);
   }
 }
