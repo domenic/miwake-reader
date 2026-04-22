@@ -260,7 +260,7 @@
           const error = await replicateData(
             handler,
             browserHandler,
-            false,
+            /* refreshDataList */ true,
             [context],
             [StorageDataType.DATA]
           );
