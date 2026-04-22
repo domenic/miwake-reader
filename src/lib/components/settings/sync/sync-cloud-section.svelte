@@ -9,6 +9,7 @@
     type CloudProviderType
   } from '$lib/data/sync/sync-store';
   import { connectCloud, disconnectCloud } from '$lib/data/sync/source-manager';
+  import { retryAfterReconnect } from '$lib/data/sync/sync-engine';
   import { formatRelativeTime, providerLabel } from '$lib/components/settings/sync/sync-utils';
   import SyncAlert from '$lib/components/settings/sync/sync-alert.svelte';
   import SyncBadge from '$lib/components/settings/sync/sync-badge.svelte';
@@ -127,6 +128,7 @@
     busy = true;
     try {
       await connectCloud(active.provider);
+      await retryAfterReconnect();
     } catch (err) {
       await messageDialog({
         title: "Couldn't reconnect",
@@ -138,7 +140,13 @@
   }
 
   async function onRetry() {
-    $cloudHealth$ = { status: 'ok' };
+    busy = true;
+    try {
+      $cloudHealth$ = { status: 'ok' };
+      await retryAfterReconnect();
+    } finally {
+      busy = false;
+    }
   }
 </script>
 

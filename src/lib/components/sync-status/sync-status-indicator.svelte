@@ -1,6 +1,5 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
-  import { page } from '$app/state';
   import Fa from 'svelte-fa';
   import {
     faArrowsRotate,
@@ -20,10 +19,17 @@
   import { deriveIndicatorState } from '$lib/data/sync/sync-state';
   import { formatRelativeTime } from '$lib/components/settings/sync/sync-utils';
   import { isOnline$ } from '$lib/data/store';
+  import { isSyncingOrPending } from '$lib/data/sync/sync-engine';
 
-  // Don't show on the reader — it has its own legacy sync indicator until
-  // phase 4 of the sync-redesign plan migrates it.
-  let hideOnReader = $derived(page.route.id === '/b');
+  // Poll the sync engine's in-flight state so the indicator reflects
+  // an active push — isSyncingOrPending is imperative, not a store.
+  let syncing = $state(false);
+  $effect(() => {
+    const interval = setInterval(() => {
+      syncing = isSyncingOrPending();
+    }, 500);
+    return () => clearInterval(interval);
+  });
 
   let indicator = $derived(
     deriveIndicatorState({
@@ -32,7 +38,7 @@
       cloudH: $cloudHealth$,
       fsH: $fsHealth$,
       online: $isOnline$,
-      syncing: false
+      syncing
     })
   );
 
@@ -112,33 +118,31 @@
   });
 </script>
 
-{#if !hideOnReader}
-  <div
-    class="writing-horizontal-tb fixed bottom-3 left-3 z-40 flex items-center gap-2"
-    onpointerenter={() => (showLabel = true)}
-    onpointerleave={() => (showLabel = false)}
-    role="presentation"
+<div
+  class="writing-horizontal-tb fixed bottom-3 left-3 z-40 flex items-center gap-2"
+  onpointerenter={() => (showLabel = true)}
+  onpointerleave={() => (showLabel = false)}
+  role="presentation"
+>
+  <button
+    type="button"
+    aria-label={label}
+    class:cursor-pointer={clickable}
+    class:cursor-default={!clickable}
+    class="flex h-9 w-9 items-center justify-center rounded-full shadow-sm ring-1 ring-black/10 transition-colors {wrapperVariantClasses[
+      indicator.kind
+    ]}"
+    onclick={onClick}
+    onkeydown={onKey}
+    tabindex={clickable ? 0 : -1}
   >
-    <button
-      type="button"
-      aria-label={label}
-      class:cursor-pointer={clickable}
-      class:cursor-default={!clickable}
-      class="flex h-9 w-9 items-center justify-center rounded-full shadow-sm ring-1 ring-black/10 transition-colors {wrapperVariantClasses[
-        indicator.kind
-      ]}"
-      onclick={onClick}
-      onkeydown={onKey}
-      tabindex={clickable ? 0 : -1}
+    <Fa icon={icons[indicator.kind]} class={indicator.kind === 'syncing' ? 'animate-spin' : ''} />
+  </button>
+  {#if showLabel}
+    <div
+      class="rounded-md bg-[#333] px-2 py-1 text-xs font-medium whitespace-nowrap text-white shadow-sm"
     >
-      <Fa icon={icons[indicator.kind]} class={indicator.kind === 'syncing' ? 'animate-spin' : ''} />
-    </button>
-    {#if showLabel}
-      <div
-        class="rounded-md bg-[#333] px-2 py-1 text-xs font-medium whitespace-nowrap text-white shadow-sm"
-      >
-        {label}
-      </div>
-    {/if}
-  </div>
-{/if}
+      {label}
+    </div>
+  {/if}
+</div>

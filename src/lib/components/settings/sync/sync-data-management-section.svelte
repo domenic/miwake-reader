@@ -12,6 +12,7 @@
   import SyncButton from '$lib/components/settings/sync/sync-button.svelte';
   import SyncSection from '$lib/components/settings/sync/sync-section.svelte';
   import { showForceResyncDialog } from '$lib/components/settings/sync/force-resync-dialog.svelte';
+  import { forceFullResync } from '$lib/data/sync/sync-engine';
 
   let hasAnySyncLocation = $derived($cloudConnection$ !== null || $fsConnection$ !== null);
 
@@ -97,10 +98,18 @@
     });
     if (result.kind === 'cancel') return;
 
-    await messageDialog({
-      title: 'Force re-sync',
-      message: `Sync engine is not wired up yet (coming in Phase 4). Chosen direction: ${result.direction}.`
-    });
+    try {
+      await forceFullResync(result.direction);
+      await messageDialog({
+        title: 'Force re-sync complete',
+        message: 'Your library has been reconciled with every connected sync location.'
+      });
+    } catch (err) {
+      await messageDialog({
+        title: "Couldn't finish re-syncing",
+        message: err instanceof Error ? err.message : String(err)
+      });
+    }
   }
 
   async function onSignOutAndWipe() {
