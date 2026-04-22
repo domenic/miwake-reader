@@ -161,6 +161,8 @@ export class OneDriveStorageHandler extends ApiStorageHandler {
       } catch (error) {
         this.clearData();
         throw error;
+      } finally {
+        database.listLoading$.next(false);
       }
     }
 

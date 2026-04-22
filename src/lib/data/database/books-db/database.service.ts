@@ -98,7 +98,8 @@ export class DatabaseService {
       ),
       tap(() => {
         this.lastHandler = undefined;
-        this.listLoading$.next(false);
+        // listLoading is owned by the handlers' getBookList now — each
+        // flips it back to false in a finally block.
       }),
       shareReplay({ refCount: true, bufferSize: 1 })
     )

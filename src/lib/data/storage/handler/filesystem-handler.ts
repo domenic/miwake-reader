@@ -65,15 +65,19 @@ export class FilesystemStorageHandler extends BaseStorageHandler {
     if (!this.dataListFetched) {
       database.listLoading$.next(true);
 
-      const rootDirectory = await this.ensureRoot();
-      const directories = (await FilesystemStorageHandler.list(
-        rootDirectory,
-        true
-      )) as FileSystemDirectoryHandle[];
+      try {
+        const rootDirectory = await this.ensureRoot();
+        const directories = (await FilesystemStorageHandler.list(
+          rootDirectory,
+          true
+        )) as FileSystemDirectoryHandle[];
 
-      await this.setTitleData(directories);
+        await this.setTitleData(directories);
 
-      this.dataListFetched = true;
+        this.dataListFetched = true;
+      } finally {
+        database.listLoading$.next(false);
+      }
     }
 
     return [...this.titleToBookCard.values()];

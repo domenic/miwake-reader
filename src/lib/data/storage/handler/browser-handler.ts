@@ -55,6 +55,8 @@ export class BrowserStorageHandler extends BaseStorageHandler {
       } catch (error) {
         this.clearData();
         throw error;
+      } finally {
+        database.listLoading$.next(false);
       }
     }
 
