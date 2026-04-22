@@ -2,6 +2,7 @@
   import {
     BehaviorSubject,
     debounceTime,
+    distinctUntilChanged,
     EMPTY,
     filter,
     fromEvent,
@@ -224,7 +225,10 @@
       subject.next(Number(page.url.searchParams.get('id')));
     });
     return subject;
-  }).pipe(shareReplay({ refCount: true, bufferSize: 1 }));
+    // distinctUntilChanged: the $effect above fires on mount and
+    // re-emits the seed value, so without this the reader pipeline
+    // would re-run twice on every open.
+  }).pipe(distinctUntilChanged(), shareReplay({ refCount: true, bufferSize: 1 }));
 
   const rawBookData$ = bookId$.pipe(
     switchMap(async (id) => {

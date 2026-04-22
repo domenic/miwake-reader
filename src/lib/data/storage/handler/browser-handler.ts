@@ -156,7 +156,11 @@ export class BrowserStorageHandler extends BaseStorageHandler {
 
     let isPresentAndUpToDate = false;
 
-    if (book) {
+    // A placeholder row (no elementHtml) is metadata only — it's never
+    // "present and up to date," even if its timestamp matches the
+    // remote. Skipping this check would let the replicator short-circuit
+    // the one download that would actually hydrate the book.
+    if (book && book.elementHtml) {
       const { lastBookModified, lastBookOpen } =
         BaseStorageHandler.getBookMetadata(referenceFilename);
       const { lastBookModified: existingBookModified, lastBookOpen: existingBookOpen } = book;
