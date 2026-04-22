@@ -267,6 +267,7 @@ export async function reconcileCloudBooks(): Promise<void> {
   const name = cloudSourceName(cloud.provider, cloud.usesCustomCredentials);
   const handler = getCloudHandler(cloud.provider, name);
 
+  beginLongRunning();
   try {
     await handler.authenticate(null, true);
 
@@ -289,6 +290,8 @@ export async function reconcileCloudBooks(): Promise<void> {
     await drainReplayQueue();
   } catch (err) {
     reportSyncError('cloud', 'reconcileCloudBooks', err);
+  } finally {
+    endLongRunning();
   }
 }
 
@@ -303,6 +306,11 @@ export async function reconcileCloudBooks(): Promise<void> {
 
 const PUSH_DEBOUNCE_MS = 5000;
 
+/** Safety rail on the reauth-replay queue. Well above any realistic
+ *  edit rate during a single disconnected session; prevents runaway
+ *  memory growth if the user's auth stays broken indefinitely. */
+const REPLAY_QUEUE_MAX = 500;
+
 interface PendingPush {
   context: ReplicationContext;
   types: Set<StorageDataType>;
@@ -311,7 +319,29 @@ interface PendingPush {
 let pending: Map<string, PendingPush> = new Map();
 let pushTimer: ReturnType<typeof setTimeout> | null = null;
 let pushRunning = false;
+/** Non-push long-running operations (boot reconcile, per-book pull,
+ *  force resync). Incremented at entry, decremented in `finally`;
+ *  emitSyncingState ORs this with push state. */
+let longRunningOps = 0;
 const replayQueue: Array<() => Promise<void>> = [];
+
+function enqueueReplay(op: () => Promise<void>): void {
+  if (replayQueue.length >= REPLAY_QUEUE_MAX) {
+    logger.warn(`sync replay queue at cap (${REPLAY_QUEUE_MAX}); dropping oldest queued op`);
+    replayQueue.shift();
+  }
+  replayQueue.push(op);
+}
+
+function beginLongRunning(): void {
+  longRunningOps += 1;
+  emitSyncingState();
+}
+
+function endLongRunning(): void {
+  longRunningOps = Math.max(0, longRunningOps - 1);
+  emitSyncingState();
+}
 
 /** Key by book title so concurrent edits to the same book coalesce. */
 function pendingKey(context: ReplicationContext): string {
@@ -375,7 +405,7 @@ async function runPendingPushes(): Promise<void> {
 }
 
 function emitSyncingState(): void {
-  const active = pushRunning || pending.size > 0 || pushTimer !== null;
+  const active = pushRunning || pending.size > 0 || pushTimer !== null || longRunningOps > 0;
   if (isSyncing$.getValue() !== active) isSyncing$.next(active);
 }
 
@@ -394,7 +424,7 @@ async function pushOne(context: ReplicationContext, types: StorageDataType[]): P
       markCloudSynced();
     } catch (err) {
       const wasReauth = reportSyncError('cloud', 'push', err);
-      if (wasReauth) replayQueue.push(() => pushOne(context, types));
+      if (wasReauth) enqueueReplay(() => pushOne(context, types));
     }
   }
 
@@ -450,28 +480,33 @@ export async function reconcileForBookOpen(context: ReplicationContext): Promise
   ];
   const local = getBrowserHandler();
 
-  if (cloud) {
-    const name = cloudSourceName(cloud.provider, cloud.usesCustomCredentials);
-    const handler = getCloudHandler(cloud.provider, name);
-    try {
-      await handler.authenticate(null, true);
-      const error = await replicateData(handler, local, false, [context], types);
-      if (error) throw new Error(error);
-      markCloudSynced();
-    } catch (err) {
-      reportSyncError('cloud', 'reconcileForBookOpen', err);
+  beginLongRunning();
+  try {
+    if (cloud) {
+      const name = cloudSourceName(cloud.provider, cloud.usesCustomCredentials);
+      const handler = getCloudHandler(cloud.provider, name);
+      try {
+        await handler.authenticate(null, true);
+        const error = await replicateData(handler, local, false, [context], types);
+        if (error) throw new Error(error);
+        markCloudSynced();
+      } catch (err) {
+        reportSyncError('cloud', 'reconcileForBookOpen', err);
+      }
     }
-  }
 
-  if (fs) {
-    const handler = getFsHandler(FS_SOURCE_NAME);
-    try {
-      const error = await replicateData(handler, local, false, [context], types);
-      if (error) throw new Error(error);
-      markFsSynced();
-    } catch (err) {
-      reportSyncError('fs', 'reconcileForBookOpen', err);
+    if (fs) {
+      const handler = getFsHandler(FS_SOURCE_NAME);
+      try {
+        const error = await replicateData(handler, local, false, [context], types);
+        if (error) throw new Error(error);
+        markFsSynced();
+      } catch (err) {
+        reportSyncError('fs', 'reconcileForBookOpen', err);
+      }
     }
+  } finally {
+    endLongRunning();
   }
 }
 
@@ -515,7 +550,7 @@ export async function forceFullResync(direction: ForceResyncDirection): Promise<
     if (error) throw new Error(error);
   }
 
-  isSyncing$.next(true);
+  beginLongRunning();
   try {
     let cloudHandler: GDriveStorageHandler | OneDriveStorageHandler | null = null;
     if (cloud) {
@@ -554,7 +589,7 @@ export async function forceFullResync(direction: ForceResyncDirection): Promise<
       }
     }
   } finally {
-    emitSyncingState();
+    endLongRunning();
   }
 }
 
