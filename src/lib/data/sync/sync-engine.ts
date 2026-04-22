@@ -15,6 +15,7 @@ import {
   autoReplication$,
   cacheStorageData$,
   database,
+  isOnline$,
   readingGoalsMergeMode$,
   replicationSaveBehavior$,
   statisticsMergeMode$
@@ -32,6 +33,7 @@ import {
 } from '$lib/data/sync/sync-store';
 import { cloudSourceName, FS_SOURCE_NAME, readSubject as read } from '$lib/data/sync/sync-helpers';
 import { logger } from '$lib/data/logger';
+import { distinctUntilChanged, skip } from 'rxjs';
 
 // ---------------------------------------------------------------------
 // Handler factories
@@ -49,11 +51,21 @@ import { logger } from '$lib/data/logger';
  * from local to cloud/fs needs `false`. Getting a book LIST is
  * unaffected by this flag, so reconcileCloudBooks can use either.
  */
+/**
+ * `saveBehaviorOverride` is how force-resync breaks the replicator's
+ * "skip if up-to-date" check. Set on the *source* handler for a given
+ * leg: when saveBehavior === Overwrite, getFilenameForRecentCheck
+ * returns undefined, the target's isPresentAndUpToDate returns false,
+ * and the pull/push always runs.
+ */
 function getCloudHandler(
   provider: CloudProviderType,
   name: string,
-  isForBrowser: boolean
+  isForBrowser: boolean,
+  saveBehaviorOverride?: ReplicationSaveBehavior
 ): GDriveStorageHandler | OneDriveStorageHandler {
+  const saveBehavior =
+    saveBehaviorOverride ?? read<ReplicationSaveBehavior>(replicationSaveBehavior$);
   return provider === StorageKey.GDRIVE
     ? getStorageHandler(
         window,
@@ -61,7 +73,7 @@ function getCloudHandler(
         name,
         isForBrowser,
         read<boolean>(cacheStorageData$),
-        read<ReplicationSaveBehavior>(replicationSaveBehavior$),
+        saveBehavior,
         read<MergeMode>(statisticsMergeMode$),
         read<MergeMode>(readingGoalsMergeMode$),
         false
@@ -72,24 +84,45 @@ function getCloudHandler(
         name,
         isForBrowser,
         read<boolean>(cacheStorageData$),
-        read<ReplicationSaveBehavior>(replicationSaveBehavior$),
+        saveBehavior,
         read<MergeMode>(statisticsMergeMode$),
         read<MergeMode>(readingGoalsMergeMode$),
         false
       );
 }
 
-function getFsHandler(name: string, isForBrowser: boolean): BaseStorageHandler {
+function getFsHandler(
+  name: string,
+  isForBrowser: boolean,
+  saveBehaviorOverride?: ReplicationSaveBehavior
+): BaseStorageHandler {
+  const saveBehavior =
+    saveBehaviorOverride ?? read<ReplicationSaveBehavior>(replicationSaveBehavior$);
   return getStorageHandler(
     window,
     StorageKey.FS,
     name,
     isForBrowser,
     read<boolean>(cacheStorageData$),
-    read<ReplicationSaveBehavior>(replicationSaveBehavior$),
+    saveBehavior,
     read<MergeMode>(statisticsMergeMode$),
     read<MergeMode>(readingGoalsMergeMode$),
     false
+  );
+}
+
+function getBrowserHandlerWith(saveBehaviorOverride?: ReplicationSaveBehavior): BaseStorageHandler {
+  const saveBehavior =
+    saveBehaviorOverride ?? read<ReplicationSaveBehavior>(replicationSaveBehavior$);
+  return getStorageHandler(
+    window,
+    StorageKey.BROWSER,
+    '',
+    true,
+    read<boolean>(cacheStorageData$),
+    saveBehavior,
+    read<MergeMode>(statisticsMergeMode$),
+    read<MergeMode>(readingGoalsMergeMode$)
   );
 }
 
@@ -429,17 +462,25 @@ async function pushOne(context: ReplicationContext, types: StorageDataType[]): P
   const local = getBrowserHandler();
 
   if (cloud) {
-    const name = cloudSourceName(cloud.provider, cloud.usesCustomCredentials);
-    // Push: target is cloud, which receives Files from local → isForBrowser=false.
-    const handler = getCloudHandler(cloud.provider, name, false);
-    try {
-      await handler.authenticate(null, true);
-      const error = await replicateData(local, handler, false, [context], types);
-      if (error) throw new Error(error);
-      markCloudSynced();
-    } catch (err) {
-      const wasReauth = reportSyncError('cloud', 'push', err);
-      if (wasReauth) enqueueReplay(() => pushOne(context, types));
+    if (!read<boolean>(isOnline$)) {
+      // Offline — queue for replay and leave cloudHealth$ alone so the
+      // indicator shows the Wi-Fi/offline state rather than a
+      // spurious "Sync failed" error on every edit.
+      logger.debug(`push: offline, queueing cloud push for ${JSON.stringify(context.title)}`);
+      enqueueReplay(() => pushOne(context, types));
+    } else {
+      const name = cloudSourceName(cloud.provider, cloud.usesCustomCredentials);
+      // Push: target is cloud, which receives Files from local → isForBrowser=false.
+      const handler = getCloudHandler(cloud.provider, name, false);
+      try {
+        await handler.authenticate(null, true);
+        const error = await replicateData(local, handler, false, [context], types);
+        if (error) throw new Error(error);
+        markCloudSynced();
+      } catch (err) {
+        const wasReauth = reportSyncError('cloud', 'push', err);
+        if (wasReauth) enqueueReplay(() => pushOne(context, types));
+      }
     }
   }
 
@@ -599,6 +640,22 @@ export async function forceFullResync(direction: ForceResyncDirection): Promise<
     if (error) throw new Error(error);
   }
 
+  // In a winner-takes-all direction, override the *source* handler's
+  // saveBehavior to Overwrite so replicator's getFilenameForRecentCheck
+  // returns undefined, the target's isPresentAndUpToDate returns false,
+  // and the pull/push always runs instead of short-circuiting on a
+  // local-newer timestamp. 'newest' keeps the default (NewOnly) so the
+  // per-item wins-by-timestamp behavior is preserved.
+  const pullSourceOverride: ReplicationSaveBehavior | undefined =
+    direction === 'remote-wins' ? ReplicationSaveBehavior.Overwrite : undefined;
+  const pushSourceOverride: ReplicationSaveBehavior | undefined =
+    direction === 'local-wins' ? ReplicationSaveBehavior.Overwrite : undefined;
+
+  logger.debug(
+    `forceFullResync: direction=${direction}, contexts=${contexts.length}, ` +
+      `pullOverride=${pullSourceOverride ?? 'default'}, pushOverride=${pushSourceOverride ?? 'default'}`
+  );
+
   beginLongRunning();
   try {
     if (cloud) {
@@ -624,20 +681,24 @@ export async function forceFullResync(direction: ForceResyncDirection): Promise<
           : '';
       try {
         if (direction === 'newest' || direction === 'remote-wins') {
-          // Pull: remote is source of BooksDbBookData → isForBrowser=true.
+          // Pull: remote is source (isForBrowser=true for BooksDbBookData).
           const remote =
             target === 'cloud'
-              ? getCloudHandler(cloud!.provider, cloudName, true)
-              : getFsHandler(FS_SOURCE_NAME, true);
+              ? getCloudHandler(cloud!.provider, cloudName, true, pullSourceOverride)
+              : getFsHandler(FS_SOURCE_NAME, true, pullSourceOverride);
+          logger.debug(`forceFullResync: pull ${target} → local (run)`);
           await runPair(remote, local);
         }
         if (direction === 'newest' || direction === 'local-wins') {
-          // Push: remote is File sink → isForBrowser=false.
+          // Push: local is source (browser handler, saveBehavior override
+          // applies to it this time).
+          const localSource = getBrowserHandlerWith(pushSourceOverride);
           const remote =
             target === 'cloud'
               ? getCloudHandler(cloud!.provider, cloudName, false)
               : getFsHandler(FS_SOURCE_NAME, false);
-          await runPair(local, remote);
+          logger.debug(`forceFullResync: push local → ${target} (run)`);
+          await runPair(localSource, remote);
         }
         if (target === 'cloud') {
           markCloudSynced();
@@ -677,6 +738,17 @@ export function isSyncingOrPending(): boolean {
  * independent.
  */
 export async function syncEngineStart(): Promise<void> {
+  // Drain queued pushes when we come back online. Ambient pushes while
+  // offline enqueue instead of erroring, so this is where they flush.
+  // `skip(1)` so the BehaviorSubject's replay of the initial value
+  // doesn't trigger a drain on first subscribe.
+  isOnline$.pipe(skip(1), distinctUntilChanged()).subscribe((online) => {
+    if (online) {
+      logger.debug('syncEngine: back online, draining replay queue');
+      void drainReplayQueue();
+    }
+  });
+
   await reconcileCloudBooks();
   // FS reconciliation is a future pass — the FS picker creates its
   // own record and the user-initiated force re-sync covers bulk pull.
