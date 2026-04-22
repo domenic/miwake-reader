@@ -31,7 +31,6 @@
     keepLocalStatisticsOnDeletion$,
     readingGoalsMergeMode$,
     replicationSaveBehavior$,
-    showExternalPlaceholder$,
     statisticsMergeMode$
   } from '$lib/data/store';
   import { cloneMutateSet } from '$lib/functions/clone-mutate-set';
@@ -49,40 +48,44 @@
   import { pluralize } from '$lib/functions/utils';
   import pLimit from 'p-limit';
   import { combineLatest, map, Observable, share, Subject, takeUntil } from 'rxjs';
-  import { onDestroy, tick } from 'svelte';
+  import { onDestroy, onMount, tick } from 'svelte';
   import Fa from 'svelte-fa';
+
+  // Pin the unified library view to browser storage. Any previously-
+  // persisted storageSource$ value (e.g. gdrive, onedrive, fs from the
+  // old per-source dropdown) gets reset here.
+  onMount(() => {
+    if ($storageSource$ !== StorageKey.BROWSER) {
+      storageSource$.next(StorageKey.BROWSER);
+    }
+  });
 
   const booksAreLoading$ = database.listLoading$.pipe(map((isLoading) => isLoading));
 
+  // The unified library view always reads from the local IndexedDB
+  // (browser storage). storageSource$ is pinned to BROWSER on mount —
+  // no more per-source dropdown. Placeholder books (not-yet-downloaded
+  // cloud content) stay in the list with a cloud-icon marker and are
+  // downloaded transparently when clicked; see onBookClick below.
   const bookCards$: Observable<BookCardProps[]> = combineLatest([
     database.dataList$,
     database.bookmarks$,
     booklistSortOptions$
   ]).pipe(
     map(([dataList, bookmarks]) => {
-      const sortProp = $booklistSortOptions$[$storageSource$];
+      const sortProp = $booklistSortOptions$[StorageKey.BROWSER];
       const isTitleSort = sortProp.property === 'title';
-
-      if ($storageSource$ === StorageKey.BROWSER) {
-        const bookmarkMap = keyBy(bookmarks, 'dataId');
-
-        return [
-          ...dataList
-            .filter((d) => $showExternalPlaceholder$ || !d.isPlaceholder)
-            .map((d) => ({
-              ...d,
-              ...bookmarkToProgress(bookmarkMap.get(d.id))
-            }))
-            .sort((card1: BookCardProps, card2: BookCardProps) =>
-              sortBookCards(card1, card2, sortProp, isTitleSort)
-            )
-        ];
-      }
+      const bookmarkMap = keyBy(bookmarks, 'dataId');
 
       return [
-        ...dataList.sort((card1: BookCardProps, card2: BookCardProps) =>
-          sortBookCards(card1, card2, sortProp, isTitleSort)
-        )
+        ...dataList
+          .map((d) => ({
+            ...d,
+            ...bookmarkToProgress(bookmarkMap.get(d.id))
+          }))
+          .sort((card1: BookCardProps, card2: BookCardProps) =>
+            sortBookCards(card1, card2, sortProp, isTitleSort)
+          )
       ];
     }),
     share()
@@ -151,6 +154,38 @@
     return sortDiff;
   }
 
+  /**
+   * Pick the storage handler that should satisfy a book-open request.
+   * Fully-downloaded books open from the local browser IndexedDB
+   * directly. Placeholders (no local elementHtml) route through the
+   * source the book was originally imported from, so that handler's
+   * prepareBookForReading can fetch the content and cache it locally.
+   */
+  async function resolveHandlerSource(
+    bookItem: BookCardProps & { storageSource?: string }
+  ): Promise<{ type: StorageKey; name: string }> {
+    if (!bookItem.isPlaceholder) {
+      return { type: StorageKey.BROWSER, name: '' };
+    }
+
+    const origin = bookItem.storageSource;
+    if (!origin) {
+      throw new Error(
+        "This book's content isn't downloaded and its original sync source is unknown. Re-import it to open."
+      );
+    }
+
+    const db = await database.db;
+    const record = await db.get('storageSource', origin);
+    if (!record) {
+      throw new Error(
+        `This book's content isn't downloaded and its original source (${origin}) is no longer connected. Reconnect it from Settings → Sync to download.`
+      );
+    }
+
+    return { type: record.type, name: record.name };
+  }
+
   async function onBookClick(bookId: number) {
     if (!operationAllowed()) {
       return;
@@ -173,11 +208,16 @@
           throw new Error('Book title not found');
         }
 
-        const isForBrowser = $storageSource$ === StorageKey.BROWSER;
+        // If this card is a placeholder (metadata only, no elementHtml in
+        // local IndexedDB), route the open through the original source's
+        // handler so its prepareBookForReading fetches the content and
+        // caches it locally. Otherwise the browser handler serves it.
+        const handlerSource = await resolveHandlerSource(bookItem);
+        const isForBrowser = handlerSource.type === StorageKey.BROWSER;
         const handler = getStorageHandler(
           window,
-          $storageSource$,
-          '',
+          handlerSource.type,
+          handlerSource.name,
           isForBrowser,
           $cacheStorageData$,
           $replicationSaveBehavior$,

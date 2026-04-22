@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { faCheckCircle, faCircleInfo } from '@fortawesome/free-solid-svg-icons';
+  import { faCheckCircle, faCircleInfo, faCloudArrowDown } from '@fortawesome/free-solid-svg-icons';
   import BookCard from '$lib/components/book-card/book-card.svelte';
   import type { BookCardProps } from '$lib/components/book-card/book-card-props';
   import Popover from '$lib/components/popover/popover.svelte';
@@ -48,6 +48,15 @@
         class:mdc-elevation--z4={selectedBookIds.has(bookCard.id) || bookCard.id === currentBookId}
       >
         <BookCard {...bookCard} onclick={() => onBookCardClick(bookCard.id)} />
+
+        {#if bookCard.isPlaceholder}
+          <div
+            title="Not downloaded yet — click the book to fetch it from its sync location"
+            class="pointer-events-none absolute top-2 right-2 flex h-7 w-7 items-center justify-center rounded-full bg-white/90 text-gray-700 shadow"
+          >
+            <Fa icon={faCloudArrowDown} />
+          </div>
+        {/if}
 
         {#if selectedBookIds.has(bookCard.id)}
           <div

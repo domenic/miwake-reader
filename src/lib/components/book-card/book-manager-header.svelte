@@ -289,39 +289,6 @@
       <div class="flex">
         {#if !selectMode}
           <div
-            title="Select storage source"
-            class="relative transform-gpu"
-            in:scale={inAnimationParams}
-            out:scale={outAnimationParams}
-          >
-            <HeaderMenuButton
-              title="Select storage source"
-              label="Storage Source"
-              items={storageSourceMenuOptions}
-              onselect={async (sourceMenuItem) => {
-                if (sourceMenuItem.key !== $storageSource$) {
-                  if (!$cacheStorageData$) {
-                    getStorageHandler(window, sourceMenuItem.key).clearData();
-                  }
-
-                  storageSource$.next(sourceMenuItem.key);
-                }
-              }}
-            >
-              {#snippet icon()}
-                {#key $storageIcon$}
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox={$storageIcon$.viewBox}
-                    class="h-3.5 w-3.5"
-                  >
-                    <path class="fill-current" d={$storageIcon$.d} />
-                  </svg>
-                {/key}
-              {/snippet}
-            </HeaderMenuButton>
-          </div>
-          <div
             class="relative transform-gpu"
             in:scale={inAnimationParams}
             out:scale={outAnimationParams}

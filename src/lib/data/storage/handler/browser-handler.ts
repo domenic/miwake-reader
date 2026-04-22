@@ -46,7 +46,8 @@ export class BrowserStorageHandler extends BaseStorageHandler {
             ),
             lastBookModified: book.lastBookModified || 0,
             lastBookOpen: book.lastBookOpen || 0,
-            isPlaceholder: !book.elementHtml
+            isPlaceholder: !book.elementHtml,
+            storageSource: book.storageSource
           });
         }
 
