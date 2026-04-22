@@ -1,6 +1,6 @@
 <script lang="ts">
   import { appName } from '$lib/data/env';
-  import { confirmDialog } from '$lib/data/simple-dialogs';
+  import { confirmDialog, messageDialog } from '$lib/data/simple-dialogs';
   import { StorageKey } from '$lib/data/storage/storage-types';
   import {
     cloudConnection$,
@@ -8,6 +8,7 @@
     cloudHealth$,
     type CloudProviderType
   } from '$lib/data/sync/sync-store';
+  import { connectCloud, disconnectCloud } from '$lib/data/sync/source-manager';
   import { formatRelativeTime, providerLabel } from '$lib/components/settings/sync/sync-utils';
   import SyncAlert from '$lib/components/settings/sync/sync-alert.svelte';
   import SyncBadge from '$lib/components/settings/sync/sync-badge.svelte';
@@ -28,17 +29,21 @@
         : null
   );
 
+  let busy = $state(false);
+
   async function onConnect(provider: CloudProviderType) {
-    // Phase 1 stub — fakes a successful connection so UI states are exercisable.
-    $cloudConnection$ = {
-      provider,
-      accountLabel: provider === StorageKey.GDRIVE ? 'domenic@example.com' : 'domenic@outlook.com',
-      usesCustomCredentials: false,
-      connectedAt: Date.now(),
-      lastSyncedAt: Date.now(),
-      bookCount: 0
-    };
-    $cloudHealth$ = { status: 'ok' };
+    if (busy) return;
+    busy = true;
+    try {
+      await connectCloud(provider);
+    } catch (err) {
+      await messageDialog({
+        title: `Couldn't connect to ${providerLabel(provider)}`,
+        message: err instanceof Error ? err.message : String(err)
+      });
+    } finally {
+      busy = false;
+    }
   }
 
   async function onSignOut() {
@@ -48,8 +53,12 @@
         'This will disconnect from your cloud account on this device. Your cloud data will not be touched.'
     });
     if (cancelled) return;
-    $cloudConnection$ = null;
-    $cloudHealth$ = { status: 'ok' };
+    busy = true;
+    try {
+      await disconnectCloud();
+    } finally {
+      busy = false;
+    }
   }
 
   async function onSwitch(to: CloudProviderType) {
@@ -59,7 +68,7 @@
         message: `This will sign you out of ${providerLabel(active.provider)} first.`
       });
       if (cancelled) return;
-      $cloudConnection$ = null;
+      await disconnectCloud();
     }
     await onConnect(to);
   }
@@ -84,14 +93,17 @@
       delete nextCreds[provider];
       $cloudCustomCredentials$ = nextCreds;
       if (active?.provider === provider && active.usesCustomCredentials) {
-        $cloudConnection$ = null;
+        await disconnectCloud();
       }
       return;
     }
 
     if (result.kind === 'revert-to-default') {
       if (active?.provider === provider) {
-        $cloudConnection$ = { ...active, usesCustomCredentials: false };
+        // Switch the active connection back to the miwake-default OAuth client.
+        // Disconnect the custom one first, then reconnect with defaults.
+        await disconnectCloud();
+        await onConnect(provider);
       }
       return;
     }
@@ -103,22 +115,26 @@
     };
 
     if (result.activate) {
-      $cloudConnection$ = {
-        provider,
-        accountLabel: provider === StorageKey.GDRIVE ? 'custom@example.com' : 'custom@outlook.com',
-        usesCustomCredentials: true,
-        connectedAt: Date.now(),
-        lastSyncedAt: Date.now(),
-        bookCount: 0
-      };
-      $cloudHealth$ = { status: 'ok' };
+      // If already connected (to either mode), disconnect first so
+      // connectCloud picks up the new custom credentials on the way back.
+      if (active) await disconnectCloud();
+      await onConnect(provider);
     }
   }
 
   async function onReconnect() {
-    // Phase 1 stub — clears the reauth state.
-    $cloudHealth$ = { status: 'ok' };
-    if (active) $cloudConnection$ = { ...active, lastSyncedAt: Date.now() };
+    if (!active) return;
+    busy = true;
+    try {
+      await connectCloud(active.provider);
+    } catch (err) {
+      await messageDialog({
+        title: "Couldn't reconnect",
+        message: err instanceof Error ? err.message : String(err)
+      });
+    } finally {
+      busy = false;
+    }
   }
 
   async function onRetry() {
@@ -148,7 +164,9 @@
           </div>
         {/snippet}
         {#snippet actions()}
-          <SyncButton variant="primary" onclick={() => onConnect(provider)}>Connect</SyncButton>
+          <SyncButton variant="primary" disabled={busy} onclick={() => onConnect(provider)}>
+            {busy ? 'Connecting' : 'Connect'}
+          </SyncButton>
         {/snippet}
       </SyncRow>
     {/each}

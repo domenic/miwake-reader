@@ -7,6 +7,7 @@
   import SyncStatusIndicator from '$lib/components/sync-status/sync-status-indicator.svelte';
   import { userFontsCacheName, type UserFont } from '$lib/data/fonts';
   import { reconcileUserFontCache } from '$lib/functions/reconcile-user-font-cache';
+  import { loadConnectionsFromDb } from '$lib/data/sync/source-manager';
   import { fontFamilyGroupOne$, isOnline$, userFonts$ } from '$lib/data/store';
   import { dummyFn, isMobile, isMobile$ } from '$lib/functions/utils';
   import { MetaTags } from 'svelte-meta-tags';
@@ -32,6 +33,10 @@
 
   if (browser) {
     reconcileUserFontCache();
+    loadConnectionsFromDb().catch(() => {
+      // Ignore boot errors; the sync UI still works off whatever the
+      // stores happen to hold.
+    });
   }
 
   if (clearConsoleOnReload && import.meta.hot) {

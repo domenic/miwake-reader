@@ -1,7 +1,8 @@
 <script lang="ts">
   import { appName } from '$lib/data/env';
-  import { confirmDialog } from '$lib/data/simple-dialogs';
+  import { confirmDialog, messageDialog } from '$lib/data/simple-dialogs';
   import { fsConnection$, fsHealth$ } from '$lib/data/sync/sync-store';
+  import { connectFs, disconnectFs } from '$lib/data/sync/source-manager';
   import { formatRelativeTime } from '$lib/components/settings/sync/sync-utils';
   import SyncAlert from '$lib/components/settings/sync/sync-alert.svelte';
   import SyncBadge from '$lib/components/settings/sync/sync-badge.svelte';
@@ -10,16 +11,24 @@
   import SyncSection from '$lib/components/settings/sync/sync-section.svelte';
 
   let active = $derived($fsConnection$);
+  let busy = $state(false);
 
   async function onChoose() {
-    // Phase 1 stub — fakes a successful folder selection. Real impl will call
-    // window.showDirectoryPicker() and persist the handle in IndexedDB.
-    $fsConnection$ = {
-      path: `/Users/domenic/Documents/${appName}`,
-      connectedAt: Date.now(),
-      lastSyncedAt: Date.now()
-    };
-    $fsHealth$ = { status: 'ok' };
+    if (busy) return;
+    busy = true;
+    try {
+      await connectFs();
+    } catch (err) {
+      // Picker cancel is silent; other errors surface.
+      if (!(err instanceof DOMException && err.name === 'AbortError')) {
+        await messageDialog({
+          title: "Couldn't connect local folder",
+          message: err instanceof Error ? err.message : String(err)
+        });
+      }
+    } finally {
+      busy = false;
+    }
   }
 
   async function onDisconnect() {
@@ -28,13 +37,18 @@
       message: `${appName} will stop mirroring to this folder. Files already written remain on disk.`
     });
     if (cancelled) return;
-    $fsConnection$ = null;
-    $fsHealth$ = { status: 'ok' };
+    busy = true;
+    try {
+      await disconnectFs();
+    } finally {
+      busy = false;
+    }
   }
 
   async function onGrantAccess() {
-    $fsHealth$ = { status: 'ok' };
-    if (active) $fsConnection$ = { ...active, lastSyncedAt: Date.now() };
+    // Grant access is the same flow as choose-folder; the permission
+    // prompt happens inside showDirectoryPicker when appropriate.
+    await onChoose();
   }
 
   async function onRetry() {
@@ -53,7 +67,7 @@
         <div class="mt-1 text-sm text-gray-600">Not configured</div>
       {/snippet}
       {#snippet actions()}
-        <SyncButton variant="primary" onclick={onChoose}>Choose folder</SyncButton>
+        <SyncButton variant="primary" disabled={busy} onclick={onChoose}>Choose folder</SyncButton>
       {/snippet}
     </SyncRow>
   {:else}
