@@ -19,7 +19,7 @@
   import { confirmDialog, messageDialog } from '$lib/data/simple-dialogs';
   import { SortDirection, type SortOption } from '$lib/data/sort-types';
   import { getStorageHandler } from '$lib/data/storage/storage-handler-factory';
-  import { StorageKey, type StorageDataType } from '$lib/data/storage/storage-types';
+  import { StorageDataType, StorageKey } from '$lib/data/storage/storage-types';
   import { storageSource$ } from '$lib/data/storage/storage-view';
   import {
     booklistSortOptions$,
@@ -236,6 +236,41 @@
         });
 
         idToOpen = await handler.prepareBookForReading();
+
+        // prepareBookForReading on an external handler only fetches
+        // file metadata and writes a stub (elementHtml='') into local
+        // IndexedDB. The reader would then open an empty book. Pull the
+        // actual content via replicateData before we navigate.
+        if (bookItem.isPlaceholder && !isForBrowser) {
+          const browserHandler = getStorageHandler(
+            window,
+            StorageKey.BROWSER,
+            '',
+            true,
+            $cacheStorageData$,
+            $replicationSaveBehavior$,
+            $statisticsMergeMode$,
+            $readingGoalsMergeMode$
+          );
+          const context = {
+            id: 0,
+            title: bookItem.title,
+            imagePath: bookItem.imagePath
+          };
+          const error = await replicateData(
+            handler,
+            browserHandler,
+            false,
+            [context],
+            [StorageDataType.DATA]
+          );
+          if (error) {
+            throw new Error(error);
+          }
+          // Re-fetch the id — saveBook may have assigned a new one.
+          const fresh = await database.getDataByTitle(bookItem.title);
+          if (fresh?.id) idToOpen = fresh.id;
+        }
 
         dialogManager.dialogs$.next([]);
       } catch (error: any) {
