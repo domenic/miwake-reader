@@ -115,11 +115,17 @@ export async function disconnectFs(): Promise<void> {
 }
 
 /**
- * Connect a cloud provider. Writes the storage-source record, sets the
- * relevant per-type default store, then forces OAuth by asking the
- * handler to list books (which triggers lazy token acquisition inside
- * `StorageOAuthManager`, opening the popup and persisting the refresh
- * token back into the same record). Rolls back on failure.
+ * Connect a cloud provider. Opens the OAuth popup _synchronously_ under
+ * the caller's user-activation window (must be called directly from a
+ * click handler, no prior awaits), writes the storage-source record,
+ * drives OAuth through that pre-opened popup, then fetches the initial
+ * book count. Rolls back on OAuth failure.
+ *
+ * Opening the popup up-front — rather than letting StorageOAuthManager
+ * do it inside the deeply-async `getBookList()` call — sidesteps the
+ * browser's popup blocker and the existing "popup blocked → messageDialog
+ * → retry" fallback path, which has been observed producing PKCE
+ * mismatches.
  */
 export async function connectCloud(provider: CloudProviderType): Promise<void> {
   // Open the popup synchronously under the caller's user-activation so
