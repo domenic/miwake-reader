@@ -7,7 +7,8 @@
     cloudConnection$,
     cloudHealth$,
     fsConnection$,
-    fsHealth$
+    fsHealth$,
+    isSyncing$
   } from '$lib/data/sync/sync-store';
   import SyncButton from '$lib/components/settings/sync/sync-button.svelte';
   import SyncSection from '$lib/components/settings/sync/sync-section.svelte';
@@ -99,16 +100,15 @@
     if (result.kind === 'cancel') return;
 
     try {
+      // Progress, completion, and errors are reported via the floating
+      // sync-status indicator (spinner → "Synced just now" → red/amber
+      // with detail on failure). No dialog here — one popping up while
+      // the user is reading or editing would be jarring.
       await forceFullResync(result.direction);
-      await messageDialog({
-        title: 'Force re-sync complete',
-        message: 'Your library has been reconciled with every connected sync location.'
-      });
-    } catch (err) {
-      await messageDialog({
-        title: "Couldn't finish re-syncing",
-        message: err instanceof Error ? err.message : String(err)
-      });
+    } catch {
+      // Swallow: reportSyncError has already populated cloudHealth$ /
+      // fsHealth$, which the indicator and the alerts on this page
+      // render in place.
     }
   }
 
@@ -132,14 +132,20 @@
     });
   }
 
-  const items: {
+  interface Item {
     title: string;
     description: string;
     action: string;
     variant?: 'default' | 'danger';
     danger?: boolean;
+    disabled?: boolean;
     onclick: () => unknown;
-  }[] = [
+  }
+
+  // Force re-sync disables (and relabels) while any sync is in flight —
+  // both this one and an ambient push that happened to start at the
+  // same time. Same lock prevents double-start.
+  let items: Item[] = $derived([
     {
       title: 'Export backup to ZIP',
       description: 'Save selected books, bookmarks, statistics, and settings to a ZIP file.',
@@ -156,7 +162,8 @@
       title: 'Force full re-sync',
       description:
         'Walk every file in your library to ensure there are no differences between your sync locations and this device. Useful if you suspect something drifted.',
-      action: 'Force re-sync',
+      action: $isSyncing$ ? 'Syncing…' : 'Force re-sync',
+      disabled: $isSyncing$,
       onclick: onForceResync
     },
     {
@@ -168,7 +175,7 @@
       danger: true,
       onclick: onSignOutAndWipe
     }
-  ];
+  ]);
 </script>
 
 <SyncSection title="Data management">
@@ -185,7 +192,9 @@
         </div>
         <div class="mt-0.5 text-sm text-gray-600">{item.description}</div>
       </div>
-      <SyncButton variant={item.variant} onclick={item.onclick}>{item.action}</SyncButton>
+      <SyncButton variant={item.variant} disabled={item.disabled} onclick={item.onclick}
+        >{item.action}</SyncButton
+      >
     </div>
   {/each}
 </SyncSection>
