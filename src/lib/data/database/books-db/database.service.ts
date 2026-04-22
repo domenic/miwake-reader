@@ -130,6 +130,21 @@ export class DatabaseService {
     this.isReady$ = this.db$.pipe(map((x) => !!x));
   }
 
+  /**
+   * Use this when you've mutated the `data` store directly (e.g. the
+   * sync engine seeding placeholders) rather than going through a
+   * storage handler. The module-level BROWSER handler caches
+   * `titleToBookCard` across calls — if we don't invalidate it, the
+   * dataList$ pipeline re-emits its stale map and the library view
+   * shows nothing new.
+   */
+  notifyDataListChanged(): void {
+    if (typeof window !== 'undefined') {
+      getStorageHandler(window, StorageKey.BROWSER, '').clearData();
+    }
+    this.dataListChanged$.next(undefined);
+  }
+
   async getLastModifiedForType(title: string, dataType: string) {
     const db = await this.db;
     const result = await db.get('lastModified', [title, dataType]);

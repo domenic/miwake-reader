@@ -283,7 +283,7 @@ export async function reconcileCloudBooks(): Promise<void> {
     logger.debug(`reconcileCloudBooks: touched=${touched}, pruned=${pruned}`);
 
     if (touched > 0 || pruned > 0) {
-      database.dataListChanged$.next(undefined);
+      database.notifyDataListChanged();
     }
 
     markCloudSynced({ bookCount: remoteBooks.length });

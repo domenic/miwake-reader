@@ -178,7 +178,7 @@ export async function connectCloud(provider: CloudProviderType): Promise<void> {
     // the user's remote library under cloud icons.
     const created = await ensurePlaceholders(books, name);
     if (created > 0) {
-      database.dataListChanged$.next(undefined);
+      database.notifyDataListChanged();
     }
 
     const now = Date.now();
@@ -232,7 +232,7 @@ async function pruneLocalPlaceholdersBySource(sourceName: string): Promise<void>
       await db.delete('data', book.id);
     }
   }
-  database.dataListChanged$.next(undefined);
+  database.notifyDataListChanged();
 }
 
 /**
