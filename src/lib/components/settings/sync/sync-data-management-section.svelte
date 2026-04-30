@@ -4,7 +4,6 @@
   import type { BackupCatalog } from '$lib/components/backup/backup-types';
   import { confirmDialog, messageDialog } from '$lib/data/simple-dialogs';
   import { database } from '$lib/data/store';
-  import { pagePath } from '$lib/data/env';
   import { cloudConnection$, fsConnection$, isSyncing$ } from '$lib/data/sync/sync-store';
   import SyncButton from '$lib/components/settings/sync/sync-button.svelte';
   import SyncSection from '$lib/components/settings/sync/sync-section.svelte';
@@ -125,11 +124,11 @@
       db.close();
       await deleteDatabase('books');
       localStorage.clear();
-      window.location.replace(pagePath || '/');
-    } catch (err) {
+      window.location.reload();
+    } catch (err: any) {
       await messageDialog({
         title: "Couldn't fully wipe local data",
-        message: err instanceof Error ? err.message : String(err)
+        message: err.message
       });
     }
   }
