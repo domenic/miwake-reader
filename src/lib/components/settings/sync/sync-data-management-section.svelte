@@ -3,13 +3,9 @@
   import { showBackupImportDialog } from '$lib/components/backup/backup-import-dialog.svelte';
   import type { BackupCatalog } from '$lib/components/backup/backup-types';
   import { confirmDialog, messageDialog } from '$lib/data/simple-dialogs';
-  import {
-    cloudConnection$,
-    cloudHealth$,
-    fsConnection$,
-    fsHealth$,
-    isSyncing$
-  } from '$lib/data/sync/sync-store';
+  import { database } from '$lib/data/store';
+  import { pagePath } from '$lib/data/env';
+  import { cloudConnection$, fsConnection$, isSyncing$ } from '$lib/data/sync/sync-store';
   import SyncButton from '$lib/components/settings/sync/sync-button.svelte';
   import SyncSection from '$lib/components/settings/sync/sync-section.svelte';
   import { showForceResyncDialog } from '$lib/components/settings/sync/force-resync-dialog.svelte';
@@ -120,15 +116,35 @@
     });
     if (cancelled) return;
 
-    $cloudConnection$ = null;
-    $fsConnection$ = null;
-    $cloudHealth$ = { status: 'ok' };
-    $fsHealth$ = { status: 'ok' };
+    try {
+      // Close the open IndexedDB connection so deleteDatabase doesn't
+      // get stuck on `blocked`. Then nuke the DB, clear localStorage
+      // (which is where settings, themes, sync state, reader prefs and
+      // custom OAuth creds all live), and reload to a fresh boot.
+      const db = await database.db;
+      db.close();
+      await deleteDatabase('books');
+      localStorage.clear();
+      window.location.replace(pagePath || '/');
+    } catch (err) {
+      await messageDialog({
+        title: "Couldn't fully wipe local data",
+        message: err instanceof Error ? err.message : String(err)
+      });
+    }
+  }
 
-    await messageDialog({
-      title: 'Not fully wired up',
-      message:
-        'The sign-out flow only clears sync settings for now. Local data wipe will be implemented in Phase 4.'
+  function deleteDatabase(name: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const req = indexedDB.deleteDatabase(name);
+      req.onsuccess = () => resolve();
+      req.onerror = () => reject(req.error ?? new Error(`Failed to delete database ${name}`));
+      req.onblocked = () =>
+        reject(
+          new Error(
+            `Database ${name} is still open in another tab. Close other tabs of this site and try again.`
+          )
+        );
     });
   }
 
