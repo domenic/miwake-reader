@@ -33,6 +33,7 @@ import {
 } from '$lib/data/sync/sync-store';
 import { cloudSourceName, FS_SOURCE_NAME, readSubject as read } from '$lib/data/sync/sync-helpers';
 import { logger } from '$lib/data/logger';
+import { get } from 'svelte/store';
 
 // ---------------------------------------------------------------------
 // Handler factories
@@ -410,7 +411,7 @@ export function triggerSync(dataType: StorageDataType, context: ReplicationConte
     pending.set(key, { context, types: new Set([dataType]) });
   }
 
-  isSyncing$.next(true);
+  isSyncing$.set(true);
   schedulePushRun();
 }
 
@@ -452,7 +453,7 @@ async function runPendingPushes(): Promise<void> {
 
 function emitSyncingState(): void {
   const active = pushRunning || pending.size > 0 || pushTimer !== null || longRunningOps > 0;
-  if (isSyncing$.getValue() !== active) isSyncing$.next(active);
+  if (get(isSyncing$) !== active) isSyncing$.set(active);
 }
 
 async function pushOne(context: ReplicationContext, types: StorageDataType[]): Promise<void> {

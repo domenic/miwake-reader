@@ -1,4 +1,4 @@
-import { BehaviorSubject } from 'rxjs';
+import { writable } from 'svelte/store';
 import { writableObjectLocalStorageSubject } from '$lib/data/internal/writable-object-local-storage-subject';
 import { StorageKey } from '$lib/data/storage/storage-types';
 
@@ -77,18 +77,18 @@ export const fsHealth$ = writableObjectLocalStorageSubject<SyncLocationHealth>()
  * or has work pending. The engine flips this as it schedules, runs, and
  * completes debounced pushes; UI subscribes via `$isSyncing$`.
  */
-export const isSyncing$ = new BehaviorSubject<boolean>(false);
+export const isSyncing$ = writable(false);
 
 /**
  * Coarse-grained wall-clock tick for `formatRelativeTime` consumers so
  * "Synced 2 minutes ago" keeps rolling even when nothing else triggers
- * a re-render. Emits every 30 seconds — finer than the minute
+ * a re-render. Updates every 30 seconds — finer than the minute
  * granularity of the label, so drift is bounded.
  *
  * Browser-only: the `setInterval` is a no-op under SSR (module is only
  * imported client-side in our pages), but guarding keeps it honest.
  */
-export const now$ = new BehaviorSubject<number>(Date.now());
+export const now$ = writable(Date.now());
 if (typeof window !== 'undefined') {
-  setInterval(() => now$.next(Date.now()), 30_000);
+  setInterval(() => now$.set(Date.now()), 30_000);
 }
