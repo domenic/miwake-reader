@@ -350,8 +350,16 @@ export class StorageOAuthManager {
         this.remoteData.refreshToken
       )
     ) {
+      logger.debug(
+        `refreshToken: silent early-return — ` +
+          `refreshEndpoint=${!!this.refreshEndpoint}, ` +
+          `storageSourceName=${JSON.stringify(this.storageSourceName ?? null)}, ` +
+          `clientId=${!!this.remoteData?.clientId}, ` +
+          `refreshToken=${!!this.remoteData?.refreshToken}`
+      );
       return undefined;
     }
+    logger.debug(`refreshToken: posting to ${this.refreshEndpoint} for ${this.storageSourceName}`);
 
     const form = new FormData();
     form.append('client_id', this.remoteData.clientId);
