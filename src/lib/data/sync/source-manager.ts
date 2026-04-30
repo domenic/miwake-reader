@@ -119,7 +119,6 @@ export async function connectCloud(provider: CloudProviderType): Promise<void> {
     throw new Error('Unable to open the sign-in window. Check your popup blocker settings.');
   }
 
-  let didSucceed = false;
   try {
     const customCreds =
       read<Partial<Record<CloudProviderType, CustomOAuthCredentials>>>(cloudCustomCredentials$)[
@@ -193,9 +192,13 @@ export async function connectCloud(provider: CloudProviderType): Promise<void> {
       bookCount: books.length
     });
     cloudHealth$.next({ status: 'ok' });
-    didSucceed = true;
   } finally {
-    if (!didSucceed && !authWindow.closed) {
+    // Close the popup unconditionally. The auth-route page closes
+    // itself after sendMessage(), but if getToken short-circuits on
+    // an in-memory cached token (e.g., reconnect within the same
+    // session), the popup never navigates and is left idling at
+    // ?miwake-init-wait=1.
+    if (!authWindow.closed) {
       authWindow.close();
     }
   }
