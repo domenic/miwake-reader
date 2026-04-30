@@ -1,24 +1,58 @@
 <script lang="ts">
   import { showBackupExportDialog } from '$lib/components/backup/backup-export-dialog.svelte';
   import { showBackupImportDialog } from '$lib/components/backup/backup-import-dialog.svelte';
-  import type { BackupCatalog } from '$lib/components/backup/backup-types';
+  import type { BackupBook, BackupCatalog } from '$lib/components/backup/backup-types';
   import { confirmDialog, messageDialog } from '$lib/data/simple-dialogs';
-  import { database } from '$lib/data/store';
+  import {
+    cacheStorageData$,
+    database,
+    readingGoalsMergeMode$,
+    statisticsMergeMode$
+  } from '$lib/data/store';
   import { pagePath } from '$lib/data/env';
   import { cloudConnection$, fsConnection$, isSyncing$ } from '$lib/data/sync/sync-store';
   import SyncButton from '$lib/components/settings/sync/sync-button.svelte';
   import SyncSection from '$lib/components/settings/sync/sync-section.svelte';
   import { showForceResyncDialog } from '$lib/components/settings/sync/force-resync-dialog.svelte';
   import { forceFullResync } from '$lib/data/sync/sync-engine';
+  import { getStorageHandler } from '$lib/data/storage/storage-handler-factory';
+  import { BaseStorageHandler } from '$lib/data/storage/handler/base-handler';
+  import { BackupStorageHandler } from '$lib/data/storage/handler/backup-handler';
+  import { StorageDataType, StorageKey } from '$lib/data/storage/storage-types';
+  import { ReplicationSaveBehavior } from '$lib/functions/replication/replication-options';
+  import { replicateData } from '$lib/functions/replication/replicator';
+  import { BlobReader, ZipReader } from '@zip.js/zip.js';
 
   let hasAnySyncLocation = $derived($cloudConnection$ !== null || $fsConnection$ !== null);
 
   async function buildCurrentCatalog(): Promise<BackupCatalog> {
-    // Phase 1 stub. Phase 6 will query IndexedDB for real books / bookmarks / stats.
+    const db = await database.db;
+    const [allBooks, allBookmarks, allStats, allGoals] = await Promise.all([
+      db.getAll('data'),
+      db.getAll('bookmark'),
+      db.getAll('statistic'),
+      db.getAll('readingGoal')
+    ]);
+
+    const bookmarkIds = new Set(allBookmarks.map((b) => b.dataId));
+    const statTitles = new Set(allStats.map((s) => s.title));
+
+    // Skip placeholders — no content to export — same reason /b refuses to
+    // open them without a sync location.
+    const books: BackupBook[] = allBooks
+      .filter((b) => !!b.elementHtml)
+      .map((b) => ({
+        id: b.id,
+        title: b.title,
+        hasBookmark: bookmarkIds.has(b.id),
+        hasStatistics: statTitles.has(b.title)
+      }))
+      .sort((a, b) => a.title.localeCompare(b.title));
+
     return {
-      hasAppSettings: true,
-      hasReadingGoals: true,
-      books: []
+      hasAppSettings: localStorage.length > 0,
+      hasReadingGoals: allGoals.length > 0,
+      books
     };
   }
 
@@ -26,12 +60,73 @@
     const catalog = await buildCurrentCatalog();
     await showBackupExportDialog({
       catalog,
-      onExport: async () => {
-        await messageDialog({
-          title: 'Export backup',
-          message:
-            'Backup export is not wired up yet (coming in Phase 6). Your selection has been captured but no ZIP will be generated.'
-        });
+      onExport: async (selection) => {
+        const backupHandler = getStorageHandler(
+          window,
+          StorageKey.BACKUP,
+          '',
+          false,
+          $cacheStorageData$,
+          ReplicationSaveBehavior.NewOnly,
+          $statisticsMergeMode$,
+          $readingGoalsMergeMode$
+        );
+        backupHandler.clearData();
+
+        const browserHandler = getStorageHandler(
+          window,
+          StorageKey.BROWSER,
+          '',
+          false,
+          $cacheStorageData$,
+          ReplicationSaveBehavior.NewOnly,
+          $statisticsMergeMode$,
+          $readingGoalsMergeMode$
+        );
+
+        const db = await database.db;
+        const allBooks = await db.getAll('data');
+        const booksById = new Map(allBooks.map((b) => [b.id, b]));
+
+        for (const [bookId, choices] of selection.perBook) {
+          const book = booksById.get(bookId);
+          if (!book) continue;
+          const types: StorageDataType[] = [StorageDataType.DATA];
+          if (choices.bookmarks) types.push(StorageDataType.PROGRESS);
+          if (choices.statistics) types.push(StorageDataType.STATISTICS);
+          const error = await replicateData(
+            browserHandler,
+            backupHandler,
+            false,
+            [{ id: book.id, title: book.title, imagePath: book.coverImage ?? '' }],
+            types
+          );
+          if (error) throw new Error(error);
+        }
+
+        if (selection.readingGoals) {
+          const error = await replicateData(
+            browserHandler,
+            backupHandler,
+            false,
+            [],
+            [StorageDataType.READING_GOALS]
+          );
+          if (error) throw new Error(error);
+        }
+
+        if (selection.appSettings) {
+          const snapshot: Record<string, string> = {};
+          for (let i = 0; i < localStorage.length; i += 1) {
+            const key = localStorage.key(i);
+            if (key === null) continue;
+            const value = localStorage.getItem(key);
+            if (value !== null) snapshot[key] = value;
+          }
+          await backupHandler.saveAppSettings(JSON.stringify(snapshot));
+        }
+
+        await backupHandler.createExportZip(document, false);
       }
     });
   }
@@ -47,9 +142,56 @@
     });
   }
 
-  async function parseZipCatalog(_file: File): Promise<BackupCatalog> {
-    // Phase 1 stub. Phase 6 will actually open the ZIP and read its manifest.
-    throw new Error('Backup import is not wired up yet (coming in Phase 6). Nothing was imported.');
+  /**
+   * Walk the ZIP entries to derive a catalog. Doesn't reuse the
+   * BackupStorageHandler because the handler's setBackupZip mutates
+   * its singleton state, and we want the inspection step to be free
+   * of side effects. The actual import re-opens the same blob via
+   * setBackupZip when the user confirms.
+   *
+   * Tolerates ZIPs from older miwake / tsutsu builds: missing
+   * app-settings.json or reading goals just turn off those checkboxes.
+   */
+  async function parseZipCatalog(file: File): Promise<BackupCatalog> {
+    const reader = new ZipReader(new BlobReader(file));
+    try {
+      const entries = await reader.getEntries();
+      const books = new Map<string, BackupBook>();
+      let hasReadingGoals = false;
+      let hasAppSettings = false;
+      let nextId = 1;
+
+      for (const entry of entries) {
+        const parts = entry.filename.split('/');
+        if (parts.length === 1) {
+          if (entry.filename.startsWith(BaseStorageHandler.readingGoalsFilePrefix)) {
+            hasReadingGoals = true;
+          } else if (entry.filename === BackupStorageHandler.appSettingsFilename) {
+            hasAppSettings = true;
+          }
+          continue;
+        }
+
+        const title = BaseStorageHandler.desanitizeFilename(parts[0]);
+        const inner = parts.slice(1).join('/');
+        let book = books.get(title);
+        if (!book) {
+          book = { id: nextId, title, hasBookmark: false, hasStatistics: false };
+          nextId += 1;
+          books.set(title, book);
+        }
+        if (inner.startsWith('progress_')) book.hasBookmark = true;
+        if (inner.startsWith('statistics_')) book.hasStatistics = true;
+      }
+
+      return {
+        hasAppSettings,
+        hasReadingGoals,
+        books: [...books.values()].sort((a, b) => a.title.localeCompare(b.title))
+      };
+    } finally {
+      await reader.close();
+    }
   }
 
   async function onImport() {
@@ -59,10 +201,10 @@
     let catalog: BackupCatalog;
     try {
       catalog = await parseZipCatalog(file);
-    } catch (err) {
+    } catch (err: any) {
       await messageDialog({
         title: "Couldn't read this backup",
-        message: err instanceof Error ? err.message : String(err)
+        message: err.message
       });
       return;
     }
@@ -70,13 +212,110 @@
     await showBackupImportDialog({
       fileName: file.name,
       catalog,
-      onImport: async (_selection, _direction) => ({
-        books: 0,
-        bookmarks: 0,
-        statistics: 0,
-        readingGoals: false,
-        appSettings: false
-      })
+      onImport: async (selection, direction) => {
+        // ZIP-wins: source's getFilenameForRecentCheck returns undefined
+        // when saveBehavior=Overwrite, so the replicator's per-type
+        // up-to-date check always falls through and the ZIP version is
+        // written every time. Keep-newest leaves NewOnly in place so
+        // each item's timestamp wins.
+        const sourceBehavior =
+          direction === 'zip-wins'
+            ? ReplicationSaveBehavior.Overwrite
+            : ReplicationSaveBehavior.NewOnly;
+
+        const backupHandler = getStorageHandler(
+          window,
+          StorageKey.BACKUP,
+          '',
+          true,
+          $cacheStorageData$,
+          sourceBehavior,
+          $statisticsMergeMode$,
+          $readingGoalsMergeMode$
+        );
+        const browserHandler = getStorageHandler(
+          window,
+          StorageKey.BROWSER,
+          '',
+          true,
+          $cacheStorageData$,
+          ReplicationSaveBehavior.NewOnly,
+          $statisticsMergeMode$,
+          $readingGoalsMergeMode$
+        );
+
+        const allContexts = await backupHandler.setBackupZip(file);
+        const contextsByTitle = new Map(allContexts.map((c) => [c.title, c]));
+
+        let booksImported = 0;
+        let bookmarksImported = 0;
+        let statisticsImported = 0;
+
+        for (const [bookId, choices] of selection.perBook) {
+          const book = catalog.books.find((b) => b.id === bookId);
+          const ctx = book ? contextsByTitle.get(book.title) : undefined;
+          if (!ctx) continue;
+          const types: StorageDataType[] = [StorageDataType.DATA];
+          if (choices.bookmarks) types.push(StorageDataType.PROGRESS);
+          if (choices.statistics) types.push(StorageDataType.STATISTICS);
+
+          const error = await replicateData(backupHandler, browserHandler, true, [ctx], types);
+          if (error) throw new Error(error);
+
+          booksImported += 1;
+          if (choices.bookmarks) bookmarksImported += 1;
+          if (choices.statistics) statisticsImported += 1;
+        }
+
+        let readingGoalsImported = false;
+        if (selection.readingGoals && catalog.hasReadingGoals) {
+          const error = await replicateData(
+            backupHandler,
+            browserHandler,
+            false,
+            [],
+            [StorageDataType.READING_GOALS]
+          );
+          if (error) throw new Error(error);
+          readingGoalsImported = true;
+        }
+
+        let appSettingsImported = false;
+        if (selection.appSettings && catalog.hasAppSettings) {
+          const snapshot = await backupHandler.getAppSettings();
+          if (snapshot) {
+            // ZIP-wins for app settings = wipe, then restore. Keep-newest
+            // = additive merge (only set keys we don't already have).
+            // localStorage-backed BehaviorSubjects don't react to
+            // out-of-band writes, so we'll have to reload either way.
+            if (direction === 'zip-wins') localStorage.clear();
+            for (const [k, v] of Object.entries(snapshot)) {
+              if (direction === 'newest' && localStorage.getItem(k) !== null) continue;
+              localStorage.setItem(k, v);
+            }
+            appSettingsImported = true;
+          }
+        }
+
+        backupHandler.clearData();
+
+        // localStorage-backed stores don't observe storage events, so we
+        // need a hard reload for app-settings to take effect. Even
+        // without app settings, a reload guarantees the library and
+        // tracker re-read fresh state — cheaper than tracking down
+        // every component that should refresh.
+        if (booksImported > 0 || readingGoalsImported || appSettingsImported) {
+          setTimeout(() => window.location.replace(pagePath || '/'), 0);
+        }
+
+        return {
+          books: booksImported,
+          bookmarks: bookmarksImported,
+          statistics: statisticsImported,
+          readingGoals: readingGoalsImported,
+          appSettings: appSettingsImported
+        };
+      }
     });
   }
 

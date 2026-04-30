@@ -12,6 +12,13 @@ import type { ReplicationContext } from '$lib/functions/replication/replication-
 import { BlobReader, BlobWriter, ZipReader, type Entry, type ZipWriter } from '@zip.js/zip.js';
 
 export class BackupStorageHandler extends BaseStorageHandler {
+  static readonly appSettingsFilename = 'app-settings.json';
+
+  protected validRootFiles = [
+    BaseStorageHandler.readingGoalsFilePrefix,
+    BackupStorageHandler.appSettingsFilename
+  ];
+
   private exportZipWriter: ZipWriter<Blob> | undefined;
 
   private importReader: ZipReader<Blob> | undefined;
@@ -283,6 +290,23 @@ export class BackupStorageHandler extends BaseStorageHandler {
       JSON.stringify(data),
       this.exportZipWriter
     );
+  }
+
+  async saveAppSettings(json: string) {
+    this.exportZipWriter = await this.addDataToZip(
+      BackupStorageHandler.appSettingsFilename,
+      json,
+      this.exportZipWriter
+    );
+  }
+
+  async getAppSettings(): Promise<Record<string, string> | undefined> {
+    const rootFile = this.rootFiles.get(BackupStorageHandler.appSettingsFilename);
+    const zipEntry = rootFile
+      ? this.importEntries.find((e) => e.filename === rootFile.name)
+      : undefined;
+    if (!zipEntry) return undefined;
+    return this.extractAsJSON(zipEntry, 'Unable to read app settings');
   }
 
   async createExportZip(document: Document, resetOnly: boolean) {

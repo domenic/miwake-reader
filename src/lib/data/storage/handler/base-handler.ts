@@ -618,7 +618,7 @@ export abstract class BaseStorageHandler {
     return Math.floor(Date.now() * Math.random());
   }
 
-  protected static sanitizeForFilename(title: string) {
+  static sanitizeForFilename(title: string) {
     return title
       .replace(/[ ]$/, '~ttu-spc~')
       .replace(/[.]$/, '~ttu-dend~')
@@ -626,7 +626,7 @@ export abstract class BaseStorageHandler {
       .replace(/[/?<>\\:*|%"]/g, (match) => encodeURIComponent(match));
   }
 
-  protected static desanitizeFilename(title: string) {
+  static desanitizeFilename(title: string) {
     return decodeURIComponent(title)
       .replaceAll('~ttu-star~', '*')
       .replaceAll('~ttu-dend~', '.')
