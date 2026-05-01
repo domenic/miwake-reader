@@ -352,12 +352,20 @@ export async function replicateData(
 }
 
 async function persistStorage(target: StorageKey) {
-  if (target === StorageKey.BROWSER && requestPersistentStorage$.getValue()) {
-    try {
-      await storage.persist();
-    } catch (_) {
-      // no-op
-    }
+  if (target !== StorageKey.BROWSER) return;
+  const requested = requestPersistentStorage$.getValue();
+
+  console.warn(
+    `[persistent-storage] persistStorage(${target}): requested=${requested}, ` +
+      `currently=${await storage.persisted().catch(() => '<error>')}`
+  );
+  if (!requested) return;
+  try {
+    const granted = await storage.persist();
+
+    console.warn(`[persistent-storage] persistStorage: persist() returned ${granted}`);
+  } catch (err) {
+    console.warn(`[persistent-storage] persistStorage: persist() threw`, err);
   }
 }
 

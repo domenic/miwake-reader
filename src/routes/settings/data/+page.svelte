@@ -13,6 +13,7 @@
     storageSources$
   } from '$lib/components/settings/settings-storage-sources';
   import { ImportHTMLFixMode } from '$lib/data/import-html-fix-mode';
+  import { logger } from '$lib/data/logger';
   import { importHTMLFixMode$, restrictImportFixToAnchor$ } from '$lib/data/store';
   import { storage } from '$lib/data/window/navigator/storage';
   import { formatPageTitle } from '$lib/functions/format-page-title';
@@ -24,7 +25,10 @@
   let storageQuota = $state('');
 
   onMount(() => {
-    storage.persisted().then(setPersistentStorage);
+    storage.persisted().then((p) => {
+      logger.warn(`[persistent-storage] onMount: navigator.storage.persisted() = ${p}`);
+      setPersistentStorage(p);
+    });
     setStorageQuota();
     ensureStorageSources();
   });
@@ -32,12 +36,24 @@
   const setPersistentStorage$ = persistentStorage$.pipe(
     tap((value) => {
       if (!persistentStorageReactive) return;
+      logger.warn(`[persistent-storage] toggle clicked: requesting value=${value}`);
       if (!value) {
+        // The browser doesn't expose an API to *un*-persist; rolling
+        // the toggle back to true preserves the user's existing grant.
+        logger.warn('[persistent-storage] toggle off ignored: browser has no un-persist API');
         setPersistentStorage(true);
         return;
       }
 
-      storage.persist().then(setPersistentStorage).finally(setStorageQuota);
+      storage
+        .persist()
+        .then((granted) => {
+          logger.warn(
+            `[persistent-storage] navigator.storage.persist() resolved with granted=${granted}`
+          );
+          setPersistentStorage(granted);
+        })
+        .finally(setStorageQuota);
     }),
     reduceToEmptyString()
   );
