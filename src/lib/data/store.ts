@@ -185,11 +185,6 @@ export const autoBookmarkTime$ = writableNumberLocalStorageSubject()('autoBookma
 
 export const pageColumns$ = writableNumberLocalStorageSubject()('pageColumns', 0);
 
-export const requestPersistentStorage$ = writableBooleanLocalStorageSubject()(
-  'requestPersistentStorage',
-  true
-);
-
 export const importHTMLFixMode$ = writableStringLocalStorageSubject<ImportHTMLFixMode>()(
   'importHTMLFixMode',
   ImportHTMLFixMode.OFF

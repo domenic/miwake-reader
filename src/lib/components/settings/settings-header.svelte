@@ -1,11 +1,6 @@
 <script lang="ts">
   import type { RouteId } from '$app/types';
-  import {
-    faBookOpenReader,
-    faClock,
-    faCloudArrowUp,
-    faDatabase
-  } from '@fortawesome/free-solid-svg-icons';
+  import { faBookOpenReader, faClock, faCloudArrowUp } from '@fortawesome/free-solid-svg-icons';
   import HeaderButton from '$lib/components/header-button.svelte';
   import HeaderNavTabs from '$lib/components/header-nav-tabs.svelte';
   import type { SettingsRoute } from '$lib/components/settings/settings-route';
@@ -34,11 +29,6 @@
       label: 'Sync',
       href: '/settings/sync',
       icon: faCloudArrowUp
-    },
-    {
-      label: 'Data',
-      href: '/settings/data',
-      icon: faDatabase
     },
     {
       label: 'Statistics',

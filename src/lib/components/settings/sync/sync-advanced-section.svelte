@@ -1,13 +1,18 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import { MergeMode } from '$lib/data/merge-mode';
   import { AutoReplicationType } from '$lib/functions/replication/replication-options';
   import {
     autoReplication$,
     cacheStorageData$,
+    importHTMLFixMode$,
     readingGoalsMergeMode$,
+    restrictImportFixToAnchor$,
     statisticsMergeMode$
   } from '$lib/data/store';
+  import { ImportHTMLFixMode } from '$lib/data/import-html-fix-mode';
   import { cloudConnection$, fsConnection$ } from '$lib/data/sync/sync-store';
+  import { storage } from '$lib/data/window/navigator/storage';
   import Fa from 'svelte-fa';
   import { faChevronRight } from '@fortawesome/free-solid-svg-icons';
   import SyncRadioGroup from '$lib/components/settings/sync/sync-radio-group.svelte';
@@ -16,6 +21,41 @@
   let locations = $derived(describeSyncLocations($cloudConnection$, $fsConnection$));
   let hasLocation = $derived(locations.length > 0);
   let locationsOrFallback = $derived(hasLocation ? locations : 'your sync locations');
+
+  let storagePersisted = $state<boolean | null>(null);
+  let storageQuota = $state<string | null>(null);
+
+  onMount(() => {
+    storage.persisted().then((p) => {
+      storagePersisted = p;
+    });
+    storage.estimate().then((est) => {
+      if (est.usage !== undefined && est.quota !== undefined && est.quota > 0) {
+        storageQuota = `${Math.round(((est.usage / est.quota) * 100 + Number.EPSILON) * 100) / 100}% used`;
+      }
+    });
+  });
+
+  let importHTMLFixOptions = [
+    {
+      id: ImportHTMLFixMode.OFF,
+      label: 'Off',
+      description: 'Imports EPUB files as-is.',
+      isDefault: true
+    },
+    {
+      id: ImportHTMLFixMode.STANDARD,
+      label: 'Standard',
+      description:
+        'Fixes common malformed-HTML issues during EPUB import (e.g. wrong self-closing elements). Try this if a book looks broken in the reader.'
+    },
+    {
+      id: ImportHTMLFixMode.EXTENDED,
+      label: 'Extended',
+      description:
+        'Standard fixes plus more aggressive cleanups (control characters, HTML entities). Use only if Standard didn’t fix it.'
+    }
+  ];
 
   let directionOptions = $derived([
     {
@@ -123,6 +163,46 @@
       </div>
     </label>
   </div>
+
+  <div class="mt-5">
+    <div class="mb-1 text-base font-medium">Local storage</div>
+    <div class="rounded p-2 text-sm text-gray-700">
+      {#if storagePersisted === null}
+        Checking…
+      {:else if storagePersisted}
+        Persistent. Your browser has marked this site's local data as durable — it won't be evicted
+        under disk pressure.
+      {:else}
+        Temporary. Your browser may evict this site's local data if it runs low on disk. The reader
+        re-asks for persistence on every sync; browsers grant it once you've used the site enough,
+        bookmarked it, or installed it as a PWA.
+      {/if}
+      {#if storageQuota}
+        <span class="text-gray-500"> · {storageQuota}</span>
+      {/if}
+    </div>
+  </div>
+
+  <SyncRadioGroup
+    heading="EPUB import fixes"
+    name="sync-import-html-fix"
+    options={importHTMLFixOptions}
+    selected={$importHTMLFixMode$}
+    onchange={(value) => ($importHTMLFixMode$ = value)}
+  />
+
+  {#if $importHTMLFixMode$ !== ImportHTMLFixMode.OFF}
+    <label class="ml-2 flex items-start gap-3 rounded p-2 hover:bg-gray-400/15">
+      <input type="checkbox" class="mt-1" bind:checked={$restrictImportFixToAnchor$} />
+      <div>
+        <div class="font-medium">Restrict self-closing-tag fixes to links</div>
+        <div class="text-sm text-gray-600">
+          When on, the self-closing-element fix only touches anchor tags, leaving other elements as
+          the EPUB had them. Useful if Standard / Extended is over-correcting.
+        </div>
+      </div>
+    </label>
+  {/if}
 </details>
 
 <style>

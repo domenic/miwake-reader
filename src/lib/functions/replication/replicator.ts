@@ -2,7 +2,7 @@ import { BackupStorageHandler } from '$lib/data/storage/handler/backup-handler';
 import { BaseStorageHandler } from '$lib/data/storage/handler/base-handler';
 import { storage } from '$lib/data/window/navigator/storage';
 import { StorageDataType, StorageKey } from '$lib/data/storage/storage-types';
-import { database, requestPersistentStorage$ } from '$lib/data/store';
+import { database } from '$lib/data/store';
 import loadEpub from '$lib/functions/file-loaders/epub/load-epub';
 import loadHtmlz from '$lib/functions/file-loaders/htmlz/load-htmlz';
 import loadTxt from '$lib/functions/file-loaders/txt/load-txt';
@@ -353,20 +353,10 @@ export async function replicateData(
 
 async function persistStorage(target: StorageKey) {
   if (target !== StorageKey.BROWSER) return;
-  const requested = requestPersistentStorage$.getValue();
-
-  console.warn(
-    `[persistent-storage] persistStorage(${target}): requested=${requested}, ` +
-      `currently=${await storage.persisted().catch(() => '<error>')}`
-  );
-  if (!requested) return;
-  try {
-    const granted = await storage.persist();
-
-    console.warn(`[persistent-storage] persistStorage: persist() returned ${granted}`);
-  } catch (err) {
-    console.warn(`[persistent-storage] persistStorage: persist() threw`, err);
-  }
+  // Best-effort. Browsers either grant on this call (and remember it
+  // forever) or deny silently per their own engagement heuristics —
+  // either way there's nothing useful for us to do beyond ask.
+  await storage.persist().catch(() => {});
 }
 
 function checkCancelAndProgress(
