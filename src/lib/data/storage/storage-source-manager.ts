@@ -1,8 +1,4 @@
-import {
-  StorageKey,
-  StorageSourceDefault,
-  internalStorageSourceName
-} from '$lib/data/storage/storage-types';
+import { StorageKey, StorageSourceDefault } from '$lib/data/storage/storage-types';
 
 import type { BooksDbStorageSource } from '$lib/data/database/books-db/versions/books-db';
 import StorageUnlock from '$lib/components/storage-unlock.svelte';
@@ -36,9 +32,7 @@ export type StorageUnlockAction = RemoteContext;
 
 export function isAppDefault(name: string) {
   return (
-    name === StorageSourceDefault.GDRIVE_DEFAULT ||
-    name === StorageSourceDefault.ONEDRIVE_DEFAULT ||
-    internalStorageSourceName.has(name)
+    name === StorageSourceDefault.GDRIVE_DEFAULT || name === StorageSourceDefault.ONEDRIVE_DEFAULT
   );
 }
 

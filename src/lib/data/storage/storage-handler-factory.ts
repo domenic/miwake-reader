@@ -1,4 +1,4 @@
-import { InternalStorageSources, StorageKey } from '$lib/data/storage/storage-types';
+import { StorageKey } from '$lib/data/storage/storage-types';
 
 import { BackupStorageHandler } from '$lib/data/storage/handler/backup-handler';
 import type { BaseStorageHandler } from '$lib/data/storage/handler/base-handler';
@@ -84,7 +84,7 @@ export function getStorageHandler(
 export function getStorageHandler(
   window: Window,
   storageType: StorageKey,
-  storageSourceName = InternalStorageSources.INTERNAL_DEFAULT as string,
+  storageSourceName = '',
   isForBrowser = false,
   cacheStorageData = false,
   saveBehavior = ReplicationSaveBehavior.NewOnly,
