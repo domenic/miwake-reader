@@ -4,7 +4,7 @@ import type {
   BooksDbReadingGoal,
   BooksDbStatistic
 } from '$lib/data/database/books-db/versions/books-db';
-import { database, fsStorageSource$ } from '$lib/data/store';
+import { database } from '$lib/data/store';
 import { mergeReadingGoals, readingGoalSortFunction } from '$lib/data/reading-goal';
 import { mergeStatistics, updateStatisticToStore } from '$lib/functions/statistic-util';
 
@@ -52,13 +52,11 @@ export class FilesystemStorageHandler extends BaseStorageHandler {
     this.cacheStorageData = cacheStorageData;
     this.askForStorageUnlock = askForStorageUnlock;
 
-    const newStorageSource = storageSourceName || fsStorageSource$.getValue();
-
-    if (newStorageSource !== this.storageSourceName) {
+    if (storageSourceName !== this.storageSourceName) {
       this.clearData();
     }
 
-    this.storageSourceName = newStorageSource;
+    this.storageSourceName = storageSourceName;
   }
 
   async getBookList() {

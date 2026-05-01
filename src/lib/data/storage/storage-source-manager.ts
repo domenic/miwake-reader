@@ -3,13 +3,11 @@ import {
   StorageSourceDefault,
   internalStorageSourceName
 } from '$lib/data/storage/storage-types';
-import { fsStorageSource$, gDriveStorageSource$, oneDriveStorageSource$ } from '$lib/data/store';
 
 import type { BooksDbStorageSource } from '$lib/data/database/books-db/versions/books-db';
 import StorageUnlock from '$lib/components/storage-unlock.svelte';
 import { dialogManager } from '$lib/data/dialog-manager';
 import { logger } from '$lib/data/logger';
-import { storageSource$ } from '$lib/data/storage/storage-view';
 
 const saltByteLength = 16;
 const ivByteLength = 12;
@@ -61,26 +59,6 @@ export function isAppDefault(name: string) {
     name === StorageSourceDefault.ONEDRIVE_DEFAULT ||
     internalStorageSourceName.has(name)
   );
-}
-
-export function setStorageSourceDefault(name: string, type: StorageKey) {
-  switch (type) {
-    case StorageKey.GDRIVE:
-      gDriveStorageSource$.next(name || StorageSourceDefault.GDRIVE_DEFAULT);
-      break;
-    case StorageKey.ONEDRIVE:
-      oneDriveStorageSource$.next(name || StorageSourceDefault.ONEDRIVE_DEFAULT);
-      break;
-    case StorageKey.FS:
-      fsStorageSource$.next(name);
-      break;
-    default:
-      break;
-  }
-
-  if (!name && type === StorageKey.FS) {
-    storageSource$.next(StorageKey.BROWSER);
-  }
 }
 
 export async function encrypt(window: Window, payload: string, secret: string) {

@@ -4,13 +4,7 @@ import { getStorageHandler } from '$lib/data/storage/storage-handler-factory';
 import type { FsHandle, RemoteContext } from '$lib/data/storage/storage-source-manager';
 import { StorageOAuthManager } from '$lib/data/storage/storage-oauth-manager';
 import { StorageKey } from '$lib/data/storage/storage-types';
-import {
-  database,
-  fsStorageSource$,
-  gDriveStorageSource$,
-  oneDriveStorageSource$,
-  syncTarget$
-} from '$lib/data/store';
+import { database } from '$lib/data/store';
 import {
   cloudConnection$,
   cloudCustomCredentials$,
@@ -51,13 +45,8 @@ export async function connectFs(): Promise<void> {
     lastSourceModified: Date.now()
   };
 
-  const priorName = read<string>(fsStorageSource$);
-  await database.saveStorageSource(
-    record,
-    priorName === FS_SOURCE_NAME ? priorName : '',
-    false,
-    true
-  );
+  const existing = await (await database.db).get('storageSource', FS_SOURCE_NAME);
+  await database.saveStorageSource(record, existing ? FS_SOURCE_NAME : '');
 
   fsConnection$.next({
     path: fsPath,
@@ -65,23 +54,13 @@ export async function connectFs(): Promise<void> {
     lastSyncedAt: null
   });
   fsHealth$.next({ status: 'ok' });
-
-  // If nothing else is set as the sync target, prefer FS so the existing
-  // replication engine has something to push to.
-  if (!read<string>(syncTarget$) && !read<object | null>(cloudConnection$)) {
-    syncTarget$.next(FS_SOURCE_NAME);
-  }
 }
 
 export async function disconnectFs(): Promise<void> {
   const db = await database.db;
   const existing = await db.get('storageSource', FS_SOURCE_NAME);
   if (existing) {
-    await database.deleteStorageSource(
-      existing,
-      read<string>(syncTarget$) === FS_SOURCE_NAME,
-      read<string>(fsStorageSource$) === FS_SOURCE_NAME
-    );
+    await database.deleteStorageSource(existing);
     await pruneLocalPlaceholdersBySource(FS_SOURCE_NAME);
   }
   fsConnection$.next(null);
@@ -148,10 +127,8 @@ export async function connectCloud(provider: CloudProviderType): Promise<void> {
       lastSourceModified: Date.now()
     };
 
-    const slotStore =
-      provider === StorageKey.GDRIVE ? gDriveStorageSource$ : oneDriveStorageSource$;
-    const priorName = read<string>(slotStore);
-    await database.saveStorageSource(record, priorName === name ? priorName : '', true, true);
+    const existing = await (await database.db).get('storageSource', name);
+    await database.saveStorageSource(record, existing ? name : '');
 
     const handler =
       provider === StorageKey.GDRIVE
@@ -163,9 +140,9 @@ export async function connectCloud(provider: CloudProviderType): Promise<void> {
     } catch (err) {
       // OAuth failed — roll back the DB record.
       const db = await database.db;
-      const existing = await db.get('storageSource', name);
-      if (existing) {
-        await database.deleteStorageSource(existing, true, true);
+      const stored = await db.get('storageSource', name);
+      if (stored) {
+        await database.deleteStorageSource(stored);
       }
       throw err;
     }
@@ -211,13 +188,7 @@ export async function disconnectCloud(): Promise<void> {
     const db = await database.db;
     const existing = await db.get('storageSource', name);
     if (existing) {
-      const slotStore =
-        current.provider === StorageKey.GDRIVE ? gDriveStorageSource$ : oneDriveStorageSource$;
-      await database.deleteStorageSource(
-        existing,
-        read<string>(syncTarget$) === name,
-        read<string>(slotStore) === name
-      );
+      await database.deleteStorageSource(existing);
     }
     // Delete any placeholder rows that pointed at this source — their
     // content is no longer reachable.
@@ -292,25 +263,5 @@ export async function loadConnectionsFromDb(): Promise<void> {
     });
   } else {
     fsConnection$.next(null);
-  }
-
-  // Keep the legacy sync-target / per-type-default stores in lockstep
-  // with what the new UI considers connected. In the new model there's
-  // no separate "sync target" concept — connected = syncs. Cloud wins
-  // over FS as the primary when both are present.
-  if (cloudRecord) {
-    syncTarget$.next(cloudRecord.name);
-    if (cloudRecord.type === StorageKey.GDRIVE) {
-      gDriveStorageSource$.next(cloudRecord.name);
-    } else {
-      oneDriveStorageSource$.next(cloudRecord.name);
-    }
-  } else if (fsRecord) {
-    syncTarget$.next(fsRecord.name);
-  } else {
-    syncTarget$.next('');
-  }
-  if (fsRecord) {
-    fsStorageSource$.next(fsRecord.name);
   }
 }

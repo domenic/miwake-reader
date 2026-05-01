@@ -3,7 +3,7 @@ import { gDriveRefreshEndpoint } from '$lib/data/env';
 import { ApiStorageHandler } from '$lib/data/storage/handler/api-handler';
 import { BaseStorageHandler, type ExternalFile } from '$lib/data/storage/handler/base-handler';
 import { StorageKey } from '$lib/data/storage/storage-types';
-import { database, gDriveStorageSource$ } from '$lib/data/store';
+import { database } from '$lib/data/store';
 import pLimit from 'p-limit';
 
 interface GDriveFile extends ExternalFile {
@@ -21,13 +21,10 @@ export class GDriveStorageHandler extends ApiStorageHandler {
   }
 
   setInternalSettings(storageSourceName: string) {
-    const newStorageSource = storageSourceName || gDriveStorageSource$.getValue();
-
-    if (newStorageSource !== this.storageSourceName) {
+    if (storageSourceName !== this.storageSourceName) {
       this.clearData();
     }
-
-    this.storageSourceName = newStorageSource;
+    this.storageSourceName = storageSourceName;
   }
 
   async getBookList() {

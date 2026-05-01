@@ -27,7 +27,7 @@ import {
   StatisticsTabAvailableKeybind,
   type StatisticsTabKeybindMap
 } from '$lib/data/statistics-tab-keybind';
-import { StorageKey, StorageSourceDefault } from '$lib/data/storage/storage-types';
+import { StorageKey } from '$lib/data/storage/storage-types';
 import {
   AutoReplicationType,
   ReplicationSaveBehavior
@@ -202,29 +202,6 @@ export const replicationSaveBehavior$ =
     'replicationSaveBehavior',
     ReplicationSaveBehavior.NewOnly
   );
-
-// Legacy lockstep stores: source-manager.ts mirrors the new
-// cloudConnection$/fsConnection$ records into these on every boot.
-// Runtime state, not user config — excluded from app-settings backups.
-export const gDriveStorageSource$ = writableStringLocalStorageSubject()(
-  'gDriveStorageSource',
-  StorageSourceDefault.GDRIVE_DEFAULT,
-  'runtime'
-);
-
-export const oneDriveStorageSource$ = writableStringLocalStorageSubject()(
-  'oneDriveStorageSource',
-  StorageSourceDefault.ONEDRIVE_DEFAULT,
-  'runtime'
-);
-
-export const fsStorageSource$ = writableStringLocalStorageSubject()(
-  'fsStorageSource',
-  '',
-  'runtime'
-);
-
-export const syncTarget$ = writableStringLocalStorageSubject()('syncTarget', '', 'runtime');
 
 export const keepLocalStatisticsOnDeletion$ = writableBooleanLocalStorageSubject()(
   'keepLocalStatisticsOnDeletion',

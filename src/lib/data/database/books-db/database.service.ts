@@ -20,7 +20,7 @@ import {
   mergeReadingGoals,
   readingGoalSortFunction
 } from '$lib/data/reading-goal';
-import { lastReadingGoalsModified$, readingGoal$, syncTarget$ } from '$lib/data/store';
+import { lastReadingGoalsModified$, readingGoal$ } from '$lib/data/store';
 
 import type { BaseStorageHandler } from '$lib/data/storage/handler/base-handler';
 import type { BookStatistic } from '$lib/components/statistics/statistics-types';
@@ -37,7 +37,6 @@ import { iffBrowser } from '$lib/functions/rxjs/iff-browser';
 import { logger } from '$lib/data/logger';
 import pLimit from 'p-limit';
 import { replicationProgress$ } from '$lib/functions/replication/replication-progress';
-import { setStorageSourceDefault } from '$lib/data/storage/storage-source-manager';
 import { storageSource$ } from '$lib/data/storage/storage-view';
 import { throwIfAborted } from '$lib/functions/replication/replication-error';
 
@@ -435,12 +434,7 @@ export class DatabaseService {
     return db.getAll('storageSource');
   }
 
-  async saveStorageSource(
-    storageSource: BooksDbStorageSource,
-    oldName: string,
-    isSyncTarget: boolean,
-    isStorageSourceDefault: boolean
-  ) {
+  async saveStorageSource(storageSource: BooksDbStorageSource, oldName: string) {
     const db = await this.db;
     const tx = db.transaction(['storageSource'], 'readwrite');
 
@@ -458,18 +452,6 @@ export class DatabaseService {
       }
 
       await tx.done;
-
-      if (isSyncTarget) {
-        syncTarget$.next(storageSource.name);
-      } else if (oldName) {
-        syncTarget$.next('');
-      }
-
-      if (isStorageSourceDefault) {
-        setStorageSourceDefault(storageSource.name, storageSource.type);
-      } else if (oldName) {
-        setStorageSourceDefault('', storageSource.type);
-      }
     } catch (error: any) {
       try {
         tx.abort();
@@ -482,22 +464,9 @@ export class DatabaseService {
     }
   }
 
-  async deleteStorageSource(
-    toDelete: BooksDbStorageSource,
-    wasSyncTarget: boolean,
-    wasStorageSourceDefault: boolean
-  ) {
+  async deleteStorageSource(toDelete: BooksDbStorageSource) {
     const db = await this.db;
-
     await db.delete('storageSource', toDelete.name);
-
-    if (wasSyncTarget) {
-      syncTarget$.next('');
-    }
-
-    if (wasStorageSourceDefault) {
-      setStorageSourceDefault('', toDelete.type);
-    }
   }
 
   async getStatisticsForBook(bookTitle: string) {

@@ -3,7 +3,7 @@ import { oneDriveTokenEndpoint } from '$lib/data/env';
 import { ApiStorageHandler } from '$lib/data/storage/handler/api-handler';
 import { BaseStorageHandler, type ExternalFile } from '$lib/data/storage/handler/base-handler';
 import { StorageKey } from '$lib/data/storage/storage-types';
-import { database, oneDriveStorageSource$ } from '$lib/data/store';
+import { database } from '$lib/data/store';
 import pLimit from 'p-limit';
 
 interface OneDriveFile extends ExternalFile {
@@ -54,13 +54,10 @@ export class OneDriveStorageHandler extends ApiStorageHandler {
   }
 
   setInternalSettings(storageSourceName: string) {
-    const newStorageSource = storageSourceName || oneDriveStorageSource$.getValue();
-
-    if (newStorageSource !== this.storageSourceName) {
+    if (storageSourceName !== this.storageSourceName) {
       this.clearData();
     }
-
-    this.storageSourceName = newStorageSource;
+    this.storageSourceName = storageSourceName;
   }
 
   async getBookList() {
