@@ -66,11 +66,7 @@
 </script>
 
 <div class="space-y-3">
-  <label
-    class="flex items-start gap-3"
-    class:cursor-pointer={!appSettingsDisabled}
-    class:cursor-not-allowed={appSettingsDisabled}
-  >
+  <label class="flex items-start gap-3">
     <input
       type="checkbox"
       class="mt-0.5"
@@ -85,11 +81,7 @@
     </div>
   </label>
 
-  <label
-    class="flex items-start gap-3"
-    class:cursor-pointer={!readingGoalsDisabled}
-    class:cursor-not-allowed={readingGoalsDisabled}
-  >
+  <label class="flex items-start gap-3">
     <input
       type="checkbox"
       class="mt-0.5"
@@ -115,7 +107,7 @@
         >
       </div>
       {#if catalog.books.length > 0}
-        <label class="flex cursor-pointer items-center gap-1.5 text-xs text-gray-700">
+        <label class="flex items-center gap-1.5 text-xs text-gray-700">
           <input
             type="checkbox"
             checked={allBooksSelected}
@@ -136,11 +128,7 @@
           {@const entry = selection.perBook.get(book.id)}
           {@const disabled = disabledItems.books?.has(book.id) ?? false}
           <li class="py-2">
-            <label
-              class="flex items-center gap-3"
-              class:cursor-pointer={!disabled}
-              class:cursor-not-allowed={disabled}
-            >
+            <label class="flex items-center gap-3">
               <input
                 type="checkbox"
                 checked={selected}
@@ -158,11 +146,11 @@
             </label>
             {#if selected}
               <div class="mt-1 ml-7 flex flex-wrap gap-3 text-xs text-gray-700">
-                <label class="flex cursor-pointer items-center gap-1.5">
+                <label class="flex items-center gap-1.5">
                   <input type="checkbox" checked disabled /> Book
                 </label>
                 {#if book.hasBookmark}
-                  <label class="flex cursor-pointer items-center gap-1.5">
+                  <label class="flex items-center gap-1.5">
                     <input
                       type="checkbox"
                       checked={entry?.bookmarks ?? false}
@@ -174,7 +162,7 @@
                   </label>
                 {/if}
                 {#if book.hasStatistics}
-                  <label class="flex cursor-pointer items-center gap-1.5">
+                  <label class="flex items-center gap-1.5">
                     <input
                       type="checkbox"
                       checked={entry?.statistics ?? false}

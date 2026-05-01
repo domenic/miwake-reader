@@ -8,7 +8,7 @@
   let { checked = $bindable(), label, class: className = '' }: Props = $props();
 </script>
 
-<label class="flex items-center gap-3 cursor-pointer select-none {className}">
+<label class="flex items-center gap-3 select-none {className}">
   <span
     class="relative inline-block w-10 h-6 rounded-full transition-colors"
     class:bg-blue-500={checked}

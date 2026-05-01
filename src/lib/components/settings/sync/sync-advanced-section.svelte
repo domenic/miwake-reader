@@ -110,7 +110,7 @@
 
   <div class="mt-5">
     <div class="mb-1 text-base font-medium">Cache remote file lists</div>
-    <label class="flex cursor-pointer items-start gap-3 rounded p-2 hover:bg-gray-400/15">
+    <label class="flex items-start gap-3 rounded p-2 hover:bg-gray-400/15">
       <input type="checkbox" class="mt-1" bind:checked={$cacheStorageData$} />
       <div>
         <div class="font-medium">Cache remote file lists in memory</div>

@@ -26,7 +26,7 @@
   <div class="mt-1 space-y-1">
     {#each options as option (option.id)}
       {@const checked = selected === option.id}
-      <label class="flex cursor-pointer items-start gap-3 rounded p-2 hover:bg-gray-400/15">
+      <label class="flex items-start gap-3 rounded p-2 hover:bg-gray-400/15">
         <input
           type="radio"
           {name}
