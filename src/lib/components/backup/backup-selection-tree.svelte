@@ -148,11 +148,8 @@
                 title={book.title}>{book.title}</span
               >
             </label>
-            {#if selected}
+            {#if selected && (book.hasBookmark || book.hasStatistics)}
               <div class="mt-1 ml-7 flex flex-wrap gap-3 text-xs text-gray-700">
-                <label class="flex items-center gap-1.5">
-                  <input type="checkbox" checked disabled /> Book
-                </label>
                 {#if book.hasBookmark}
                   <label class="flex items-center gap-1.5">
                     <input
