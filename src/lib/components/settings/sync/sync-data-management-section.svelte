@@ -35,6 +35,32 @@
    */
   const READING_GOAL_LOCALSTORAGE_KEYS = ['readingGoal', 'lastReadingGoalsModified'] as const;
 
+  /**
+   * Runtime sync state and legacy lockstep stores. None of these are
+   * user preferences — `loadConnectionsFromDb` rebuilds the new ones
+   * from IndexedDB on every boot, and the legacy ones get re-derived
+   * alongside. Restoring stale values is at best a no-op and at worst
+   * a brief UI flicker before the reconcile catches up. Custom OAuth
+   * credentials (`sync.cloudCustomCredentials`) are real config and
+   * are NOT in this list.
+   */
+  const RUNTIME_SYNC_STATE_LOCALSTORAGE_KEYS = [
+    'sync.cloudConnection',
+    'sync.fsConnection',
+    'sync.cloudHealth',
+    'sync.fsHealth',
+    'gDriveStorageSource',
+    'oneDriveStorageSource',
+    'fsStorageSource',
+    'syncTarget'
+  ] as const;
+
+  function isAppSettingExportable(key: string): boolean {
+    if ((READING_GOAL_LOCALSTORAGE_KEYS as readonly string[]).includes(key)) return false;
+    if ((RUNTIME_SYNC_STATE_LOCALSTORAGE_KEYS as readonly string[]).includes(key)) return false;
+    return true;
+  }
+
   async function buildCurrentCatalog(): Promise<BackupCatalog> {
     const db = await database.db;
     const [allBooks, allBookmarks, allStats, allGoals] = await Promise.all([
@@ -149,9 +175,7 @@
           for (let i = 0; i < localStorage.length; i += 1) {
             const key = localStorage.key(i);
             if (key === null) continue;
-            // Reading-goal localStorage keys travel with the
-            // Reading-goals checkbox; keep settings settings.
-            if ((READING_GOAL_LOCALSTORAGE_KEYS as readonly string[]).includes(key)) continue;
+            if (!isAppSettingExportable(key)) continue;
             const value = localStorage.getItem(key);
             if (value !== null) snapshot[key] = value;
           }
@@ -335,19 +359,20 @@
             // = additive merge (only set keys we don't already have).
             // localStorage-backed BehaviorSubjects don't react to
             // out-of-band writes, so we'll have to reload either way.
-            // Reading-goal localStorage keys are owned by the
-            // Reading-goals checkbox; skip them here even if an old ZIP
-            // bundled them under app-settings.
+            // Both reading-goal and runtime-sync keys are filtered:
+            // reading-goal travels with its own checkbox, runtime-sync
+            // is rebuilt from IndexedDB at boot. Skipping them here
+            // also defends against older ZIPs that bundled them.
             if (direction === 'zip-wins') {
               for (let i = localStorage.length - 1; i >= 0; i -= 1) {
                 const key = localStorage.key(i);
                 if (key === null) continue;
-                if ((READING_GOAL_LOCALSTORAGE_KEYS as readonly string[]).includes(key)) continue;
+                if (!isAppSettingExportable(key)) continue;
                 localStorage.removeItem(key);
               }
             }
             for (const [k, v] of Object.entries(snapshot)) {
-              if ((READING_GOAL_LOCALSTORAGE_KEYS as readonly string[]).includes(k)) continue;
+              if (!isAppSettingExportable(k)) continue;
               if (direction === 'newest' && localStorage.getItem(k) !== null) continue;
               localStorage.setItem(k, v);
             }
