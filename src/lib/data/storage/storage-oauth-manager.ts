@@ -13,7 +13,6 @@ import {
 } from '$lib/data/env';
 import { logger } from '$lib/data/logger';
 import {
-  encrypt,
   isAppDefault,
   unlockStorageData,
   type RemoteContext,
@@ -147,7 +146,6 @@ export class StorageOAuthManager {
     // 2. Load credentials (and any stored refresh token)
     this.remoteData = undefined;
 
-    let secret: string | undefined;
     let unlockResult = oldUnlockResult;
     let storageSource = oldStorageSource;
     const defaultSource = isAppDefault(storageSourceName);
@@ -173,20 +171,10 @@ export class StorageOAuthManager {
           throw new Error(`No storage source with name ${storageSourceName} found`);
         }
 
-        unlockResult = await unlockStorageData(
-          storageSource,
-          'You are trying to access protected data',
-          shallUnlock
-            ? {
-                action: `Enter the correct password for ${storageSourceName} and login to your account if required to proceed`,
-                encryptedData: storageSource.data,
-                forwardSecret: true
-              }
-            : undefined
-        );
+        unlockResult = await unlockStorageData(storageSource, 'Reconnect to continue syncing');
 
         if (!unlockResult) {
-          throw new Error(`Unable to unlock required data`);
+          throw new Error('Unable to load credentials for storage source');
         }
       }
 
@@ -195,8 +183,6 @@ export class StorageOAuthManager {
         clientSecret: unlockResult.clientSecret,
         refreshToken: unlockResult.refreshToken
       };
-
-      secret = unlockResult.secret;
     }
 
     // 3. Try refreshing with stored refresh token
@@ -286,30 +272,18 @@ export class StorageOAuthManager {
           const db = await database.db;
           const existingStorageSourceData = storageSource || {
             storedInManager: false,
-            encryptionDisabled: false
+            encryptionDisabled: true
           };
-          const newData =
-            defaultSource || existingStorageSourceData.encryptionDisabled
-              ? {
-                  clientId: this.remoteData.clientId,
-                  clientSecret: this.remoteData.clientSecret,
-                  refreshToken: token.refreshToken
-                }
-              : await encrypt(
-                  this.parentWindow,
-                  JSON.stringify({
-                    clientId: this.remoteData.clientId,
-                    clientSecret: this.remoteData.clientSecret,
-                    refreshToken: token.refreshToken
-                  }),
-                  secret!
-                );
 
           await db.put('storageSource', {
             ...existingStorageSourceData,
             name: storageSourceName,
             type: this.storageType,
-            data: newData,
+            data: {
+              clientId: this.remoteData.clientId,
+              clientSecret: this.remoteData.clientSecret,
+              refreshToken: token.refreshToken
+            },
             lastSourceModified: Date.now()
           });
         } catch (err: any) {

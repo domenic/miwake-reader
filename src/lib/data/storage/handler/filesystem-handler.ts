@@ -588,7 +588,6 @@ export class FilesystemStorageHandler extends BaseStorageHandler {
               props: {
                 description: 'You are trying to access data on your filesystem',
                 action: 'Please grant permissions in the next dialog',
-                requiresSecret: false,
                 resolver
               },
               disableCloseOnClick: true
