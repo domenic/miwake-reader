@@ -8,8 +8,6 @@
   import { baseHeaderClasses, headerDividerClasses } from '$lib/css-classes';
   import { SortDirection } from '$lib/data/sort-types';
   import { FilesystemStorageHandler } from '$lib/data/storage/handler/filesystem-handler';
-  import { StorageKey } from '$lib/data/storage/storage-types';
-  import { storageSource$ } from '$lib/data/storage/storage-view';
   import { booklistSortOptions$, fileCountData$ } from '$lib/data/store';
   import { inputAllowDirectory } from '$lib/functions/file-dom/input-allow-directory';
   import { inputFile } from '$lib/functions/file-dom/input-file';
@@ -75,15 +73,15 @@
     showLoadCount = new URLSearchParams(window.location.search).has('count');
   }
 
-  let sortMenuItems = $derived([
-    ...($storageSource$ === StorageKey.BROWSER ? [{ property: 'id', label: 'Added (id)' }] : []),
+  const sortMenuItems = [
+    { property: 'id', label: 'Added (id)' },
     { property: 'title', label: 'Title' },
     { property: 'characters', label: 'Characters' },
     { property: 'lastBookModified', label: 'Last Update' },
     { property: 'lastBookOpen', label: 'Last Read' },
     { property: 'progress', label: 'Progress' },
     { property: 'lastBookmarkModified', label: 'Bookmarked' }
-  ]);
+  ];
 
   function dispatchFilesChange(fileList: FileList) {
     onfilesChange?.(fileList);
@@ -181,14 +179,12 @@
             {/snippet}
           </HeaderButton>
           {#if selectedCount > 0}
-            {#if $storageSource$ === StorageKey.BROWSER}
-              <HeaderButton
-                faIcon={faCalendarXmark}
-                title="Delete statistics for selected books"
-                label="Delete Statistics"
-                onclick={() => ondeleteStatistics?.()}
-              />
-            {/if}
+            <HeaderButton
+              faIcon={faCalendarXmark}
+              title="Delete statistics for selected books"
+              label="Delete Statistics"
+              onclick={() => ondeleteStatistics?.()}
+            />
             <HeaderButton
               faIcon={faTrash}
               title="Delete selected books"
@@ -205,17 +201,15 @@
             <HeaderMenuButton
               title="Select sort options"
               label="Sort"
-              faIcon={$booklistSortOptions$[$storageSource$].direction === SortDirection.ASC
+              faIcon={$booklistSortOptions$.direction === SortDirection.ASC
                 ? faArrowDownShortWide
                 : faArrowDownWideShort}
               items={sortMenuItems}
             >
               {#snippet item(sortMenuItem, close)}
-                {@const isCurrentSort =
-                  $booklistSortOptions$[$storageSource$].property === sortMenuItem.property}
+                {@const isCurrentSort = $booklistSortOptions$.property === sortMenuItem.property}
                 {@const isCurrentSortAsc =
-                  isCurrentSort &&
-                  $booklistSortOptions$[$storageSource$].direction === SortDirection.ASC}
+                  isCurrentSort && $booklistSortOptions$.direction === SortDirection.ASC}
                 <div
                   class="grid cursor-default grid-cols-[auto_auto_auto] text-sm hover:bg-white hover:text-gray-700"
                   class:bg-white={isCurrentSort}
@@ -230,16 +224,11 @@
                     class:hover:text-red-500={!isCurrentSortAsc}
                     onclick={() => {
                       booklistSortOptions$.next({
-                        ...$booklistSortOptions$,
-                        ...{
-                          [$storageSource$]: {
-                            property: sortMenuItem.property as Exclude<
-                              keyof BookCardProps,
-                              'imagePath' | 'isPlaceholder'
-                            >,
-                            direction: SortDirection.ASC
-                          }
-                        }
+                        property: sortMenuItem.property as Exclude<
+                          keyof BookCardProps,
+                          'imagePath' | 'isPlaceholder'
+                        >,
+                        direction: SortDirection.ASC
                       });
                       close();
                     }}
@@ -257,16 +246,11 @@
                     class:hover:text-red-500={!isCurrentSort || isCurrentSortAsc}
                     onclick={() => {
                       booklistSortOptions$.next({
-                        ...$booklistSortOptions$,
-                        ...{
-                          [$storageSource$]: {
-                            property: sortMenuItem.property as Exclude<
-                              keyof BookCardProps,
-                              'imagePath' | 'isPlaceholder'
-                            >,
-                            direction: SortDirection.DESC
-                          }
-                        }
+                        property: sortMenuItem.property as Exclude<
+                          keyof BookCardProps,
+                          'imagePath' | 'isPlaceholder'
+                        >,
+                        direction: SortDirection.DESC
                       });
                       close();
                     }}

@@ -18,14 +18,12 @@
   import { SortDirection, type SortOption } from '$lib/data/sort-types';
   import { getStorageHandler } from '$lib/data/storage/storage-handler-factory';
   import { StorageKey } from '$lib/data/storage/storage-types';
-  import { storageSource$ } from '$lib/data/storage/storage-view';
   import {
     booklistSortOptions$,
     cacheStorageData$,
     confirmStatisticsDeletion$,
     database,
     fileCountData$,
-    isOnline$,
     keepLocalStatisticsOnDeletion$,
     readingGoalsMergeMode$,
     replicationSaveBehavior$,
@@ -49,21 +47,11 @@
   import { onDestroy, onMount, tick } from 'svelte';
   import Fa from 'svelte-fa';
 
-  // Pin the unified library view to browser storage. Any previously-
-  // persisted storageSource$ value (e.g. gdrive, onedrive, fs from the
-  // old per-source dropdown) gets reset here.
-  onMount(() => {
-    if ($storageSource$ !== StorageKey.BROWSER) {
-      storageSource$.next(StorageKey.BROWSER);
-    }
-  });
-
   const booksAreLoading$ = database.listLoading$.pipe(map((isLoading) => isLoading));
 
   // The unified library view always reads from the local IndexedDB
-  // (browser storage). storageSource$ is pinned to BROWSER on mount —
-  // no more per-source dropdown. Placeholder books (not-yet-downloaded
-  // cloud content) stay in the list with a cloud-icon marker and are
+  // (browser storage). Placeholder books (not-yet-downloaded cloud
+  // content) stay in the list with a cloud-icon marker and are
   // downloaded transparently when clicked; see onBookClick below.
   const bookCards$: Observable<BookCardProps[]> = combineLatest([
     database.dataList$,
@@ -71,7 +59,7 @@
     booklistSortOptions$
   ]).pipe(
     map(([dataList, bookmarks]) => {
-      const sortProp = $booklistSortOptions$[StorageKey.BROWSER];
+      const sortProp = $booklistSortOptions$;
       const isTitleSort = sortProp.property === 'title';
       const bookmarkMap = keyBy(bookmarks, 'dataId');
 
@@ -222,18 +210,7 @@
   }
 
   function operationAllowed() {
-    const connectivityPass = !(
-      ($storageSource$ === StorageKey.GDRIVE || $storageSource$ === StorageKey.ONEDRIVE) &&
-      !$isOnline$
-    );
-
-    if (!connectivityPass && !replicationToProgress) {
-      const message = 'You have to be online for this operation';
-      logger.warn(message);
-      messageDialog({ title: 'Failure', message });
-    }
-
-    return !replicationToProgress && connectivityPass;
+    return !replicationToProgress;
   }
 
   function initializeReplicationProgressData() {
@@ -323,9 +300,9 @@
       document,
       getStorageHandler(
         window,
-        $storageSource$,
+        StorageKey.BROWSER,
         '',
-        $storageSource$ === StorageKey.BROWSER,
+        true,
         $cacheStorageData$,
         $replicationSaveBehavior$,
         $statisticsMergeMode$,
@@ -369,7 +346,7 @@
     initializeReplicationProgressData();
 
     const currentBookCount = $bookCards$.length;
-    const handler = getStorageHandler(window, $storageSource$, '');
+    const handler = getStorageHandler(window, StorageKey.BROWSER, '');
     const { error, deleted } = await handler.deleteBookData(
       $bookCards$.reduce((toDelete, card) => {
         if (bookIds.includes(card.id)) toDelete.push(card.title);

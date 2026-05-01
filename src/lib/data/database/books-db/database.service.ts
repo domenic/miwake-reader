@@ -37,7 +37,6 @@ import { iffBrowser } from '$lib/functions/rxjs/iff-browser';
 import { logger } from '$lib/data/logger';
 import pLimit from 'p-limit';
 import { replicationProgress$ } from '$lib/functions/replication/replication-progress';
-import { storageSource$ } from '$lib/data/storage/storage-view';
 import { throwIfAborted } from '$lib/functions/replication/replication-error';
 
 const LAST_ITEM_KEY = 0;
@@ -59,16 +58,15 @@ export class DatabaseService {
       tap((handler) => {
         this.lastHandler = handler;
       }),
-      switchMap(() => storageSource$),
-      switchMap((storageSource) =>
+      switchMap(() =>
         from(
-          Promise.resolve(this.lastHandler || getStorageHandler(window, storageSource, '')).then(
-            (handler) => {
-              logger.clearHistory();
+          Promise.resolve(
+            this.lastHandler || getStorageHandler(window, StorageKey.BROWSER, '')
+          ).then((handler) => {
+            logger.clearHistory();
 
-              return handler.getBookList();
-            }
-          )
+            return handler.getBookList();
+          })
         ).pipe(
           catchError((error: unknown) => {
             if (error instanceof Error) {
@@ -84,11 +82,6 @@ export class DatabaseService {
                   message: `An error occured: ${error.message}`
                 });
               }
-            }
-
-            if (storageSource !== StorageKey.BROWSER) {
-              this.lastHandler = undefined;
-              storageSource$.next(StorageKey.BROWSER);
             }
 
             return [[]];

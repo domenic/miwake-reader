@@ -27,7 +27,6 @@ import {
   StatisticsTabAvailableKeybind,
   type StatisticsTabKeybindMap
 } from '$lib/data/statistics-tab-keybind';
-import { StorageKey } from '$lib/data/storage/storage-types';
 import {
   AutoReplicationType,
   ReplicationSaveBehavior
@@ -426,14 +425,9 @@ const db = browser ? createBooksDb() : import('fake-indexeddb/auto').then(() => 
 
 export const database = new DatabaseService(db);
 
-export const booklistSortOptions$ = writableObjectLocalStorageSubject<Record<string, SortOption>>()(
+export const booklistSortOptions$ = writableObjectLocalStorageSubject<SortOption>()(
   'booklistSortOptions',
-  {
-    [StorageKey.BROWSER]: { property: 'lastBookOpen', direction: SortDirection.DESC },
-    [StorageKey.GDRIVE]: { property: 'title', direction: SortDirection.ASC },
-    [StorageKey.ONEDRIVE]: { property: 'title', direction: SortDirection.ASC },
-    [StorageKey.FS]: { property: 'title', direction: SortDirection.ASC }
-  }
+  { property: 'lastBookOpen', direction: SortDirection.DESC }
 );
 
 export const verticalCustomReadingPosition$ = writableNumberLocalStorageSubject()(
