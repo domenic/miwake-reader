@@ -6,7 +6,6 @@
   import {
     cacheStorageData$,
     database,
-    lastReadingGoalsModified$,
     readingGoalsMergeMode$,
     statisticsMergeMode$
   } from '$lib/data/store';
@@ -64,7 +63,10 @@
       hasAppSettings: localStorage.length > 0,
       // Reading goals split between the IDB table (archived) and the
       // localStorage current goal — either is worth exporting.
-      hasReadingGoals: allGoals.length > 0 || $lastReadingGoalsModified$ > 0,
+      // localStorage.getItem catches "user has ever interacted with
+      // goals"; lastReadingGoalsModified$ is a sync-marker timestamp,
+      // not a presence signal.
+      hasReadingGoals: allGoals.length > 0 || localStorage.getItem('readingGoal') !== null,
       books
     };
   }
