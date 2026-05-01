@@ -126,12 +126,18 @@
           const types: StorageDataType[] = [StorageDataType.DATA];
           if (choices.bookmarks) types.push(StorageDataType.PROGRESS);
           if (choices.statistics) types.push(StorageDataType.STATISTICS);
+          // finalizeBackup=false on every replicateData call below so
+          // the replicator doesn't auto-close the ZipWriter — we
+          // create the download ourselves at the end after writing
+          // the side files (app-settings.json, reading-goal-state.json).
           const error = await replicateData(
             browserHandler,
             backupHandler,
             false,
             [{ id: book.id, title: book.title, imagePath: book.coverImage ?? '' }],
-            types
+            types,
+            undefined,
+            false
           );
           if (error) throw new Error(error);
         }
@@ -143,7 +149,9 @@
             backupHandler,
             false,
             [],
-            [StorageDataType.READING_GOALS]
+            [StorageDataType.READING_GOALS],
+            undefined,
+            false
           );
           if (error) throw new Error(error);
 
