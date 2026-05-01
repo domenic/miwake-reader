@@ -276,9 +276,11 @@ export async function loadConnectionsFromDb(): Promise<void> {
       detail:
         'This device is missing the sign-in for the cloud account in your last backup. Reconnect to resume syncing.'
     });
-  } else {
-    cloudConnection$.next(null);
   }
+  // else: both empty — leave cloudConnection$ at its init-time null.
+  // Calling .next(null) here would write the string "null" to
+  // localStorage, which a subsequent "Keep newest" import would then
+  // mistake for a user value worth preserving.
 
   const fsRecord = records.find((r) => r.type === StorageKey.FS && r.name === FS_SOURCE_NAME);
   if (fsRecord && fsRecord.data && typeof fsRecord.data === 'object' && 'fsPath' in fsRecord.data) {
