@@ -156,16 +156,7 @@ export async function replicateData(
   refreshDataList: boolean,
   contexts: ReplicationContext[],
   dataToReplicate: StorageDataType[],
-  cancelSignal?: AbortSignal,
-  /**
-   * When the target is a BackupStorageHandler, replicateData would
-   * normally close the ZipWriter and trigger a download as its last
-   * step. Callers that want to add more files to the ZIP after the
-   * replicate-driven writes (e.g. backup export adding app-settings
-   * JSON) pass `false` and call `targetHandler.createExportZip(...)`
-   * themselves once everything's in.
-   */
-  finalizeBackup = true
+  cancelSignal?: AbortSignal
 ) {
   const bookOperationsLength = dataToReplicate.filter(
     (entry) => entry !== StorageDataType.READING_GOALS
@@ -349,7 +340,7 @@ export async function replicateData(
 
   await Promise.all(replicationTasks).catch(() => {});
 
-  if (finalizeBackup && targetHandler instanceof BackupStorageHandler) {
+  if (targetHandler instanceof BackupStorageHandler) {
     await targetHandler
       .createExportZip(document, cancelSignal?.aborted || !processed)
       .catch((error) => {

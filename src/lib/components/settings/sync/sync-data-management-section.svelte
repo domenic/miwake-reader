@@ -6,6 +6,7 @@
   import {
     cacheStorageData$,
     database,
+    lastReadingGoalsModified$,
     readingGoalsMergeMode$,
     statisticsMergeMode$
   } from '$lib/data/store';
@@ -92,73 +93,53 @@
     const catalog = await buildCurrentCatalog();
     await showBackupExportDialog({
       catalog,
+      // Export drives BackupStorageHandler directly rather than going
+      // through replicateData. We already know exactly what to write,
+      // and replicateData's auto-finalize-on-BackupStorageHandler-target
+      // makes it awkward to add side files (app-settings.json,
+      // reading-goal-state.json). Mirrors the
+      // /settings/statistics/statistics-shell.svelte pattern.
       onExport: async (selection) => {
-        const backupHandler = getStorageHandler(
-          window,
-          StorageKey.BACKUP,
-          '',
-          false,
-          $cacheStorageData$,
-          ReplicationSaveBehavior.NewOnly,
-          $statisticsMergeMode$,
-          $readingGoalsMergeMode$
-        );
+        const backupHandler = getStorageHandler(window, StorageKey.BACKUP);
         backupHandler.clearData();
 
-        const browserHandler = getStorageHandler(
-          window,
-          StorageKey.BROWSER,
-          '',
-          false,
-          $cacheStorageData$,
-          ReplicationSaveBehavior.NewOnly,
-          $statisticsMergeMode$,
-          $readingGoalsMergeMode$
-        );
-
         const db = await database.db;
-        const allBooks = await db.getAll('data');
-        const booksById = new Map(allBooks.map((b) => [b.id, b]));
 
         for (const [bookId, choices] of selection.perBook) {
-          const book = booksById.get(bookId);
+          const book = await database.getData(bookId);
           if (!book) continue;
-          const types: StorageDataType[] = [StorageDataType.DATA];
-          if (choices.bookmarks) types.push(StorageDataType.PROGRESS);
-          if (choices.statistics) types.push(StorageDataType.STATISTICS);
-          // finalizeBackup=false on every replicateData call below so
-          // the replicator doesn't auto-close the ZipWriter — we
-          // create the download ourselves at the end after writing
-          // the side files (app-settings.json, reading-goal-state.json).
-          const error = await replicateData(
-            browserHandler,
-            backupHandler,
-            false,
-            [{ id: book.id, title: book.title, imagePath: book.coverImage ?? '' }],
-            types,
-            undefined,
-            false
-          );
-          if (error) throw new Error(error);
+          backupHandler.startContext({
+            id: 0,
+            title: book.title,
+            imagePath: book.coverImage ?? ''
+          });
+          await backupHandler.saveBook(book);
+          if (book.coverImage instanceof Blob) {
+            await backupHandler.saveCover(book.coverImage);
+          }
+          if (choices.bookmarks) {
+            const bookmark = await database.getBookmark(book.id);
+            if (bookmark) await backupHandler.saveProgress(bookmark);
+          }
+          if (choices.statistics) {
+            const stats = await database.getStatisticsForBook(book.title);
+            if (stats.length > 0) {
+              const lastModified = await database.getLastModifiedForType(
+                book.title,
+                StorageDataType.STATISTICS
+              );
+              await backupHandler.saveStatistics(stats, lastModified);
+            }
+          }
         }
 
         if (selection.readingGoals) {
-          // IDB archive — the existing replicator path.
-          const error = await replicateData(
-            browserHandler,
-            backupHandler,
-            false,
-            [],
-            [StorageDataType.READING_GOALS],
-            undefined,
-            false
-          );
-          if (error) throw new Error(error);
-
-          // Plus the localStorage current goal — same conceptual data,
-          // just stored next to the rest of the settings. Not in
-          // app-settings.json so the Reading-goals checkbox is the
-          // sole owner.
+          const goals = await db.getAll('readingGoal');
+          if (goals.length > 0) {
+            await backupHandler.saveReadingGoals(goals, $lastReadingGoalsModified$);
+          }
+          // Current-goal-in-localStorage travels alongside, owned by
+          // the Reading-goals checkbox.
           const goalState: Record<string, string> = {};
           for (const key of READING_GOAL_LOCALSTORAGE_KEYS) {
             const v = localStorage.getItem(key);
