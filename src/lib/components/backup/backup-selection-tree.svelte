@@ -61,42 +61,46 @@
     selectableBooks.length > 0 && selectableBooks.every((b) => selection.perBook.has(b.id))
   );
   let anyBookSelected = $derived(selection.perBook.size > 0);
-  let appSettingsDisabled = $derived(!catalog.hasAppSettings || !!disabledItems.appSettings);
-  let readingGoalsDisabled = $derived(!catalog.hasReadingGoals || !!disabledItems.readingGoals);
 </script>
 
 <div class="space-y-3">
-  <label class="flex items-start gap-3">
-    <input
-      type="checkbox"
-      class="mt-0.5"
-      checked={selection.appSettings}
-      disabled={appSettingsDisabled}
-      onchange={(e) =>
-        onchange({ ...selection, appSettings: (e.currentTarget as HTMLInputElement).checked })}
-    />
-    <div>
-      <div class="text-sm font-medium" class:text-gray-400={appSettingsDisabled}>App settings</div>
-      <div class="text-xs text-gray-600">Theme, fonts, tracker configuration, keybindings.</div>
-    </div>
-  </label>
-
-  <label class="flex items-start gap-3">
-    <input
-      type="checkbox"
-      class="mt-0.5"
-      checked={selection.readingGoals}
-      disabled={readingGoalsDisabled}
-      onchange={(e) =>
-        onchange({ ...selection, readingGoals: (e.currentTarget as HTMLInputElement).checked })}
-    />
-    <div>
-      <div class="text-sm font-medium" class:text-gray-400={readingGoalsDisabled}>
-        Reading goals
+  {#if catalog.hasAppSettings}
+    <label class="flex items-start gap-3">
+      <input
+        type="checkbox"
+        class="mt-0.5"
+        checked={selection.appSettings}
+        disabled={disabledItems.appSettings}
+        onchange={(e) =>
+          onchange({ ...selection, appSettings: (e.currentTarget as HTMLInputElement).checked })}
+      />
+      <div>
+        <div class="text-sm font-medium" class:text-gray-400={disabledItems.appSettings}>
+          App settings
+        </div>
+        <div class="text-xs text-gray-600">Theme, fonts, tracker configuration, keybindings.</div>
       </div>
-      <div class="text-xs text-gray-600">All reading goals and their history.</div>
-    </div>
-  </label>
+    </label>
+  {/if}
+
+  {#if catalog.hasReadingGoals}
+    <label class="flex items-start gap-3">
+      <input
+        type="checkbox"
+        class="mt-0.5"
+        checked={selection.readingGoals}
+        disabled={disabledItems.readingGoals}
+        onchange={(e) =>
+          onchange({ ...selection, readingGoals: (e.currentTarget as HTMLInputElement).checked })}
+      />
+      <div>
+        <div class="text-sm font-medium" class:text-gray-400={disabledItems.readingGoals}>
+          Reading goals
+        </div>
+        <div class="text-xs text-gray-600">All reading goals and their history.</div>
+      </div>
+    </label>
+  {/if}
 
   <div class="rounded-md border border-black/10 p-3">
     <div class="flex items-center justify-between">
