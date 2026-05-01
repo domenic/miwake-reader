@@ -534,19 +534,16 @@ export class DatabaseService {
       const limiter = pLimit(1);
       const tasks: Promise<void>[] = [];
 
-      if (statisticsMergeMode !== MergeMode.LOCAL) {
-        tasks.push(
-          limiter(async () => {
-            try {
-              await statisticsStore.delete(IDBKeyRange.bound([bookTitle], [bookTitle, []]));
-            } catch (error: any) {
-              limiter.clearQueue();
-
-              throw error;
-            }
-          })
-        );
-      }
+      tasks.push(
+        limiter(async () => {
+          try {
+            await statisticsStore.delete(IDBKeyRange.bound([bookTitle], [bookTitle, []]));
+          } catch (error: any) {
+            limiter.clearQueue();
+            throw error;
+          }
+        })
+      );
 
       statisticsToStore.forEach((statistic) =>
         tasks.push(

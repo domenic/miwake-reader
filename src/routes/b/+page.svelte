@@ -787,7 +787,7 @@
           $rawBookData$.title,
           statisticsToStore,
           ReplicationSaveBehavior.Overwrite,
-          MergeMode.LOCAL,
+          MergeMode.MERGE,
           lastStatisticModified
         );
 

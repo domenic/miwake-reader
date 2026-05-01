@@ -214,7 +214,7 @@
         bookTitle,
         itemsToStore,
         ReplicationSaveBehavior.Overwrite,
-        MergeMode.LOCAL
+        MergeMode.MERGE
       );
 
       trackingHistory = trackingHistory.map((item) => {
