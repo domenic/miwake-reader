@@ -82,14 +82,13 @@ export abstract class ApiStorageHandler extends BaseStorageHandler {
     statisticsMergeMode: MergeMode,
     readingGoalsMergeMode: MergeMode,
     cacheStorageData: boolean,
-    askForStorageUnlock: boolean,
+    _askForStorageUnlock: boolean,
     storageSourceName: string
   ) {
     this.window = window;
     this.isForBrowser = isForBrowser;
     this.saveBehavior = saveBehavior;
     this.cacheStorageData = cacheStorageData;
-    this.askForStorageUnlock = askForStorageUnlock;
     this.statisticsMergeMode = statisticsMergeMode;
     this.readingGoalsMergeMode = readingGoalsMergeMode;
     this.setInternalSettings(storageSourceName);
@@ -111,7 +110,6 @@ export abstract class ApiStorageHandler extends BaseStorageHandler {
     await this.authManager.getToken(
       this.window,
       this.storageSourceName,
-      this.askForStorageUnlock,
       authWindow,
       undefined,
       undefined,
@@ -550,7 +548,7 @@ export abstract class ApiStorageHandler extends BaseStorageHandler {
   ): Promise<any> {
     const token = await (options.skipAuth
       ? Promise.resolve('')
-      : this.authManager.getToken(this.window, this.storageSourceName, this.askForStorageUnlock));
+      : this.authManager.getToken(this.window, this.storageSourceName));
     // eslint-disable-next-line @typescript-eslint/no-this-alias
     const self = this;
 

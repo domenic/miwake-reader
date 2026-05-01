@@ -34,6 +34,15 @@ export class FilesystemStorageHandler extends BaseStorageHandler {
 
   private rootFileHandles = new Map<string, FileSystemFileHandle>();
 
+  /**
+   * When true, ensureRoot() opens a "grant permission" dialog if the
+   * saved directory handle has been revoked. Set to false by the
+   * sync engine on its silent ambient paths so a denied permission
+   * surfaces as a sync-health error instead of a dialog popping up
+   * mid-read.
+   */
+  private askForStorageUnlock = true;
+
   updateSettings(
     window: Window,
     isForBrowser: boolean,

@@ -42,6 +42,11 @@ export abstract class BaseStorageHandler {
     statisticsMergeMode: MergeMode,
     readingGoalsMergeMode: MergeMode,
     cacheStorageData: boolean,
+    /**
+     * Only the filesystem handler reads this — gates whether
+     * ensureRoot() opens the recovery dialog when its saved directory
+     * handle was revoked. Cloud / backup / browser handlers ignore it.
+     */
     askForStorageUnlock: boolean,
     storageSourceName: string
   ): void;
@@ -121,8 +126,6 @@ export abstract class BaseStorageHandler {
   protected statisticsMergeMode = MergeMode.MERGE;
 
   protected readingGoalsMergeMode = MergeMode.MERGE;
-
-  protected askForStorageUnlock = true;
 
   protected currentContext: ReplicationContext = { title: '' };
 

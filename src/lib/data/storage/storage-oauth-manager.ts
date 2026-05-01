@@ -92,7 +92,6 @@ export class StorageOAuthManager {
   async getToken(
     window: Window,
     storageSourceName: string,
-    askForStorageUnlock: boolean,
     authWindow?: Window | null,
     oldUnlockResult?: StorageUnlockAction,
     oldStorageSource?: BooksDbStorageSource | undefined,
@@ -105,7 +104,6 @@ export class StorageOAuthManager {
     this.pendingGetToken = this.doGetToken(
       window,
       storageSourceName,
-      askForStorageUnlock,
       authWindow,
       oldUnlockResult,
       oldStorageSource,
@@ -122,14 +120,12 @@ export class StorageOAuthManager {
   private async doGetToken(
     window: Window,
     storageSourceName: string,
-    askForStorageUnlock: boolean,
     authWindow?: Window | null,
     oldUnlockResult?: StorageUnlockAction,
     oldStorageSource?: BooksDbStorageSource | undefined,
     silentOnly = false
   ): Promise<string | undefined> {
     const oldToken = storageOAuthTokens.get(storageSourceName);
-    const shallUnlock = !oldToken || askForStorageUnlock;
 
     if (!oldToken || this.storageSourceName !== storageSourceName) {
       this.remoteData = undefined;
@@ -219,7 +215,7 @@ export class StorageOAuthManager {
         // rely on the popup's own (possibly empty) sessionStorage.
       }
       this.authWindow.location.assign(`${pagePath}/auth?miwake-init-auth=1`);
-    } else if (shallUnlock) {
+    } else {
       this.authWindow = StorageOAuthManager.createWindow(
         `${pagePath}/auth?miwake-init-auth=1`,
         'auth',
@@ -227,34 +223,29 @@ export class StorageOAuthManager {
         Math.min(Math.max(this.parentWindow.innerHeight, 300), 560),
         window
       );
-    } else {
-      this.authWindow = null;
     }
 
     if (!this.authWindow) {
-      if (shallUnlock) {
-        await messageDialog({
-          title: 'Login Required',
-          message: 'Log in to your cloud storage account when prompted.'
-        });
+      // Popup blocked. Surface the message dialog (a user gesture) and
+      // retry by pre-opening a wait-window during the click.
+      await messageDialog({
+        title: 'Login Required',
+        message: 'Log in to your cloud storage account when prompted.'
+      });
 
-        return this.doGetToken(
-          window,
-          storageSourceName,
-          false,
-          StorageOAuthManager.createWindow(
-            `${pagePath}/auth?miwake-init-wait=1`,
-            'auth',
-            Math.min(Math.max(this.parentWindow.innerWidth, 300), 560),
-            Math.min(Math.max(this.parentWindow.innerHeight, 300), 560),
-            window
-          ),
-          unlockResult,
-          storageSource
-        );
-      }
-
-      throw new Error('Unable to open login window. Please check your popup settings');
+      return this.doGetToken(
+        window,
+        storageSourceName,
+        StorageOAuthManager.createWindow(
+          `${pagePath}/auth?miwake-init-wait=1`,
+          'auth',
+          Math.min(Math.max(this.parentWindow.innerWidth, 300), 560),
+          Math.min(Math.max(this.parentWindow.innerHeight, 300), 560),
+          window
+        ),
+        unlockResult,
+        storageSource
+      );
     }
 
     // 5. Wait for popup auth result and persist refresh token
