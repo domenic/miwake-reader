@@ -26,6 +26,16 @@
 
   let hasAnySyncLocation = $derived($cloudConnection$ !== null || $fsConnection$ !== null);
 
+  /**
+   * Reading-goal data lives in two places: archived goals in
+   * IndexedDB's `readingGoal` table, and the user's *current* goal +
+   * its lastModified timestamp in localStorage. Both belong
+   * conceptually under the Reading-goals checkbox; these keys are
+   * filtered out of the app-settings export so the checkbox is the
+   * sole owner.
+   */
+  const READING_GOAL_LOCALSTORAGE_KEYS = ['readingGoal', 'lastReadingGoalsModified'] as const;
+
   async function buildCurrentCatalog(): Promise<BackupCatalog> {
     const db = await database.db;
     const [allBooks, allBookmarks, allStats, allGoals] = await Promise.all([
@@ -108,6 +118,7 @@
         }
 
         if (selection.readingGoals) {
+          // IDB archive — the existing replicator path.
           const error = await replicateData(
             browserHandler,
             backupHandler,
@@ -116,6 +127,19 @@
             [StorageDataType.READING_GOALS]
           );
           if (error) throw new Error(error);
+
+          // Plus the localStorage current goal — same conceptual data,
+          // just stored next to the rest of the settings. Not in
+          // app-settings.json so the Reading-goals checkbox is the
+          // sole owner.
+          const goalState: Record<string, string> = {};
+          for (const key of READING_GOAL_LOCALSTORAGE_KEYS) {
+            const v = localStorage.getItem(key);
+            if (v !== null) goalState[key] = v;
+          }
+          if (Object.keys(goalState).length > 0) {
+            await backupHandler.saveReadingGoalState(JSON.stringify(goalState));
+          }
         }
 
         if (selection.appSettings) {
@@ -123,6 +147,9 @@
           for (let i = 0; i < localStorage.length; i += 1) {
             const key = localStorage.key(i);
             if (key === null) continue;
+            // Reading-goal localStorage keys travel with the
+            // Reading-goals checkbox; keep settings settings.
+            if ((READING_GOAL_LOCALSTORAGE_KEYS as readonly string[]).includes(key)) continue;
             const value = localStorage.getItem(key);
             if (value !== null) snapshot[key] = value;
           }
@@ -167,7 +194,10 @@
       for (const entry of entries) {
         const parts = entry.filename.split('/');
         if (parts.length === 1) {
-          if (entry.filename.startsWith(BaseStorageHandler.readingGoalsFilePrefix)) {
+          if (
+            entry.filename.startsWith(BaseStorageHandler.readingGoalsFilePrefix) ||
+            entry.filename === BackupStorageHandler.readingGoalStateFilename
+          ) {
             hasReadingGoals = true;
           } else if (entry.filename === BackupStorageHandler.appSettingsFilename) {
             hasAppSettings = true;
@@ -280,6 +310,18 @@
             [StorageDataType.READING_GOALS]
           );
           if (error) throw new Error(error);
+
+          // Restore the localStorage current goal alongside the IDB
+          // archive (mirrors the export side). Older ZIPs without this
+          // side file just skip — older readers didn't have a current
+          // goal in localStorage anyway.
+          const goalState = await backupHandler.getReadingGoalState();
+          if (goalState) {
+            for (const [k, v] of Object.entries(goalState)) {
+              if (direction === 'newest' && localStorage.getItem(k) !== null) continue;
+              localStorage.setItem(k, v);
+            }
+          }
           readingGoalsImported = true;
         }
 
@@ -291,8 +333,19 @@
             // = additive merge (only set keys we don't already have).
             // localStorage-backed BehaviorSubjects don't react to
             // out-of-band writes, so we'll have to reload either way.
-            if (direction === 'zip-wins') localStorage.clear();
+            // Reading-goal localStorage keys are owned by the
+            // Reading-goals checkbox; skip them here even if an old ZIP
+            // bundled them under app-settings.
+            if (direction === 'zip-wins') {
+              for (let i = localStorage.length - 1; i >= 0; i -= 1) {
+                const key = localStorage.key(i);
+                if (key === null) continue;
+                if ((READING_GOAL_LOCALSTORAGE_KEYS as readonly string[]).includes(key)) continue;
+                localStorage.removeItem(key);
+              }
+            }
             for (const [k, v] of Object.entries(snapshot)) {
+              if ((READING_GOAL_LOCALSTORAGE_KEYS as readonly string[]).includes(k)) continue;
               if (direction === 'newest' && localStorage.getItem(k) !== null) continue;
               localStorage.setItem(k, v);
             }

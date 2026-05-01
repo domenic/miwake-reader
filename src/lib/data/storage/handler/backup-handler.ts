@@ -14,9 +14,17 @@ import { BlobReader, BlobWriter, ZipReader, type Entry, type ZipWriter } from '@
 export class BackupStorageHandler extends BaseStorageHandler {
   static readonly appSettingsFilename = 'app-settings.json';
 
+  /**
+   * Side file for the localStorage keys that belong to reading goals
+   * conceptually but live next to the rest of "settings." Kept
+   * separate so the Reading-goals checkbox owns the round-trip.
+   */
+  static readonly readingGoalStateFilename = 'reading-goal-state.json';
+
   protected validRootFiles = [
     BaseStorageHandler.readingGoalsFilePrefix,
-    BackupStorageHandler.appSettingsFilename
+    BackupStorageHandler.appSettingsFilename,
+    BackupStorageHandler.readingGoalStateFilename
   ];
 
   private exportZipWriter: ZipWriter<Blob> | undefined;
@@ -307,6 +315,23 @@ export class BackupStorageHandler extends BaseStorageHandler {
       : undefined;
     if (!zipEntry) return undefined;
     return this.extractAsJSON(zipEntry, 'Unable to read app settings');
+  }
+
+  async saveReadingGoalState(json: string) {
+    this.exportZipWriter = await this.addDataToZip(
+      BackupStorageHandler.readingGoalStateFilename,
+      json,
+      this.exportZipWriter
+    );
+  }
+
+  async getReadingGoalState(): Promise<Record<string, string> | undefined> {
+    const rootFile = this.rootFiles.get(BackupStorageHandler.readingGoalStateFilename);
+    const zipEntry = rootFile
+      ? this.importEntries.find((e) => e.filename === rootFile.name)
+      : undefined;
+    if (!zipEntry) return undefined;
+    return this.extractAsJSON(zipEntry, 'Unable to read reading-goal state');
   }
 
   async createExportZip(document: Document, resetOnly: boolean) {
