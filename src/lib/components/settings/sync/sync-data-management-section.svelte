@@ -6,6 +6,7 @@
   import {
     cacheStorageData$,
     database,
+    lastReadingGoalsModified$,
     readingGoalsMergeMode$,
     statisticsMergeMode$
   } from '$lib/data/store';
@@ -51,7 +52,9 @@
 
     return {
       hasAppSettings: localStorage.length > 0,
-      hasReadingGoals: allGoals.length > 0,
+      // Reading goals split between the IDB table (archived) and the
+      // localStorage current goal — either is worth exporting.
+      hasReadingGoals: allGoals.length > 0 || $lastReadingGoalsModified$ > 0,
       books
     };
   }

@@ -61,43 +61,45 @@
     selectableBooks.length > 0 && selectableBooks.every((b) => selection.perBook.has(b.id))
   );
   let anyBookSelected = $derived(selection.perBook.size > 0);
+  let appSettingsDisabled = $derived(!catalog.hasAppSettings || !!disabledItems.appSettings);
+  let readingGoalsDisabled = $derived(!catalog.hasReadingGoals || !!disabledItems.readingGoals);
 </script>
 
 <div class="space-y-3">
-  <label class="flex cursor-pointer items-start gap-3">
+  <label
+    class="flex items-start gap-3"
+    class:cursor-pointer={!appSettingsDisabled}
+    class:cursor-not-allowed={appSettingsDisabled}
+  >
     <input
       type="checkbox"
       class="mt-0.5"
       checked={selection.appSettings}
-      disabled={!catalog.hasAppSettings || disabledItems.appSettings}
+      disabled={appSettingsDisabled}
       onchange={(e) =>
         onchange({ ...selection, appSettings: (e.currentTarget as HTMLInputElement).checked })}
     />
     <div>
-      <div
-        class="text-sm font-medium"
-        class:text-gray-400={!catalog.hasAppSettings || disabledItems.appSettings}
-      >
-        App settings
-      </div>
+      <div class="text-sm font-medium" class:text-gray-400={appSettingsDisabled}>App settings</div>
       <div class="text-xs text-gray-600">Theme, fonts, tracker configuration, keybindings.</div>
     </div>
   </label>
 
-  <label class="flex cursor-pointer items-start gap-3">
+  <label
+    class="flex items-start gap-3"
+    class:cursor-pointer={!readingGoalsDisabled}
+    class:cursor-not-allowed={readingGoalsDisabled}
+  >
     <input
       type="checkbox"
       class="mt-0.5"
       checked={selection.readingGoals}
-      disabled={!catalog.hasReadingGoals || disabledItems.readingGoals}
+      disabled={readingGoalsDisabled}
       onchange={(e) =>
         onchange({ ...selection, readingGoals: (e.currentTarget as HTMLInputElement).checked })}
     />
     <div>
-      <div
-        class="text-sm font-medium"
-        class:text-gray-400={!catalog.hasReadingGoals || disabledItems.readingGoals}
-      >
+      <div class="text-sm font-medium" class:text-gray-400={readingGoalsDisabled}>
         Reading goals
       </div>
       <div class="text-xs text-gray-600">All reading goals and their history.</div>
@@ -134,7 +136,11 @@
           {@const entry = selection.perBook.get(book.id)}
           {@const disabled = disabledItems.books?.has(book.id) ?? false}
           <li class="py-2">
-            <label class="flex cursor-pointer items-center gap-3">
+            <label
+              class="flex items-center gap-3"
+              class:cursor-pointer={!disabled}
+              class:cursor-not-allowed={disabled}
+            >
               <input
                 type="checkbox"
                 checked={selected}
