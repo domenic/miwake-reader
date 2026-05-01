@@ -164,25 +164,6 @@
     </label>
   </div>
 
-  <div class="mt-5">
-    <div class="mb-1 text-base font-medium">Local storage</div>
-    <div class="rounded p-2 text-sm text-gray-700">
-      {#if storagePersisted === null}
-        Checking…
-      {:else if storagePersisted}
-        Persistent. Your browser has marked this site's local data as durable — it won't be evicted
-        under disk pressure.
-      {:else}
-        Temporary. Your browser may evict this site's local data if it runs low on disk. The reader
-        re-asks for persistence on every sync; browsers grant it once you've used the site enough,
-        bookmarked it, or installed it as a PWA.
-      {/if}
-      {#if storageQuota}
-        <span class="text-gray-500"> · {storageQuota}</span>
-      {/if}
-    </div>
-  </div>
-
   <SyncRadioGroup
     heading="EPUB import fixes"
     name="sync-import-html-fix"
@@ -203,6 +184,25 @@
       </div>
     </label>
   {/if}
+
+  <div class="mt-5">
+    <div class="mb-1 text-base font-medium">
+      Local storage status{#if storageQuota}
+        · {storageQuota}{/if}
+    </div>
+    <div class="rounded p-2 text-sm text-gray-700">
+      {#if storagePersisted === null}
+        Checking…
+      {:else if storagePersisted}
+        Persistent. Your browser has marked this site's local data as durable — it won't be evicted
+        under disk pressure.
+      {:else}
+        Temporary. Your browser may evict this site's local data if it runs low on disk. The reader
+        re-asks for persistence on every sync; browsers grant it once you've used the site enough,
+        bookmarked it, or installed it as a PWA.
+      {/if}
+    </div>
+  </div>
 </details>
 
 <style>
