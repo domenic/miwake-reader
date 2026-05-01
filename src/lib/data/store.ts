@@ -27,12 +27,7 @@ import {
   StatisticsTabAvailableKeybind,
   type StatisticsTabKeybindMap
 } from '$lib/data/statistics-tab-keybind';
-import {
-  InternalStorageSources,
-  StorageDataType,
-  StorageKey,
-  StorageSourceDefault
-} from '$lib/data/storage/storage-types';
+import { StorageKey, StorageSourceDefault } from '$lib/data/storage/storage-types';
 import {
   AutoReplicationType,
   ReplicationSaveBehavior
@@ -208,11 +203,6 @@ export const replicationSaveBehavior$ =
     ReplicationSaveBehavior.NewOnly
   );
 
-export const showExternalPlaceholder$ = writableBooleanLocalStorageSubject()(
-  'showExternalPlaceholder',
-  false
-);
-
 // Legacy lockstep stores: source-manager.ts mirrors the new
 // cloudConnection$/fsConnection$ records into these on every boot.
 // Runtime state, not user config — excluded from app-settings backups.
@@ -316,29 +306,9 @@ export const readingGoal$ = writableObjectLocalStorageSubject<ReadingGoal>()('re
   lastGoalModified: Date.now()
 });
 
-export const lastExportedTarget$ = writableStringLocalStorageSubject<StorageKey>()(
-  'lastExportedTarget',
-  StorageKey.BACKUP
-);
-
-export const lastExportedTypes$ = writableArrayLocalStorageSubject<StorageDataType>()(
-  'lastExportedTypes',
-  [StorageDataType.PROGRESS, StorageDataType.STATISTICS]
-);
-
 export const lastBlurredTrackerItems$ = writableSetLocalStorageSubject<string>()(
   'lastBlurredTrackerItems',
   new Set<string>()
-);
-
-export const lastSyncedSettingsSource$ = writableStringLocalStorageSubject()(
-  'lastSyncedSettingsSource',
-  InternalStorageSources.INTERNAL_BROWSER
-);
-
-export const lastSyncedSettingsTarget$ = writableStringLocalStorageSubject()(
-  'lastSyncedSettingsTarget',
-  InternalStorageSources.INTERNAL_ZIP
 );
 
 export const lastReadingGoalsModified$ = writableNumberLocalStorageSubject()(
