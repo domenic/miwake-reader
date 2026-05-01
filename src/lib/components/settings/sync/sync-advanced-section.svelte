@@ -187,8 +187,7 @@
 
   <div class="mt-5">
     <div class="mb-1 text-base font-medium">
-      Local storage status{#if storageQuota}
-        · {storageQuota}{/if}
+      {storageQuota ? `Local storage status · ${storageQuota}` : 'Local storage status'}
     </div>
     <div class="rounded p-2 text-sm text-gray-700">
       {#if storagePersisted === null}
