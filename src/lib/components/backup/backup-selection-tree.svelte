@@ -126,7 +126,7 @@
     {#if catalog.books.length === 0}
       <div class="py-6 text-center text-xs text-gray-500">No books available.</div>
     {:else}
-      <ul class="mt-2 max-h-64 divide-y divide-black/5 overflow-y-auto">
+      <ul class="mt-2 max-h-64 divide-y divide-black/5 overflow-y-auto px-1">
         {#each catalog.books as book (book.id)}
           {@const selected = isBookSelected(book)}
           {@const entry = selection.perBook.get(book.id)}
