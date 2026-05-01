@@ -249,13 +249,14 @@ export async function loadConnectionsFromDb(): Promise<void> {
   const cloudRecord = records.find(
     (r) => r.type === StorageKey.GDRIVE || r.type === StorageKey.ONEDRIVE
   );
+  const persistedCloud = read<CloudConnectionState | null>(cloudConnection$);
   if (cloudRecord) {
     cloudConnection$.next({
       provider: cloudRecord.type as CloudProviderType,
       usesCustomCredentials: isCustomCloudName(cloudRecord.name),
       connectedAt: cloudRecord.lastSourceModified,
-      lastSyncedAt: null,
-      bookCount: null
+      lastSyncedAt: persistedCloud?.lastSyncedAt ?? null,
+      bookCount: persistedCloud?.bookCount ?? null
     });
     // Intentionally NO book-count refresh here: getBookList triggers the
     // OAuth manager, and if the cached refresh token is missing/invalid
@@ -263,6 +264,18 @@ export async function loadConnectionsFromDb(): Promise<void> {
     // gets blocked and surfaces a "login to your cloud provider" dialog
     // on every page load. The count stays null until Phase 5's unified
     // /manage view sources it from the local library.
+  } else if (persistedCloud) {
+    // localStorage carries a hint from a previous device's backup but
+    // there's no matching IndexedDB storageSource record (refresh
+    // token), so we can't actually sync. Keep the connection visible
+    // so the UI can prompt for reconnect instead of pretending sync
+    // was never configured.
+    cloudHealth$.next({
+      status: 'reauth-required',
+      summary: `Reconnect ${persistedCloud.provider === StorageKey.GDRIVE ? 'Google Drive' : 'OneDrive'}`,
+      detail:
+        'This device is missing the sign-in for the cloud account in your last backup. Reconnect to resume syncing.'
+    });
   } else {
     cloudConnection$.next(null);
   }

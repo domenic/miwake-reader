@@ -9,7 +9,7 @@
     readingGoalsMergeMode$,
     statisticsMergeMode$
   } from '$lib/data/store';
-  import { localStoragePreferenceKeys } from '$lib/data/internal/writable-storage-subject';
+  import { localStoragePreferences } from '$lib/data/internal/writable-storage-subject';
   import { pagePath } from '$lib/data/env';
   import { cloudConnection$, fsConnection$, isSyncing$ } from '$lib/data/sync/sync-store';
   import SyncButton from '$lib/components/settings/sync/sync-button.svelte';
@@ -37,8 +37,8 @@
   const READING_GOAL_LOCALSTORAGE_KEYS = ['readingGoal', 'lastReadingGoalsModified'] as const;
 
   /**
-   * Whether a localStorage key should travel with the App-settings
-   * checkbox. The allowlist comes from the registry maintained by
+   * Whether a localStorage key belongs to the App-settings checkbox.
+   * The set comes from the registry maintained by
    * `writableStorageSubject` — every preference store self-registers
    * its key, every runtime store opts out via `kind: 'runtime'`. So
    * adding a new preference automatically gets it backed up; adding
@@ -47,9 +47,9 @@
    * Reading-goal keys are preferences-of-a-sort but owned by the
    * Reading-goals checkbox, not App settings.
    */
-  function isAppSettingExportable(key: string): boolean {
+  function isAppSetting(key: string): boolean {
     if ((READING_GOAL_LOCALSTORAGE_KEYS as readonly string[]).includes(key)) return false;
-    return localStoragePreferenceKeys.has(key);
+    return localStoragePreferences.has(key);
   }
 
   async function buildCurrentCatalog(): Promise<BackupCatalog> {
@@ -162,13 +162,16 @@
         }
 
         if (selection.appSettings) {
+          // Iterate the registry, not localStorage. Defaults the user
+          // never explicitly changed are still "their preferences";
+          // restoring on a fresh device should reproduce the same
+          // effective settings, not just the deltas from current
+          // defaults.
           const snapshot: Record<string, string> = {};
-          for (let i = 0; i < localStorage.length; i += 1) {
-            const key = localStorage.key(i);
-            if (key === null) continue;
-            if (!isAppSettingExportable(key)) continue;
-            const value = localStorage.getItem(key);
-            if (value !== null) snapshot[key] = value;
+          for (const key of localStoragePreferences.keys()) {
+            if (!isAppSetting(key)) continue;
+            const value = localStoragePreferences.serialize(key);
+            if (value !== undefined) snapshot[key] = value;
           }
           await backupHandler.saveAppSettings(JSON.stringify(snapshot));
         }
@@ -358,12 +361,12 @@
               for (let i = localStorage.length - 1; i >= 0; i -= 1) {
                 const key = localStorage.key(i);
                 if (key === null) continue;
-                if (!isAppSettingExportable(key)) continue;
+                if (!isAppSetting(key)) continue;
                 localStorage.removeItem(key);
               }
             }
             for (const [k, v] of Object.entries(snapshot)) {
-              if (!isAppSettingExportable(k)) continue;
+              if (!isAppSetting(k)) continue;
               if (direction === 'newest' && localStorage.getItem(k) !== null) continue;
               localStorage.setItem(k, v);
             }

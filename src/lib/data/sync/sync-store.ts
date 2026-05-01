@@ -47,14 +47,21 @@ export type SyncLocationHealth =
       technicalDetail?: string;
     };
 
-// Connection records are runtime state — `loadConnectionsFromDb`
-// rebuilds them from IndexedDB on every boot.
+// cloudConnection$ is a 'preference' so app-settings backups carry a
+// hint of which provider you'd had configured. The actual refresh
+// token + IDB storageSource record do NOT travel — those are real
+// secrets and live in IndexedDB. On a restored device,
+// loadConnectionsFromDb sees the stale cloudConnection but no
+// matching IDB record and flips cloudHealth to "reauth-required" so
+// the UI nudges the user to reconnect rather than silently sitting
+// at "Sync not configured."
 export const cloudConnection$ = writableObjectLocalStorageSubject<CloudConnectionState | null>()(
   'sync.cloudConnection',
-  null,
-  'runtime'
+  null
 );
 
+// FS handles aren't device-portable — a FileSystemDirectoryHandle
+// only makes sense on the machine that granted it. Stay runtime.
 export const fsConnection$ = writableObjectLocalStorageSubject<FsConnectionState | null>()(
   'sync.fsConnection',
   null,

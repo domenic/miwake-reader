@@ -16,15 +16,24 @@ type Storage = typeof appLocalStorage;
  */
 export type StorageSubjectKind = 'preference' | 'runtime';
 
-const preferenceKeys = new Set<string>();
+/**
+ * Registry of preference stores keyed by their localStorage key. The
+ * value is a closure that returns the store's *effective* serialized
+ * value (defaults included), letting backup capture settings the
+ * user has merely accepted as well as ones they've explicitly
+ * changed. Without this, a freshly-installed user who's never opened
+ * any settings page would export an empty preferences blob.
+ */
+const preferenceSerializers = new Map<string, () => string>();
 
 /**
- * Read-only snapshot of every localStorage key that `writableStorageSubject`
- * has registered as a user preference. Backup uses this as the
- * allowlist for the App-settings export so we don't have to maintain
- * a separate list of keys-to-include or keys-to-exclude.
+ * Read-only view of the registry, used by the App-settings backup.
  */
-export const localStoragePreferenceKeys: ReadonlySet<string> = preferenceKeys;
+export const localStoragePreferences = {
+  has: (key: string) => preferenceSerializers.has(key),
+  keys: () => preferenceSerializers.keys(),
+  serialize: (key: string) => preferenceSerializers.get(key)?.()
+};
 
 export function writableStorageSubject<T>(
   storage: Storage,
@@ -32,14 +41,14 @@ export function writableStorageSubject<T>(
   mapToString: (t: T) => string
 ) {
   return (key: string, defaultValue: T, kind: StorageSubjectKind = 'preference') => {
-    if (kind === 'preference' && storage === appLocalStorage) {
-      preferenceKeys.add(key);
-    }
     const initValue = getStoredOrDefault(storage)(key, defaultValue, mapFromString);
     const subject = writableSubject(initValue);
     subject.pipe(skip(1)).subscribe((updatedValue) => {
       storage.setItem(key, mapToString(updatedValue ?? defaultValue));
     });
+    if (kind === 'preference' && storage === appLocalStorage) {
+      preferenceSerializers.set(key, () => mapToString(subject.getValue() ?? defaultValue));
+    }
     return subject;
   };
 }
