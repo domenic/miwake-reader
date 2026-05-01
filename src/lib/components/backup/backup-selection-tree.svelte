@@ -61,6 +61,47 @@
     selectableBooks.length > 0 && selectableBooks.every((b) => selection.perBook.has(b.id))
   );
   let anyBookSelected = $derived(selection.perBook.size > 0);
+
+  type BulkField = 'bookmarks' | 'statistics';
+  type BulkSummary = {
+    /** Selected books that *could* carry the field (i.e. catalog says hasBookmark / hasStatistics). */
+    available: number;
+    /** Of those, how many currently have it selected. */
+    chosen: number;
+  };
+
+  function summarizeBulk(field: BulkField): BulkSummary {
+    let available = 0;
+    let chosen = 0;
+    for (const [bookId, entry] of selection.perBook) {
+      const book = catalog.books.find((b) => b.id === bookId);
+      const hasField = book && (field === 'bookmarks' ? book.hasBookmark : book.hasStatistics);
+      if (!hasField) continue;
+      available += 1;
+      if (entry[field]) chosen += 1;
+    }
+    return { available, chosen };
+  }
+
+  function toggleAllOfField(field: BulkField) {
+    const summary = summarizeBulk(field);
+    // Indeterminate or empty → check all; fully checked → uncheck all.
+    const target = summary.chosen < summary.available;
+    const next = { ...selection, perBook: new Map(selection.perBook) };
+    for (const [bookId, entry] of next.perBook) {
+      const book = catalog.books.find((b) => b.id === bookId);
+      const hasField = book && (field === 'bookmarks' ? book.hasBookmark : book.hasStatistics);
+      if (!hasField) continue;
+      next.perBook.set(bookId, { ...entry, [field]: target });
+    }
+    onchange(next);
+  }
+
+  let someBookHasBookmark = $derived(catalog.books.some((b) => b.hasBookmark));
+  let someBookHasStatistics = $derived(catalog.books.some((b) => b.hasStatistics));
+
+  let bulkBookmarks = $derived(summarizeBulk('bookmarks'));
+  let bulkStatistics = $derived(summarizeBulk('statistics'));
 </script>
 
 <div class="space-y-3">
@@ -111,15 +152,45 @@
         >
       </div>
       {#if catalog.books.length > 0}
-        <label class="flex items-center gap-1.5 text-xs text-gray-700">
-          <input
-            type="checkbox"
-            checked={allBooksSelected}
-            indeterminate={anyBookSelected && !allBooksSelected}
-            onchange={toggleSelectAllBooks}
-          />
-          Select all
-        </label>
+        <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-700">
+          <label class="flex items-center gap-1.5">
+            <input
+              type="checkbox"
+              checked={allBooksSelected}
+              indeterminate={anyBookSelected && !allBooksSelected}
+              onchange={toggleSelectAllBooks}
+            />
+            Select all
+          </label>
+          {#if someBookHasBookmark}
+            <label class="flex items-center gap-1.5">
+              <input
+                type="checkbox"
+                checked={bulkBookmarks.available > 0 &&
+                  bulkBookmarks.chosen === bulkBookmarks.available}
+                indeterminate={bulkBookmarks.chosen > 0 &&
+                  bulkBookmarks.chosen < bulkBookmarks.available}
+                disabled={bulkBookmarks.available === 0}
+                onchange={() => toggleAllOfField('bookmarks')}
+              />
+              All bookmarks
+            </label>
+          {/if}
+          {#if someBookHasStatistics}
+            <label class="flex items-center gap-1.5">
+              <input
+                type="checkbox"
+                checked={bulkStatistics.available > 0 &&
+                  bulkStatistics.chosen === bulkStatistics.available}
+                indeterminate={bulkStatistics.chosen > 0 &&
+                  bulkStatistics.chosen < bulkStatistics.available}
+                disabled={bulkStatistics.available === 0}
+                onchange={() => toggleAllOfField('statistics')}
+              />
+              All statistics
+            </label>
+          {/if}
+        </div>
       {/if}
     </div>
 
