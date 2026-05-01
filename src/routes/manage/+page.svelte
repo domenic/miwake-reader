@@ -4,8 +4,6 @@
   import BookCardList from '$lib/components/book-card/book-card-list.svelte';
   import type { BookCardProps } from '$lib/components/book-card/book-card-props';
   import BookManagerHeader from '$lib/components/book-card/book-manager-header.svelte';
-  import { showExportDialog } from '$lib/components/book-export/export-dialog-content.svelte';
-  import { showSyncDialog } from '$lib/components/book-export/sync-dialog-content.svelte';
   import {
     showBugReportDialog,
     showErrorDialogWithLogReport
@@ -19,7 +17,7 @@
   import { confirmDialog, messageDialog } from '$lib/data/simple-dialogs';
   import { SortDirection, type SortOption } from '$lib/data/sort-types';
   import { getStorageHandler } from '$lib/data/storage/storage-handler-factory';
-  import { StorageDataType, StorageKey } from '$lib/data/storage/storage-types';
+  import { StorageKey } from '$lib/data/storage/storage-types';
   import { storageSource$ } from '$lib/data/storage/storage-view';
   import {
     booklistSortOptions$,
@@ -39,15 +37,11 @@
   import { formatPageTitle } from '$lib/functions/format-page-title';
   import { keyBy } from '$lib/functions/key-by';
   import { handleErrorDuringReplication } from '$lib/functions/replication/error-handler';
-  import { importBackup, importData, replicateData } from '$lib/functions/replication/replicator';
+  import { importData } from '$lib/functions/replication/replicator';
   import { throwIfAborted } from '$lib/functions/replication/replication-error';
-  import {
-    replicationProgress$,
-    type ReplicationProgress
-  } from '$lib/functions/replication/replication-progress';
   import { pluralize } from '$lib/functions/utils';
   import pLimit from 'p-limit';
-  import { combineLatest, map, Observable, share, Subject, takeUntil } from 'rxjs';
+  import { combineLatest, map, Observable, share } from 'rxjs';
   import { onDestroy, onMount, tick } from 'svelte';
   import Fa from 'svelte-fa';
 
@@ -98,15 +92,13 @@
 
   let selectedBookIds: ReadonlySet<number> = $state(new Set());
   let selectMode = $state(false);
-  let cancelToken = $state(new AbortController());
+  // Cancellation token for the import / delete code paths. The
+  // visible cancel button that used to drive .abort() lived in the
+  // header's progress UI which has since been removed; the token
+  // stays because importData / deleteBookData require an
+  // AbortSignal in their signatures.
+  let cancelToken = new AbortController();
   let cancelSignal = $derived(cancelToken.signal);
-  let cancelTooltip = $state('');
-  let replicationProgress = $state(0);
-  let replicationToProgress = $state(0);
-  let replicationProgressRemaining = $state('~ ??:??:??');
-  let replicationDone = new Subject<void>();
-  let progressBase = 0;
-  let executionStart: number;
 
   $effect(() => {
     if (!selectMode) {
@@ -229,15 +221,13 @@
       !$isOnline$
     );
 
-    if (!connectivityPass && !replicationToProgress) {
+    if (!connectivityPass) {
       const message = 'You have to be online for this operation';
-
       logger.warn(message);
-
       messageDialog({ title: 'Failure', message });
     }
 
-    return !replicationToProgress && connectivityPass;
+    return connectivityPass;
   }
 
   function openBook(bookId: number) {
@@ -254,24 +244,19 @@
   }
 
   async function onFilesChange(fileList: FileList | File[]) {
-    if (!operationAllowed()) {
-      return;
-    }
-
-    cancelTooltip = `Cancels the current Import\nAlready imported data will not be deleted`;
-
-    initializeReplicationProgressData();
+    if (!operationAllowed()) return;
 
     const supportedExtRegex = /\.(?:htmlz|epub|txt)$/;
     const files = Array.from(fileList).filter((f) => supportedExtRegex.test(f.name));
     const errorTitle = 'Book Import Failed';
 
     if (!files.length) {
-      resetProgress();
-
       showError(errorTitle, 'Imported files must be in EPUB, TXT, or HTMLZ format.');
       return;
     }
+
+    cancelToken = new AbortController();
+    logger.clearHistory();
 
     const error = await importData(
       document,
@@ -290,8 +275,6 @@
       $fileCountData$
     ).catch((catchedError) => catchedError.message);
 
-    resetProgress();
-
     if (error) {
       showError(errorTitle, error, 'An error occurred during book import.');
     }
@@ -309,27 +292,6 @@
     }
   }
 
-  function initializeReplicationProgressData() {
-    replicationDone = new Subject<void>();
-    replicationProgress$.pipe(takeUntil(replicationDone)).subscribe(updateProgress);
-    replicationProgressRemaining = '~ ??:??:??';
-    replicationProgress = 0;
-    replicationToProgress = 1;
-    executionStart = Date.now();
-
-    logger.clearHistory();
-
-    cancelToken = new AbortController();
-  }
-
-  function resetProgress() {
-    replicationDone.next();
-    replicationDone.complete();
-    replicationToProgress = 0;
-    replicationProgress = 0;
-    cancelTooltip = '';
-  }
-
   function onSelectAllBooks() {
     const bookCards = $bookCards$;
     selectedBookIds = cloneMutateSet(selectedBookIds, (set) => {
@@ -338,28 +300,21 @@
   }
 
   async function removeBooks(bookIds: number[]) {
-    if (!operationAllowed()) {
-      return;
-    }
+    if (!operationAllowed()) return;
 
-    cancelTooltip = `Cancels the Deletion\nAlready deleted data will not be restored`;
-
-    initializeReplicationProgressData();
+    cancelToken = new AbortController();
+    logger.clearHistory();
 
     const currentBookCount = $bookCards$.length;
     const handler = getStorageHandler(window, $storageSource$, '');
     const { error, deleted } = await handler.deleteBookData(
       $bookCards$.reduce((toDelete, card) => {
-        if (bookIds.includes(card.id)) {
-          toDelete.push(card.title);
-        }
+        if (bookIds.includes(card.id)) toDelete.push(card.title);
         return toDelete;
       }, [] as string[]),
       cancelSignal,
       $keepLocalStatisticsOnDeletion$
     );
-
-    resetProgress();
 
     await tick();
 
@@ -373,104 +328,6 @@
 
     if (error) {
       showError('Deletion Failed', error, 'An error occurred during book deletion.');
-    }
-  }
-
-  async function onImportBackup(file: File) {
-    if (!operationAllowed()) {
-      return;
-    }
-
-    const errorTitle = 'Import Failed';
-
-    cancelTooltip = `Cancels the current Import\nAlready imported data will not be deleted`;
-
-    initializeReplicationProgressData();
-
-    if (!file.name.endsWith('.zip')) {
-      resetProgress();
-
-      showError(errorTitle, 'Only ZIP files can be imported.');
-      return;
-    }
-
-    const error = await importBackup(
-      getStorageHandler(
-        window,
-        StorageKey.BACKUP,
-        undefined,
-        $storageSource$ === StorageKey.BROWSER,
-        $cacheStorageData$,
-        $replicationSaveBehavior$,
-        $statisticsMergeMode$,
-        $readingGoalsMergeMode$
-      ),
-      getStorageHandler(
-        window,
-        $storageSource$,
-        '',
-        $storageSource$ === StorageKey.BROWSER,
-        $cacheStorageData$,
-        $replicationSaveBehavior$,
-        $statisticsMergeMode$,
-        $readingGoalsMergeMode$
-      ),
-      file,
-      cancelSignal
-    ).catch((err) => err.message);
-
-    resetProgress();
-
-    if (error) {
-      showError(errorTitle, error, 'An error occurred during book import.');
-    }
-  }
-
-  async function onExportData() {
-    const types = await showExportDialog();
-    if (!types || !operationAllowed()) return;
-
-    await runReplication(StorageKey.BACKUP, types);
-  }
-
-  async function onSyncData() {
-    const result = await showSyncDialog();
-    if (!result || !operationAllowed()) return;
-
-    await runReplication(result.target, result.types);
-  }
-
-  async function runReplication(target: StorageKey, types: StorageDataType[]) {
-    cancelTooltip = 'Cancels the current export';
-
-    initializeReplicationProgressData();
-
-    const handlers = [$storageSource$, target].map((storageType) =>
-      getStorageHandler(
-        window,
-        storageType,
-        '',
-        target === StorageKey.BROWSER,
-        $cacheStorageData$,
-        $replicationSaveBehavior$,
-        $statisticsMergeMode$,
-        $readingGoalsMergeMode$
-      )
-    );
-    const books = $bookCards$.filter((card) => selectedBookIds.has(card.id));
-    const error = await replicateData(
-      handlers[0],
-      handlers[1],
-      false,
-      books.map((book) => ({ title: book.title, imagePath: book.imagePath })),
-      types,
-      cancelSignal
-    ).catch((err: Error) => err.message);
-
-    resetProgress();
-
-    if (error) {
-      showError('Export Failed', error, 'Error(s) occurred during export.');
     }
   }
 
@@ -492,20 +349,15 @@
       });
     }
 
-    if (wasCanceled) {
-      return;
-    }
+    if (wasCanceled) return;
 
-    cancelTooltip = `Cancels the current Process`;
-
-    initializeReplicationProgressData();
+    cancelToken = new AbortController();
+    logger.clearHistory();
 
     const limiter = pLimit(1);
     const tasks: Promise<void>[] = [];
 
     let failed = 0;
-
-    replicationProgress$.next({ progressBase: 1, maxProgress: titles.length });
 
     titles.forEach((title) => {
       tasks.push(
@@ -513,13 +365,10 @@
           try {
             throwIfAborted(cancelSignal);
             await database.deleteStatisticEntries([title], true);
-
-            replicationProgress$.next({ progressToAdd: 1 });
           } catch (error) {
             handleErrorDuringReplication(error, `Error on deleting statistics for ${title}: `, [
               limiter
             ]);
-
             failed += 1;
           }
         })
@@ -528,57 +377,9 @@
 
     await Promise.all(tasks).catch(() => {});
 
-    resetProgress();
-
     if (failed) {
       showError('Deletion Failed', `Unable to delete statistics for ${pluralize(failed, 'book')}.`);
     }
-  }
-
-  function updateProgress(replicationProgressData: ReplicationProgress) {
-    if (cancelSignal.aborted) {
-      return;
-    }
-
-    progressBase = replicationProgressData.progressBase || progressBase || 0;
-    replicationToProgress = replicationProgressData.maxProgress || replicationToProgress || 0;
-
-    if (replicationProgressData.skipStep) {
-      const progressDiffToAdd =
-        Math.ceil(replicationProgress / progressBase) * progressBase - replicationProgress;
-
-      replicationProgress =
-        Math.floor(
-          (replicationProgress + (progressDiffToAdd || progressBase) + Number.EPSILON) * 1000
-        ) / 1000;
-    } else if (replicationProgressData.completeStep) {
-      const progressDiffToAdd = Math.ceil(replicationProgress) - replicationProgress;
-
-      replicationProgress =
-        Math.floor((replicationProgress + progressDiffToAdd + Number.EPSILON) * 1000) / 1000;
-    } else if (replicationProgressData.progressToAdd && replicationProgressData.progressToAdd > 0) {
-      replicationProgress =
-        Math.floor(
-          (replicationProgress + replicationProgressData.progressToAdd + Number.EPSILON) * 1000
-        ) / 1000;
-    }
-
-    if (replicationProgressData.progressToAdd) {
-      const duration = (Date.now() - executionStart) / 1000;
-      const processPerSecond = replicationProgress / duration;
-      const remainingTime = (replicationToProgress - replicationProgress) / processPerSecond;
-
-      replicationProgressRemaining =
-        replicationToProgress > replicationProgress
-          ? `~ ${getTimestamp(Math.ceil(remainingTime))}`
-          : '~ 00:00:01';
-    }
-  }
-
-  function getTimestamp(seconds: number) {
-    return seconds && Number.isFinite(seconds)
-      ? new Date(seconds * 1000).toISOString().substr(11, 8)
-      : '??:??:??';
   }
 </script>
 
@@ -590,25 +391,12 @@
   <BookManagerHeader
     selectedCount={selectedBookIds.size}
     hasBooks={!!$bookCards$?.length}
-    {cancelTooltip}
-    {replicationProgress}
-    {replicationToProgress}
-    {replicationProgressRemaining}
     bind:selectMode
     onselectAllClick={onSelectAllBooks}
     onremoveClick={() => removeBooks(Array.from(selectedBookIds))}
     onfilesChange={onFilesChange}
     onbugReportClick={showBugReportDialog}
-    oncancelReplication={() => {
-      if (!cancelSignal.aborted) {
-        cancelToken.abort();
-        replicationProgressRemaining = 'Canceling ...';
-      }
-    }}
     ondeleteStatistics={onDeleteStatistics}
-    onexportData={onExportData}
-    onsyncData={onSyncData}
-    onimportBackup={onImportBackup}
   />
 </div>
 
