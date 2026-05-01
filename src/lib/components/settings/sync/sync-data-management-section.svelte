@@ -9,6 +9,7 @@
     readingGoalsMergeMode$,
     statisticsMergeMode$
   } from '$lib/data/store';
+  import { localStoragePreferenceKeys } from '$lib/data/internal/writable-storage-subject';
   import { pagePath } from '$lib/data/env';
   import { cloudConnection$, fsConnection$, isSyncing$ } from '$lib/data/sync/sync-store';
   import SyncButton from '$lib/components/settings/sync/sync-button.svelte';
@@ -36,29 +37,19 @@
   const READING_GOAL_LOCALSTORAGE_KEYS = ['readingGoal', 'lastReadingGoalsModified'] as const;
 
   /**
-   * Runtime sync state and legacy lockstep stores. None of these are
-   * user preferences — `loadConnectionsFromDb` rebuilds the new ones
-   * from IndexedDB on every boot, and the legacy ones get re-derived
-   * alongside. Restoring stale values is at best a no-op and at worst
-   * a brief UI flicker before the reconcile catches up. Custom OAuth
-   * credentials (`sync.cloudCustomCredentials`) are real config and
-   * are NOT in this list.
+   * Whether a localStorage key should travel with the App-settings
+   * checkbox. The allowlist comes from the registry maintained by
+   * `writableStorageSubject` — every preference store self-registers
+   * its key, every runtime store opts out via `kind: 'runtime'`. So
+   * adding a new preference automatically gets it backed up; adding
+   * a new runtime store doesn't leak.
+   *
+   * Reading-goal keys are preferences-of-a-sort but owned by the
+   * Reading-goals checkbox, not App settings.
    */
-  const RUNTIME_SYNC_STATE_LOCALSTORAGE_KEYS = [
-    'sync.cloudConnection',
-    'sync.fsConnection',
-    'sync.cloudHealth',
-    'sync.fsHealth',
-    'gDriveStorageSource',
-    'oneDriveStorageSource',
-    'fsStorageSource',
-    'syncTarget'
-  ] as const;
-
   function isAppSettingExportable(key: string): boolean {
     if ((READING_GOAL_LOCALSTORAGE_KEYS as readonly string[]).includes(key)) return false;
-    if ((RUNTIME_SYNC_STATE_LOCALSTORAGE_KEYS as readonly string[]).includes(key)) return false;
-    return true;
+    return localStoragePreferenceKeys.has(key);
   }
 
   async function buildCurrentCatalog(): Promise<BackupCatalog> {

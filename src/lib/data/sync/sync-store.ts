@@ -47,30 +47,40 @@ export type SyncLocationHealth =
       technicalDetail?: string;
     };
 
+// Connection records are runtime state — `loadConnectionsFromDb`
+// rebuilds them from IndexedDB on every boot.
 export const cloudConnection$ = writableObjectLocalStorageSubject<CloudConnectionState | null>()(
   'sync.cloudConnection',
-  null
+  null,
+  'runtime'
 );
 
 export const fsConnection$ = writableObjectLocalStorageSubject<FsConnectionState | null>()(
   'sync.fsConnection',
-  null
+  null,
+  'runtime'
 );
 
+// Custom OAuth credentials are real user config — kept across
+// reconnects, switched providers, etc. — so they DO travel with
+// app-settings backups.
 export const cloudCustomCredentials$ = writableObjectLocalStorageSubject<
   Partial<Record<CloudProviderType, CustomOAuthCredentials>>
 >()('sync.cloudCustomCredentials', {});
 
+// Health is purely runtime — set by the engine in response to the
+// most recent sync attempt.
 export const cloudHealth$ = writableObjectLocalStorageSubject<SyncLocationHealth>()(
   'sync.cloudHealth',
-  {
-    status: 'ok'
-  }
+  { status: 'ok' },
+  'runtime'
 );
 
-export const fsHealth$ = writableObjectLocalStorageSubject<SyncLocationHealth>()('sync.fsHealth', {
-  status: 'ok'
-});
+export const fsHealth$ = writableObjectLocalStorageSubject<SyncLocationHealth>()(
+  'sync.fsHealth',
+  { status: 'ok' },
+  'runtime'
+);
 
 /**
  * Live indicator of whether the sync engine is either actively pushing

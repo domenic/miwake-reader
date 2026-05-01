@@ -218,19 +218,28 @@ export const showExternalPlaceholder$ = writableBooleanLocalStorageSubject()(
   false
 );
 
+// Legacy lockstep stores: source-manager.ts mirrors the new
+// cloudConnection$/fsConnection$ records into these on every boot.
+// Runtime state, not user config — excluded from app-settings backups.
 export const gDriveStorageSource$ = writableStringLocalStorageSubject()(
   'gDriveStorageSource',
-  StorageSourceDefault.GDRIVE_DEFAULT
+  StorageSourceDefault.GDRIVE_DEFAULT,
+  'runtime'
 );
 
 export const oneDriveStorageSource$ = writableStringLocalStorageSubject()(
   'oneDriveStorageSource',
-  StorageSourceDefault.ONEDRIVE_DEFAULT
+  StorageSourceDefault.ONEDRIVE_DEFAULT,
+  'runtime'
 );
 
-export const fsStorageSource$ = writableStringLocalStorageSubject()('fsStorageSource', '');
+export const fsStorageSource$ = writableStringLocalStorageSubject()(
+  'fsStorageSource',
+  '',
+  'runtime'
+);
 
-export const syncTarget$ = writableStringLocalStorageSubject()('syncTarget', '');
+export const syncTarget$ = writableStringLocalStorageSubject()('syncTarget', '', 'runtime');
 
 export const keepLocalStatisticsOnDeletion$ = writableBooleanLocalStorageSubject()(
   'keepLocalStatisticsOnDeletion',
