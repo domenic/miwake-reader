@@ -428,12 +428,6 @@ export class DatabaseService {
     return dataId;
   }
 
-  async getStorageSources() {
-    const db = await this.db;
-
-    return db.getAll('storageSource');
-  }
-
   async saveStorageSource(storageSource: BooksDbStorageSource, oldName: string) {
     const db = await this.db;
     const tx = db.transaction(['storageSource'], 'readwrite');
