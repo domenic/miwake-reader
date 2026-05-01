@@ -39,9 +39,13 @@
   import { handleErrorDuringReplication } from '$lib/functions/replication/error-handler';
   import { importData } from '$lib/functions/replication/replicator';
   import { throwIfAborted } from '$lib/functions/replication/replication-error';
+  import {
+    replicationProgress$,
+    type ReplicationProgress
+  } from '$lib/functions/replication/replication-progress';
   import { pluralize } from '$lib/functions/utils';
   import pLimit from 'p-limit';
-  import { combineLatest, map, Observable, share } from 'rxjs';
+  import { combineLatest, map, Observable, share, Subject, takeUntil } from 'rxjs';
   import { onDestroy, onMount, tick } from 'svelte';
   import Fa from 'svelte-fa';
 
@@ -92,13 +96,15 @@
 
   let selectedBookIds: ReadonlySet<number> = $state(new Set());
   let selectMode = $state(false);
-  // Cancellation token for the import / delete code paths. The
-  // visible cancel button that used to drive .abort() lived in the
-  // header's progress UI which has since been removed; the token
-  // stays because importData / deleteBookData require an
-  // AbortSignal in their signatures.
-  let cancelToken = new AbortController();
+  let cancelToken = $state(new AbortController());
   let cancelSignal = $derived(cancelToken.signal);
+  let cancelTooltip = $state('');
+  let replicationProgress = $state(0);
+  let replicationToProgress = $state(0);
+  let replicationProgressRemaining = $state('~ ??:??:??');
+  let replicationDone = new Subject<void>();
+  let progressBase = 0;
+  let executionStart = 0;
 
   $effect(() => {
     if (!selectMode) {
@@ -221,13 +227,68 @@
       !$isOnline$
     );
 
-    if (!connectivityPass) {
+    if (!connectivityPass && !replicationToProgress) {
       const message = 'You have to be online for this operation';
       logger.warn(message);
       messageDialog({ title: 'Failure', message });
     }
 
-    return connectivityPass;
+    return !replicationToProgress && connectivityPass;
+  }
+
+  function initializeReplicationProgressData() {
+    replicationDone = new Subject<void>();
+    replicationProgress$.pipe(takeUntil(replicationDone)).subscribe(updateProgress);
+    replicationProgressRemaining = '~ ??:??:??';
+    replicationProgress = 0;
+    replicationToProgress = 1;
+    executionStart = Date.now();
+    logger.clearHistory();
+    cancelToken = new AbortController();
+  }
+
+  function resetProgress() {
+    replicationDone.next();
+    replicationDone.complete();
+    replicationToProgress = 0;
+    replicationProgress = 0;
+    cancelTooltip = '';
+  }
+
+  function updateProgress(p: ReplicationProgress) {
+    if (cancelSignal.aborted) return;
+
+    progressBase = p.progressBase || progressBase || 0;
+    replicationToProgress = p.maxProgress || replicationToProgress || 0;
+
+    if (p.skipStep) {
+      const diff =
+        Math.ceil(replicationProgress / progressBase) * progressBase - replicationProgress;
+      replicationProgress =
+        Math.floor((replicationProgress + (diff || progressBase) + Number.EPSILON) * 1000) / 1000;
+    } else if (p.completeStep) {
+      const diff = Math.ceil(replicationProgress) - replicationProgress;
+      replicationProgress = Math.floor((replicationProgress + diff + Number.EPSILON) * 1000) / 1000;
+    } else if (p.progressToAdd && p.progressToAdd > 0) {
+      replicationProgress =
+        Math.floor((replicationProgress + p.progressToAdd + Number.EPSILON) * 1000) / 1000;
+    }
+
+    if (p.progressToAdd) {
+      const duration = (Date.now() - executionStart) / 1000;
+      const processPerSecond = replicationProgress / duration;
+      const remaining = (replicationToProgress - replicationProgress) / processPerSecond;
+      replicationProgressRemaining =
+        replicationToProgress > replicationProgress
+          ? `~ ${getTimestamp(Math.ceil(remaining))}`
+          : '~ 00:00:01';
+    }
+  }
+
+  function getTimestamp(seconds: number) {
+    return seconds && Number.isFinite(seconds)
+      ? new Date(seconds * 1000).toISOString().substr(11, 8)
+      : '??:??:??';
   }
 
   function openBook(bookId: number) {
@@ -255,8 +316,8 @@
       return;
     }
 
-    cancelToken = new AbortController();
-    logger.clearHistory();
+    cancelTooltip = 'Cancels the current import\nAlready imported data will not be deleted';
+    initializeReplicationProgressData();
 
     const error = await importData(
       document,
@@ -274,6 +335,8 @@
       cancelSignal,
       $fileCountData$
     ).catch((catchedError) => catchedError.message);
+
+    resetProgress();
 
     if (error) {
       showError(errorTitle, error, 'An error occurred during book import.');
@@ -302,8 +365,8 @@
   async function removeBooks(bookIds: number[]) {
     if (!operationAllowed()) return;
 
-    cancelToken = new AbortController();
-    logger.clearHistory();
+    cancelTooltip = 'Cancels the deletion\nAlready deleted data will not be restored';
+    initializeReplicationProgressData();
 
     const currentBookCount = $bookCards$.length;
     const handler = getStorageHandler(window, $storageSource$, '');
@@ -315,6 +378,8 @@
       cancelSignal,
       $keepLocalStatisticsOnDeletion$
     );
+
+    resetProgress();
 
     await tick();
 
@@ -351,13 +416,15 @@
 
     if (wasCanceled) return;
 
-    cancelToken = new AbortController();
-    logger.clearHistory();
+    cancelTooltip = 'Cancels the current process';
+    initializeReplicationProgressData();
 
     const limiter = pLimit(1);
     const tasks: Promise<void>[] = [];
 
     let failed = 0;
+
+    replicationProgress$.next({ progressBase: 1, maxProgress: titles.length });
 
     titles.forEach((title) => {
       tasks.push(
@@ -365,6 +432,7 @@
           try {
             throwIfAborted(cancelSignal);
             await database.deleteStatisticEntries([title], true);
+            replicationProgress$.next({ progressToAdd: 1 });
           } catch (error) {
             handleErrorDuringReplication(error, `Error on deleting statistics for ${title}: `, [
               limiter
@@ -376,6 +444,8 @@
     });
 
     await Promise.all(tasks).catch(() => {});
+
+    resetProgress();
 
     if (failed) {
       showError('Deletion Failed', `Unable to delete statistics for ${pluralize(failed, 'book')}.`);
@@ -391,12 +461,22 @@
   <BookManagerHeader
     selectedCount={selectedBookIds.size}
     hasBooks={!!$bookCards$?.length}
+    {replicationProgress}
+    {replicationToProgress}
+    {replicationProgressRemaining}
+    {cancelTooltip}
     bind:selectMode
     onselectAllClick={onSelectAllBooks}
     onremoveClick={() => removeBooks(Array.from(selectedBookIds))}
     onfilesChange={onFilesChange}
     onbugReportClick={showBugReportDialog}
     ondeleteStatistics={onDeleteStatistics}
+    oncancelReplication={() => {
+      if (!cancelSignal.aborted) {
+        cancelToken.abort();
+        replicationProgressRemaining = 'Canceling…';
+      }
+    }}
   />
 </div>
 
