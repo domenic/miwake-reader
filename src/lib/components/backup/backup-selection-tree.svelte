@@ -78,7 +78,7 @@
         <div class="text-sm font-medium" class:text-gray-400={disabledItems.appSettings}>
           App settings
         </div>
-        <div class="text-xs text-gray-600">Theme, fonts, tracker configuration, keybindings.</div>
+        <div class="text-xs text-gray-600">Reader, sync, and statistics preferences.</div>
       </div>
     </label>
   {/if}
