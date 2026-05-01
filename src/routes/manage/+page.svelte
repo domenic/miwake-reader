@@ -58,8 +58,7 @@
     database.bookmarks$,
     booklistSortOptions$
   ]).pipe(
-    map(([dataList, bookmarks]) => {
-      const sortProp = $booklistSortOptions$;
+    map(([dataList, bookmarks, sortProp]) => {
       const isTitleSort = sortProp.property === 'title';
       const bookmarkMap = keyBy(bookmarks, 'dataId');
 
