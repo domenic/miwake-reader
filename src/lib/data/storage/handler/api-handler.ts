@@ -107,14 +107,7 @@ export abstract class ApiStorageHandler extends BaseStorageHandler {
    * a popup (which would be blocked anyway without a user gesture).
    */
   async authenticate(authWindow: Window | null, silentOnly = false): Promise<void> {
-    await this.authManager.getToken(
-      this.window,
-      this.storageSourceName,
-      authWindow,
-      undefined,
-      undefined,
-      silentOnly
-    );
+    await this.authManager.getToken(this.window, this.storageSourceName, authWindow, silentOnly);
   }
 
   clearData(clearAll = true) {

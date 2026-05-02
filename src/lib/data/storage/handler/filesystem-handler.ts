@@ -13,12 +13,8 @@ import type { BookCardProps } from '$lib/components/book-card/book-card-props';
 import { MergeMode } from '$lib/data/merge-mode';
 import { ReplicationSaveBehavior } from '$lib/functions/replication/replication-options';
 import { StorageKey } from '$lib/data/storage/storage-types';
-import StorageUnlock from '$lib/components/storage-unlock.svelte';
-import {
-  isRemoteContext,
-  type StorageUnlockAction
-} from '$lib/data/storage/storage-source-manager';
-import { dialogManager } from '$lib/data/dialog-manager';
+import { isRemoteContext } from '$lib/data/storage/storage-source-manager';
+import { confirmDialog } from '$lib/data/simple-dialogs';
 import { getStorageHandler } from '$lib/data/storage/storage-handler-factory';
 import { handleErrorDuringReplication } from '$lib/functions/replication/error-handler';
 import pLimit from 'p-limit';
@@ -590,19 +586,15 @@ export class FilesystemStorageHandler extends BaseStorageHandler {
         error.message.includes('activation is required') &&
         (!this.rootDirectory || askForStorageUnlock)
       ) {
-        await new Promise<StorageUnlockAction | undefined>((resolver) => {
-          dialogManager.dialogs$.next([
-            {
-              component: StorageUnlock,
-              props: {
-                description: 'You are trying to access data on your filesystem',
-                action: 'Please grant permissions in the next dialog',
-                resolver
-              },
-              disableCloseOnClick: true
-            }
-          ]);
+        const wasCanceled = await confirmDialog({
+          title: 'Filesystem access required',
+          message:
+            'You are trying to access data on your filesystem. Please grant permissions in the next dialog.'
         });
+
+        if (wasCanceled) {
+          throw error;
+        }
 
         return this.ensureRoot(false);
       }

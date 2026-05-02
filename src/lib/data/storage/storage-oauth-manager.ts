@@ -14,9 +14,8 @@ import {
 import { logger } from '$lib/data/logger';
 import {
   isAppDefault,
-  unlockStorageData,
-  type RemoteContext,
-  type StorageUnlockAction
+  isRemoteContext,
+  type RemoteContext
 } from '$lib/data/storage/storage-source-manager';
 import { StorageSourceDefault, StorageKey } from '$lib/data/storage/storage-types';
 import { database } from '$lib/data/store';
@@ -93,22 +92,13 @@ export class StorageOAuthManager {
     window: Window,
     storageSourceName: string,
     authWindow?: Window | null,
-    oldUnlockResult?: StorageUnlockAction,
-    oldStorageSource?: BooksDbStorageSource | undefined,
     silentOnly = false
   ): Promise<string | undefined> {
     if (this.pendingGetToken) {
       return this.pendingGetToken;
     }
 
-    this.pendingGetToken = this.doGetToken(
-      window,
-      storageSourceName,
-      authWindow,
-      oldUnlockResult,
-      oldStorageSource,
-      silentOnly
-    );
+    this.pendingGetToken = this.doGetToken(window, storageSourceName, authWindow, silentOnly);
 
     try {
       return await this.pendingGetToken;
@@ -121,8 +111,6 @@ export class StorageOAuthManager {
     window: Window,
     storageSourceName: string,
     authWindow?: Window | null,
-    oldUnlockResult?: StorageUnlockAction,
-    oldStorageSource?: BooksDbStorageSource | undefined,
     silentOnly = false
   ): Promise<string | undefined> {
     const oldToken = storageOAuthTokens.get(storageSourceName);
@@ -142,8 +130,7 @@ export class StorageOAuthManager {
     // 2. Load credentials (and any stored refresh token)
     this.remoteData = undefined;
 
-    let unlockResult = oldUnlockResult;
-    let storageSource = oldStorageSource;
+    let storageSource: BooksDbStorageSource | undefined;
     const defaultSource = isAppDefault(storageSourceName);
 
     if (defaultSource) {
@@ -158,27 +145,17 @@ export class StorageOAuthManager {
         refreshToken: storedData?.refreshToken
       };
     } else {
-      if (!unlockResult) {
-        const db = await database.db;
+      const db = await database.db;
+      storageSource = await db.get('storageSource', storageSourceName);
 
-        storageSource = await db.get('storageSource', storageSourceName);
-
-        if (!storageSource) {
-          throw new Error(`No storage source with name ${storageSourceName} found`);
-        }
-
-        unlockResult = await unlockStorageData(storageSource, 'Reconnect to continue syncing');
-
-        if (!unlockResult) {
-          throw new Error('Unable to load credentials for storage source');
-        }
+      if (!storageSource) {
+        throw new Error(`No storage source with name ${storageSourceName} found`);
+      }
+      if (!isRemoteContext(storageSource.data)) {
+        throw new Error(`Storage source ${storageSourceName} is missing remote credentials`);
       }
 
-      this.remoteData = {
-        clientId: unlockResult.clientId,
-        clientSecret: unlockResult.clientSecret,
-        refreshToken: unlockResult.refreshToken
-      };
+      this.remoteData = { ...storageSource.data };
     }
 
     // 3. Try refreshing with stored refresh token
@@ -242,9 +219,7 @@ export class StorageOAuthManager {
           Math.min(Math.max(this.parentWindow.innerWidth, 300), 560),
           Math.min(Math.max(this.parentWindow.innerHeight, 300), 560),
           window
-        ),
-        unlockResult,
-        storageSource
+        )
       );
     }
 
