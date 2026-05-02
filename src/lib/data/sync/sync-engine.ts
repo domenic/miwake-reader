@@ -644,11 +644,17 @@ export async function forceFullResync(direction: ForceResyncDirection): Promise<
 
   const local = getBrowserHandler();
   const allBooks = await (await database.db).getAll('data');
-  const contexts: ReplicationContext[] = allBooks.map((b) => ({
+  const pullContexts: ReplicationContext[] = allBooks.map((b) => ({
     id: b.id,
     title: b.title,
     imagePath: b.coverImage ?? ''
   }));
+  // Pushing a placeholder (no elementHtml) would zip an empty book and
+  // overwrite the real one on the remote — catastrophic in local-wins.
+  // Filter pushContexts to books we actually hold content for.
+  const pushContexts: ReplicationContext[] = allBooks
+    .filter((b) => !!b.elementHtml)
+    .map((b) => ({ id: b.id, title: b.title, imagePath: b.coverImage ?? '' }));
   const types = [
     StorageDataType.DATA,
     StorageDataType.PROGRESS,
@@ -656,7 +662,11 @@ export async function forceFullResync(direction: ForceResyncDirection): Promise<
     StorageDataType.READING_GOALS
   ];
 
-  async function runPair(from: BaseStorageHandler, to: BaseStorageHandler): Promise<void> {
+  async function runPair(
+    from: BaseStorageHandler,
+    to: BaseStorageHandler,
+    contexts: ReplicationContext[]
+  ): Promise<void> {
     const error = await replicateData(from, to, true, contexts, types);
     if (error) throw new Error(error);
   }
@@ -673,7 +683,8 @@ export async function forceFullResync(direction: ForceResyncDirection): Promise<
     direction === 'local-wins' ? ReplicationSaveBehavior.Overwrite : undefined;
 
   logger.debug(
-    `forceFullResync: direction=${direction}, contexts=${contexts.length}, ` +
+    `forceFullResync: direction=${direction}, ` +
+      `pullContexts=${pullContexts.length}, pushContexts=${pushContexts.length}, ` +
       `pullOverride=${pullSourceOverride ?? 'default'}, pushOverride=${pushSourceOverride ?? 'default'}`
   );
 
@@ -707,7 +718,7 @@ export async function forceFullResync(direction: ForceResyncDirection): Promise<
               ? getCloudHandler(cloud!.provider, cloudName, pullSourceOverride)
               : getFsHandler(FS_SOURCE_NAME, pullSourceOverride);
           logger.debug(`forceFullResync: pull ${target} → local (run)`);
-          await runPair(remote, local);
+          await runPair(remote, local, pullContexts);
         }
         if (direction === 'newest' || direction === 'local-wins') {
           // Push: local is source, saveBehavior override applies to it.
@@ -717,7 +728,7 @@ export async function forceFullResync(direction: ForceResyncDirection): Promise<
               ? getCloudHandler(cloud!.provider, cloudName)
               : getFsHandler(FS_SOURCE_NAME);
           logger.debug(`forceFullResync: push local → ${target} (run)`);
-          await runPair(localSource, remote);
+          await runPair(localSource, remote, pushContexts);
         }
         if (target === 'cloud') {
           markCloudSynced();
