@@ -33,6 +33,18 @@ interface OAuthTokenData {
 export const storageOAuthTokens = new Map<string, OAuthTokenData>();
 
 /**
+ * Drop any cached access token for this source. Must be called by
+ * disconnect flows: connect → disconnect → reconnect within the same
+ * tab would otherwise reuse the prior access token, skip the OAuth
+ * popup entirely, and leave the freshly-written IDB record with no
+ * refresh_token. Once the cached token expires there's nothing to
+ * silently refresh from and the user has to reconnect again.
+ */
+export function clearOAuthTokenCache(storageSourceName: string): void {
+  storageOAuthTokens.delete(storageSourceName);
+}
+
+/**
  * Thrown by `getToken` when it's called with `silentOnly: true` and
  * there's no cached/refreshable token — i.e. an interactive popup
  * would be required. Callers (like the sync engine's boot

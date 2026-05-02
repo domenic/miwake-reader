@@ -2,7 +2,7 @@ import { gDriveClientId, oneDriveClientId, pagePath } from '$lib/data/env';
 import type { BooksDbStorageSource } from '$lib/data/database/books-db/versions/books-db';
 import { getStorageHandler } from '$lib/data/storage/storage-handler-factory';
 import type { FsHandle, RemoteContext } from '$lib/data/storage/storage-source-manager';
-import { StorageOAuthManager } from '$lib/data/storage/storage-oauth-manager';
+import { clearOAuthTokenCache, StorageOAuthManager } from '$lib/data/storage/storage-oauth-manager';
 import { StorageKey } from '$lib/data/storage/storage-types';
 import { database } from '$lib/data/store';
 import {
@@ -200,6 +200,11 @@ export async function disconnectCloud(): Promise<void> {
   const current = read<CloudConnectionState | null>(cloudConnection$);
   if (current) {
     const name = cloudSourceName(current.provider, current.usesCustomCredentials);
+    // Drop the in-memory access token so a same-tab reconnect actually
+    // re-runs the OAuth popup; otherwise the manager would reuse the
+    // still-valid cached token and never persist a new refresh_token
+    // to the freshly-written storageSource record.
+    clearOAuthTokenCache(name);
     const db = await database.db;
     const existing = await db.get('storageSource', name);
     if (existing) {
