@@ -144,7 +144,7 @@
     eventType="pointer"
     placement="right"
     fallbackPlacements={['top', 'bottom', 'left']}
-    contentStyles="padding: 0.4rem 0.6rem; font-size: 0.75rem; font-weight: 500;"
+    contentStyles="padding: 0.4rem 0.6rem; font-size: 0.75rem; font-weight: 500; white-space: nowrap;"
   >
     <button
       type="button"
