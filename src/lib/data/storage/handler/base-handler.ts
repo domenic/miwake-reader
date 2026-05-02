@@ -9,7 +9,7 @@ import {
 import type { Section } from '$lib/data/database/books-db/versions/v4/books-db-v4';
 import { storageRootName } from '$lib/data/env';
 import { MergeMode } from '$lib/data/merge-mode';
-import type { StorageKey } from '$lib/data/storage/storage-types';
+import type { StorageKey, SyncTitle } from '$lib/data/storage/storage-types';
 import { exporterVersion } from '$lib/functions/replication/exporter-version';
 import { throwIfAborted } from '$lib/functions/replication/replication-error';
 import { ReplicationSaveBehavior } from '$lib/functions/replication/replication-options';
@@ -50,7 +50,13 @@ export abstract class BaseStorageHandler {
     storageSourceName: string
   ): void;
 
-  abstract getBookList(): Promise<BookCardProps[]>;
+  /**
+   * Enumerate the titles this source holds, for placeholder seeding
+   * and reachable-set computation. Cloud and filesystem return real
+   * data; BROWSER and backup return [] (the unified library view
+   * doesn't go through this method — it reads IndexedDB directly).
+   */
+  abstract listSyncTitles(): Promise<SyncTitle[]>;
 
   abstract clearData(clearAll?: boolean): void;
 

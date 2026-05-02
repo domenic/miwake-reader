@@ -53,7 +53,7 @@ export async function connectFs(): Promise<void> {
   // Seed IndexedDB with placeholders for whatever's already in the
   // folder so /manage shows them under cloud icons; mirrors connectCloud.
   const handler = getStorageHandler(window, StorageKey.FS, FS_SOURCE_NAME);
-  const books = await handler.getBookList();
+  const books = await handler.listSyncTitles();
   const created = await ensurePlaceholders(books);
   if (created > 0) {
     database.notifyDataListChanged();
@@ -173,7 +173,7 @@ export async function connectCloud(provider: CloudProviderType): Promise<void> {
     }
 
     // Token is cached now; this call won't re-open the popup.
-    const books = await handler.getBookList();
+    const books = await handler.listSyncTitles();
 
     // Seed IndexedDB with placeholders so /manage immediately shows
     // the user's remote library under cloud icons.
@@ -266,7 +266,7 @@ async function pruneAfterDisconnect(): Promise<void> {
           ? getStorageHandler(window, StorageKey.GDRIVE, name)
           : getStorageHandler(window, StorageKey.ONEDRIVE, name);
       await handler.authenticate(null, true);
-      for (const book of await handler.getBookList()) {
+      for (const book of await handler.listSyncTitles()) {
         reachableTitles.add(book.title);
       }
     } catch {
@@ -278,7 +278,7 @@ async function pruneAfterDisconnect(): Promise<void> {
   if (fs) {
     try {
       const handler = getStorageHandler(window, StorageKey.FS, FS_SOURCE_NAME);
-      for (const book of await handler.getBookList()) {
+      for (const book of await handler.listSyncTitles()) {
         reachableTitles.add(book.title);
       }
     } catch {

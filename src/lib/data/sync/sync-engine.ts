@@ -275,7 +275,7 @@ export async function reconcileCloudBooks(): Promise<void> {
   try {
     await handler.authenticate(null, true);
 
-    const remoteBooks = await handler.getBookList();
+    const remoteBooks = await handler.listSyncTitles();
     logger.debug(
       `reconcileCloudBooks: ${name} returned ${remoteBooks.length} remote book(s): ` +
         remoteBooks.map((b) => JSON.stringify(b.title)).join(', ')
@@ -318,7 +318,7 @@ export async function reconcileFsBooks(): Promise<void> {
 
   beginLongRunning();
   try {
-    const remoteBooks = await handler.getBookList();
+    const remoteBooks = await handler.listSyncTitles();
     logger.debug(
       `reconcileFsBooks: returned ${remoteBooks.length} book(s): ` +
         remoteBooks.map((b) => JSON.stringify(b.title)).join(', ')

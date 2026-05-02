@@ -33,7 +33,10 @@ export class BackupStorageHandler extends BaseStorageHandler {
 
   private importEntries: Entry[] = [];
 
-  getBookList() {
+  listSyncTitles() {
+    // Backup ZIPs aren't a sync endpoint — placeholder reconciliation
+    // is wired to cloud/fs only. The import-backup flow uses
+    // setBackupZip + replicateData with explicit contexts.
     return Promise.resolve([]);
   }
 

@@ -24,40 +24,11 @@ export class BrowserStorageHandler extends BaseStorageHandler {
     this.readingGoalsMergeMode = readingGoalsMergeMode;
   }
 
-  async getBookList() {
-    if (!this.dataListFetched) {
-      database.listLoading$.next(true);
-
-      try {
-        const db = await database.db;
-        const data = await db.getAll('data');
-
-        for (let index = 0, { length } = data; index < length; index += 1) {
-          const book = data[index];
-
-          this.addBookCard(book.title, {
-            id: book.id,
-            imagePath: book.coverImage || '',
-            characters: BaseStorageHandler.getBookCharacters(
-              book.characters || 0,
-              book.sections || []
-            ),
-            lastBookModified: book.lastBookModified || 0,
-            lastBookOpen: book.lastBookOpen || 0,
-            isPlaceholder: !book.elementHtml
-          });
-        }
-
-        this.dataListFetched = true;
-      } catch (error) {
-        this.clearData();
-        throw error;
-      } finally {
-        database.listLoading$.next(false);
-      }
-    }
-
-    return [...this.titleToBookCard.values()];
+  listSyncTitles() {
+    // BROWSER is the local canonical store, never a sync source.
+    // The unified library view in /manage reads IndexedDB directly
+    // through database.dataList$ — no handler involvement.
+    return Promise.resolve([]);
   }
 
   clearData(clearAll = true) {
@@ -369,7 +340,7 @@ export class BrowserStorageHandler extends BaseStorageHandler {
     }
 
     if (deleted.length) {
-      database.dataListChanged$.next(this);
+      database.dataListChanged$.next();
     }
 
     return { error, deleted };

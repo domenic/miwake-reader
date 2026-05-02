@@ -59,7 +59,7 @@ export class OneDriveStorageHandler extends ApiStorageHandler {
     this.storageSourceName = storageSourceName;
   }
 
-  async getBookList() {
+  async listSyncTitles() {
     if (!this.dataListFetched) {
       try {
         await this.ensureTitle();
@@ -158,7 +158,11 @@ export class OneDriveStorageHandler extends ApiStorageHandler {
       }
     }
 
-    return [...this.titleToBookCard.values()];
+    return [...this.titleToBookCard.values()].map((card) => ({
+      title: card.title,
+      characters: card.characters,
+      lastBookModified: card.lastBookModified
+    }));
   }
 
   protected async ensureTitle(

@@ -6,7 +6,7 @@ import type {
   BooksDbStorageSource
 } from '$lib/data/database/books-db/versions/books-db';
 import { Observable, Subject, from } from 'rxjs';
-import { StorageDataType, StorageKey } from '$lib/data/storage/storage-types';
+import { StorageDataType } from '$lib/data/storage/storage-types';
 import {
   advanceDateDays,
   getDate,
@@ -14,7 +14,7 @@ import {
   mergeStatistics,
   updateStatisticToStore
 } from '$lib/functions/statistic-util';
-import { catchError, map, shareReplay, startWith, switchMap, tap } from 'rxjs/operators';
+import { catchError, map, shareReplay, startWith, switchMap } from 'rxjs/operators';
 import {
   getCurrentReadingGoal,
   mergeReadingGoals,
@@ -22,7 +22,8 @@ import {
 } from '$lib/data/reading-goal';
 import { lastReadingGoalsModified$, readingGoal$ } from '$lib/data/store';
 
-import type { BaseStorageHandler } from '$lib/data/storage/handler/base-handler';
+import type { BookCardProps } from '$lib/components/book-card/book-card-props';
+import { BaseStorageHandler } from '$lib/data/storage/handler/base-handler';
 import type { BookStatistic } from '$lib/components/statistics/statistics-types';
 import type { BooksDb } from '$lib/data/database/books-db/versions/books-db';
 import type { IDBPDatabase } from 'idb';
@@ -31,7 +32,6 @@ import { messageDialog } from '$lib/data/simple-dialogs';
 import { MergeMode } from '$lib/data/merge-mode';
 import { ReplicationSaveBehavior } from '$lib/functions/replication/replication-options';
 import { getDefaultStatistic } from '$lib/components/book-reader/book-reading-tracker/book-reading-tracker';
-import { getStorageHandler } from '$lib/data/storage/storage-handler-factory';
 import { handleErrorDuringReplication } from '$lib/functions/replication/error-handler';
 import { iffBrowser } from '$lib/functions/rxjs/iff-browser';
 import { logger } from '$lib/data/logger';
@@ -48,54 +48,62 @@ export class DatabaseService {
 
   listLoading$ = new Subject<boolean>();
 
-  dataListChanged$ = new Subject<BaseStorageHandler | undefined>();
+  dataListChanged$ = new Subject<void>();
 
-  lastHandler: BaseStorageHandler | undefined;
-
+  /**
+   * The unified library view — every BookCardProps row /manage shows.
+   * Reads IndexedDB directly; no storage-handler involvement, since
+   * cloud/fs handlers are sync endpoints, not library data sources.
+   * Subscribers debounce their own work; this just emits BookCardProps[]
+   * whenever someone calls notifyDataListChanged() or fires
+   * dataListChanged$.next().
+   */
   dataList$ = iffBrowser(() =>
     this.dataListChanged$.pipe(
       startWith(undefined),
-      tap((handler) => {
-        this.lastHandler = handler;
-      }),
       switchMap(() =>
-        from(
-          Promise.resolve(
-            this.lastHandler || getStorageHandler(window, StorageKey.BROWSER, '')
-          ).then((handler) => {
-            logger.clearHistory();
-
-            return handler.getBookList();
-          })
-        ).pipe(
+        from(this.fetchBookCards()).pipe(
           catchError((error: unknown) => {
             if (error instanceof Error) {
               const showReport = logger.errorCount > 1;
-
               logger.warn(error.message);
-
               if (showReport) {
                 showErrorDialogWithLogReport({ title: 'Failure', message: 'Errors occurred.' });
               } else {
-                messageDialog({
-                  title: 'Error',
-                  message: `An error occured: ${error.message}`
-                });
+                messageDialog({ title: 'Error', message: `An error occured: ${error.message}` });
               }
             }
-
             return [[]];
           })
         )
       ),
-      tap(() => {
-        this.lastHandler = undefined;
-        // listLoading is owned by the handlers' getBookList now — each
-        // flips it back to false in a finally block.
-      }),
       shareReplay({ refCount: true, bufferSize: 1 })
     )
   );
+
+  private async fetchBookCards(): Promise<BookCardProps[]> {
+    this.listLoading$.next(true);
+    try {
+      logger.clearHistory();
+      const db = await this.db;
+      const data = await db.getAll('data');
+      return data.map((book) => ({
+        id: book.id,
+        title: book.title,
+        imagePath: book.coverImage || '',
+        characters: BaseStorageHandler.getBookCharacters(book.characters || 0, book.sections || []),
+        lastBookModified: book.lastBookModified || 0,
+        lastBookOpen: book.lastBookOpen || 0,
+        isPlaceholder: !book.elementHtml,
+        // Overlaid by /manage's bookCards$ pipeline from the bookmark store.
+        progress: 0,
+        completed: false,
+        lastBookmarkModified: 0
+      }));
+    } finally {
+      this.listLoading$.next(false);
+    }
+  }
 
   bookmarksChanged$ = new Subject<void>();
 
@@ -123,18 +131,13 @@ export class DatabaseService {
   }
 
   /**
-   * Use this when you've mutated the `data` store directly (e.g. the
-   * sync engine seeding placeholders) rather than going through a
-   * storage handler. The module-level BROWSER handler caches
-   * `titleToBookCard` across calls — if we don't invalidate it, the
-   * dataList$ pipeline re-emits its stale map and the library view
-   * shows nothing new.
+   * Use this when something has mutated the `data` store directly
+   * (sync engine seeding placeholders, importers, etc.). dataList$
+   * reads IndexedDB on every emission so no handler-cache
+   * invalidation is needed — just kick the pipeline.
    */
   notifyDataListChanged(): void {
-    if (typeof window !== 'undefined') {
-      getStorageHandler(window, StorageKey.BROWSER, '').clearData();
-    }
-    this.dataListChanged$.next(undefined);
+    this.dataListChanged$.next();
   }
 
   async getLastModifiedForType(title: string, dataType: string) {

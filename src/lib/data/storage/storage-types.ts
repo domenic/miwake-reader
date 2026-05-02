@@ -6,6 +6,18 @@ export enum StorageKey {
   ONEDRIVE = 'onedrive'
 }
 
+/**
+ * Lean shape returned by a sync endpoint's listSyncTitles(): just
+ * enough to seed placeholder rows on the local side. Distinct from
+ * BookCardProps (which the unified library view uses) — the source's
+ * job is "tell me which titles you hold," not "render a card."
+ */
+export interface SyncTitle {
+  title: string;
+  characters?: number;
+  lastBookModified?: number;
+}
+
 export enum StorageDataType {
   DATA = 'data',
   PROGRESS = 'bookmark',

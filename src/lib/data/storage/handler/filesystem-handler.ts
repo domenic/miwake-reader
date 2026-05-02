@@ -61,7 +61,7 @@ export class FilesystemStorageHandler extends BaseStorageHandler {
     this.storageSourceName = storageSourceName;
   }
 
-  async getBookList() {
+  async listSyncTitles() {
     if (!this.dataListFetched) {
       const rootDirectory = await this.ensureRoot();
       const directories = (await FilesystemStorageHandler.list(
@@ -74,7 +74,11 @@ export class FilesystemStorageHandler extends BaseStorageHandler {
       this.dataListFetched = true;
     }
 
-    return [...this.titleToBookCard.values()];
+    return [...this.titleToBookCard.values()].map((card) => ({
+      title: card.title,
+      characters: card.characters,
+      lastBookModified: card.lastBookModified
+    }));
   }
 
   clearData(clearAll = true) {
@@ -440,7 +444,11 @@ export class FilesystemStorageHandler extends BaseStorageHandler {
             this.titleToFiles.delete(bookToDelete);
             this.titleToBookCard.delete(bookToDelete);
 
-            database.dataListChanged$.next(this);
+            // FS-side deletes don't affect /manage's view (which reads
+            // local IDB), but a future caller might want a refresh
+            // signal anyway. Emit the void event for symmetry with
+            // browser-handler's delete path.
+            database.dataListChanged$.next();
 
             BaseStorageHandler.reportProgress();
           } catch (err) {

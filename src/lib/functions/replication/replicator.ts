@@ -95,11 +95,10 @@ export async function importData(
             await targetHandler.saveCover(bookContent.coverImage);
           }
 
-          // Only the unified library view (BROWSER) drives /manage's
-          // book list. Emitting a non-browser handler here would
-          // briefly swap /manage to that source's getBookList result.
+          // Only emit when local IDB actually changed; cloud/fs writes
+          // don't affect /manage's view (which reads IDB directly).
           if (targetHandler.storageType === StorageKey.BROWSER) {
-            database.dataListChanged$.next(targetHandler);
+            database.dataListChanged$.next();
           }
 
           checkCancelAndProgress(cancelSignal, true, !bookContent.coverImage);
@@ -281,7 +280,7 @@ export async function replicateData(
             checkCancelAndProgress(cancelSignal);
 
             if (refreshDataList && targetHandler.storageType === StorageKey.BROWSER) {
-              database.dataListChanged$.next(targetHandler);
+              database.dataListChanged$.next();
             }
 
             if (targetHandler.storageType === StorageKey.BROWSER && processProgressData) {

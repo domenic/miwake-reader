@@ -436,7 +436,7 @@ export abstract class ApiStorageHandler extends BaseStorageHandler {
             this.titleToId.delete(bookToDelete);
             this.titleToBookCard.delete(bookToDelete);
 
-            database.dataListChanged$.next(this);
+            database.dataListChanged$.next();
 
             BaseStorageHandler.reportProgress();
           } catch (err) {
