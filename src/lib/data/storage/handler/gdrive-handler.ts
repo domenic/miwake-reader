@@ -3,7 +3,6 @@ import { gDriveRefreshEndpoint } from '$lib/data/env';
 import { ApiStorageHandler } from '$lib/data/storage/handler/api-handler';
 import { BaseStorageHandler, type ExternalFile } from '$lib/data/storage/handler/base-handler';
 import { StorageKey } from '$lib/data/storage/storage-types';
-import { database } from '$lib/data/store';
 import pLimit from 'p-limit';
 
 interface GDriveFile extends ExternalFile {
@@ -29,8 +28,6 @@ export class GDriveStorageHandler extends ApiStorageHandler {
 
   async getBookList() {
     if (!this.dataListFetched) {
-      database.listLoading$.next(true);
-
       try {
         await this.ensureTitle();
 
@@ -84,8 +81,6 @@ export class GDriveStorageHandler extends ApiStorageHandler {
       } catch (error) {
         this.clearData();
         throw error;
-      } finally {
-        database.listLoading$.next(false);
       }
     }
 
