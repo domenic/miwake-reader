@@ -182,10 +182,6 @@ export abstract class BaseStorageHandler {
     return !this.cacheStorageData;
   }
 
-  getCurrentStorageSource() {
-    return this.storageSourceName;
-  }
-
   startContext(context: ReplicationContext, cancelSignal?: AbortSignal) {
     this.currentContext = context;
     this.cancelSignal = cancelSignal;

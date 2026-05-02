@@ -1,12 +1,5 @@
-import type { StorageKey } from './storage/storage-types';
 import type { Component } from 'svelte';
 import { writableSubject } from '$lib/functions/svelte/store';
-
-export interface SyncSelection {
-  id: string;
-  label: string;
-  type: StorageKey;
-}
 
 export interface Dialog {
   component: Component<any> | string;
