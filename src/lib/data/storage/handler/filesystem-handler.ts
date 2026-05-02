@@ -41,7 +41,6 @@ export class FilesystemStorageHandler extends BaseStorageHandler {
 
   updateSettings(
     window: Window,
-    isForBrowser: boolean,
     saveBehavior: ReplicationSaveBehavior,
     statisticsMergeMode: MergeMode,
     readingGoalsMergeMode: MergeMode,
@@ -50,7 +49,6 @@ export class FilesystemStorageHandler extends BaseStorageHandler {
     storageSourceName: string
   ) {
     this.window = window;
-    this.isForBrowser = isForBrowser;
     this.saveBehavior = saveBehavior;
     this.statisticsMergeMode = statisticsMergeMode;
     this.readingGoalsMergeMode = readingGoalsMergeMode;
@@ -137,7 +135,6 @@ export class FilesystemStorageHandler extends BaseStorageHandler {
         this.window,
         StorageKey.BROWSER,
         undefined,
-        true,
         this.cacheStorageData,
         ReplicationSaveBehavior.Overwrite
       ).saveBook(data, true, false);
@@ -254,7 +251,7 @@ export class FilesystemStorageHandler extends BaseStorageHandler {
   }
 
   async getBook() {
-    const { file } = await this.getExternalFile('bookdata_', this.isForBrowser ? 0.4 : 0.8);
+    const { file } = await this.getExternalFile('bookdata_', 0.4);
 
     if (!file) {
       return undefined;
@@ -262,26 +259,21 @@ export class FilesystemStorageHandler extends BaseStorageHandler {
 
     const bookFile = await file.getFile();
 
-    return this.isForBrowser ? this.extractBookData(bookFile, bookFile.name, 0.6) : bookFile;
+    return this.extractBookData(bookFile, bookFile.name, 0.6);
   }
 
   async getProgress() {
-    const { file } = await this.getExternalFile('progress_', this.isForBrowser ? 0.6 : 0.8);
+    const { file } = await this.getExternalFile('progress_', 0.6);
 
     if (!file) {
       return undefined;
     }
 
     const progressFile = await file.getFile();
+    const progress = JSON.parse(await FilesystemStorageHandler.readFileObject(progressFile));
 
-    if (this.isForBrowser) {
-      const progress = JSON.parse(await FilesystemStorageHandler.readFileObject(progressFile));
-
-      BaseStorageHandler.reportProgress(0.4);
-      return progress;
-    }
-
-    return progressFile;
+    BaseStorageHandler.reportProgress(0.4);
+    return progress;
   }
 
   async getStatistics() {
@@ -341,8 +333,7 @@ export class FilesystemStorageHandler extends BaseStorageHandler {
     };
   }
 
-  async saveBook(data: Omit<BooksDbBookData, 'id'> | File, skipTimestampFallback = true) {
-    const isFile = data instanceof File;
+  async saveBook(data: Omit<BooksDbBookData, 'id'>, skipTimestampFallback = true) {
     const { file, files, rootDirectory } = await this.getExternalFile('bookdata_', 0.2);
     const filename = BaseStorageHandler.getBookFileName(
       data,
@@ -365,35 +356,21 @@ export class FilesystemStorageHandler extends BaseStorageHandler {
       }
     }
 
-    let bookData;
+    const bookData = await this.zipBookData(data, 0.4);
 
-    if (isFile) {
-      bookData = data;
-      BaseStorageHandler.reportProgress(0.2);
-    } else {
-      bookData = await this.zipBookData(data, 0.4);
-    }
-
-    await this.writeFile(rootDirectory, filename, bookData, files, file, isFile ? 0.6 : 0.4);
+    await this.writeFile(rootDirectory, filename, bookData, files, file, 0.4);
 
     this.addBookCard(this.currentContext.title, { characters, lastBookModified, lastBookOpen });
 
     return 0;
   }
 
-  async saveProgress(data: BooksDbBookmarkData | File) {
+  async saveProgress(data: BooksDbBookmarkData) {
     const filename = BaseStorageHandler.getProgressFileName(data);
     const { lastBookmarkModified, progress } = BaseStorageHandler.getProgressMetadata(filename);
     const { file, files, rootDirectory } = await this.getExternalFile('progress_');
 
-    await this.writeFile(
-      rootDirectory,
-      filename,
-      data instanceof File ? data : JSON.stringify(data),
-      files,
-      file,
-      0.6
-    );
+    await this.writeFile(rootDirectory, filename, JSON.stringify(data), files, file, 0.6);
 
     this.addBookCard(this.currentContext.title, { lastBookmarkModified, progress });
   }

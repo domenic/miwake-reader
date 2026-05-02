@@ -19,7 +19,6 @@ export function getStorageHandler(
   window: Window,
   storageType: StorageKey.BACKUP,
   storageSourceName?: string,
-  isForBrowser?: boolean,
   cacheStorageData?: boolean,
   saveBehavior?: ReplicationSaveBehavior,
   statisticsMergeMode?: MergeMode,
@@ -30,7 +29,6 @@ export function getStorageHandler(
   window: Window,
   storageType: StorageKey.BROWSER,
   storageSourceName?: string,
-  isForBrowser?: boolean,
   cacheStorageData?: boolean,
   saveBehavior?: ReplicationSaveBehavior,
   statisticsMergeMode?: MergeMode,
@@ -41,7 +39,6 @@ export function getStorageHandler(
   window: Window,
   storageType: StorageKey.GDRIVE,
   storageSourceName?: string,
-  isForBrowser?: boolean,
   cacheStorageData?: boolean,
   saveBehavior?: ReplicationSaveBehavior,
   statisticsMergeMode?: MergeMode,
@@ -52,7 +49,6 @@ export function getStorageHandler(
   window: Window,
   storageType: StorageKey.ONEDRIVE,
   storageSourceName?: string,
-  isForBrowser?: boolean,
   cacheStorageData?: boolean,
   saveBehavior?: ReplicationSaveBehavior,
   statisticsMergeMode?: MergeMode,
@@ -63,7 +59,6 @@ export function getStorageHandler(
   window: Window,
   storageType: StorageKey.FS,
   storageSourceName?: string,
-  isForBrowser?: boolean,
   cacheStorageData?: boolean,
   saveBehavior?: ReplicationSaveBehavior,
   statisticsMergeMode?: MergeMode,
@@ -74,7 +69,6 @@ export function getStorageHandler(
   window: Window,
   storageType: StorageKey,
   storageSourceName?: string,
-  isForBrowser?: boolean,
   cacheStorageData?: boolean,
   saveBehavior?: ReplicationSaveBehavior,
   statisticsMergeMode?: MergeMode,
@@ -85,7 +79,6 @@ export function getStorageHandler(
   window: Window,
   storageType: StorageKey,
   storageSourceName = '',
-  isForBrowser = false,
   cacheStorageData = false,
   saveBehavior = ReplicationSaveBehavior.NewOnly,
   statisticsMergeMode = MergeMode.MERGE,
@@ -98,7 +91,6 @@ export function getStorageHandler(
         backupStorageHandler || new BackupStorageHandler(window, StorageKey.BACKUP);
       backupStorageHandler.updateSettings(
         window,
-        isForBrowser,
         saveBehavior,
         statisticsMergeMode,
         readingGoalsMergeMode
@@ -110,7 +102,6 @@ export function getStorageHandler(
         browserStorageHandler || new BrowserStorageHandler(window, StorageKey.BROWSER);
       browserStorageHandler.updateSettings(
         window,
-        true,
         saveBehavior,
         statisticsMergeMode,
         readingGoalsMergeMode
@@ -121,7 +112,6 @@ export function getStorageHandler(
       gDriveStorageHandler = gDriveStorageHandler || new GDriveStorageHandler(window);
       gDriveStorageHandler.updateSettings(
         window,
-        isForBrowser,
         saveBehavior,
         statisticsMergeMode,
         readingGoalsMergeMode,
@@ -135,7 +125,6 @@ export function getStorageHandler(
       oneDriveStorageHandler = oneDriveStorageHandler || new OneDriveStorageHandler(window);
       oneDriveStorageHandler.updateSettings(
         window,
-        isForBrowser,
         saveBehavior,
         statisticsMergeMode,
         readingGoalsMergeMode,
@@ -149,7 +138,6 @@ export function getStorageHandler(
       fsStorageHandler = fsStorageHandler || new FilesystemStorageHandler(window, StorageKey.FS);
       fsStorageHandler.updateSettings(
         window,
-        isForBrowser,
         saveBehavior,
         statisticsMergeMode,
         readingGoalsMergeMode,

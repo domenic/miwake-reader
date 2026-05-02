@@ -37,7 +37,6 @@ export interface ExternalFile {
 export abstract class BaseStorageHandler {
   abstract updateSettings(
     window: Window,
-    isForBrowser: boolean,
     saveBehavior: string,
     statisticsMergeMode: MergeMode,
     readingGoalsMergeMode: MergeMode,
@@ -71,9 +70,9 @@ export abstract class BaseStorageHandler {
     referenceFilename: string | undefined
   ): Promise<boolean>;
 
-  abstract getBook(): Promise<Omit<BooksDbBookData, 'id'> | File | undefined>;
+  abstract getBook(): Promise<Omit<BooksDbBookData, 'id'> | undefined>;
 
-  abstract getProgress(): Promise<BooksDbBookmarkData | File | undefined>;
+  abstract getProgress(): Promise<BooksDbBookmarkData | undefined>;
 
   abstract getStatistics(): Promise<{
     statistics: BooksDbStatistic[] | undefined;
@@ -88,12 +87,12 @@ export abstract class BaseStorageHandler {
   }>;
 
   abstract saveBook(
-    data: Omit<BooksDbBookData, 'id'> | File,
+    data: Omit<BooksDbBookData, 'id'>,
     skipTimestampFallback?: boolean,
     removeStorageContext?: boolean
   ): Promise<number>;
 
-  abstract saveProgress(data: BooksDbBookmarkData | File): Promise<void>;
+  abstract saveProgress(data: BooksDbBookmarkData): Promise<void>;
 
   abstract saveStatistics(data: BooksDbStatistic[], lastStatisticModified: number): Promise<void>;
 
@@ -116,8 +115,6 @@ export abstract class BaseStorageHandler {
   protected window: Window;
 
   protected storageSourceName = '';
-
-  protected isForBrowser = false;
 
   protected cacheStorageData = false;
 

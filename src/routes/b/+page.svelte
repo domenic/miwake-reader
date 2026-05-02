@@ -240,7 +240,6 @@
           window,
           StorageKey.BROWSER,
           undefined,
-          true,
           $cacheStorageData$,
           $replicationSaveBehavior$,
           $statisticsMergeMode$,

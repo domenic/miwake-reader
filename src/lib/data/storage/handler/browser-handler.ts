@@ -14,13 +14,11 @@ import { StorageDataType } from '$lib/data/storage/storage-types';
 export class BrowserStorageHandler extends BaseStorageHandler {
   updateSettings(
     window: Window,
-    isForBrowser: boolean,
     saveBehavior: ReplicationSaveBehavior,
     statisticsMergeMode: MergeMode,
     readingGoalsMergeMode: MergeMode
   ) {
     this.window = window;
-    this.isForBrowser = isForBrowser;
     this.saveBehavior = saveBehavior;
     this.statisticsMergeMode = statisticsMergeMode;
     this.readingGoalsMergeMode = readingGoalsMergeMode;
@@ -266,56 +264,42 @@ export class BrowserStorageHandler extends BaseStorageHandler {
   }
 
   async saveBook(
-    data: Omit<BooksDbBookData, 'id'> | File,
+    data: Omit<BooksDbBookData, 'id'>,
     skipTimestampFallback = true,
     removeStorageContext = true
   ) {
-    let idToReturn = 0;
+    const storedBookData = await database.upsertData(
+      data,
+      this.saveBehavior,
+      skipTimestampFallback,
+      removeStorageContext
+    );
 
-    if (!(data instanceof File)) {
-      const storedBookData = await database.upsertData(
-        data,
-        this.saveBehavior,
-        skipTimestampFallback,
-        removeStorageContext
-      );
-
-      idToReturn = storedBookData.id;
-      this.addBookCard(data.title, {
-        id: storedBookData.id,
-        characters: BaseStorageHandler.getBookCharacters(
-          storedBookData.characters || 0,
-          storedBookData.sections || []
-        ),
-        lastBookModified: storedBookData.lastBookModified || 0,
-        lastBookOpen: storedBookData.lastBookOpen || 0,
-        isPlaceholder: !storedBookData.elementHtml
-      });
-    }
+    this.addBookCard(data.title, {
+      id: storedBookData.id,
+      characters: BaseStorageHandler.getBookCharacters(
+        storedBookData.characters || 0,
+        storedBookData.sections || []
+      ),
+      lastBookModified: storedBookData.lastBookModified || 0,
+      lastBookOpen: storedBookData.lastBookOpen || 0,
+      isPlaceholder: !storedBookData.elementHtml
+    });
 
     BaseStorageHandler.reportProgress();
 
-    return idToReturn;
+    return storedBookData.id;
   }
 
-  async saveProgress(data: BooksDbBookmarkData | File) {
-    if (data instanceof File) {
-      BaseStorageHandler.reportProgress();
-
-      return;
-    }
-
+  async saveProgress(data: BooksDbBookmarkData) {
     const dataId =
       this.currentContext.id || (await database.getDataByTitle(this.currentContext.title))?.id;
 
     BaseStorageHandler.reportProgress(0.5);
 
     if (dataId) {
-      const bookmarkData = data;
-
-      bookmarkData.dataId = dataId;
-
-      await database.putBookmark(bookmarkData);
+      data.dataId = dataId;
+      await database.putBookmark(data);
     }
   }
 

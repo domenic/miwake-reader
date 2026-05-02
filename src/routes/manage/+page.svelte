@@ -301,7 +301,6 @@
         window,
         StorageKey.BROWSER,
         '',
-        true,
         $cacheStorageData$,
         $replicationSaveBehavior$,
         $statisticsMergeMode$,

@@ -77,7 +77,6 @@ export abstract class ApiStorageHandler extends BaseStorageHandler {
 
   updateSettings(
     window: Window,
-    isForBrowser: boolean,
     saveBehavior: ReplicationSaveBehavior,
     statisticsMergeMode: MergeMode,
     readingGoalsMergeMode: MergeMode,
@@ -86,7 +85,6 @@ export abstract class ApiStorageHandler extends BaseStorageHandler {
     storageSourceName: string
   ) {
     this.window = window;
-    this.isForBrowser = isForBrowser;
     this.saveBehavior = saveBehavior;
     this.cacheStorageData = cacheStorageData;
     this.statisticsMergeMode = statisticsMergeMode;
@@ -160,7 +158,6 @@ export abstract class ApiStorageHandler extends BaseStorageHandler {
         this.window,
         StorageKey.BROWSER,
         undefined,
-        true,
         this.cacheStorageData,
         ReplicationSaveBehavior.Overwrite
       ).saveBook(bookData, true, false);
@@ -280,19 +277,13 @@ export abstract class ApiStorageHandler extends BaseStorageHandler {
   }
 
   async getBook() {
-    const { file, data } = await this.getExternalFile(
-      'bookdata_',
-      'blob',
-      this.isForBrowser ? 0.7 : 1
-    );
+    const { file, data } = await this.getExternalFile('bookdata_', 'blob', 0.7);
 
     if (!file) {
       return undefined;
     }
 
-    return this.isForBrowser
-      ? this.extractBookData(data, file.name, 0.3)
-      : new File([data], file.name, { type: 'application/zip' });
+    return this.extractBookData(data, file.name, 0.3);
   }
 
   async getProgress() {
@@ -302,9 +293,7 @@ export abstract class ApiStorageHandler extends BaseStorageHandler {
       return undefined;
     }
 
-    return this.isForBrowser
-      ? data
-      : new File([new Blob([JSON.stringify(data)])], file.name, { type: 'application/json' });
+    return data;
   }
 
   async getStatistics() {
@@ -349,7 +338,7 @@ export abstract class ApiStorageHandler extends BaseStorageHandler {
     };
   }
 
-  async saveBook(data: Omit<BooksDbBookData, 'id'> | File, skipTimestampFallback = true) {
+  async saveBook(data: Omit<BooksDbBookData, 'id'>, skipTimestampFallback = true) {
     const { titleId, files, file } = await this.getExternalFile('bookdata_', '', 0.2, false);
     const filename = BaseStorageHandler.getBookFileName(
       data,
@@ -372,24 +361,19 @@ export abstract class ApiStorageHandler extends BaseStorageHandler {
       }
     }
 
-    if (data instanceof File) {
-      await this.upload(titleId, filename, files, file, data);
-    } else {
-      await this.upload(titleId, filename, files, file, await this.zipBookData(data, 0.2), '', 0.6);
-    }
+    await this.upload(titleId, filename, files, file, await this.zipBookData(data, 0.2), '', 0.6);
 
     this.addBookCard(this.currentContext.title, { characters, lastBookModified, lastBookOpen });
 
     return 0;
   }
 
-  async saveProgress(data: File | BooksDbBookmarkData) {
+  async saveProgress(data: BooksDbBookmarkData) {
     const filename = BaseStorageHandler.getProgressFileName(data);
-    const progressData = data instanceof File ? data : JSON.stringify(data);
     const { titleId, files, file } = await this.getExternalFile('progress_', '', 0.2, false);
     const { lastBookmarkModified, progress } = BaseStorageHandler.getProgressMetadata(filename);
 
-    await this.upload(titleId, filename, files, file, progressData);
+    await this.upload(titleId, filename, files, file, JSON.stringify(data));
 
     this.addBookCard(this.currentContext.title, { lastBookmarkModified, progress });
   }

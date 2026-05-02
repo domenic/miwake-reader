@@ -71,13 +71,11 @@ export class BackupStorageHandler extends BaseStorageHandler {
 
   updateSettings(
     window: Window,
-    isForBrowser: boolean,
     saveBehavior: ReplicationSaveBehavior,
     statisticsMergeMode: MergeMode,
     readingGoalsMergeMode: MergeMode
   ) {
     this.window = window;
-    this.isForBrowser = isForBrowser;
     this.saveBehavior = saveBehavior;
     this.statisticsMergeMode = statisticsMergeMode;
     this.readingGoalsMergeMode = readingGoalsMergeMode;
@@ -145,33 +143,20 @@ export class BackupStorageHandler extends BaseStorageHandler {
       new BlobWriter(),
       'Unable to read book data',
       zipEntry,
-      this.isForBrowser ? 0.3 : 0.9
+      0.3
     );
 
-    return this.isForBrowser
-      ? this.extractBookData(bookBlob, filename, 0.6)
-      : new File([bookBlob], filename, { type: 'application/zip' });
+    return this.extractBookData(bookBlob, filename, 0.6);
   }
 
   async getProgress() {
-    const { zipEntry, filename } = this.findEntry('progress_');
+    const { zipEntry } = this.findEntry('progress_');
 
     if (!zipEntry) {
       return undefined;
     }
 
-    if (this.isForBrowser) {
-      return this.extractAsJSON(zipEntry, 'Unable to read progress data');
-    }
-
-    const progressBlob = await this.readFromZip(
-      new BlobWriter(),
-      'Unable to read progress data',
-      zipEntry,
-      0.9
-    );
-
-    return new File([progressBlob], filename, { type: 'application/json' });
+    return this.extractAsJSON(zipEntry, 'Unable to read progress data');
   }
 
   async getStatistics() {
@@ -228,35 +213,27 @@ export class BackupStorageHandler extends BaseStorageHandler {
     };
   }
 
-  async saveBook(data: Omit<BooksDbBookData, 'id'> | File) {
+  async saveBook(data: Omit<BooksDbBookData, 'id'>) {
     const filename = `${this.sanitizedTitle}/${BaseStorageHandler.getBookFileName(data)}`;
 
-    if (data instanceof File) {
-      this.exportZipWriter = await this.addDataToZip(filename, data, this.exportZipWriter);
-    } else {
-      this.exportZipWriter = await this.addDataToZip(
-        filename,
-        await this.zipBookData(data, 0.5),
-        this.exportZipWriter,
-        0.5
-      );
-    }
+    this.exportZipWriter = await this.addDataToZip(
+      filename,
+      await this.zipBookData(data, 0.5),
+      this.exportZipWriter,
+      0.5
+    );
 
     return 0;
   }
 
-  async saveProgress(data: BooksDbBookmarkData | File) {
+  async saveProgress(data: BooksDbBookmarkData) {
     const filename = `${this.sanitizedTitle}/${BaseStorageHandler.getProgressFileName(data)}`;
 
-    if (data instanceof File) {
-      this.exportZipWriter = await this.addDataToZip(filename, data, this.exportZipWriter);
-    } else {
-      this.exportZipWriter = await this.addDataToZip(
-        filename,
-        JSON.stringify(data),
-        this.exportZipWriter
-      );
-    }
+    this.exportZipWriter = await this.addDataToZip(
+      filename,
+      JSON.stringify(data),
+      this.exportZipWriter
+    );
   }
 
   async saveStatistics(data: BooksDbStatistic[], lastStatisticModified: number) {

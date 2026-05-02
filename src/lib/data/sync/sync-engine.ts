@@ -40,18 +40,6 @@ import { get } from 'svelte/store';
 // ---------------------------------------------------------------------
 
 /**
- * `isForBrowser` on a cloud or fs handler controls what shape its
- * getBook/getProgress/etc. return:
- *   - `true`: BooksDbBookData / parsed JSON — for replicating INTO
- *     browser IndexedDB.
- *   - `false`: raw File blobs — for replicating INTO another external
- *     handler (e.g. cloud↔fs, or ZIP backup).
- *
- * Pulling from cloud/fs to the local browser needs `true`; pushing
- * from local to cloud/fs needs `false`. Getting a book LIST is
- * unaffected by this flag, so reconcileCloudBooks can use either.
- */
-/**
  * `saveBehaviorOverride` is how force-resync breaks the replicator's
  * "skip if up-to-date" check. Set on the *source* handler for a given
  * leg: when saveBehavior === Overwrite, getFilenameForRecentCheck
@@ -61,7 +49,6 @@ import { get } from 'svelte/store';
 function getCloudHandler(
   provider: CloudProviderType,
   name: string,
-  isForBrowser: boolean,
   saveBehaviorOverride?: ReplicationSaveBehavior
 ): GDriveStorageHandler | OneDriveStorageHandler {
   const saveBehavior =
@@ -71,7 +58,6 @@ function getCloudHandler(
         window,
         StorageKey.GDRIVE,
         name,
-        isForBrowser,
         read<boolean>(cacheStorageData$),
         saveBehavior,
         read<MergeMode>(statisticsMergeMode$),
@@ -82,7 +68,6 @@ function getCloudHandler(
         window,
         StorageKey.ONEDRIVE,
         name,
-        isForBrowser,
         read<boolean>(cacheStorageData$),
         saveBehavior,
         read<MergeMode>(statisticsMergeMode$),
@@ -93,7 +78,6 @@ function getCloudHandler(
 
 function getFsHandler(
   name: string,
-  isForBrowser: boolean,
   saveBehaviorOverride?: ReplicationSaveBehavior
 ): BaseStorageHandler {
   const saveBehavior =
@@ -102,7 +86,6 @@ function getFsHandler(
     window,
     StorageKey.FS,
     name,
-    isForBrowser,
     read<boolean>(cacheStorageData$),
     saveBehavior,
     read<MergeMode>(statisticsMergeMode$),
@@ -118,7 +101,6 @@ function getBrowserHandlerWith(saveBehaviorOverride?: ReplicationSaveBehavior): 
     window,
     StorageKey.BROWSER,
     '',
-    true,
     read<boolean>(cacheStorageData$),
     saveBehavior,
     read<MergeMode>(statisticsMergeMode$),
@@ -131,7 +113,6 @@ function getBrowserHandler(): BaseStorageHandler {
     window,
     StorageKey.BROWSER,
     '',
-    true,
     read<boolean>(cacheStorageData$),
     read<ReplicationSaveBehavior>(replicationSaveBehavior$),
     read<MergeMode>(statisticsMergeMode$),
@@ -311,8 +292,7 @@ export async function reconcileCloudBooks(): Promise<void> {
   if (!cloud) return;
 
   const name = cloudSourceName(cloud.provider, cloud.usesCustomCredentials);
-  // Book-list only — isForBrowser doesn't matter; pass true for consistency.
-  const handler = getCloudHandler(cloud.provider, name, true);
+  const handler = getCloudHandler(cloud.provider, name);
 
   beginLongRunning();
   try {
@@ -470,8 +450,7 @@ async function pushOne(context: ReplicationContext, types: StorageDataType[]): P
       enqueueReplay(() => pushOne(context, types));
     } else {
       const name = cloudSourceName(cloud.provider, cloud.usesCustomCredentials);
-      // Push: target is cloud, which receives Files from local → isForBrowser=false.
-      const handler = getCloudHandler(cloud.provider, name, false);
+      const handler = getCloudHandler(cloud.provider, name);
       try {
         await handler.authenticate(null, true);
         const error = await replicateData(local, handler, false, [context], types);
@@ -485,8 +464,7 @@ async function pushOne(context: ReplicationContext, types: StorageDataType[]): P
   }
 
   if (fs) {
-    // Push: target is fs → isForBrowser=false.
-    const handler = getFsHandler(FS_SOURCE_NAME, false);
+    const handler = getFsHandler(FS_SOURCE_NAME);
     try {
       const error = await replicateData(local, handler, false, [context], types);
       if (error) throw new Error(error);
@@ -564,10 +542,7 @@ export async function reconcileForBookOpen(context: ReplicationContext): Promise
   try {
     if (cloud) {
       const name = cloudSourceName(cloud.provider, cloud.usesCustomCredentials);
-      // Pull: source is cloud, target is browser → isForBrowser=true so
-      // the cloud handler returns parsed BooksDbBookData instead of
-      // raw File blobs (which browserHandler.saveBook silently ignores).
-      const handler = getCloudHandler(cloud.provider, name, true);
+      const handler = getCloudHandler(cloud.provider, name);
       try {
         logger.debug('reconcileForBookOpen: cloud authenticate (silent)');
         await handler.authenticate(null, true);
@@ -582,8 +557,7 @@ export async function reconcileForBookOpen(context: ReplicationContext): Promise
     }
 
     if (fs) {
-      // Pull: source is fs, target is browser → isForBrowser=true.
-      const handler = getFsHandler(FS_SOURCE_NAME, true);
+      const handler = getFsHandler(FS_SOURCE_NAME);
       try {
         logger.debug('reconcileForBookOpen: fs replicateData (pull)');
         const error = await replicateData(handler, local, false, [context], types);
@@ -663,7 +637,7 @@ export async function forceFullResync(direction: ForceResyncDirection): Promise<
       try {
         // Auth once up front; the handler singleton is shared across
         // direction flips below.
-        await getCloudHandler(cloud.provider, name, true).authenticate(null, true);
+        await getCloudHandler(cloud.provider, name).authenticate(null, true);
       } catch (err) {
         reportSyncError('cloud', 'forceFullResync (auth)', err);
         throw err;
@@ -681,22 +655,20 @@ export async function forceFullResync(direction: ForceResyncDirection): Promise<
           : '';
       try {
         if (direction === 'newest' || direction === 'remote-wins') {
-          // Pull: remote is source (isForBrowser=true for BooksDbBookData).
           const remote =
             target === 'cloud'
-              ? getCloudHandler(cloud!.provider, cloudName, true, pullSourceOverride)
-              : getFsHandler(FS_SOURCE_NAME, true, pullSourceOverride);
+              ? getCloudHandler(cloud!.provider, cloudName, pullSourceOverride)
+              : getFsHandler(FS_SOURCE_NAME, pullSourceOverride);
           logger.debug(`forceFullResync: pull ${target} → local (run)`);
           await runPair(remote, local);
         }
         if (direction === 'newest' || direction === 'local-wins') {
-          // Push: local is source (browser handler, saveBehavior override
-          // applies to it this time).
+          // Push: local is source, saveBehavior override applies to it.
           const localSource = getBrowserHandlerWith(pushSourceOverride);
           const remote =
             target === 'cloud'
-              ? getCloudHandler(cloud!.provider, cloudName, false)
-              : getFsHandler(FS_SOURCE_NAME, false);
+              ? getCloudHandler(cloud!.provider, cloudName)
+              : getFsHandler(FS_SOURCE_NAME);
           logger.debug(`forceFullResync: push local → ${target} (run)`);
           await runPair(localSource, remote);
         }
