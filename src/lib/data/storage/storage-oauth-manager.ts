@@ -231,18 +231,31 @@ export class StorageOAuthManager {
 
       storageOAuthTokens.set(storageSourceName, token);
 
+      // OAuth contract: needsRefreshToken=!this.remoteData.refreshToken,
+      // and when true the auth route forces prompt=consent +
+      // access_type=offline so Google MUST return a refresh_token. If
+      // we get here without one, either we asked the wrong way or the
+      // provider violated the contract — either way silent reauth on
+      // the next reload will fail, so log loudly.
+      logger.debug(
+        `waitForAuth resolved for ${storageSourceName}: ` +
+          `hadRefreshToken=${!!this.remoteData.refreshToken}, ` +
+          `gotRefreshToken=${!!token.refreshToken}, ` +
+          `willPersist=${!!(token.refreshToken && token.refreshToken !== this.remoteData.refreshToken)}`
+      );
+      if (!token.refreshToken && !this.remoteData.refreshToken) {
+        logger.error(
+          `OAuth flow returned no refresh_token for ${storageSourceName}; silent reauth will fail on next reload. Disconnect and reconnect to retry.`
+        );
+      }
+
       if (token.refreshToken && token.refreshToken !== this.remoteData.refreshToken) {
         this.remoteData.refreshToken = token.refreshToken;
 
         try {
           const db = await database.db;
-          const existingStorageSourceData = storageSource || {
-            storedInManager: false,
-            encryptionDisabled: true
-          };
-
           await db.put('storageSource', {
-            ...existingStorageSourceData,
+            ...(storageSource ?? {}),
             name: storageSourceName,
             type: this.storageType,
             data: {
@@ -252,8 +265,11 @@ export class StorageOAuthManager {
             },
             lastSourceModified: Date.now()
           });
+          logger.debug(`refresh_token persisted for ${storageSourceName}`);
         } catch (err: any) {
-          logger.error(`Error updating refresh token for ${storageSourceName}: ${err.message}`);
+          logger.error(
+            `Failed to persist refresh_token for ${storageSourceName} — silent reauth will fail on next reload: ${err.message}`
+          );
         }
       }
     } catch (error: any) {
