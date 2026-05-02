@@ -59,7 +59,13 @@ export async function disconnectFs(): Promise<void> {
   const existing = await db.get('storageSource', FS_SOURCE_NAME);
   if (existing) {
     await database.deleteStorageSource(existing);
+    // Clear the connection subject BEFORE pruning so pruneAfterDisconnect
+    // doesn't see this source as still connected and re-add its books to
+    // the reachable set.
+    fsConnection$.next(null);
+    fsHealth$.next({ status: 'ok' });
     await pruneAfterDisconnect();
+    return;
   }
   fsConnection$.next(null);
   fsHealth$.next({ status: 'ok' });
@@ -185,7 +191,13 @@ export async function disconnectCloud(): Promise<void> {
     const existing = await db.get('storageSource', name);
     if (existing) {
       await database.deleteStorageSource(existing);
+      // Clear the connection subject BEFORE pruning so pruneAfterDisconnect
+      // doesn't see this source as still connected and re-add its books to
+      // the reachable set.
+      cloudConnection$.next(null);
+      cloudHealth$.next({ status: 'ok' });
       await pruneAfterDisconnect();
+      return;
     }
   }
   cloudConnection$.next(null);
