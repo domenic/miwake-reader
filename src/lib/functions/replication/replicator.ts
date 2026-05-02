@@ -95,7 +95,12 @@ export async function importData(
             await targetHandler.saveCover(bookContent.coverImage);
           }
 
-          database.dataListChanged$.next(targetHandler);
+          // Only the unified library view (BROWSER) drives /manage's
+          // book list. Emitting a non-browser handler here would
+          // briefly swap /manage to that source's getBookList result.
+          if (targetHandler.storageType === StorageKey.BROWSER) {
+            database.dataListChanged$.next(targetHandler);
+          }
 
           checkCancelAndProgress(cancelSignal, true, !bookContent.coverImage);
         } catch (error: any) {
@@ -275,7 +280,7 @@ export async function replicateData(
 
             checkCancelAndProgress(cancelSignal);
 
-            if (refreshDataList) {
+            if (refreshDataList && targetHandler.storageType === StorageKey.BROWSER) {
               database.dataListChanged$.next(targetHandler);
             }
 
