@@ -251,7 +251,7 @@
         logger.debug(
           `reader/rawBookData$: getBook → ${
             bookData
-              ? `{id:${bookData.id}, title:${JSON.stringify(bookData.title)}, hasHtml:${!!bookData.elementHtml}, storageSource:${JSON.stringify(bookData.storageSource ?? null)}}`
+              ? `{id:${bookData.id}, title:${JSON.stringify(bookData.title)}, hasHtml:${!!bookData.elementHtml}}`
               : 'undefined'
           }`
         );

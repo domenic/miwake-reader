@@ -8,7 +8,6 @@ import { logger } from '$lib/data/logger';
 import { MergeMode } from '$lib/data/merge-mode';
 import { mergeReadingGoals, readingGoalSortFunction } from '$lib/data/reading-goal';
 import { BaseStorageHandler, type ExternalFile } from '$lib/data/storage/handler/base-handler';
-import { getStorageHandler } from '$lib/data/storage/storage-handler-factory';
 import { StorageOAuthManager } from '$lib/data/storage/storage-oauth-manager';
 import { StorageKey } from '$lib/data/storage/storage-types';
 import { database } from '$lib/data/store';
@@ -119,69 +118,6 @@ export abstract class ApiStorageHandler extends BaseStorageHandler {
       this.titleToBookCard.clear();
       this.dataListFetched = false;
     }
-  }
-
-  async prepareBookForReading(): Promise<number> {
-    const data = await database.getDataByTitle(this.currentContext.title);
-
-    let idToReturn = 0;
-    let bookData: Omit<BooksDbBookData, 'id'> | undefined = data;
-
-    if (!bookData || !bookData.elementHtml) {
-      const { file } = await this.getExternalFile('bookdata_');
-
-      bookData = file
-        ? bookData || {
-            title: this.currentContext.title,
-            styleSheet: '',
-            elementHtml: '',
-            blobs: {},
-            coverImage: '',
-            hasThumb: true,
-            characters: 0,
-            sections: [],
-            lastBookModified: 0,
-            lastBookOpen: 0,
-            storageSource: undefined
-          }
-        : undefined;
-    }
-
-    if (!bookData) {
-      throw new Error('No local or external book data found');
-    }
-
-    if (bookData.storageSource !== this.storageSourceName) {
-      bookData.storageSource = this.storageSourceName;
-
-      idToReturn = await getStorageHandler(
-        this.window,
-        StorageKey.BROWSER,
-        undefined,
-        this.cacheStorageData,
-        ReplicationSaveBehavior.Overwrite
-      ).saveBook(bookData, true, false);
-    } else if (data?.id) {
-      idToReturn = data.id;
-    }
-
-    return idToReturn;
-  }
-
-  async updateLastRead(book: BooksDbBookData) {
-    const { titleId, files, file } = await this.getExternalFile('bookdata_');
-
-    if (!file) {
-      return;
-    }
-
-    const filename = BaseStorageHandler.getBookFileName(book);
-    const { characters, lastBookModified, lastBookOpen } =
-      BaseStorageHandler.getBookMetadata(filename);
-
-    await this.upload(titleId, filename, files, file, undefined);
-
-    this.addBookCard(this.currentContext.title, { characters, lastBookModified, lastBookOpen });
   }
 
   async getFilenameForRecentCheck(fileIdentifier: string) {

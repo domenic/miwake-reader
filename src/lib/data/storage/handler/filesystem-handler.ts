@@ -12,10 +12,8 @@ import { BaseStorageHandler } from '$lib/data/storage/handler/base-handler';
 import type { BookCardProps } from '$lib/components/book-card/book-card-props';
 import { MergeMode } from '$lib/data/merge-mode';
 import { ReplicationSaveBehavior } from '$lib/functions/replication/replication-options';
-import { StorageKey } from '$lib/data/storage/storage-types';
 import { isRemoteContext } from '$lib/data/storage/storage-source-manager';
 import { confirmDialog } from '$lib/data/simple-dialogs';
-import { getStorageHandler } from '$lib/data/storage/storage-handler-factory';
 import { handleErrorDuringReplication } from '$lib/functions/replication/error-handler';
 import pLimit from 'p-limit';
 import { replicationProgress$ } from '$lib/functions/replication/replication-progress';
@@ -96,70 +94,6 @@ export class FilesystemStorageHandler extends BaseStorageHandler {
       this.titleToBookCard.clear();
       this.dataListFetched = false;
     }
-  }
-
-  async prepareBookForReading(): Promise<number> {
-    const book = await database.getDataByTitle(this.currentContext.title);
-
-    let idToReturn = 0;
-    let data: Omit<BooksDbBookData, 'id'> | undefined = book;
-
-    if (!data || !data.elementHtml) {
-      const { file } = await this.getExternalFile('bookdata_');
-
-      data = file
-        ? data || {
-            title: this.currentContext.title,
-            styleSheet: '',
-            elementHtml: '',
-            blobs: {},
-            coverImage: '',
-            hasThumb: true,
-            characters: 0,
-            sections: [],
-            lastBookModified: 0,
-            lastBookOpen: 0,
-            storageSource: undefined
-          }
-        : undefined;
-    }
-
-    if (!data) {
-      throw new Error('No local or external book data found');
-    }
-
-    if (data.storageSource !== this.storageSourceName) {
-      data.storageSource = this.storageSourceName;
-
-      idToReturn = await getStorageHandler(
-        this.window,
-        StorageKey.BROWSER,
-        undefined,
-        this.cacheStorageData,
-        ReplicationSaveBehavior.Overwrite
-      ).saveBook(data, true, false);
-    } else if (book?.id) {
-      idToReturn = book.id;
-    }
-
-    return idToReturn;
-  }
-
-  async updateLastRead(book: BooksDbBookData) {
-    const { file, files, rootDirectory } = await this.getExternalFile('bookdata_');
-
-    if (!file) {
-      return;
-    }
-
-    const bookData = await file.getFile();
-    const filename = BaseStorageHandler.getBookFileName(book);
-    const { characters, lastBookModified, lastBookOpen } =
-      BaseStorageHandler.getBookMetadata(filename);
-
-    await this.writeFile(rootDirectory, filename, bookData, files, file);
-
-    this.addBookCard(this.currentContext.title, { characters, lastBookModified, lastBookOpen });
   }
 
   async getFilenameForRecentCheck(fileIdentifier: string) {

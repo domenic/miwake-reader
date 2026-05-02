@@ -15,7 +15,7 @@ import {
   type CloudProviderType,
   type CustomOAuthCredentials
 } from '$lib/data/sync/sync-store';
-import { ensurePlaceholders } from '$lib/data/sync/sync-engine';
+import { ensurePlaceholders, pruneUnreachablePlaceholders } from '$lib/data/sync/sync-engine';
 import {
   cloudSourceName,
   FS_SOURCE_NAME,
@@ -40,8 +40,6 @@ export async function connectFs(): Promise<void> {
     name: FS_SOURCE_NAME,
     type: StorageKey.FS,
     data,
-    storedInManager: false,
-    encryptionDisabled: true,
     lastSourceModified: Date.now()
   };
 
@@ -61,7 +59,7 @@ export async function disconnectFs(): Promise<void> {
   const existing = await db.get('storageSource', FS_SOURCE_NAME);
   if (existing) {
     await database.deleteStorageSource(existing);
-    await pruneLocalPlaceholdersBySource(FS_SOURCE_NAME);
+    await pruneAfterDisconnect();
   }
   fsConnection$.next(null);
   fsHealth$.next({ status: 'ok' });
@@ -122,8 +120,6 @@ export async function connectCloud(provider: CloudProviderType): Promise<void> {
       name,
       type: provider,
       data: remoteData,
-      storedInManager: false,
-      encryptionDisabled: true,
       lastSourceModified: Date.now()
     };
 
@@ -152,7 +148,7 @@ export async function connectCloud(provider: CloudProviderType): Promise<void> {
 
     // Seed IndexedDB with placeholders so /manage immediately shows
     // the user's remote library under cloud icons.
-    const created = await ensurePlaceholders(books, name);
+    const created = await ensurePlaceholders(books);
     if (created > 0) {
       database.notifyDataListChanged();
     }
@@ -189,24 +185,65 @@ export async function disconnectCloud(): Promise<void> {
     const existing = await db.get('storageSource', name);
     if (existing) {
       await database.deleteStorageSource(existing);
+      await pruneAfterDisconnect();
     }
-    // Delete any placeholder rows that pointed at this source — their
-    // content is no longer reachable.
-    await pruneLocalPlaceholdersBySource(name);
   }
   cloudConnection$.next(null);
   cloudHealth$.next({ status: 'ok' });
 }
 
-async function pruneLocalPlaceholdersBySource(sourceName: string): Promise<void> {
-  const db = await database.db;
-  const all = await db.getAll('data');
-  for (const book of all) {
-    if (!book.elementHtml && book.storageSource === sourceName) {
-      await db.delete('data', book.id);
+/**
+ * After dropping a source record, fetch the booklist from every
+ * source still connected and prune any placeholder whose title isn't
+ * present on at least one of them. Drives an atomic-feeling disconnect
+ * UX: the library reflects the new reality the moment the disconnect
+ * promise resolves, with no flicker through an inconsistent
+ * intermediate state.
+ *
+ * If no source remains, all placeholders are pruned (their content is
+ * unreachable). If a remaining source's booklist call fails, that
+ * source contributes no titles to the reachable set — the conservative
+ * choice would be to keep all placeholders, but that leaves dead rows;
+ * the aggressive choice (treat as unreachable) is what we do. Users
+ * will see "Sync failed" on the remaining source and can reconnect or
+ * resync to recover.
+ */
+async function pruneAfterDisconnect(): Promise<void> {
+  const reachableTitles = new Set<string>();
+
+  const cloud = read<CloudConnectionState | null>(cloudConnection$);
+  if (cloud) {
+    try {
+      const name = cloudSourceName(cloud.provider, cloud.usesCustomCredentials);
+      const handler =
+        cloud.provider === StorageKey.GDRIVE
+          ? getStorageHandler(window, StorageKey.GDRIVE, name)
+          : getStorageHandler(window, StorageKey.ONEDRIVE, name);
+      await handler.authenticate(null, true);
+      for (const book of await handler.getBookList()) {
+        reachableTitles.add(book.title);
+      }
+    } catch {
+      // Source unreachable — treat as contributing no titles.
     }
   }
-  database.notifyDataListChanged();
+
+  const fs = read<{ path: string } | null>(fsConnection$);
+  if (fs) {
+    try {
+      const handler = getStorageHandler(window, StorageKey.FS, FS_SOURCE_NAME);
+      for (const book of await handler.getBookList()) {
+        reachableTitles.add(book.title);
+      }
+    } catch {
+      // Source unreachable — treat as contributing no titles.
+    }
+  }
+
+  const pruned = await pruneUnreachablePlaceholders(reachableTitles);
+  if (pruned > 0) {
+    database.notifyDataListChanged();
+  }
 }
 
 /**

@@ -44,8 +44,7 @@ export class BrowserStorageHandler extends BaseStorageHandler {
             ),
             lastBookModified: book.lastBookModified || 0,
             lastBookOpen: book.lastBookOpen || 0,
-            isPlaceholder: !book.elementHtml,
-            storageSource: book.storageSource
+            isPlaceholder: !book.elementHtml
           });
         }
 
@@ -66,30 +65,6 @@ export class BrowserStorageHandler extends BaseStorageHandler {
       this.titleToBookCard.clear();
       this.dataListFetched = false;
     }
-  }
-
-  async prepareBookForReading() {
-    const book = this.currentContext.id
-      ? await database.getData(this.currentContext.id)
-      : await database.getDataByTitle(this.currentContext.title);
-
-    if (!book) {
-      throw new Error('No local book data found');
-    }
-
-    if (!book.elementHtml) {
-      throw new Error(
-        `Placeholder books should be opened from their original source${
-          book.storageSource ? ` - last source: ${book.storageSource}` : ''
-        }`
-      );
-    }
-
-    if (book.storageSource) {
-      await database.upsertData(book, ReplicationSaveBehavior.Overwrite);
-    }
-
-    return book.id;
   }
 
   async updateLastRead(book: BooksDbBookData) {
@@ -263,16 +238,11 @@ export class BrowserStorageHandler extends BaseStorageHandler {
     return cover;
   }
 
-  async saveBook(
-    data: Omit<BooksDbBookData, 'id'>,
-    skipTimestampFallback = true,
-    removeStorageContext = true
-  ) {
+  async saveBook(data: Omit<BooksDbBookData, 'id'>, skipTimestampFallback = true) {
     const storedBookData = await database.upsertData(
       data,
       this.saveBehavior,
-      skipTimestampFallback,
-      removeStorageContext
+      skipTimestampFallback
     );
 
     this.addBookCard(data.title, {

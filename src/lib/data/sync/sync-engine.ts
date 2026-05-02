@@ -187,45 +187,21 @@ function reportSyncError(target: 'cloud' | 'fs', context: string, err: unknown):
 /**
  * Given a list of book cards from a remote sync location, write a
  * placeholder row into local IndexedDB for any title that isn't
- * already present, and repoint orphaned placeholders (those that
- * reference a source record that no longer exists) at the current
- * source so the click-to-download flow works again. Returns the count
- * of rows created or touched.
+ * already present. Returns the count of rows created.
  */
 export async function ensurePlaceholders(
   remoteCards: ReadonlyArray<{
     title: string;
     characters?: number;
     lastBookModified?: number;
-  }>,
-  storageSourceName: string
+  }>
 ): Promise<number> {
-  let touched = 0;
-
-  const db = await database.db;
-  const liveSourceNames = new Set((await db.getAll('storageSource')).map((s) => s.name));
+  let created = 0;
 
   for (const card of remoteCards) {
     const existing = await database.getDataByTitle(card.title);
 
     if (existing) {
-      const isOrphanedPlaceholder =
-        !existing.elementHtml &&
-        existing.storageSource &&
-        !liveSourceNames.has(existing.storageSource);
-      const notYetAssigned = !existing.elementHtml && !existing.storageSource;
-
-      logger.debug(
-        `ensurePlaceholders: existing match for ${JSON.stringify(existing.title)} — ` +
-          `hasHtml=${!!existing.elementHtml}, ` +
-          `storageSource=${JSON.stringify(existing.storageSource ?? null)}, ` +
-          `orphaned=${isOrphanedPlaceholder}, notYetAssigned=${notYetAssigned}`
-      );
-
-      if (isOrphanedPlaceholder || notYetAssigned) {
-        await db.put('data', { ...existing, storageSource: storageSourceName });
-        touched += 1;
-      }
       continue;
     }
 
@@ -244,36 +220,28 @@ export async function ensurePlaceholders(
         characters: card.characters || 0,
         sections: [],
         lastBookModified: card.lastBookModified || 0,
-        lastBookOpen: 0,
-        storageSource: storageSourceName
+        lastBookOpen: 0
       },
-      ReplicationSaveBehavior.NewOnly,
-      true,
-      /* removeStorageContext */ false
+      ReplicationSaveBehavior.NewOnly
     );
-    touched += 1;
+    created += 1;
   }
 
-  return touched;
+  return created;
 }
 
 /**
- * Remove local placeholder rows whose `storageSource` points at a
- * record that no longer exists AND whose title is not in the current
- * remote list. Those books are unreachable.
+ * Remove placeholder rows that aren't present in any currently-
+ * reachable source's book list. Pass the union of titles seen on every
+ * connected source; placeholders not in that set are unreachable.
  */
-export async function pruneOrphanedPlaceholders(currentRemoteTitles: Set<string>): Promise<number> {
+export async function pruneUnreachablePlaceholders(reachableTitles: Set<string>): Promise<number> {
   const db = await database.db;
-  const liveSourceNames = new Set((await db.getAll('storageSource')).map((s) => s.name));
   const allBooks = await db.getAll('data');
 
   let pruned = 0;
   for (const book of allBooks) {
-    const isPlaceholder = !book.elementHtml;
-    const hasOrphanedSource = !!book.storageSource && !liveSourceNames.has(book.storageSource);
-    const reachableOnCurrentRemote = currentRemoteTitles.has(book.title);
-
-    if (isPlaceholder && hasOrphanedSource && !reachableOnCurrentRemote) {
+    if (!book.elementHtml && !reachableTitles.has(book.title)) {
       await db.delete('data', book.id);
       pruned += 1;
     }
@@ -304,12 +272,10 @@ export async function reconcileCloudBooks(): Promise<void> {
         remoteBooks.map((b) => JSON.stringify(b.title)).join(', ')
     );
 
-    const touched = await ensurePlaceholders(remoteBooks, name);
-    const remoteTitles = new Set(remoteBooks.map((b) => b.title));
-    const pruned = await pruneOrphanedPlaceholders(remoteTitles);
-    logger.debug(`reconcileCloudBooks: touched=${touched}, pruned=${pruned}`);
+    const touched = await ensurePlaceholders(remoteBooks);
+    logger.debug(`reconcileCloudBooks: touched=${touched}`);
 
-    if (touched > 0 || pruned > 0) {
+    if (touched > 0) {
       database.notifyDataListChanged();
     }
 

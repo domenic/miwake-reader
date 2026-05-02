@@ -54,10 +54,6 @@ export abstract class BaseStorageHandler {
 
   abstract clearData(clearAll?: boolean): void;
 
-  abstract prepareBookForReading(): Promise<number>;
-
-  abstract updateLastRead(book: BooksDbBookData): Promise<void>;
-
   abstract getFilenameForRecentCheck(fileIdentifier: string): Promise<string | undefined>;
 
   abstract isBookPresentAndUpToDate(referenceFilename: string | undefined): Promise<boolean>;
@@ -88,8 +84,7 @@ export abstract class BaseStorageHandler {
 
   abstract saveBook(
     data: Omit<BooksDbBookData, 'id'>,
-    skipTimestampFallback?: boolean,
-    removeStorageContext?: boolean
+    skipTimestampFallback?: boolean
   ): Promise<number>;
 
   abstract saveProgress(data: BooksDbBookmarkData): Promise<void>;
@@ -338,13 +333,7 @@ export abstract class BaseStorageHandler {
     const staticDataToZip: Array<
       Exclude<
         keyof Omit<BooksDbBookData, 'id'>,
-        | 'blobs'
-        | 'hasThumb'
-        | 'coverImage'
-        | 'characters'
-        | 'lastBookModified'
-        | 'lastBookOpen'
-        | 'storageSource'
+        'blobs' | 'hasThumb' | 'coverImage' | 'characters' | 'lastBookModified' | 'lastBookOpen'
       >
     > = ['title', 'styleSheet', 'elementHtml', 'htmlBackup', 'sections'];
     const staticData: Record<string, string | Section[] | undefined> = {};
@@ -526,13 +515,7 @@ export abstract class BaseStorageHandler {
                 )
               ) as Omit<
                 BooksDbBookData,
-                | 'id'
-                | 'blobs'
-                | 'hasThumb'
-                | 'coverImage'
-                | 'lastBookModified'
-                | 'lastBookOpen'
-                | 'storageSource'
+                'id' | 'blobs' | 'hasThumb' | 'coverImage' | 'lastBookModified' | 'lastBookOpen'
               >;
 
               if (!staticData.elementHtml) {

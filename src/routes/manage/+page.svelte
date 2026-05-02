@@ -140,35 +140,19 @@
   }
 
   /**
-   * Pick the storage handler that should satisfy a book-open request.
-   * Fully-downloaded books open from the local browser IndexedDB
-   * directly. Placeholders (no local elementHtml) route through the
-   * source the book was originally imported from, so that handler's
-   * prepareBookForReading can fetch the content and cache it locally.
+   * Verify that some sync source is still connected before navigating
+   * to the reader on a placeholder; the reader owns the actual
+   * download. With at-most-one cloud + one fs there's no per-book
+   * routing — any connected source can satisfy.
    */
-  async function resolveHandlerSource(
-    bookItem: BookCardProps & { storageSource?: string }
-  ): Promise<{ type: StorageKey; name: string }> {
-    if (!bookItem.isPlaceholder) {
-      return { type: StorageKey.BROWSER, name: '' };
-    }
-
-    const origin = bookItem.storageSource;
-    if (!origin) {
-      throw new Error(
-        "This book's content isn't downloaded and its original sync source is unknown. Re-import it to open."
-      );
-    }
-
+  async function ensurePlaceholderIsReachable(): Promise<void> {
     const db = await database.db;
-    const record = await db.get('storageSource', origin);
-    if (!record) {
+    const sources = await db.getAll('storageSource');
+    if (sources.length === 0) {
       throw new Error(
-        `This book's content isn't downloaded and its original source (${origin}) is no longer connected. Reconnect it from Settings → Sync to download.`
+        "This book's content isn't downloaded and no sync source is connected. Connect one from Settings → Sync to download."
       );
     }
-
-    return { type: record.type, name: record.name };
   }
 
   async function onBookClick(bookId: number) {
@@ -196,7 +180,7 @@
 
     if (bookItem.isPlaceholder) {
       try {
-        await resolveHandlerSource(bookItem);
+        await ensurePlaceholderIsReachable();
       } catch (error: any) {
         const message = `Can't open book: ${error.message}`;
         logger.warn(message);

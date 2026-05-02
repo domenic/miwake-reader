@@ -37,14 +37,6 @@ export class BackupStorageHandler extends BaseStorageHandler {
     return Promise.resolve([]);
   }
 
-  prepareBookForReading() {
-    return Promise.resolve(0);
-  }
-
-  updateLastRead() {
-    return Promise.resolve();
-  }
-
   isBookPresentAndUpToDate() {
     BaseStorageHandler.reportProgress();
     return Promise.resolve(false);

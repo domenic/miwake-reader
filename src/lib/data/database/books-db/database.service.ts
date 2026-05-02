@@ -211,8 +211,7 @@ export class DatabaseService {
   async upsertData(
     data: Omit<BooksDbBookData, 'id'>,
     saveBehavior: ReplicationSaveBehavior,
-    skipTimestampFallback = true,
-    removeStorageContext = true
+    skipTimestampFallback = true
   ) {
     const db = await this.db;
 
@@ -224,10 +223,6 @@ export class DatabaseService {
     const oldData = await store.index('title').get(data.title);
 
     if (oldData) {
-      if (removeStorageContext) {
-        oldData.storageSource = undefined;
-      }
-
       if (
         saveBehavior === ReplicationSaveBehavior.NewOnly &&
         // A placeholder row is never "up to date" — it has no content,
@@ -251,8 +246,7 @@ export class DatabaseService {
             : {
                 lastBookModified: data.lastBookModified || oldData.lastBookModified,
                 lastBookOpen: data.lastBookOpen || oldData.lastBookOpen
-              }),
-          ...(removeStorageContext ? { storageSource: undefined } : {})
+              })
         };
         await store.put(bookData);
       }
@@ -349,14 +343,9 @@ export class DatabaseService {
     cachedData: { bookmarkIds: Set<number>; lastItem: number | undefined },
     shouldDeleteStatistics: boolean
   ) {
-    const storeNames: (
-      | 'data'
-      | 'bookmark'
-      | 'statistic'
-      | 'lastItem'
-      | 'lastModified'
-      | 'handle'
-    )[] = ['data', 'handle'];
+    const storeNames: ('data' | 'bookmark' | 'statistic' | 'lastItem' | 'lastModified')[] = [
+      'data'
+    ];
     const shouldDeleteLastItem = cachedData.lastItem === dataId;
     const shouldDeleteBookmark = cachedData.bookmarkIds.has(dataId);
 
@@ -393,10 +382,6 @@ export class DatabaseService {
       if (shouldDeleteStatistics && bookTitle) {
         await tx.objectStore('statistic').delete(IDBKeyRange.bound([bookTitle], [bookTitle, []]));
         await tx.objectStore('lastModified').delete([bookTitle, StorageDataType.STATISTICS]);
-      }
-
-      if (bookTitle) {
-        await tx.objectStore('handle').delete(IDBKeyRange.bound([bookTitle], [bookTitle, []]));
       }
 
       await tx.objectStore('data').delete(dataId);
