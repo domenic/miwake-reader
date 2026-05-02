@@ -23,8 +23,6 @@ export function isAppDefault(name: string) {
   );
 }
 
-export function isRemoteContext(
-  data: FsHandle | ArrayBuffer | RemoteContext
-): data is RemoteContext {
+export function isRemoteContext(data: FsHandle | RemoteContext): data is RemoteContext {
   return !!(data && 'clientId' in data && data.clientId);
 }

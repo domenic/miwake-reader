@@ -3,6 +3,7 @@
   import { confirmDialog, messageDialog } from '$lib/data/simple-dialogs';
   import { fsConnection$, fsHealth$, now$ } from '$lib/data/sync/sync-store';
   import { connectFs, disconnectFs } from '$lib/data/sync/source-manager';
+  import { retryAfterReconnect } from '$lib/data/sync/sync-engine';
   import { formatRelativeTime } from '$lib/components/settings/sync/sync-utils';
   import SyncAlert from '$lib/components/settings/sync/sync-alert.svelte';
   import SyncBadge from '$lib/components/settings/sync/sync-badge.svelte';
@@ -52,7 +53,13 @@
   }
 
   async function onRetry() {
-    $fsHealth$ = { status: 'ok' };
+    if (busy) return;
+    busy = true;
+    try {
+      await retryAfterReconnect();
+    } finally {
+      busy = false;
+    }
   }
 </script>
 
