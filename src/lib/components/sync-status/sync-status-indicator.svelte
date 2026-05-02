@@ -55,17 +55,17 @@
     error: faCircleXmark
   } as const;
 
-  // Muted palette: a single light-translucent surface across every
-  // state so the cluster fades into the reader's chrome; state is
-  // carried in the icon color (and a colored ring for user-actionable
-  // attention/error states so they still pull the eye).
+  // Bare-icon styling — no surface, no ring, no shadow. State is
+  // carried entirely in the icon color; hover gives a faint backdrop
+  // for affordance. Matches the visual weight of the reader's other
+  // chrome (footer text, header) so the cluster doesn't dominate.
   const wrapperVariantClasses = {
-    disabled: 'text-gray-400 hover:bg-white',
+    disabled: 'text-gray-400',
     offline: 'text-gray-400',
-    idle: 'text-emerald-600',
-    syncing: 'text-sky-600',
-    'needs-attention': 'text-amber-600 ring-amber-400/70 hover:bg-amber-50',
-    error: 'text-red-600 ring-red-400/70 hover:bg-red-50'
+    idle: 'text-emerald-500/80',
+    syncing: 'text-sky-500',
+    'needs-attention': 'text-amber-500',
+    error: 'text-red-500'
   };
 
   let syncLabel = $derived.by(() => {
@@ -144,9 +144,12 @@
     };
   });
 
+  // 32px hit target, 16-18px icon. Hover dabs a faint translucent
+  // backdrop in so users get a "this is interactive" affordance
+  // without a permanent button surface.
   const buttonClass =
-    'flex h-9 w-9 items-center justify-center rounded-full bg-white/80 backdrop-blur-sm shadow-sm ring-1 ring-black/10 transition-colors';
-  const trackerButtonClass = `${buttonClass} text-gray-700 hover:bg-white cursor-pointer`;
+    'flex h-8 w-8 items-center justify-center rounded-full text-base sm:text-lg transition-colors hover:bg-black/5';
+  const trackerButtonClass = `${buttonClass} text-gray-600 cursor-pointer`;
   const tooltipClass =
     'rounded-md bg-[#333]/90 backdrop-blur-sm px-2 py-1 text-xs font-medium whitespace-nowrap text-white shadow-sm';
 </script>
