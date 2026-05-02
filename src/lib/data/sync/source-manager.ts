@@ -46,10 +46,23 @@ export async function connectFs(): Promise<void> {
   const existing = await (await database.db).get('storageSource', FS_SOURCE_NAME);
   await database.saveStorageSource(record, existing ? FS_SOURCE_NAME : '');
 
+  // Seed IndexedDB with placeholders for whatever's already in the
+  // folder so /manage shows them under cloud icons; mirrors connectCloud.
+  const handler = getStorageHandler(window, StorageKey.FS, FS_SOURCE_NAME);
+  const books = await handler.getBookList();
+  const created = await ensurePlaceholders(books);
+  if (created > 0) {
+    database.notifyDataListChanged();
+  }
+
+  const now = Date.now();
   fsConnection$.next({
     path: fsPath,
-    connectedAt: Date.now(),
-    lastSyncedAt: null
+    connectedAt: now,
+    // The getBookList + placeholder seed IS a successful sync — record
+    // it so the UI doesn't sit at "Not yet synced" until the first
+    // ambient push.
+    lastSyncedAt: now
   });
   fsHealth$.next({ status: 'ok' });
 }
