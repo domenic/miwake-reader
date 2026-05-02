@@ -140,12 +140,12 @@
 )}
   {@const clickable = opts.clickable ?? true}
   <Popover
-    contentText={label}
     eventType="pointer"
     placement="right"
     fallbackPlacements={['top', 'bottom', 'left']}
-    contentStyles="padding: 0.4rem 0.6rem; font-size: 0.75rem; font-weight: 500; white-space: nowrap;"
+    contentStyles="padding: 0.4rem 0.6rem; font-size: 0.75rem; font-weight: 500;"
   >
+    {#snippet content()}{label}{/snippet}
     <button
       type="button"
       aria-label={label}
