@@ -15,13 +15,15 @@
     faPause,
     faPlay,
     faTriangleExclamation,
-    faWifi
+    faWifi,
+    type IconDefinition
   } from '@fortawesome/free-solid-svg-icons';
   import {
     isTrackerMenuOpen$,
     isTrackerPaused$,
     trackerAvailable$
   } from '$lib/components/book-reader/book-reading-tracker/book-reading-tracker';
+  import Popover from '$lib/components/popover/popover.svelte';
   import { pagePath } from '$lib/data/env';
   import { isOnline$, statisticsEnabled$ } from '$lib/data/store';
   import { deriveIndicatorState } from '$lib/data/sync/sync-state';
@@ -107,14 +109,6 @@
     await goto(`${pagePath}/settings/sync`);
   }
 
-  function onSyncKey(e: KeyboardEvent) {
-    if (!syncClickable) return;
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      onSyncClick();
-    }
-  }
-
   function togglePause() {
     isTrackerPaused$.next(!$isTrackerPaused$);
   }
@@ -127,96 +121,62 @@
     isTrackerMenuOpen$.set(true);
   }
 
-  // Per-button hover state. A shared timer hides the floating label
-  // after a few seconds of no hover, matching the prior sync-only
-  // behavior.
-  let hovered = $state<'sync' | 'pause' | 'menu' | null>(null);
-  let labelTimeout: ReturnType<typeof setTimeout> | null = null;
-  $effect(() => {
-    if (hovered) {
-      if (labelTimeout) clearTimeout(labelTimeout);
-      labelTimeout = setTimeout(() => {
-        hovered = null;
-      }, 2500);
-    }
-    return () => {
-      if (labelTimeout) clearTimeout(labelTimeout);
-    };
-  });
-
   // 32px hit target, 16-18px icon. Hover dabs a faint translucent
   // backdrop in so users get a "this is interactive" affordance
   // without a permanent button surface.
   const buttonClass =
     'flex h-8 w-8 items-center justify-center rounded-full text-base sm:text-lg transition-colors hover:bg-black/5';
-  const trackerButtonClass = `${buttonClass} text-gray-600 cursor-pointer`;
-  const tooltipClass =
-    'rounded-md bg-[#333]/90 backdrop-blur-sm px-2 py-1 text-xs font-medium whitespace-nowrap text-white shadow-sm';
 </script>
 
-<div class="writing-horizontal-tb fixed bottom-3 left-3 z-40 flex flex-col-reverse gap-2">
-  <div
-    class="flex items-center gap-2"
-    onpointerenter={() => (hovered = 'sync')}
-    onpointerleave={() => (hovered = null)}
-    role="presentation"
+{#snippet clusterButton(
+  label: string,
+  icon: IconDefinition,
+  opts: {
+    onClick: () => void;
+    clickable?: boolean;
+    colorClass?: string;
+    spin?: boolean;
+  }
+)}
+  {@const clickable = opts.clickable ?? true}
+  <Popover
+    contentText={label}
+    eventType="pointer"
+    placement="right"
+    fallbackPlacements={['top', 'bottom', 'left']}
+    contentStyles="padding: 0.4rem 0.6rem; font-size: 0.75rem; font-weight: 500;"
   >
     <button
       type="button"
-      aria-label={syncLabel}
-      class:cursor-pointer={syncClickable}
-      class:cursor-default={!syncClickable}
-      class="{buttonClass} {wrapperVariantClasses[indicator.kind]}"
-      onclick={onSyncClick}
-      onkeydown={onSyncKey}
-      tabindex={syncClickable ? 0 : -1}
+      aria-label={label}
+      class="{buttonClass} {opts.colorClass ?? ''}"
+      class:cursor-pointer={clickable}
+      class:cursor-default={!clickable}
+      onclick={opts.onClick}
+      tabindex={clickable ? 0 : -1}
     >
-      <Fa icon={icons[indicator.kind]} class={indicator.kind === 'syncing' ? 'animate-spin' : ''} />
+      <Fa {icon} class={opts.spin ? 'animate-spin' : ''} />
     </button>
-    {#if hovered === 'sync'}
-      <div class={tooltipClass}>{syncLabel}</div>
-    {/if}
-  </div>
+  </Popover>
+{/snippet}
+
+<div class="writing-horizontal-tb fixed bottom-3 left-3 z-40 flex flex-col-reverse gap-2">
+  {@render clusterButton(syncLabel, icons[indicator.kind], {
+    onClick: onSyncClick,
+    clickable: syncClickable,
+    colorClass: wrapperVariantClasses[indicator.kind],
+    spin: indicator.kind === 'syncing'
+  })}
 
   {#if showTrackerButtons}
-    <div
-      class="flex items-center gap-2"
-      onpointerenter={() => (hovered = 'pause')}
-      onpointerleave={() => (hovered = null)}
-      role="presentation"
-    >
-      <button
-        type="button"
-        aria-label={$isTrackerPaused$ ? 'Resume reading tracker' : 'Pause reading tracker'}
-        class={trackerButtonClass}
-        onclick={togglePause}
-      >
-        <Fa icon={$isTrackerPaused$ ? faPlay : faPause} />
-      </button>
-      {#if hovered === 'pause'}
-        <div class={tooltipClass}>
-          {$isTrackerPaused$ ? 'Resume reading tracker' : 'Pause reading tracker'}
-        </div>
-      {/if}
-    </div>
-
-    <div
-      class="flex items-center gap-2"
-      onpointerenter={() => (hovered = 'menu')}
-      onpointerleave={() => (hovered = null)}
-      role="presentation"
-    >
-      <button
-        type="button"
-        aria-label="Open reading statistics"
-        class={trackerButtonClass}
-        onclick={openTrackerMenu}
-      >
-        <Fa icon={faChartBar} />
-      </button>
-      {#if hovered === 'menu'}
-        <div class={tooltipClass}>Open reading statistics</div>
-      {/if}
-    </div>
+    {@render clusterButton(
+      $isTrackerPaused$ ? 'Resume reading tracker' : 'Pause reading tracker',
+      $isTrackerPaused$ ? faPlay : faPause,
+      { onClick: togglePause, colorClass: 'text-gray-600' }
+    )}
+    {@render clusterButton('Open reading statistics', faChartBar, {
+      onClick: openTrackerMenu,
+      colorClass: 'text-gray-600'
+    })}
   {/if}
 </div>
