@@ -12,6 +12,7 @@ import {
   pagePath
 } from '$lib/data/env';
 import { logger } from '$lib/data/logger';
+import { NeedsInteractiveAuthError } from '$lib/data/storage/errors';
 import {
   isAppDefault,
   isRemoteContext,
@@ -42,26 +43,6 @@ export const storageOAuthTokens = new Map<string, OAuthTokenData>();
  */
 export function clearOAuthTokenCache(storageSourceName: string): void {
   storageOAuthTokens.delete(storageSourceName);
-}
-
-/**
- * Thrown by `getToken` when it's called with `silentOnly: true` and
- * there's no cached/refreshable token — i.e. an interactive popup
- * would be required. Callers (like the sync engine's boot
- * reconciliation) catch this to set a "needs attention" UI state
- * rather than triggering auth without a user gesture.
- */
-export class NeedsInteractiveAuthError extends Error {
-  constructor(
-    public readonly storageSourceName: string,
-    public readonly storageType: StorageKey
-  ) {
-    super(
-      `Interactive sign-in required for ${storageSourceName} (${storageType}); ` +
-        'silentOnly was set so no popup was opened.'
-    );
-    this.name = 'NeedsInteractiveAuthError';
-  }
 }
 
 export class StorageOAuthManager {

@@ -13,6 +13,7 @@ import type { BookCardProps } from '$lib/components/book-card/book-card-props';
 import { MergeMode } from '$lib/data/merge-mode';
 import { ReplicationSaveBehavior } from '$lib/functions/replication/replication-options';
 import { isRemoteContext } from '$lib/data/storage/storage-source-manager';
+import { NeedsPermissionGrantError } from '$lib/data/storage/errors';
 import { confirmDialog } from '$lib/data/simple-dialogs';
 import { handleErrorDuringReplication } from '$lib/functions/replication/error-handler';
 import pLimit from 'p-limit';
@@ -475,7 +476,7 @@ export class FilesystemStorageHandler extends BaseStorageHandler {
 
       const handleData = storageSource.data;
 
-      if (handleData instanceof ArrayBuffer || isRemoteContext(handleData)) {
+      if (isRemoteContext(handleData)) {
         throw new Error('Wrong filesystem handle type');
       }
 
@@ -487,21 +488,30 @@ export class FilesystemStorageHandler extends BaseStorageHandler {
 
       this.rootDirectory = handleData.directoryHandle;
     } catch (error: any) {
-      if (
-        error.message.includes('activation is required') &&
-        (!this.rootDirectory || askForStorageUnlock)
-      ) {
-        const wasCanceled = await confirmDialog({
-          title: 'Filesystem access required',
-          message:
-            'You are trying to access data on your filesystem. Please grant permissions in the next dialog.'
-        });
+      const isPermissionError =
+        error.message.includes('activation is required') ||
+        error.message.includes('No permissions granted');
 
-        if (wasCanceled) {
-          throw error;
+      if (isPermissionError) {
+        if (askForStorageUnlock) {
+          const wasCanceled = await confirmDialog({
+            title: 'Filesystem access required',
+            message:
+              'You are trying to access data on your filesystem. Please grant permissions in the next dialog.'
+          });
+
+          if (wasCanceled) {
+            throw new NeedsPermissionGrantError(this.storageSourceName);
+          }
+
+          return this.ensureRoot(false);
         }
 
-        return this.ensureRoot(false);
+        // Silent path: surface as a typed error so the sync engine
+        // can flip fsHealth to permission-required and let the
+        // settings UI offer "Grant access" with a real user gesture
+        // behind it.
+        throw new NeedsPermissionGrantError(this.storageSourceName);
       }
 
       throw error;

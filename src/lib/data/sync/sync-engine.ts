@@ -1,7 +1,7 @@
 import type { BaseStorageHandler } from '$lib/data/storage/handler/base-handler';
 import type { GDriveStorageHandler } from '$lib/data/storage/handler/gdrive-handler';
 import type { OneDriveStorageHandler } from '$lib/data/storage/handler/onedrive-handler';
-import { NeedsInteractiveAuthError } from '$lib/data/storage/storage-oauth-manager';
+import { NeedsInteractiveAuthError, NeedsPermissionGrantError } from '$lib/data/storage/errors';
 import { StorageDataType, StorageKey } from '$lib/data/storage/storage-types';
 import { getStorageHandler } from '$lib/data/storage/storage-handler-factory';
 import { MergeMode } from '$lib/data/merge-mode';
@@ -28,8 +28,7 @@ import {
   isSyncing$,
   type CloudConnectionState,
   type CloudProviderType,
-  type FsConnectionState,
-  type SyncLocationHealth
+  type FsConnectionState
 } from '$lib/data/sync/sync-store';
 import { cloudSourceName, FS_SOURCE_NAME, readSubject as read } from '$lib/data/sync/sync-helpers';
 import { logger } from '$lib/data/logger';
@@ -153,21 +152,31 @@ function markFsSynced(): void {
 
 /**
  * Classify a caught error and update the appropriate health store.
- * Returns `true` if the error was a `NeedsInteractiveAuthError` so the
- * caller can decide whether to queue the op for replay.
+ * Returns `true` if the error was a `NeedsInteractiveAuthError` or
+ * `NeedsPermissionGrantError` — i.e. a user-recoverable "needs
+ * attention" state — so the caller can queue the op for replay
+ * instead of treating it as a hard failure.
  */
 function reportSyncError(target: 'cloud' | 'fs', context: string, err: unknown): boolean {
   const healthSubject = target === 'cloud' ? cloudHealth$ : fsHealth$;
-  const isReauth = err instanceof NeedsInteractiveAuthError;
   const message = err instanceof Error ? err.message : String(err);
 
-  if (isReauth) {
-    const health: SyncLocationHealth = {
+  if (err instanceof NeedsInteractiveAuthError) {
+    healthSubject.next({
       status: 'reauth-required',
       summary: 'Sign-in expired',
       detail: 'Reconnect to resume syncing. Queued changes will be pushed on reconnect.'
-    };
-    healthSubject.next(health);
+    });
+    return true;
+  }
+
+  if (err instanceof NeedsPermissionGrantError) {
+    healthSubject.next({
+      status: 'permission-required',
+      summary: 'Filesystem access needed',
+      detail:
+        'Grant access to your sync folder to resume syncing. Queued changes will be pushed once granted.'
+    });
     return true;
   }
 
@@ -283,6 +292,49 @@ export async function reconcileCloudBooks(): Promise<void> {
     await drainReplayQueue();
   } catch (err) {
     reportSyncError('cloud', 'reconcileCloudBooks', err);
+  } finally {
+    endLongRunning();
+  }
+}
+
+/**
+ * Boot-time reconciliation for the filesystem source. Mirrors the
+ * cloud variant: list books, seed placeholder rows for any title
+ * that isn't already present, surface health on failure.
+ *
+ * Unlike cloud, FS may need a re-grant of the directory permission
+ * (browsers can revoke it across sessions). The handler is created
+ * with `askForStorageUnlock=false` so it doesn't pop a confirm dialog
+ * out of nowhere; instead it throws NeedsPermissionGrantError, which
+ * reportSyncError translates into the `permission-required` health
+ * state. The settings UI's "Grant access" button is the place where
+ * a real user gesture re-runs ensureRoot with `askForStorageUnlock=true`.
+ */
+export async function reconcileFsBooks(): Promise<void> {
+  const fs = read<FsConnectionState | null>(fsConnection$);
+  if (!fs) return;
+
+  const handler = getFsHandler(FS_SOURCE_NAME);
+
+  beginLongRunning();
+  try {
+    const remoteBooks = await handler.getBookList();
+    logger.debug(
+      `reconcileFsBooks: returned ${remoteBooks.length} book(s): ` +
+        remoteBooks.map((b) => JSON.stringify(b.title)).join(', ')
+    );
+
+    const touched = await ensurePlaceholders(remoteBooks);
+    logger.debug(`reconcileFsBooks: touched=${touched}`);
+
+    if (touched > 0) {
+      database.notifyDataListChanged();
+    }
+
+    markFsSynced();
+    await drainReplayQueue();
+  } catch (err) {
+    reportSyncError('fs', 'reconcileFsBooks', err);
   } finally {
     endLongRunning();
   }
@@ -687,9 +739,7 @@ export async function syncEngineStart(): Promise<void> {
     wasOnline = online;
   });
 
-  await reconcileCloudBooks();
-  // FS reconciliation is a future pass — the FS picker creates its
-  // own record and the user-initiated force re-sync covers bulk pull.
+  await Promise.all([reconcileCloudBooks(), reconcileFsBooks()]);
 }
 
 /**
@@ -698,6 +748,6 @@ export async function syncEngineStart(): Promise<void> {
  * any push operations that were queued while auth was bad.
  */
 export async function retryAfterReconnect(): Promise<void> {
-  await reconcileCloudBooks();
+  await Promise.all([reconcileCloudBooks(), reconcileFsBooks()]);
   await drainReplayQueue();
 }
