@@ -25,7 +25,7 @@
   import { browser } from '$app/environment';
   import { page } from '$app/state';
   import { goto } from '$app/navigation';
-  import { faPause, faPlay, faSpinner } from '@fortawesome/free-solid-svg-icons';
+  import { faSpinner } from '@fortawesome/free-solid-svg-icons';
   import BookReader from '$lib/components/book-reader/book-reader.svelte';
   import type {
     AutoScroller,
@@ -141,7 +141,6 @@
   import { reduceToEmptyString } from '$lib/functions/rxjs/reduce-to-empty-string';
   import { takeWhenBrowser } from '$lib/functions/rxjs/take-when-browser';
   import { tapDom } from '$lib/functions/rxjs/tap-dom';
-  import { multiClickHandler } from '$lib/functions/multi-click-handler';
   import {
     isSyncingOrPending,
     reconcileForBookOpen,
@@ -193,7 +192,6 @@
   let hasBookmarkData = $state(false);
   let blockDataUpdates = $state(false);
   let trackerElm: BookReadingTracker = $state()!;
-  let showTrackerIcon = $state(false);
   let wasTrackerPaused = $state(true);
   let frozenPosition = $state(-1);
   let skipFirstFreezeChange = $state(false);
@@ -627,17 +625,7 @@
     return event;
   }
 
-  function trackerSingleClickHandler() {
-    if (!statisticsEnabled$) {
-      return;
-    }
-
-    wasTrackerPaused = $isTrackerPaused$;
-    isTrackerPaused$.next(true);
-    isTrackerMenuOpen$.set(true);
-  }
-
-  function trackerDblClickHandler() {
+  function toggleTrackerPause() {
     if (!statisticsEnabled$) {
       return;
     }
@@ -934,7 +922,7 @@
       $verticalMode$,
       changeChapter,
       handleSetCustomReadingPoint,
-      trackerDblClickHandler,
+      toggleTrackerPause,
       freezeTrackerPosition
     );
 
@@ -1365,7 +1353,6 @@
           scheduleReplication(StorageDataType.STATISTICS);
         }
       }}
-      ontrackeravailable={() => (showTrackerIcon = true)}
     />
   {/if}
   <StyleSheetRenderer styleSheet={$bookData$.styleSheet} />
@@ -1482,25 +1469,11 @@
   id="miwake-page-footer"
   tabindex="0"
   role="button"
-  class="writing-horizontal-tb fixed bottom-0 left-0 z-10 flex h-8 w-full items-center justify-between text-xs leading-none"
+  class="writing-horizontal-tb fixed bottom-0 left-0 z-10 flex h-8 w-full items-center justify-end text-xs leading-none"
   style:color={$themeOption$?.tooltipTextFontColor}
   onclick={() => (showFooter = !showFooter)}
   onkeyup={dummyFn}
 >
-  <div class="flex h-full">
-    {#if showTrackerIcon}
-      <div
-        role="button"
-        title="Click to open tracker menu or double click to toggle tracker"
-        class="flex h-full w-8 items-center justify-center text-sm sm:text-lg"
-        class:text-red-500={$isTrackerPaused$}
-        class:animate-pulse={frozenPosition > -1}
-        use:multiClickHandler={[trackerSingleClickHandler, trackerDblClickHandler]}
-      >
-        <Fa icon={$isTrackerPaused$ ? faPlay : faPause} />
-      </div>
-    {/if}
-  </div>
   {#if showFooter && bookCharCount}
     {@const currentProgress = [
       $showCharacterCounter$ ? `${exploredCharCount} / ${bookCharCount}` : '',

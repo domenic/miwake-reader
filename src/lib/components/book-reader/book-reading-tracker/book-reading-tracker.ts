@@ -6,6 +6,14 @@ export const isTrackerMenuOpen$ = writable(false);
 
 export const isTrackerPaused$ = writableSubject<boolean>(true);
 
+/**
+ * True once the tracker has finished initializing for the current book
+ * — driven by BookReadingTracker firing its `trackeravailable` event.
+ * Read by the bottom-left controls cluster to decide whether the
+ * play/pause and stats-menu buttons should render.
+ */
+export const trackerAvailable$ = writableSubject<boolean>(false);
+
 export enum TrackerAutoPause {
   OFF = 'off',
   MODERATE = 'moderate',

@@ -4,6 +4,7 @@
     isTrackerPaused$,
     type TrackingHistory,
     isTrackerMenuOpen$,
+    trackerAvailable$,
     TrackerSkipThresholdAction,
     TrackerAutoPause
   } from '$lib/components/book-reader/book-reading-tracker/book-reading-tracker';
@@ -66,7 +67,6 @@
     frozenPosition: number;
     autoScroller: AutoScroller | undefined;
     blockDataUpdates: boolean;
-    ontrackeravailable?: () => void;
     onstatisticssaved?: () => void;
     onfreezecurrentlocation?: () => void;
   }
@@ -82,7 +82,6 @@
     frozenPosition,
     autoScroller,
     blockDataUpdates,
-    ontrackeravailable,
     onstatisticssaved,
     onfreezecurrentlocation
   }: Props = $props();
@@ -426,6 +425,7 @@
   onDestroy(() => {
     yomiObserver.disconnect();
     dictionaryObserver.disconnect();
+    trackerAvailable$.next(false);
   });
 
   function handleYomiMutation() {
@@ -615,7 +615,7 @@
         }
       }
 
-      ontrackeravailable?.();
+      trackerAvailable$.next(true);
     } catch ({ message }: any) {
       logger.error(`Error initializing timer: ${message}`);
     }
