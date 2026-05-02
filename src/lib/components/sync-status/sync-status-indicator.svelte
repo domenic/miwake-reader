@@ -55,13 +55,17 @@
     error: faCircleXmark
   } as const;
 
+  // Muted palette: a single light-translucent surface across every
+  // state so the cluster fades into the reader's chrome; state is
+  // carried in the icon color (and a colored ring for user-actionable
+  // attention/error states so they still pull the eye).
   const wrapperVariantClasses = {
-    disabled: 'bg-gray-100 text-gray-500 hover:bg-gray-200',
-    offline: 'bg-gray-100 text-gray-500',
-    idle: 'bg-green-50 text-green-700',
-    syncing: 'bg-blue-50 text-blue-700',
-    'needs-attention': 'bg-amber-100 text-amber-800 hover:bg-amber-200',
-    error: 'bg-red-100 text-red-800 hover:bg-red-200'
+    disabled: 'text-gray-400 hover:bg-white',
+    offline: 'text-gray-400',
+    idle: 'text-emerald-600',
+    syncing: 'text-sky-600',
+    'needs-attention': 'text-amber-600 ring-amber-400/70 hover:bg-amber-50',
+    error: 'text-red-600 ring-red-400/70 hover:bg-red-50'
   };
 
   let syncLabel = $derived.by(() => {
@@ -141,9 +145,10 @@
   });
 
   const buttonClass =
-    'flex h-9 w-9 items-center justify-center rounded-full shadow-sm ring-1 ring-black/10 transition-colors';
+    'flex h-9 w-9 items-center justify-center rounded-full bg-white/80 backdrop-blur-sm shadow-sm ring-1 ring-black/10 transition-colors';
+  const trackerButtonClass = `${buttonClass} text-gray-700 hover:bg-white cursor-pointer`;
   const tooltipClass =
-    'rounded-md bg-[#333] px-2 py-1 text-xs font-medium whitespace-nowrap text-white shadow-sm';
+    'rounded-md bg-[#333]/90 backdrop-blur-sm px-2 py-1 text-xs font-medium whitespace-nowrap text-white shadow-sm';
 </script>
 
 <div class="writing-horizontal-tb fixed bottom-3 left-3 z-40 flex flex-col-reverse gap-2">
@@ -180,7 +185,7 @@
       <button
         type="button"
         aria-label={$isTrackerPaused$ ? 'Resume reading tracker' : 'Pause reading tracker'}
-        class="{buttonClass} bg-gray-100 text-gray-700 hover:bg-gray-200 cursor-pointer"
+        class={trackerButtonClass}
         onclick={togglePause}
       >
         <Fa icon={$isTrackerPaused$ ? faPlay : faPause} />
@@ -201,7 +206,7 @@
       <button
         type="button"
         aria-label="Open reading statistics"
-        class="{buttonClass} bg-gray-100 text-gray-700 hover:bg-gray-200 cursor-pointer"
+        class={trackerButtonClass}
         onclick={openTrackerMenu}
       >
         <Fa icon={faChartBar} />
