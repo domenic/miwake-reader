@@ -413,6 +413,35 @@ export function triggerSync(dataType: StorageDataType, context: ReplicationConte
   schedulePushRun();
 }
 
+/**
+ * Schedule ambient pushes for every locally-downloaded book. Called
+ * from connect flows so existing library content propagates to the
+ * newly-attached source: ambient sync only fires on local edits, so
+ * a freshly-connected (and possibly empty) source would otherwise
+ * stay empty until the user happened to bookmark something.
+ *
+ * Placeholders (no elementHtml) are skipped — they have nothing to
+ * push. The replicator's per-leg up-to-date check elides redundant
+ * work against any source that already has the book, so this doesn't
+ * waste bandwidth on the previously-connected source.
+ */
+export async function pushAllLocalBooks(): Promise<void> {
+  const db = await database.db;
+  const all = await db.getAll('data');
+  for (const book of all) {
+    if (!book.elementHtml) continue;
+    const context: ReplicationContext = {
+      id: book.id,
+      title: book.title,
+      imagePath: book.coverImage || ''
+    };
+    triggerSync(StorageDataType.DATA, context);
+    triggerSync(StorageDataType.PROGRESS, context);
+    triggerSync(StorageDataType.STATISTICS, context);
+    triggerSync(StorageDataType.READING_GOALS, context);
+  }
+}
+
 function schedulePushRun(): void {
   if (pushTimer) clearTimeout(pushTimer);
   pushTimer = setTimeout(() => {

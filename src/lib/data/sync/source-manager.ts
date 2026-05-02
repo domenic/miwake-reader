@@ -15,7 +15,11 @@ import {
   type CloudProviderType,
   type CustomOAuthCredentials
 } from '$lib/data/sync/sync-store';
-import { ensurePlaceholders, pruneUnreachablePlaceholders } from '$lib/data/sync/sync-engine';
+import {
+  ensurePlaceholders,
+  pruneUnreachablePlaceholders,
+  pushAllLocalBooks
+} from '$lib/data/sync/sync-engine';
 import {
   cloudSourceName,
   FS_SOURCE_NAME,
@@ -65,6 +69,12 @@ export async function connectFs(): Promise<void> {
     lastSyncedAt: now
   });
   fsHealth$.next({ status: 'ok' });
+
+  // Mirror existing local content into the new folder. Ambient sync
+  // only fires on local edits; without this, a fresh connect with an
+  // empty folder would stay empty until the user happened to bookmark
+  // something.
+  await pushAllLocalBooks();
 }
 
 export async function disconnectFs(): Promise<void> {
@@ -184,6 +194,12 @@ export async function connectCloud(provider: CloudProviderType): Promise<void> {
       bookCount: books.length
     });
     cloudHealth$.next({ status: 'ok' });
+
+    // Mirror existing local content up to the cloud. Ambient sync
+    // only fires on local edits; without this, a fresh connect into
+    // an account with no overlap would stay empty until the user
+    // happened to bookmark something.
+    await pushAllLocalBooks();
   } finally {
     // Close the popup unconditionally. The auth-route page closes
     // itself after sendMessage(), but if getToken short-circuits on
