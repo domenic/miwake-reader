@@ -48,9 +48,8 @@ export function getLibrary(settings: SyncSettings = {}): Library {
 }
 
 /**
- * Get a sync endpoint for the given external location. BROWSER is not
- * a valid storage type here — that's the library, fetched via
- * getLibrary().
+ * Get a sync endpoint for the given external location. The local
+ * library is fetched via getLibrary() — it's not a sync endpoint.
  */
 export function getSyncEndpoint(
   window: Window,
@@ -78,7 +77,7 @@ export function getSyncEndpoint(
 ): BackupStorageHandler;
 export function getSyncEndpoint(
   window: Window,
-  storageType: Exclude<StorageKey, StorageKey.BROWSER>,
+  storageType: StorageKey,
   storageSourceName = '',
   settings: SyncSettings = {}
 ) {

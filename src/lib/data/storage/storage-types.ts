@@ -1,6 +1,10 @@
+/**
+ * Identifies a sync endpoint kind. The local library isn't here —
+ * it's structurally a different thing (see Library in
+ * src/lib/data/storage/library.ts and the role split in handler-roles.ts).
+ */
 export enum StorageKey {
   BACKUP = 'backup',
-  BROWSER = 'browser',
   FS = 'fs',
   GDRIVE = 'gdrive',
   ONEDRIVE = 'onedrive'
