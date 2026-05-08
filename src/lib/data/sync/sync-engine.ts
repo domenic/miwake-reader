@@ -2,7 +2,7 @@ import type { GDriveStorageHandler } from '$lib/data/storage/handler/gdrive-hand
 import type { OneDriveStorageHandler } from '$lib/data/storage/handler/onedrive-handler';
 import type { Library, SyncEndpoint } from '$lib/data/storage/handler/handler-roles';
 import { NeedsInteractiveAuthError, NeedsPermissionGrantError } from '$lib/data/storage/errors';
-import { StorageDataType, SyncEndpointType } from '$lib/data/storage/storage-types';
+import { StorageDataType, SyncEndpointType, type SyncTitle } from '$lib/data/storage/storage-types';
 import { getLibrary, getSyncEndpoint } from '$lib/data/storage/storage-handler-factory';
 import { MergeMode } from '$lib/data/merge-mode';
 import {
@@ -154,23 +154,26 @@ function reportSyncError(target: 'cloud' | 'fs', context: string, err: unknown):
 // ---------------------------------------------------------------------
 
 /**
- * Given a list of book cards from a remote sync location, write a
+ * Given a list of titles from a remote sync location, write a
  * placeholder row into local IndexedDB for any title that isn't
- * already present. Returns the count of rows created.
+ * already present, and refresh the cover on existing placeholders
+ * (cloud thumbnail URLs are session-scoped, so we re-store the fresh
+ * one each reconcile). Returns the count of rows touched.
  */
-export async function ensurePlaceholders(
-  remoteCards: ReadonlyArray<{
-    title: string;
-    characters?: number;
-    lastBookModified?: number;
-  }>
-): Promise<number> {
-  let created = 0;
+export async function ensurePlaceholders(remoteCards: ReadonlyArray<SyncTitle>): Promise<number> {
+  let touched = 0;
 
   for (const card of remoteCards) {
     const existing = await database.getDataByTitle(card.title);
 
     if (existing) {
+      // Already-downloaded books get their cover via the full content
+      // pull; only placeholders need their cover refreshed here.
+      if (!existing.elementHtml && card.coverImage && existing.coverImage !== card.coverImage) {
+        const db = await database.db;
+        await db.put('data', { ...existing, coverImage: card.coverImage });
+        touched += 1;
+      }
       continue;
     }
 
@@ -184,8 +187,8 @@ export async function ensurePlaceholders(
         elementHtml: '',
         styleSheet: '',
         blobs: {},
-        coverImage: '',
-        hasThumb: false,
+        coverImage: card.coverImage || '',
+        hasThumb: !!card.coverImage,
         characters: card.characters || 0,
         sections: [],
         lastBookModified: card.lastBookModified || 0,
@@ -193,10 +196,10 @@ export async function ensurePlaceholders(
       },
       ReplicationSaveBehavior.NewOnly
     );
-    created += 1;
+    touched += 1;
   }
 
-  return created;
+  return touched;
 }
 
 /**

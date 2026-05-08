@@ -161,7 +161,8 @@ export class OneDriveStorageHandler extends ApiStorageHandler {
     return [...this.titleToBookCard.values()].map((card) => ({
       title: card.title,
       characters: card.characters,
-      lastBookModified: card.lastBookModified
+      lastBookModified: card.lastBookModified,
+      coverImage: card.imagePath || undefined
     }));
   }
 

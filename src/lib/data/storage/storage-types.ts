@@ -20,6 +20,14 @@ export interface SyncTitle {
   title: string;
   characters?: number;
   lastBookModified?: number;
+  /**
+   * Cover image to surface in /manage's library view before the book
+   * itself is downloaded. Cloud handlers populate this with their
+   * thumbnail URL (refreshed on every boot reconcile, so staleness
+   * doesn't outlast a session); FS handlers populate it with a Blob
+   * read from the cover_ file in the book's directory.
+   */
+  coverImage?: string | Blob;
 }
 
 export enum StorageDataType {
