@@ -88,25 +88,30 @@
       : 'Data in the cloud account is not touched.'
   );
 
-  function plural(n: number, word: string): string {
-    return `${n} ${word}${n === 1 ? '' : 's'}`;
+  function plural(n: number, singular: string, plural: string): string {
+    return `${n} ${n === 1 ? singular : plural}`;
   }
 
   let downloadedFate = $derived(() => {
     if (downloadedCount === 0) return null;
+    const subject = plural(downloadedCount, 'downloaded book', 'downloaded books');
     if (nextLabel === null) {
-      return `${plural(downloadedCount, 'downloaded book')} in your library on this device — stay where they are unless you wipe them below.`;
+      return downloadedCount === 1
+        ? `${subject} stays in your library unless you wipe it below.`
+        : `${subject} stay in your library unless you wipe them below.`;
     }
-    return `${plural(downloadedCount, 'downloaded book')} in your library on this device — sync up to ${nextLabel} unless you wipe them below.`;
+    return downloadedCount === 1
+      ? `${subject} syncs up to ${nextLabel} unless you wipe it below.`
+      : `${subject} sync up to ${nextLabel} unless you wipe them below.`;
   });
 
   let placeholderFate = $derived(() => {
     if (placeholderCount === 0) return null;
-    return `${plural(placeholderCount, 'book')} in your library on this device that ${
-      placeholderCount === 1 ? 'lives' : 'live'
-    } only at ${leavingLabel} — drops from your library here. Reconnect ${leavingLabel} later to get ${
-      placeholderCount === 1 ? 'it' : 'them'
-    } back.`;
+    const subject = plural(placeholderCount, 'book', 'books');
+    if (placeholderCount === 1) {
+      return `${subject} that lives only at ${leavingLabel} drops from your library here. Reconnect ${leavingLabel} later to get it back.`;
+    }
+    return `${subject} that live only at ${leavingLabel} drop from your library here. Reconnect ${leavingLabel} later to get them back.`;
   });
 
   $effect(() => {
@@ -143,7 +148,7 @@
           <input type="checkbox" class="mt-1" bind:checked={clearLibrary} />
           <div>
             <div class="font-medium">
-              Also wipe my library on this device ({plural(downloadedCount, 'book')})
+              Also wipe my library on this device ({plural(downloadedCount, 'book', 'books')})
             </div>
             <div class="text-xs text-gray-600">
               Deletes the downloaded books, bookmarks, and reading statistics from this device. Use
