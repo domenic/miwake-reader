@@ -651,11 +651,15 @@ export abstract class BaseStorageHandler implements SyncEndpoint {
   }
 
   static getProgressFileName(progress: BooksDbBookmarkData | File) {
-    return progress instanceof File
-      ? progress.name
-      : `progress_${exporterVersion}_${currentDbVersion}_${progress.lastBookmarkModified || 0}_${
-          progress.progress || 0
-        }.json`;
+    if (progress instanceof File) {
+      return progress.name;
+    }
+
+    const completedSuffix = progress.completed ? '_completed' : '';
+
+    return `progress_${exporterVersion}_${currentDbVersion}_${progress.lastBookmarkModified || 0}_${
+      progress.progress || 0
+    }${completedSuffix}.json`;
   }
 
   static async getCoverFileName(cover: Blob) {
@@ -683,7 +687,8 @@ export abstract class BaseStorageHandler implements SyncEndpoint {
       exporterVersion: +parts[1],
       dbVersion: +parts[2],
       lastBookmarkModified: +parts[3],
-      progress: +parts[4]
+      progress: +parts[4],
+      completed: parts[5] === 'completed'
     };
   }
 

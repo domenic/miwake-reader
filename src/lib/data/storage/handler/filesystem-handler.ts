@@ -78,7 +78,11 @@ export class FilesystemStorageHandler extends BaseStorageHandler {
       title: card.title,
       characters: card.characters,
       lastBookModified: card.lastBookModified,
-      coverImage: card.imagePath || undefined
+      lastBookOpen: card.lastBookOpen,
+      coverImage: card.imagePath || undefined,
+      progress: card.progress,
+      lastBookmarkModified: card.lastBookmarkModified,
+      completed: card.completed
     }));
   }
 
@@ -301,12 +305,13 @@ export class FilesystemStorageHandler extends BaseStorageHandler {
 
   async saveProgress(data: BooksDbBookmarkData) {
     const filename = BaseStorageHandler.getProgressFileName(data);
-    const { lastBookmarkModified, progress } = BaseStorageHandler.getProgressMetadata(filename);
+    const { lastBookmarkModified, progress, completed } =
+      BaseStorageHandler.getProgressMetadata(filename);
     const { file, files, rootDirectory } = await this.getExternalFile('progress_');
 
     await this.writeFile(rootDirectory, filename, JSON.stringify(data), files, file, 0.6);
 
-    this.addBookCard(this.currentContext.title, { lastBookmarkModified, progress });
+    this.addBookCard(this.currentContext.title, { lastBookmarkModified, progress, completed });
   }
 
   async saveStatistics(statistics: BooksDbStatistic[], lastStatisticModified: number) {
@@ -575,6 +580,7 @@ export class FilesystemStorageHandler extends BaseStorageHandler {
 
                       bookCard.lastBookmarkModified = metadata.lastBookmarkModified;
                       bookCard.progress = metadata.progress;
+                      bookCard.completed = metadata.completed;
                     } else if (file.name.startsWith('cover_')) {
                       bookCard.imagePath = await file.getFile();
                     }

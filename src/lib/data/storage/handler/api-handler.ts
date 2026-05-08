@@ -307,11 +307,12 @@ export abstract class ApiStorageHandler extends BaseStorageHandler {
   async saveProgress(data: BooksDbBookmarkData) {
     const filename = BaseStorageHandler.getProgressFileName(data);
     const { titleId, files, file } = await this.getExternalFile('progress_', '', 0.2, false);
-    const { lastBookmarkModified, progress } = BaseStorageHandler.getProgressMetadata(filename);
+    const { lastBookmarkModified, progress, completed } =
+      BaseStorageHandler.getProgressMetadata(filename);
 
     await this.upload(titleId, filename, files, file, JSON.stringify(data));
 
-    this.addBookCard(this.currentContext.title, { lastBookmarkModified, progress });
+    this.addBookCard(this.currentContext.title, { lastBookmarkModified, progress, completed });
   }
 
   async saveStatistics(statistics: BooksDbStatistic[], lastStatisticModified: number) {

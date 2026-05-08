@@ -133,6 +133,7 @@ function reportSyncError(context: string, err: unknown): boolean {
  */
 export async function ensurePlaceholders(remoteCards: ReadonlyArray<SyncTitle>): Promise<number> {
   let touched = 0;
+  const db = await database.db;
 
   for (const card of remoteCards) {
     const existing = await database.getDataByTitle(card.title);
@@ -141,9 +142,18 @@ export async function ensurePlaceholders(remoteCards: ReadonlyArray<SyncTitle>):
       // Already-downloaded books get their cover via the full content
       // pull; only placeholders need their cover refreshed here.
       if (!existing.elementHtml && card.coverImage && existing.coverImage !== card.coverImage) {
-        const db = await database.db;
         await db.put('data', { ...existing, coverImage: card.coverImage });
         touched += 1;
+      }
+      // Refresh the placeholder bookmark so /manage's progress / bookmarked
+      // sort reflects what the source currently advertises. Real bookmarks
+      // (placeholder !== true) are off-limits — they represent the user's
+      // actual reading position and are reconciled by the replicator.
+      if (!existing.elementHtml) {
+        const bookmark = await database.getBookmark(existing.id);
+        if (!bookmark || bookmark.placeholder) {
+          await maybeWritePlaceholderBookmark(existing.id, card, bookmark);
+        }
       }
       continue;
     }
@@ -152,7 +162,7 @@ export async function ensurePlaceholders(remoteCards: ReadonlyArray<SyncTitle>):
       `ensurePlaceholders: no local record for ${JSON.stringify(card.title)}, creating placeholder`
     );
 
-    await database.upsertData(
+    const stored = await database.upsertData(
       {
         title: card.title,
         elementHtml: '',
@@ -163,14 +173,41 @@ export async function ensurePlaceholders(remoteCards: ReadonlyArray<SyncTitle>):
         characters: card.characters || 0,
         sections: [],
         lastBookModified: card.lastBookModified || 0,
-        lastBookOpen: 0
+        lastBookOpen: card.lastBookOpen || 0
       },
       ReplicationSaveBehavior.NewOnly
     );
+    await maybeWritePlaceholderBookmark(stored.id, card);
     touched += 1;
   }
 
   return touched;
+}
+
+async function maybeWritePlaceholderBookmark(
+  dataId: number,
+  card: SyncTitle,
+  existing?: { progress: number | string | undefined; lastBookmarkModified: number }
+) {
+  if (!card.lastBookmarkModified && !card.progress && !card.completed) {
+    // Source has no progress file for this title — nothing to seed.
+    return;
+  }
+  if (
+    existing &&
+    existing.progress === (card.progress ?? 0) &&
+    existing.lastBookmarkModified === (card.lastBookmarkModified ?? 0)
+  ) {
+    // Already in sync with what the source advertises.
+    return;
+  }
+  await database.putBookmark({
+    dataId,
+    progress: card.progress ?? 0,
+    lastBookmarkModified: card.lastBookmarkModified ?? 0,
+    completed: !!card.completed,
+    placeholder: true
+  });
 }
 
 /**

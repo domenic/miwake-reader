@@ -88,7 +88,11 @@ export class GDriveStorageHandler extends ApiStorageHandler {
       title: card.title,
       characters: card.characters,
       lastBookModified: card.lastBookModified,
-      coverImage: card.imagePath || undefined
+      lastBookOpen: card.lastBookOpen,
+      coverImage: card.imagePath || undefined,
+      progress: card.progress,
+      lastBookmarkModified: card.lastBookmarkModified,
+      completed: card.completed
     }));
   }
 
@@ -351,12 +355,12 @@ export class GDriveStorageHandler extends ApiStorageHandler {
           bookCard.lastBookModified = lastBookModified;
           bookCard.lastBookOpen = lastBookOpen;
         } else if (file.name.startsWith('progress_')) {
-          const { progress, lastBookmarkModified } = BaseStorageHandler.getProgressMetadata(
-            file.name
-          );
+          const { progress, lastBookmarkModified, completed } =
+            BaseStorageHandler.getProgressMetadata(file.name);
 
           bookCard.progress = progress;
           bookCard.lastBookmarkModified = lastBookmarkModified;
+          bookCard.completed = completed;
         } else if (file.name.startsWith('cover_') && file.thumbnailLink) {
           bookCard.imagePath = file.thumbnailLink.replace(/=s\d+$/, '=s720');
         }

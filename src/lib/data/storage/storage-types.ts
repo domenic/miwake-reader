@@ -20,6 +20,7 @@ export interface SyncTitle {
   title: string;
   characters?: number;
   lastBookModified?: number;
+  lastBookOpen?: number;
   /**
    * Cover image to surface in /manage's library view before the book
    * itself is downloaded. Cloud handlers populate this with their
@@ -28,6 +29,16 @@ export interface SyncTitle {
    * read from the cover_ file in the book's directory.
    */
   coverImage?: string | Blob;
+  /**
+   * Reading progress fields parsed from the source's progress_*
+   * filename, so /manage can show real values on placeholder rows
+   * instead of zeros until the user opens the book. The actual
+   * scroll / char-count details still come down via the per-book
+   * pull on open.
+   */
+  progress?: number;
+  lastBookmarkModified?: number;
+  completed?: boolean;
 }
 
 export enum StorageDataType {

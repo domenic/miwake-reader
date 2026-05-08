@@ -212,7 +212,14 @@ export class Library implements LibraryRole {
     const dataId =
       this.currentContext.id || (await database.getDataByTitle(this.currentContext.title))?.id;
     BaseStorageHandler.reportProgress(0.5);
-    return dataId ? database.getBookmark(dataId) : undefined;
+    if (!dataId) return undefined;
+
+    const bookmark = await database.getBookmark(dataId);
+    // Placeholder bookmarks carry source-side progress for /manage to display,
+    // but lack the actual reading position. Treat them as "no progress" for
+    // sync purposes so isProgressPresentAndUpToDate returns false (forcing a
+    // pull on book-open) and we never push a placeholder back to the source.
+    return bookmark?.placeholder ? undefined : bookmark;
   }
 
   async getStatistics() {
