@@ -10,6 +10,7 @@ import type { Section } from '$lib/data/database/books-db/versions/v4/books-db-v
 import { storageRootName } from '$lib/data/env';
 import { MergeMode } from '$lib/data/merge-mode';
 import type { StorageKey, SyncTitle } from '$lib/data/storage/storage-types';
+import type { SyncEndpoint } from '$lib/data/storage/handler/handler-roles';
 import { exporterVersion } from '$lib/functions/replication/exporter-version';
 import { throwIfAborted } from '$lib/functions/replication/replication-error';
 import { ReplicationSaveBehavior } from '$lib/functions/replication/replication-options';
@@ -34,7 +35,15 @@ export interface ExternalFile {
   name: string;
 }
 
-export abstract class BaseStorageHandler {
+/**
+ * Shared chassis for sync-endpoint implementations (cloud / FS /
+ * backup). Provides the ZIP-on-the-wire framing, file-name parsing,
+ * progress reporting, and other generic plumbing every endpoint
+ * needs. NOT extended by Library — see src/lib/data/storage/library.ts.
+ */
+export abstract class BaseStorageHandler implements SyncEndpoint {
+  readonly kind = 'sync-endpoint' as const;
+
   abstract updateSettings(
     window: Window,
     saveBehavior: string,
@@ -288,7 +297,7 @@ export abstract class BaseStorageHandler {
     }
   }
 
-  protected static checkIsPresentAndUpToDate<T>(
+  static checkIsPresentAndUpToDate<T>(
     functionToCall: (_: string) => any,
     keyToCheck: keyof T,
     referenceFilename: string,
@@ -599,7 +608,7 @@ export abstract class BaseStorageHandler {
     }
   }
 
-  protected static getDummyId() {
+  static getDummyId() {
     return Math.floor(Date.now() * Math.random());
   }
 
@@ -618,10 +627,7 @@ export abstract class BaseStorageHandler {
       .replaceAll('~ttu-spc~', ' ');
   }
 
-  protected static getBookFileName(
-    book: Omit<BooksDbBookData, 'id'> | File,
-    existingFilename?: string
-  ) {
+  static getBookFileName(book: Omit<BooksDbBookData, 'id'> | File, existingFilename?: string) {
     if (book instanceof File) {
       return book.name;
     }
@@ -644,7 +650,7 @@ export abstract class BaseStorageHandler {
     )}_${book.lastBookModified || 0}_${book.lastBookOpen || 0}.zip`;
   }
 
-  protected static getProgressFileName(progress: BooksDbBookmarkData | File) {
+  static getProgressFileName(progress: BooksDbBookmarkData | File) {
     return progress instanceof File
       ? progress.name
       : `progress_${exporterVersion}_${currentDbVersion}_${progress.lastBookmarkModified || 0}_${
@@ -652,13 +658,13 @@ export abstract class BaseStorageHandler {
         }.json`;
   }
 
-  protected static async getCoverFileName(cover: Blob) {
+  static async getCoverFileName(cover: Blob) {
     const type = (await BaseStorageHandler.determineImageExtension(cover)) || 'jpeg';
 
     return `cover_${exporterVersion}_${currentDbVersion}.${type}`;
   }
 
-  protected static getBookMetadata(filename: string) {
+  static getBookMetadata(filename: string) {
     const parts = filename.split('_').map((part) => part.replace(/\.zip$/, ''));
 
     return {
@@ -670,7 +676,7 @@ export abstract class BaseStorageHandler {
     };
   }
 
-  protected static getProgressMetadata(filename: string) {
+  static getProgressMetadata(filename: string) {
     const parts = filename.split('_').map((part) => part.replace(/\.json$/, ''));
 
     return {
@@ -681,7 +687,7 @@ export abstract class BaseStorageHandler {
     };
   }
 
-  protected static getReadingGoalsMetadata(filename: string) {
+  static getReadingGoalsMetadata(filename: string) {
     const parts = filename.split('_').map((part) => part.replace(/\.json$/, ''));
 
     return {

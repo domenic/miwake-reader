@@ -1,4 +1,3 @@
-import { BaseStorageHandler } from '$lib/data/storage/handler/base-handler';
 import type {
   BooksDbBookData,
   BooksDbBookmarkData,
@@ -6,47 +5,68 @@ import type {
   BooksDbStatistic
 } from '$lib/data/database/books-db/versions/books-db';
 import { database, lastReadingGoalsModified$ } from '$lib/data/store';
-
 import type { MergeMode } from '$lib/data/merge-mode';
 import { ReplicationSaveBehavior } from '$lib/functions/replication/replication-options';
 import { StorageDataType } from '$lib/data/storage/storage-types';
+import type { ReplicationContext } from '$lib/functions/replication/replication-progress';
+import { BaseStorageHandler } from '$lib/data/storage/handler/base-handler';
+import type { Library as LibraryRole } from '$lib/data/storage/handler/handler-roles';
 
-export class BrowserStorageHandler extends BaseStorageHandler {
+/**
+ * The local canonical book store, backed by IndexedDB.
+ *
+ * Distinct from the SyncEndpoint family (cloud / FS / backup): the
+ * library is the "real" library, and sync endpoints mirror to/from it.
+ * Replicator is parameterized as `(library: Library, endpoint:
+ * SyncEndpoint, direction: 'push' | 'pull', ...)` so the asymmetry is
+ * encoded in the type and "is the target BROWSER?" branches in shared
+ * code disappear — the call site already knows which side is the
+ * library.
+ *
+ * Static helpers (file-name parsers, progress reporting) are reused
+ * from BaseStorageHandler since they're storage-agnostic; the Library
+ * itself doesn't extend the sync-endpoint chassis.
+ */
+export class Library implements LibraryRole {
+  readonly kind = 'library' as const;
+
+  private currentContext: ReplicationContext = { id: 0, title: '', imagePath: '' };
+
+  private cancelSignal: AbortSignal | undefined;
+
+  private saveBehavior = ReplicationSaveBehavior.NewOnly;
+
+  private statisticsMergeMode: MergeMode | undefined;
+
+  private readingGoalsMergeMode: MergeMode | undefined;
+
+  private cacheStorageData = false;
+
   updateSettings(
-    window: Window,
     saveBehavior: ReplicationSaveBehavior,
     statisticsMergeMode: MergeMode,
-    readingGoalsMergeMode: MergeMode
+    readingGoalsMergeMode: MergeMode,
+    cacheStorageData: boolean
   ) {
-    this.window = window;
     this.saveBehavior = saveBehavior;
     this.statisticsMergeMode = statisticsMergeMode;
     this.readingGoalsMergeMode = readingGoalsMergeMode;
+    this.cacheStorageData = cacheStorageData;
   }
 
-  listSyncTitles() {
-    // BROWSER is the local canonical store, never a sync source.
-    // The unified library view in /manage reads IndexedDB directly
-    // through database.dataList$ — no handler involvement.
-    return Promise.resolve([]);
+  isCacheDisabled() {
+    return !this.cacheStorageData;
   }
 
-  clearData(clearAll = true) {
-    if (clearAll) {
-      this.titleToBookCard.clear();
-      this.dataListFetched = false;
-    }
+  clearData() {
+    // The library's only state is IndexedDB itself; there's no
+    // in-memory cache to invalidate. Sync endpoints use this hook to
+    // drop fetched-listing caches.
   }
 
-  async updateLastRead(book: BooksDbBookData) {
-    const filename = BaseStorageHandler.getBookFileName(book);
-    const { characters, lastBookModified, lastBookOpen } =
-      BaseStorageHandler.getBookMetadata(filename);
-    const db = await database.db;
-
-    await db.put('data', book);
-
-    this.addBookCard(this.currentContext.title, { characters, lastBookModified, lastBookOpen });
+  startContext(context: ReplicationContext, cancelSignal?: AbortSignal) {
+    this.currentContext = context;
+    this.cancelSignal = cancelSignal;
   }
 
   async getFilenameForRecentCheck(fileIdentifier: string) {
@@ -59,32 +79,27 @@ export class BrowserStorageHandler extends BaseStorageHandler {
 
     if (fileIdentifier === 'bookdata_') {
       const book = await database.getDataByTitle(this.currentContext.title);
-
       fileName = book ? BaseStorageHandler.getBookFileName(book) : undefined;
     } else if (fileIdentifier === 'progress_') {
       const progress = await this.getProgress();
-
       fileName = progress ? BaseStorageHandler.getProgressFileName(progress) : undefined;
     } else if (fileIdentifier === 'statistics_') {
-      const lastStatisticModifed = await database.getLastModifiedForType(
+      const lastStatisticModified = await database.getLastModifiedForType(
         this.currentContext.title,
         StorageDataType.STATISTICS
       );
-
-      fileName = lastStatisticModifed
-        ? BaseStorageHandler.getStatisticsFileName([], lastStatisticModifed)
+      fileName = lastStatisticModified
+        ? BaseStorageHandler.getStatisticsFileName([], lastStatisticModified)
         : undefined;
     } else if (fileIdentifier === BaseStorageHandler.readingGoalsFilePrefix) {
       const lastGoalModified = lastReadingGoalsModified$.getValue();
-
       fileName = lastGoalModified
         ? BaseStorageHandler.getReadingGoalsFileName(lastGoalModified)
         : undefined;
     }
 
-    BrowserStorageHandler.reportProgress(0.5);
-    BrowserStorageHandler.completeStep();
-
+    BaseStorageHandler.reportProgress(0.5);
+    BaseStorageHandler.completeStep();
     return fileName;
   }
 
@@ -95,14 +110,13 @@ export class BrowserStorageHandler extends BaseStorageHandler {
     }
 
     const book = await database.getDataByTitle(this.currentContext.title);
-
-    BrowserStorageHandler.reportProgress(0.5);
+    BaseStorageHandler.reportProgress(0.5);
 
     let isPresentAndUpToDate = false;
 
-    // A placeholder row (no elementHtml) is metadata only — it's never
+    // A placeholder row (no elementHtml) is metadata only — never
     // "present and up to date," even if its timestamp matches the
-    // remote. Skipping this check would let the replicator short-circuit
+    // remote. Skipping this would let the replicator short-circuit
     // the one download that would actually hydrate the book.
     if (book && book.elementHtml) {
       const { lastBookModified, lastBookOpen } =
@@ -117,7 +131,7 @@ export class BrowserStorageHandler extends BaseStorageHandler {
       );
     }
 
-    BrowserStorageHandler.reportProgress(0.5);
+    BaseStorageHandler.reportProgress(0.5);
     return isPresentAndUpToDate;
   }
 
@@ -162,120 +176,6 @@ export class BrowserStorageHandler extends BaseStorageHandler {
     );
   }
 
-  async getBook() {
-    const book = this.currentContext.id
-      ? await database.getData(this.currentContext.id)
-      : await database.getDataByTitle(this.currentContext.title);
-
-    BaseStorageHandler.reportProgress();
-
-    return book;
-  }
-
-  async getProgress() {
-    const dataId =
-      this.currentContext.id || (await database.getDataByTitle(this.currentContext.title))?.id;
-
-    BaseStorageHandler.reportProgress(0.5);
-
-    const progress = dataId ? await database.getBookmark(dataId) : undefined;
-
-    return progress;
-  }
-
-  async getStatistics() {
-    const statistics = await database.getStatisticsForBook(this.currentContext.title);
-
-    BaseStorageHandler.reportProgress(0.5);
-
-    const lastStatisticModified = await database.getLastModifiedForType(
-      this.currentContext.title,
-      StorageDataType.STATISTICS
-    );
-
-    if (!lastStatisticModified) {
-      return { statistics: undefined, lastStatisticModified: 0 };
-    }
-
-    return { statistics, lastStatisticModified };
-  }
-
-  async getCover() {
-    const cover =
-      this.currentContext.imagePath instanceof Blob ? this.currentContext.imagePath : undefined;
-
-    BaseStorageHandler.reportProgress();
-
-    return cover;
-  }
-
-  async saveBook(data: Omit<BooksDbBookData, 'id'>, skipTimestampFallback = true) {
-    const storedBookData = await database.upsertData(
-      data,
-      this.saveBehavior,
-      skipTimestampFallback
-    );
-
-    this.addBookCard(data.title, {
-      id: storedBookData.id,
-      characters: BaseStorageHandler.getBookCharacters(
-        storedBookData.characters || 0,
-        storedBookData.sections || []
-      ),
-      lastBookModified: storedBookData.lastBookModified || 0,
-      lastBookOpen: storedBookData.lastBookOpen || 0,
-      isPlaceholder: !storedBookData.elementHtml
-    });
-
-    BaseStorageHandler.reportProgress();
-
-    return storedBookData.id;
-  }
-
-  async saveProgress(data: BooksDbBookmarkData) {
-    const dataId =
-      this.currentContext.id || (await database.getDataByTitle(this.currentContext.title))?.id;
-
-    BaseStorageHandler.reportProgress(0.5);
-
-    if (dataId) {
-      data.dataId = dataId;
-      await database.putBookmark(data);
-    }
-  }
-
-  async saveStatistics(data: BooksDbStatistic[], lastStatisticModified: number) {
-    await database.storeStatistics(
-      this.currentContext.title,
-      data,
-      this.saveBehavior,
-      this.statisticsMergeMode,
-      lastStatisticModified
-    );
-
-    BaseStorageHandler.reportProgress();
-  }
-
-  async saveReadingGoals(data: BooksDbReadingGoal[], lastGoalModified: number) {
-    await database.storeReadingGoals(
-      data,
-      this.saveBehavior,
-      this.readingGoalsMergeMode,
-      lastGoalModified
-    );
-
-    BaseStorageHandler.reportProgress();
-  }
-
-  saveCover(data: Blob | undefined) {
-    if (data instanceof Blob && this.titleToBookCard.has(this.currentContext.title)) {
-      this.addBookCard(this.currentContext.title, { imagePath: data });
-    }
-
-    BaseStorageHandler.reportProgress();
-    return Promise.resolve();
-  }
-
   areReadingGoalsPresentAndUpToDate(referenceFilename: string | undefined) {
     if (!referenceFilename) {
       BaseStorageHandler.reportProgress();
@@ -299,17 +199,106 @@ export class BrowserStorageHandler extends BaseStorageHandler {
     );
   }
 
+  async getBook(): Promise<BooksDbBookData | undefined> {
+    const book = this.currentContext.id
+      ? await database.getData(this.currentContext.id)
+      : await database.getDataByTitle(this.currentContext.title);
+
+    BaseStorageHandler.reportProgress();
+    return book;
+  }
+
+  async getProgress() {
+    const dataId =
+      this.currentContext.id || (await database.getDataByTitle(this.currentContext.title))?.id;
+    BaseStorageHandler.reportProgress(0.5);
+    return dataId ? database.getBookmark(dataId) : undefined;
+  }
+
+  async getStatistics() {
+    const statistics = await database.getStatisticsForBook(this.currentContext.title);
+    BaseStorageHandler.reportProgress(0.5);
+
+    const lastStatisticModified = await database.getLastModifiedForType(
+      this.currentContext.title,
+      StorageDataType.STATISTICS
+    );
+
+    if (!lastStatisticModified) {
+      return { statistics: undefined, lastStatisticModified: 0 };
+    }
+    return { statistics, lastStatisticModified };
+  }
+
+  async getCover() {
+    const cover =
+      this.currentContext.imagePath instanceof Blob ? this.currentContext.imagePath : undefined;
+    BaseStorageHandler.reportProgress();
+    return cover;
+  }
+
   async getReadingGoals() {
     const readingGoals = await database.getReadingGoals();
     const lastGoalModified = lastReadingGoalsModified$.getValue();
-
     BaseStorageHandler.reportProgress();
-
     if (!lastGoalModified) {
       return { readingGoals: undefined, lastGoalModified: 0 };
     }
-
     return { readingGoals, lastGoalModified };
+  }
+
+  async saveBook(data: Omit<BooksDbBookData, 'id'>, skipTimestampFallback = true) {
+    const stored = await database.upsertData(data, this.saveBehavior, skipTimestampFallback);
+    BaseStorageHandler.reportProgress();
+    return stored.id;
+  }
+
+  async saveProgress(data: BooksDbBookmarkData) {
+    const dataId =
+      this.currentContext.id || (await database.getDataByTitle(this.currentContext.title))?.id;
+    BaseStorageHandler.reportProgress(0.5);
+    if (dataId) {
+      data.dataId = dataId;
+      await database.putBookmark(data);
+    }
+  }
+
+  async saveStatistics(data: BooksDbStatistic[], lastStatisticModified: number) {
+    if (!this.statisticsMergeMode) {
+      throw new Error('Library.saveStatistics called before updateSettings');
+    }
+    await database.storeStatistics(
+      this.currentContext.title,
+      data,
+      this.saveBehavior,
+      this.statisticsMergeMode,
+      lastStatisticModified
+    );
+    BaseStorageHandler.reportProgress();
+  }
+
+  saveCover(_data: Blob | undefined): Promise<void> {
+    // Covers live inside BookData; no separate write needed.
+    BaseStorageHandler.reportProgress();
+    return Promise.resolve();
+  }
+
+  async saveReadingGoals(data: BooksDbReadingGoal[], lastGoalModified: number) {
+    if (!this.readingGoalsMergeMode) {
+      throw new Error('Library.saveReadingGoals called before updateSettings');
+    }
+    await database.storeReadingGoals(
+      data,
+      this.saveBehavior,
+      this.readingGoalsMergeMode,
+      lastGoalModified
+    );
+    BaseStorageHandler.reportProgress();
+  }
+
+  async updateLastRead(book: BooksDbBookData) {
+    const db = await database.db;
+    await db.put('data', book);
   }
 
   async deleteBookData(
@@ -320,24 +309,17 @@ export class BrowserStorageHandler extends BaseStorageHandler {
     const ids: number[] = [];
     const idToTitle = new Map<number, string>();
 
-    for (let index = 0, { length } = booksToDelete; index < length; index += 1) {
-      const bookData = this.titleToBookCard.get(booksToDelete[index]);
-
-      if (bookData) {
-        ids.push(bookData.id);
-        idToTitle.set(bookData.id, bookData.title);
+    for (const title of booksToDelete) {
+      const book = await database.getDataByTitle(title);
+      if (book) {
+        ids.push(book.id);
+        idToTitle.set(book.id, title);
       }
     }
 
     const { error, deleted } = await database
       .deleteData(ids, idToTitle, cancelSignal, keepLocalStatistics)
       .catch((catchedError) => ({ error: catchedError.message, deleted: [] }));
-
-    for (let index = 0, { length } = deleted; index < length; index += 1) {
-      const result = deleted[index];
-
-      this.titleToBookCard.delete(idToTitle.get(result) || '');
-    }
 
     if (deleted.length) {
       database.dataListChanged$.next();

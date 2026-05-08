@@ -1,16 +1,16 @@
-import type { BaseStorageHandler } from '$lib/data/storage/handler/base-handler';
 import type { GDriveStorageHandler } from '$lib/data/storage/handler/gdrive-handler';
 import type { OneDriveStorageHandler } from '$lib/data/storage/handler/onedrive-handler';
+import type { Library, SyncEndpoint } from '$lib/data/storage/handler/handler-roles';
 import { NeedsInteractiveAuthError, NeedsPermissionGrantError } from '$lib/data/storage/errors';
 import { StorageDataType, StorageKey } from '$lib/data/storage/storage-types';
-import { getStorageHandler } from '$lib/data/storage/storage-handler-factory';
+import { getLibrary, getSyncEndpoint } from '$lib/data/storage/storage-handler-factory';
 import { MergeMode } from '$lib/data/merge-mode';
 import {
   AutoReplicationType,
   ReplicationSaveBehavior
 } from '$lib/functions/replication/replication-options';
 import type { ReplicationContext } from '$lib/functions/replication/replication-progress';
-import { replicateData } from '$lib/functions/replication/replicator';
+import { replicateData, type ReplicationDirection } from '$lib/functions/replication/replicator';
 import {
   autoReplication$,
   cacheStorageData$,
@@ -40,83 +40,38 @@ import { get } from 'svelte/store';
 
 /**
  * `saveBehaviorOverride` is how force-resync breaks the replicator's
- * "skip if up-to-date" check. Set on the *source* handler for a given
- * leg: when saveBehavior === Overwrite, getFilenameForRecentCheck
- * returns undefined, the target's isPresentAndUpToDate returns false,
- * and the pull/push always runs.
+ * "skip if up-to-date" check. Set on the *source* of a given leg
+ * (library for push, endpoint for pull): when saveBehavior ===
+ * Overwrite, getFilenameForRecentCheck returns undefined, the
+ * target's isPresentAndUpToDate returns false, and the pull/push
+ * always runs.
  */
-function getCloudHandler(
+function commonSettings(saveBehaviorOverride?: ReplicationSaveBehavior) {
+  return {
+    saveBehavior: saveBehaviorOverride ?? read<ReplicationSaveBehavior>(replicationSaveBehavior$),
+    statisticsMergeMode: read<MergeMode>(statisticsMergeMode$),
+    readingGoalsMergeMode: read<MergeMode>(readingGoalsMergeMode$),
+    cacheStorageData: read<boolean>(cacheStorageData$),
+    askForStorageUnlock: false
+  };
+}
+
+function getCloudEndpoint(
   provider: CloudProviderType,
   name: string,
   saveBehaviorOverride?: ReplicationSaveBehavior
 ): GDriveStorageHandler | OneDriveStorageHandler {
-  const saveBehavior =
-    saveBehaviorOverride ?? read<ReplicationSaveBehavior>(replicationSaveBehavior$);
   return provider === StorageKey.GDRIVE
-    ? getStorageHandler(
-        window,
-        StorageKey.GDRIVE,
-        name,
-        read<boolean>(cacheStorageData$),
-        saveBehavior,
-        read<MergeMode>(statisticsMergeMode$),
-        read<MergeMode>(readingGoalsMergeMode$),
-        false
-      )
-    : getStorageHandler(
-        window,
-        StorageKey.ONEDRIVE,
-        name,
-        read<boolean>(cacheStorageData$),
-        saveBehavior,
-        read<MergeMode>(statisticsMergeMode$),
-        read<MergeMode>(readingGoalsMergeMode$),
-        false
-      );
+    ? getSyncEndpoint(window, StorageKey.GDRIVE, name, commonSettings(saveBehaviorOverride))
+    : getSyncEndpoint(window, StorageKey.ONEDRIVE, name, commonSettings(saveBehaviorOverride));
 }
 
-function getFsHandler(
-  name: string,
-  saveBehaviorOverride?: ReplicationSaveBehavior
-): BaseStorageHandler {
-  const saveBehavior =
-    saveBehaviorOverride ?? read<ReplicationSaveBehavior>(replicationSaveBehavior$);
-  return getStorageHandler(
-    window,
-    StorageKey.FS,
-    name,
-    read<boolean>(cacheStorageData$),
-    saveBehavior,
-    read<MergeMode>(statisticsMergeMode$),
-    read<MergeMode>(readingGoalsMergeMode$),
-    false
-  );
+function getFsEndpoint(name: string, saveBehaviorOverride?: ReplicationSaveBehavior): SyncEndpoint {
+  return getSyncEndpoint(window, StorageKey.FS, name, commonSettings(saveBehaviorOverride));
 }
 
-function getBrowserHandlerWith(saveBehaviorOverride?: ReplicationSaveBehavior): BaseStorageHandler {
-  const saveBehavior =
-    saveBehaviorOverride ?? read<ReplicationSaveBehavior>(replicationSaveBehavior$);
-  return getStorageHandler(
-    window,
-    StorageKey.BROWSER,
-    '',
-    read<boolean>(cacheStorageData$),
-    saveBehavior,
-    read<MergeMode>(statisticsMergeMode$),
-    read<MergeMode>(readingGoalsMergeMode$)
-  );
-}
-
-function getBrowserHandler(): BaseStorageHandler {
-  return getStorageHandler(
-    window,
-    StorageKey.BROWSER,
-    '',
-    read<boolean>(cacheStorageData$),
-    read<ReplicationSaveBehavior>(replicationSaveBehavior$),
-    read<MergeMode>(statisticsMergeMode$),
-    read<MergeMode>(readingGoalsMergeMode$)
-  );
+function library(saveBehaviorOverride?: ReplicationSaveBehavior): Library {
+  return getLibrary(commonSettings(saveBehaviorOverride));
 }
 
 // ---------------------------------------------------------------------
@@ -269,7 +224,7 @@ export async function reconcileCloudBooks(): Promise<void> {
   if (!cloud) return;
 
   const name = cloudSourceName(cloud.provider, cloud.usesCustomCredentials);
-  const handler = getCloudHandler(cloud.provider, name);
+  const handler = getCloudEndpoint(cloud.provider, name);
 
   beginLongRunning();
   try {
@@ -314,7 +269,7 @@ export async function reconcileFsBooks(): Promise<void> {
   const fs = read<FsConnectionState | null>(fsConnection$);
   if (!fs) return;
 
-  const handler = getFsHandler(FS_SOURCE_NAME);
+  const handler = getFsEndpoint(FS_SOURCE_NAME);
 
   beginLongRunning();
   try {
@@ -486,7 +441,7 @@ function emitSyncingState(): void {
 async function pushOne(context: ReplicationContext, types: StorageDataType[]): Promise<void> {
   const cloud = read<CloudConnectionState | null>(cloudConnection$);
   const fs = read<FsConnectionState | null>(fsConnection$);
-  const local = getBrowserHandler();
+  const local = library();
 
   if (cloud) {
     if (!read<boolean>(isOnline$)) {
@@ -497,10 +452,10 @@ async function pushOne(context: ReplicationContext, types: StorageDataType[]): P
       enqueueReplay(() => pushOne(context, types));
     } else {
       const name = cloudSourceName(cloud.provider, cloud.usesCustomCredentials);
-      const handler = getCloudHandler(cloud.provider, name);
+      const handler = getCloudEndpoint(cloud.provider, name);
       try {
         await handler.authenticate(null, true);
-        const error = await replicateData(local, handler, false, [context], types);
+        const error = await replicateData(local, handler, 'push', false, [context], types);
         if (error) throw new Error(error);
         markCloudSynced();
       } catch (err) {
@@ -511,9 +466,9 @@ async function pushOne(context: ReplicationContext, types: StorageDataType[]): P
   }
 
   if (fs) {
-    const handler = getFsHandler(FS_SOURCE_NAME);
+    const handler = getFsEndpoint(FS_SOURCE_NAME);
     try {
-      const error = await replicateData(local, handler, false, [context], types);
+      const error = await replicateData(local, handler, 'push', false, [context], types);
       if (error) throw new Error(error);
       markFsSynced();
     } catch (err) {
@@ -578,7 +533,7 @@ export async function reconcileForBookOpen(context: ReplicationContext): Promise
     StorageDataType.STATISTICS,
     StorageDataType.READING_GOALS
   ];
-  const local = getBrowserHandler();
+  const local = library();
   logger.debug(
     `reconcileForBookOpen: start for ${JSON.stringify(context.title)} ` +
       `(cloud=${!!cloud}, fs=${!!fs}, isPlaceholder=${isPlaceholder}, ` +
@@ -589,12 +544,12 @@ export async function reconcileForBookOpen(context: ReplicationContext): Promise
   try {
     if (cloud) {
       const name = cloudSourceName(cloud.provider, cloud.usesCustomCredentials);
-      const handler = getCloudHandler(cloud.provider, name);
+      const handler = getCloudEndpoint(cloud.provider, name);
       try {
         logger.debug('reconcileForBookOpen: cloud authenticate (silent)');
         await handler.authenticate(null, true);
         logger.debug('reconcileForBookOpen: cloud replicateData (pull)');
-        const error = await replicateData(handler, local, false, [context], types);
+        const error = await replicateData(local, handler, 'pull', false, [context], types);
         if (error) throw new Error(error);
         logger.debug('reconcileForBookOpen: cloud replicateData done');
         markCloudSynced();
@@ -604,10 +559,10 @@ export async function reconcileForBookOpen(context: ReplicationContext): Promise
     }
 
     if (fs) {
-      const handler = getFsHandler(FS_SOURCE_NAME);
+      const handler = getFsEndpoint(FS_SOURCE_NAME);
       try {
         logger.debug('reconcileForBookOpen: fs replicateData (pull)');
-        const error = await replicateData(handler, local, false, [context], types);
+        const error = await replicateData(local, handler, 'pull', false, [context], types);
         if (error) throw new Error(error);
         logger.debug('reconcileForBookOpen: fs replicateData done');
         markFsSynced();
@@ -642,7 +597,7 @@ export async function forceFullResync(direction: ForceResyncDirection): Promise<
   const fs = read<FsConnectionState | null>(fsConnection$);
   if (!cloud && !fs) throw new Error('No sync locations connected.');
 
-  const local = getBrowserHandler();
+  const local = library();
   const allBooks = await (await database.db).getAll('data');
   const pullContexts: ReplicationContext[] = allBooks.map((b) => ({
     id: b.id,
@@ -663,11 +618,12 @@ export async function forceFullResync(direction: ForceResyncDirection): Promise<
   ];
 
   async function runPair(
-    from: BaseStorageHandler,
-    to: BaseStorageHandler,
+    libraryArg: Library,
+    endpoint: SyncEndpoint,
+    direction: ReplicationDirection,
     contexts: ReplicationContext[]
   ): Promise<void> {
-    const error = await replicateData(from, to, true, contexts, types);
+    const error = await replicateData(libraryArg, endpoint, direction, true, contexts, types);
     if (error) throw new Error(error);
   }
 
@@ -695,7 +651,7 @@ export async function forceFullResync(direction: ForceResyncDirection): Promise<
       try {
         // Auth once up front; the handler singleton is shared across
         // direction flips below.
-        await getCloudHandler(cloud.provider, name).authenticate(null, true);
+        await getCloudEndpoint(cloud.provider, name).authenticate(null, true);
       } catch (err) {
         reportSyncError('cloud', 'forceFullResync (auth)', err);
         throw err;
@@ -715,20 +671,20 @@ export async function forceFullResync(direction: ForceResyncDirection): Promise<
         if (direction === 'newest' || direction === 'remote-wins') {
           const remote =
             target === 'cloud'
-              ? getCloudHandler(cloud!.provider, cloudName, pullSourceOverride)
-              : getFsHandler(FS_SOURCE_NAME, pullSourceOverride);
+              ? getCloudEndpoint(cloud!.provider, cloudName, pullSourceOverride)
+              : getFsEndpoint(FS_SOURCE_NAME, pullSourceOverride);
           logger.debug(`forceFullResync: pull ${target} → local (run)`);
-          await runPair(remote, local, pullContexts);
+          await runPair(local, remote, 'pull', pullContexts);
         }
         if (direction === 'newest' || direction === 'local-wins') {
-          // Push: local is source, saveBehavior override applies to it.
-          const localSource = getBrowserHandlerWith(pushSourceOverride);
+          // Push: library is source, saveBehavior override applies to it.
+          const localSource = library(pushSourceOverride);
           const remote =
             target === 'cloud'
-              ? getCloudHandler(cloud!.provider, cloudName)
-              : getFsHandler(FS_SOURCE_NAME);
+              ? getCloudEndpoint(cloud!.provider, cloudName)
+              : getFsEndpoint(FS_SOURCE_NAME);
           logger.debug(`forceFullResync: push local → ${target} (run)`);
-          await runPair(localSource, remote, pushContexts);
+          await runPair(localSource, remote, 'push', pushContexts);
         }
         if (target === 'cloud') {
           markCloudSynced();

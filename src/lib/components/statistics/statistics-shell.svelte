@@ -31,7 +31,7 @@
   import { dialogManager } from '$lib/data/dialog-manager';
   import { logger } from '$lib/data/logger';
   import { getDateRangeLabel } from '$lib/data/reading-goal';
-  import { getStorageHandler } from '$lib/data/storage/storage-handler-factory';
+  import { getSyncEndpoint } from '$lib/data/storage/storage-handler-factory';
   import { StorageDataType, StorageKey } from '$lib/data/storage/storage-types';
   import {
     confirmStatisticsDeletion$,
@@ -164,7 +164,7 @@
         }
 
         const entriesToExport = [...statisticsDataToExport.entries()];
-        const backupHandler = getStorageHandler(window, StorageKey.BACKUP);
+        const backupHandler = getSyncEndpoint(window, StorageKey.BACKUP);
         const exportLimiter = pLimit(1);
         const exportTasks: Promise<void>[] = [];
 

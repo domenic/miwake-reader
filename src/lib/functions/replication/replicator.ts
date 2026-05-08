@@ -1,7 +1,12 @@
 import { BackupStorageHandler } from '$lib/data/storage/handler/backup-handler';
 import { BaseStorageHandler } from '$lib/data/storage/handler/base-handler';
+import type {
+  BookOperations,
+  Library,
+  SyncEndpoint
+} from '$lib/data/storage/handler/handler-roles';
 import { storage } from '$lib/data/window/navigator/storage';
-import { StorageDataType, StorageKey } from '$lib/data/storage/storage-types';
+import { StorageDataType } from '$lib/data/storage/storage-types';
 import { database } from '$lib/data/store';
 import loadEpub from '$lib/functions/file-loaders/epub/load-epub';
 import loadHtmlz from '$lib/functions/file-loaders/htmlz/load-htmlz';
@@ -15,9 +20,16 @@ import {
 } from '$lib/functions/replication/replication-progress';
 import pLimit from 'p-limit';
 
+/**
+ * Direction of a replication relative to the library:
+ *   - `'pull'`: endpoint → library (the library is the target)
+ *   - `'push'`: library → endpoint (the library is the source)
+ */
+export type ReplicationDirection = 'push' | 'pull';
+
 export async function importData(
   document: Document,
-  targetHandler: BaseStorageHandler,
+  library: Library,
   files: File[],
   cancelSignal: AbortSignal,
   fileCountData?: Record<string, number>
@@ -32,11 +44,10 @@ export async function importData(
   let errorMessage = '';
 
   replicationProgress$.next({ progressBase, maxProgress });
+  await persistLibraryStorage();
 
-  await persistStorage(targetHandler.storageType);
-
-  if (targetHandler.isCacheDisabled()) {
-    targetHandler.clearData(false);
+  if (library.isCacheDisabled()) {
+    library.clearData(false);
   }
 
   let newFileData = 0;
@@ -50,7 +61,6 @@ export async function importData(
           checkCancelAndProgress(cancelSignal, true, true);
           checkCancelAndProgress(cancelSignal, true, true);
           checkCancelAndProgress(cancelSignal, true, true);
-
           return;
         }
 
@@ -58,7 +68,6 @@ export async function importData(
           throwIfAborted(cancelSignal);
 
           let bookContent: LoadData;
-
           if (file.name.endsWith('.epub')) {
             bookContent = await loadEpub(file, document, lastBookModified);
           } else if (file.name.endsWith('.txt')) {
@@ -72,9 +81,7 @@ export async function importData(
             checkCancelAndProgress(cancelSignal, true, true);
             checkCancelAndProgress(cancelSignal, true, true);
             checkCancelAndProgress(cancelSignal, true, true);
-
             newFileData += 1;
-
             return;
           }
 
@@ -82,24 +89,21 @@ export async function importData(
 
           currentTitle = bookContent.title;
 
-          targetHandler.startContext(
+          library.startContext(
             { title: bookContent.title, imagePath: bookContent.coverImage || '' },
             cancelSignal
           );
 
-          dataIds.push(await targetHandler.saveBook(bookContent, false));
+          dataIds.push(await library.saveBook(bookContent, false));
 
           checkCancelAndProgress(cancelSignal, false);
 
           if (bookContent.coverImage) {
-            await targetHandler.saveCover(bookContent.coverImage);
+            await library.saveCover(bookContent.coverImage);
           }
 
-          // Only emit when local IDB actually changed; cloud/fs writes
-          // don't affect /manage's view (which reads IDB directly).
-          if (targetHandler.storageType === StorageKey.BROWSER) {
-            database.dataListChanged$.next();
-          }
+          // The library always drives /manage's view; emit unconditionally.
+          database.dataListChanged$.next();
 
           checkCancelAndProgress(cancelSignal, true, !bookContent.coverImage);
         } catch (error: any) {
@@ -134,16 +138,17 @@ export async function importData(
 }
 
 export async function importBackup(
-  sourceHandler: BackupStorageHandler,
-  targetHandler: BaseStorageHandler,
+  source: BackupStorageHandler,
+  library: Library,
   file: File,
   cancelSignal: AbortSignal
 ) {
   return replicateData(
-    sourceHandler,
-    targetHandler,
+    library,
+    source,
+    'pull',
     true,
-    await sourceHandler.setBackupZip(file),
+    await source.setBackupZip(file),
     [
       StorageDataType.DATA,
       StorageDataType.PROGRESS,
@@ -154,14 +159,25 @@ export async function importBackup(
   );
 }
 
+/**
+ * Move books between the library and a sync endpoint. The asymmetric
+ * shape — `(library, endpoint, direction)` rather than `(from, to)` —
+ * encodes the invariant that we never replicate between two endpoints
+ * directly. The library always drives /manage's view, so post-write
+ * notifications fire only on `'pull'`.
+ */
 export async function replicateData(
-  sourceHandler: BaseStorageHandler,
-  targetHandler: BaseStorageHandler,
+  library: Library,
+  endpoint: SyncEndpoint,
+  direction: ReplicationDirection,
   refreshDataList: boolean,
   contexts: ReplicationContext[],
   dataToReplicate: StorageDataType[],
   cancelSignal?: AbortSignal
 ) {
+  const source: BookOperations = direction === 'push' ? library : endpoint;
+  const target: BookOperations = direction === 'push' ? endpoint : library;
+
   const bookOperationsLength = dataToReplicate.filter(
     (entry) => entry !== StorageDataType.READING_GOALS
   ).length;
@@ -183,9 +199,14 @@ export async function replicateData(
 
   replicationProgress$.next({ maxProgress });
 
-  await persistStorage(targetHandler.storageType).catch(() => {});
+  if (direction === 'pull') {
+    // Pulling into the library — request persistent storage so the
+    // OS doesn't evict our IDB. Pushes don't need this; the endpoint
+    // manages its own persistence.
+    await persistLibraryStorage();
+  }
 
-  [sourceHandler, targetHandler].forEach((handler) => {
+  [source, target].forEach((handler) => {
     if (handler.isCacheDisabled()) {
       handler.clearData(false);
     }
@@ -199,92 +220,79 @@ export async function replicateData(
 
           let dataProcessed = false;
 
-          sourceHandler.startContext(context, cancelSignal);
-          targetHandler.startContext(context, cancelSignal);
+          source.startContext(context, cancelSignal);
+          target.startContext(context, cancelSignal);
 
           if (processBookData) {
             if (
-              await targetHandler.isBookPresentAndUpToDate(
-                await sourceHandler.getFilenameForRecentCheck('bookdata_')
+              await target.isBookPresentAndUpToDate(
+                await source.getFilenameForRecentCheck('bookdata_')
               )
             ) {
               checkCancelAndProgress(cancelSignal, true, true);
               checkCancelAndProgress(cancelSignal, true, true);
             } else {
-              const bookData = await sourceHandler.getBook();
-
+              const bookData = await source.getBook();
               checkCancelAndProgress(cancelSignal);
-
               if (bookData) {
-                await targetHandler.saveBook(bookData);
+                await target.saveBook(bookData);
                 dataProcessed = true;
               }
-
               checkCancelAndProgress(cancelSignal, bookOperationsLength === 1, !bookData);
             }
           }
 
           if (processProgressData) {
             if (
-              await targetHandler.isProgressPresentAndUpToDate(
-                await sourceHandler.getFilenameForRecentCheck('progress_')
+              await target.isProgressPresentAndUpToDate(
+                await source.getFilenameForRecentCheck('progress_')
               )
             ) {
               checkCancelAndProgress(cancelSignal, !dataProcessed, true);
               checkCancelAndProgress(cancelSignal, !dataProcessed, true);
             } else {
-              const progressData = await sourceHandler.getProgress();
-
+              const progressData = await source.getProgress();
               checkCancelAndProgress(cancelSignal, !dataProcessed);
-
               if (progressData) {
-                await targetHandler.saveProgress(progressData);
-
+                await target.saveProgress(progressData);
                 dataProcessed = true;
               }
-
               checkCancelAndProgress(cancelSignal, !dataProcessed, !progressData);
             }
           }
 
           if (processStatistics) {
             if (
-              await targetHandler.areStatisticsPresentAndUpToDate(
-                await sourceHandler.getFilenameForRecentCheck('statistics_')
+              await target.areStatisticsPresentAndUpToDate(
+                await source.getFilenameForRecentCheck('statistics_')
               )
             ) {
               checkCancelAndProgress(cancelSignal, !dataProcessed, true);
               checkCancelAndProgress(cancelSignal, !dataProcessed, true);
             } else {
-              const { statistics, lastStatisticModified } = await sourceHandler.getStatistics();
-
+              const { statistics, lastStatisticModified } = await source.getStatistics();
               checkCancelAndProgress(cancelSignal, !dataProcessed);
-
               if (statistics) {
-                await targetHandler.saveStatistics(statistics, lastStatisticModified);
-
+                await target.saveStatistics(statistics, lastStatisticModified);
                 dataProcessed = true;
               }
-
               checkCancelAndProgress(cancelSignal, !dataProcessed, !statistics);
             }
           }
 
           if (dataProcessed) {
-            const coverData = await sourceHandler.getCover();
-
+            const coverData = await source.getCover();
             checkCancelAndProgress(cancelSignal, !coverData);
-
-            await targetHandler.saveCover(coverData);
-
+            await target.saveCover(coverData);
             checkCancelAndProgress(cancelSignal);
 
-            if (refreshDataList && targetHandler.storageType === StorageKey.BROWSER) {
-              database.dataListChanged$.next();
-            }
-
-            if (targetHandler.storageType === StorageKey.BROWSER && processProgressData) {
-              database.bookmarksChanged$.next();
+            if (direction === 'pull') {
+              if (refreshDataList) {
+                database.dataListChanged$.next();
+              }
+              if (processProgressData) {
+                database.bookmarksChanged$.next();
+              }
             }
           } else {
             checkCancelAndProgress(cancelSignal, true, true);
@@ -309,26 +317,20 @@ export async function replicateData(
       replicationLimiter(async () => {
         try {
           if (
-            await targetHandler.areReadingGoalsPresentAndUpToDate(
-              await sourceHandler.getFilenameForRecentCheck(
-                BaseStorageHandler.readingGoalsFilePrefix
-              )
+            await target.areReadingGoalsPresentAndUpToDate(
+              await source.getFilenameForRecentCheck(BaseStorageHandler.readingGoalsFilePrefix)
             )
           ) {
             checkCancelAndProgress(cancelSignal, true, true);
             checkCancelAndProgress(cancelSignal, true, true);
           } else {
-            const { readingGoals, lastGoalModified } = await sourceHandler.getReadingGoals();
-
+            const { readingGoals, lastGoalModified } = await source.getReadingGoals();
             checkCancelAndProgress(cancelSignal);
-
             if (readingGoals) {
-              await targetHandler.saveReadingGoals(readingGoals, lastGoalModified);
+              await target.saveReadingGoals(readingGoals, lastGoalModified);
             }
-
             checkCancelAndProgress(cancelSignal, false, !readingGoals);
           }
-
           processed += 1;
         } catch (error) {
           errorMessage = handleErrorDuringReplication(
@@ -344,19 +346,16 @@ export async function replicateData(
 
   await Promise.all(replicationTasks).catch(() => {});
 
-  if (targetHandler instanceof BackupStorageHandler) {
-    await targetHandler
-      .createExportZip(document, cancelSignal?.aborted || !processed)
-      .catch((error) => {
-        errorMessage = error.message;
-      });
+  if (target instanceof BackupStorageHandler) {
+    await target.createExportZip(document, cancelSignal?.aborted || !processed).catch((error) => {
+      errorMessage = error.message;
+    });
   }
 
   return errorMessage;
 }
 
-async function persistStorage(target: StorageKey) {
-  if (target !== StorageKey.BROWSER) return;
+async function persistLibraryStorage() {
   // Best-effort. Browsers either grant on this call (and remember it
   // forever) or deny silently per their own engagement heuristics —
   // either way there's nothing useful for us to do beyond ask.

@@ -17,7 +17,7 @@
   import SyncSection from '$lib/components/settings/sync/sync-section.svelte';
   import { showForceResyncDialog } from '$lib/components/settings/sync/force-resync-dialog.svelte';
   import { forceFullResync } from '$lib/data/sync/sync-engine';
-  import { getStorageHandler } from '$lib/data/storage/storage-handler-factory';
+  import { getLibrary, getSyncEndpoint } from '$lib/data/storage/storage-handler-factory';
   import { BaseStorageHandler } from '$lib/data/storage/handler/base-handler';
   import { BackupStorageHandler } from '$lib/data/storage/handler/backup-handler';
   import { StorageDataType, StorageKey } from '$lib/data/storage/storage-types';
@@ -100,7 +100,7 @@
       // reading-goal-state.json). Mirrors the
       // /settings/statistics/statistics-shell.svelte pattern.
       onExport: async (selection) => {
-        const backupHandler = getStorageHandler(window, StorageKey.BACKUP);
+        const backupHandler = getSyncEndpoint(window, StorageKey.BACKUP);
         backupHandler.clearData();
 
         const db = await database.db;
@@ -265,24 +265,18 @@
             ? ReplicationSaveBehavior.Overwrite
             : ReplicationSaveBehavior.NewOnly;
 
-        const backupHandler = getStorageHandler(
-          window,
-          StorageKey.BACKUP,
-          '',
-          $cacheStorageData$,
-          sourceBehavior,
-          $statisticsMergeMode$,
-          $readingGoalsMergeMode$
-        );
-        const browserHandler = getStorageHandler(
-          window,
-          StorageKey.BROWSER,
-          '',
-          $cacheStorageData$,
-          ReplicationSaveBehavior.NewOnly,
-          $statisticsMergeMode$,
-          $readingGoalsMergeMode$
-        );
+        const backupHandler = getSyncEndpoint(window, StorageKey.BACKUP, '', {
+          cacheStorageData: $cacheStorageData$,
+          saveBehavior: sourceBehavior,
+          statisticsMergeMode: $statisticsMergeMode$,
+          readingGoalsMergeMode: $readingGoalsMergeMode$
+        });
+        const browserHandler = getLibrary({
+          cacheStorageData: $cacheStorageData$,
+          saveBehavior: ReplicationSaveBehavior.NewOnly,
+          statisticsMergeMode: $statisticsMergeMode$,
+          readingGoalsMergeMode: $readingGoalsMergeMode$
+        });
 
         const allContexts = await backupHandler.setBackupZip(file);
         const contextsByTitle = new Map(allContexts.map((c) => [c.title, c]));
@@ -299,7 +293,14 @@
           if (choices.bookmarks) types.push(StorageDataType.PROGRESS);
           if (choices.statistics) types.push(StorageDataType.STATISTICS);
 
-          const error = await replicateData(backupHandler, browserHandler, true, [ctx], types);
+          const error = await replicateData(
+            browserHandler,
+            backupHandler,
+            'pull',
+            true,
+            [ctx],
+            types
+          );
           if (error) throw new Error(error);
 
           booksImported += 1;
@@ -310,8 +311,9 @@
         let readingGoalsImported = false;
         if (selection.readingGoals && catalog.hasReadingGoals) {
           const error = await replicateData(
-            backupHandler,
             browserHandler,
+            backupHandler,
+            'pull',
             false,
             [],
             [StorageDataType.READING_GOALS]

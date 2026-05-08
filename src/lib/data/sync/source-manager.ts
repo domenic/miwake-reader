@@ -1,6 +1,6 @@
 import { gDriveClientId, oneDriveClientId, pagePath } from '$lib/data/env';
 import type { BooksDbStorageSource } from '$lib/data/database/books-db/versions/books-db';
-import { getStorageHandler } from '$lib/data/storage/storage-handler-factory';
+import { getSyncEndpoint } from '$lib/data/storage/storage-handler-factory';
 import type { FsHandle, RemoteContext } from '$lib/data/storage/storage-source-manager';
 import { clearOAuthTokenCache, StorageOAuthManager } from '$lib/data/storage/storage-oauth-manager';
 import { StorageKey } from '$lib/data/storage/storage-types';
@@ -52,7 +52,7 @@ export async function connectFs(): Promise<void> {
 
   // Seed IndexedDB with placeholders for whatever's already in the
   // folder so /manage shows them under cloud icons; mirrors connectCloud.
-  const handler = getStorageHandler(window, StorageKey.FS, FS_SOURCE_NAME);
+  const handler = getSyncEndpoint(window, StorageKey.FS, FS_SOURCE_NAME);
   const books = await handler.listSyncTitles();
   const created = await ensurePlaceholders(books);
   if (created > 0) {
@@ -157,8 +157,8 @@ export async function connectCloud(provider: CloudProviderType): Promise<void> {
 
     const handler =
       provider === StorageKey.GDRIVE
-        ? getStorageHandler(window, StorageKey.GDRIVE, name)
-        : getStorageHandler(window, StorageKey.ONEDRIVE, name);
+        ? getSyncEndpoint(window, StorageKey.GDRIVE, name)
+        : getSyncEndpoint(window, StorageKey.ONEDRIVE, name);
 
     try {
       await handler.authenticate(authWindow);
@@ -263,8 +263,8 @@ async function pruneAfterDisconnect(): Promise<void> {
       const name = cloudSourceName(cloud.provider, cloud.usesCustomCredentials);
       const handler =
         cloud.provider === StorageKey.GDRIVE
-          ? getStorageHandler(window, StorageKey.GDRIVE, name)
-          : getStorageHandler(window, StorageKey.ONEDRIVE, name);
+          ? getSyncEndpoint(window, StorageKey.GDRIVE, name)
+          : getSyncEndpoint(window, StorageKey.ONEDRIVE, name);
       await handler.authenticate(null, true);
       for (const book of await handler.listSyncTitles()) {
         reachableTitles.add(book.title);
@@ -277,7 +277,7 @@ async function pruneAfterDisconnect(): Promise<void> {
   const fs = read<{ path: string } | null>(fsConnection$);
   if (fs) {
     try {
-      const handler = getStorageHandler(window, StorageKey.FS, FS_SOURCE_NAME);
+      const handler = getSyncEndpoint(window, StorageKey.FS, FS_SOURCE_NAME);
       for (const book of await handler.listSyncTitles()) {
         reachableTitles.add(book.title);
       }

@@ -128,9 +128,9 @@
   import { logger } from '$lib/data/logger';
   import { confirmDialog, messageDialog } from '$lib/data/simple-dialogs';
   import { MergeMode } from '$lib/data/merge-mode';
-  import { getStorageHandler } from '$lib/data/storage/storage-handler-factory';
+  import { getLibrary } from '$lib/data/storage/storage-handler-factory';
   import { BaseStorageHandler } from '$lib/data/storage/handler/base-handler';
-  import type { BrowserStorageHandler } from '$lib/data/storage/handler/browser-handler';
+  import type { Library } from '$lib/data/storage/handler/handler-roles';
   import { StorageDataType, StorageKey } from '$lib/data/storage/storage-types';
   import { availableThemes } from '$lib/data/theme-option';
   import { ViewMode } from '$lib/data/view-mode';
@@ -187,7 +187,7 @@
   let lastSelectedRangeWasEmpty = $state(true);
   let isSelectingCustomReadingPoint = $state(false);
   let showCustomReadingPoint = $state(false);
-  let localStorageHandler: BrowserStorageHandler;
+  let localStorageHandler: Library;
   let storedExploredCharacter = 0;
   let hasBookmarkData = $state(false);
   let blockDataUpdates = $state(false);
@@ -234,15 +234,12 @@
       logger.debug(`reader/rawBookData$: start id=${id}`);
 
       try {
-        localStorageHandler = getStorageHandler(
-          window,
-          StorageKey.BROWSER,
-          undefined,
-          $cacheStorageData$,
-          $replicationSaveBehavior$,
-          $statisticsMergeMode$,
-          $readingGoalsMergeMode$
-        );
+        localStorageHandler = getLibrary({
+          cacheStorageData: $cacheStorageData$,
+          saveBehavior: $replicationSaveBehavior$,
+          statisticsMergeMode: $statisticsMergeMode$,
+          readingGoalsMergeMode: $readingGoalsMergeMode$
+        });
 
         localStorageHandler.startContext({ id, title: '' });
         bookData = await localStorageHandler.getBook();

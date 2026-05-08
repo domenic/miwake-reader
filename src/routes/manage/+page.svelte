@@ -16,7 +16,7 @@
   import { logger } from '$lib/data/logger';
   import { confirmDialog, messageDialog } from '$lib/data/simple-dialogs';
   import { SortDirection, type SortOption } from '$lib/data/sort-types';
-  import { getStorageHandler } from '$lib/data/storage/storage-handler-factory';
+  import { getLibrary } from '$lib/data/storage/storage-handler-factory';
   import { StorageKey } from '$lib/data/storage/storage-types';
   import {
     booklistSortOptions$,
@@ -281,15 +281,12 @@
 
     const error = await importData(
       document,
-      getStorageHandler(
-        window,
-        StorageKey.BROWSER,
-        '',
-        $cacheStorageData$,
-        $replicationSaveBehavior$,
-        $statisticsMergeMode$,
-        $readingGoalsMergeMode$
-      ),
+      getLibrary({
+        cacheStorageData: $cacheStorageData$,
+        saveBehavior: $replicationSaveBehavior$,
+        statisticsMergeMode: $statisticsMergeMode$,
+        readingGoalsMergeMode: $readingGoalsMergeMode$
+      }),
       files,
       cancelSignal,
       $fileCountData$
@@ -328,7 +325,7 @@
     initializeReplicationProgressData();
 
     const currentBookCount = $bookCards$.length;
-    const handler = getStorageHandler(window, StorageKey.BROWSER, '');
+    const handler = getLibrary();
     const { error, deleted } = await handler.deleteBookData(
       $bookCards$.reduce((toDelete, card) => {
         if (bookIds.includes(card.id)) toDelete.push(card.title);

@@ -1,153 +1,135 @@
 import { StorageKey } from '$lib/data/storage/storage-types';
 
 import { BackupStorageHandler } from '$lib/data/storage/handler/backup-handler';
-import type { BaseStorageHandler } from '$lib/data/storage/handler/base-handler';
-import { BrowserStorageHandler } from '$lib/data/storage/handler/browser-handler';
 import { FilesystemStorageHandler } from '$lib/data/storage/handler/filesystem-handler';
 import { GDriveStorageHandler } from '$lib/data/storage/handler/gdrive-handler';
+import { Library } from '$lib/data/storage/library';
 import { MergeMode } from '$lib/data/merge-mode';
 import { OneDriveStorageHandler } from '$lib/data/storage/handler/onedrive-handler';
 import { ReplicationSaveBehavior } from '$lib/functions/replication/replication-options';
 
-let backupStorageHandler: BackupStorageHandler;
-let browserStorageHandler: BrowserStorageHandler;
-let gDriveStorageHandler: GDriveStorageHandler;
-let oneDriveStorageHandler: OneDriveStorageHandler;
-let fsStorageHandler: FilesystemStorageHandler;
+let library: Library;
+let backupHandler: BackupStorageHandler;
+let gDriveHandler: GDriveStorageHandler;
+let oneDriveHandler: OneDriveStorageHandler;
+let fsHandler: FilesystemStorageHandler;
 
-export function getStorageHandler(
+interface SyncSettings {
+  saveBehavior?: ReplicationSaveBehavior;
+  statisticsMergeMode?: MergeMode;
+  readingGoalsMergeMode?: MergeMode;
+  cacheStorageData?: boolean;
+  askForStorageUnlock?: boolean;
+}
+
+const defaults: Required<SyncSettings> = {
+  saveBehavior: ReplicationSaveBehavior.NewOnly,
+  statisticsMergeMode: MergeMode.MERGE,
+  readingGoalsMergeMode: MergeMode.MERGE,
+  cacheStorageData: false,
+  askForStorageUnlock: true
+};
+
+/**
+ * Get the singleton local library. Settings are applied on every
+ * call; pass overrides if needed (e.g. saveBehavior=Overwrite for the
+ * push leg of force-resync's local-wins direction).
+ */
+export function getLibrary(settings: SyncSettings = {}): Library {
+  const merged = { ...defaults, ...settings };
+  library = library ?? new Library();
+  library.updateSettings(
+    merged.saveBehavior,
+    merged.statisticsMergeMode,
+    merged.readingGoalsMergeMode,
+    merged.cacheStorageData
+  );
+  return library;
+}
+
+/**
+ * Get a sync endpoint for the given external location. BROWSER is not
+ * a valid storage type here — that's the library, fetched via
+ * getLibrary().
+ */
+export function getSyncEndpoint(
+  window: Window,
+  storageType: StorageKey.GDRIVE,
+  storageSourceName: string,
+  settings?: SyncSettings
+): GDriveStorageHandler;
+export function getSyncEndpoint(
+  window: Window,
+  storageType: StorageKey.ONEDRIVE,
+  storageSourceName: string,
+  settings?: SyncSettings
+): OneDriveStorageHandler;
+export function getSyncEndpoint(
+  window: Window,
+  storageType: StorageKey.FS,
+  storageSourceName: string,
+  settings?: SyncSettings
+): FilesystemStorageHandler;
+export function getSyncEndpoint(
   window: Window,
   storageType: StorageKey.BACKUP,
   storageSourceName?: string,
-  cacheStorageData?: boolean,
-  saveBehavior?: ReplicationSaveBehavior,
-  statisticsMergeMode?: MergeMode,
-  readingGoalsMergeMode?: MergeMode,
-  askForStorageUnlock?: boolean
+  settings?: SyncSettings
 ): BackupStorageHandler;
-export function getStorageHandler(
+export function getSyncEndpoint(
   window: Window,
-  storageType: StorageKey.BROWSER,
-  storageSourceName?: string,
-  cacheStorageData?: boolean,
-  saveBehavior?: ReplicationSaveBehavior,
-  statisticsMergeMode?: MergeMode,
-  readingGoalsMergeMode?: MergeMode,
-  askForStorageUnlock?: boolean
-): BrowserStorageHandler;
-export function getStorageHandler(
-  window: Window,
-  storageType: StorageKey.GDRIVE,
-  storageSourceName?: string,
-  cacheStorageData?: boolean,
-  saveBehavior?: ReplicationSaveBehavior,
-  statisticsMergeMode?: MergeMode,
-  readingGoalsMergeMode?: MergeMode,
-  askForStorageUnlock?: boolean
-): GDriveStorageHandler;
-export function getStorageHandler(
-  window: Window,
-  storageType: StorageKey.ONEDRIVE,
-  storageSourceName?: string,
-  cacheStorageData?: boolean,
-  saveBehavior?: ReplicationSaveBehavior,
-  statisticsMergeMode?: MergeMode,
-  readingGoalsMergeMode?: MergeMode,
-  askForStorageUnlock?: boolean
-): OneDriveStorageHandler;
-export function getStorageHandler(
-  window: Window,
-  storageType: StorageKey.FS,
-  storageSourceName?: string,
-  cacheStorageData?: boolean,
-  saveBehavior?: ReplicationSaveBehavior,
-  statisticsMergeMode?: MergeMode,
-  readingGoalsMergeMode?: MergeMode,
-  askForStorageUnlock?: boolean
-): FilesystemStorageHandler;
-export function getStorageHandler(
-  window: Window,
-  storageType: StorageKey,
-  storageSourceName?: string,
-  cacheStorageData?: boolean,
-  saveBehavior?: ReplicationSaveBehavior,
-  statisticsMergeMode?: MergeMode,
-  readingGoalsMergeMode?: MergeMode,
-  askForStorageUnlock?: boolean
-): BaseStorageHandler;
-export function getStorageHandler(
-  window: Window,
-  storageType: StorageKey,
+  storageType: Exclude<StorageKey, StorageKey.BROWSER>,
   storageSourceName = '',
-  cacheStorageData = false,
-  saveBehavior = ReplicationSaveBehavior.NewOnly,
-  statisticsMergeMode = MergeMode.MERGE,
-  readingGoalsMergeMode = MergeMode.MERGE,
-  askForStorageUnlock = true
+  settings: SyncSettings = {}
 ) {
+  const merged = { ...defaults, ...settings };
   switch (storageType) {
     case StorageKey.BACKUP:
-      backupStorageHandler =
-        backupStorageHandler || new BackupStorageHandler(window, StorageKey.BACKUP);
-      backupStorageHandler.updateSettings(
+      backupHandler = backupHandler ?? new BackupStorageHandler(window, StorageKey.BACKUP);
+      backupHandler.updateSettings(
         window,
-        saveBehavior,
-        statisticsMergeMode,
-        readingGoalsMergeMode
+        merged.saveBehavior,
+        merged.statisticsMergeMode,
+        merged.readingGoalsMergeMode
       );
-
-      return backupStorageHandler;
-    case StorageKey.BROWSER:
-      browserStorageHandler =
-        browserStorageHandler || new BrowserStorageHandler(window, StorageKey.BROWSER);
-      browserStorageHandler.updateSettings(
-        window,
-        saveBehavior,
-        statisticsMergeMode,
-        readingGoalsMergeMode
-      );
-
-      return browserStorageHandler;
+      return backupHandler;
     case StorageKey.GDRIVE:
-      gDriveStorageHandler = gDriveStorageHandler || new GDriveStorageHandler(window);
-      gDriveStorageHandler.updateSettings(
+      gDriveHandler = gDriveHandler ?? new GDriveStorageHandler(window);
+      gDriveHandler.updateSettings(
         window,
-        saveBehavior,
-        statisticsMergeMode,
-        readingGoalsMergeMode,
-        cacheStorageData,
-        askForStorageUnlock,
+        merged.saveBehavior,
+        merged.statisticsMergeMode,
+        merged.readingGoalsMergeMode,
+        merged.cacheStorageData,
+        merged.askForStorageUnlock,
         storageSourceName
       );
-
-      return gDriveStorageHandler;
+      return gDriveHandler;
     case StorageKey.ONEDRIVE:
-      oneDriveStorageHandler = oneDriveStorageHandler || new OneDriveStorageHandler(window);
-      oneDriveStorageHandler.updateSettings(
+      oneDriveHandler = oneDriveHandler ?? new OneDriveStorageHandler(window);
+      oneDriveHandler.updateSettings(
         window,
-        saveBehavior,
-        statisticsMergeMode,
-        readingGoalsMergeMode,
-        cacheStorageData,
-        askForStorageUnlock,
+        merged.saveBehavior,
+        merged.statisticsMergeMode,
+        merged.readingGoalsMergeMode,
+        merged.cacheStorageData,
+        merged.askForStorageUnlock,
         storageSourceName
       );
-
-      return oneDriveStorageHandler;
+      return oneDriveHandler;
     case StorageKey.FS:
-      fsStorageHandler = fsStorageHandler || new FilesystemStorageHandler(window, StorageKey.FS);
-      fsStorageHandler.updateSettings(
+      fsHandler = fsHandler ?? new FilesystemStorageHandler(window, StorageKey.FS);
+      fsHandler.updateSettings(
         window,
-        saveBehavior,
-        statisticsMergeMode,
-        readingGoalsMergeMode,
-        cacheStorageData,
-        askForStorageUnlock,
+        merged.saveBehavior,
+        merged.statisticsMergeMode,
+        merged.readingGoalsMergeMode,
+        merged.cacheStorageData,
+        merged.askForStorageUnlock,
         storageSourceName
       );
-
-      return fsStorageHandler;
+      return fsHandler;
     default:
-      throw new Error(`No handler implementation for ${storageType}`);
+      throw new Error(`No sync endpoint implementation for ${storageType}`);
   }
 }
