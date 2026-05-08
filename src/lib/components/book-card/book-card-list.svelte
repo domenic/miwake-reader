@@ -1,8 +1,14 @@
 <script lang="ts">
-  import { faCheckCircle, faCircleInfo, faCloudArrowDown } from '@fortawesome/free-solid-svg-icons';
+  import {
+    faCheckCircle,
+    faCircleInfo,
+    faCloudArrowDown,
+    faFolderOpen
+  } from '@fortawesome/free-solid-svg-icons';
   import BookCard from '$lib/components/book-card/book-card.svelte';
   import type { BookCardProps } from '$lib/components/book-card/book-card-props';
   import Popover from '$lib/components/popover/popover.svelte';
+  import { syncLocation$ } from '$lib/data/sync/sync-store';
   import { dummyFn } from '$lib/functions/utils';
   import Fa from 'svelte-fa';
 
@@ -21,6 +27,13 @@
     onbookClick,
     onremoveBookClick
   }: Props = $props();
+
+  let placeholderIcon = $derived($syncLocation$?.kind === 'fs' ? faFolderOpen : faCloudArrowDown);
+  let placeholderTooltip = $derived(
+    $syncLocation$?.kind === 'fs'
+      ? 'Not downloaded yet — click the book to copy it from your local sync folder'
+      : 'Not downloaded yet — click the book to fetch it from its sync location'
+  );
 
   let hoveringBookId = $state<number>();
 
@@ -51,10 +64,10 @@
 
         {#if bookCard.isPlaceholder}
           <div
-            title="Not downloaded yet — click the book to fetch it from its sync location"
+            title={placeholderTooltip}
             class="pointer-events-none absolute top-2 right-2 flex h-7 w-7 items-center justify-center rounded-full bg-white/90 text-gray-700 shadow"
           >
-            <Fa icon={faCloudArrowDown} />
+            <Fa icon={placeholderIcon} />
           </div>
         {/if}
 
