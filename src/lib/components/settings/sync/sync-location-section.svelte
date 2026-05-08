@@ -1,8 +1,9 @@
 <script lang="ts">
   import { browser } from '$app/environment';
   import { appName } from '$lib/data/env';
-  import { confirmDialog, messageDialog } from '$lib/data/simple-dialogs';
+  import { messageDialog } from '$lib/data/simple-dialogs';
   import { SyncEndpointType } from '$lib/data/storage/storage-types';
+  import { database } from '$lib/data/store';
   import {
     cloudCustomCredentials$,
     now$,
@@ -18,17 +19,14 @@
     switchToFs
   } from '$lib/data/sync/source-manager';
   import { retryAfterReconnect } from '$lib/data/sync/sync-engine';
-  import {
-    describeSyncLocation,
-    formatRelativeTime,
-    providerLabel
-  } from '$lib/components/settings/sync/sync-utils';
+  import { formatRelativeTime, providerLabel } from '$lib/components/settings/sync/sync-utils';
   import SyncAlert from '$lib/components/settings/sync/sync-alert.svelte';
   import SyncBadge from '$lib/components/settings/sync/sync-badge.svelte';
   import SyncButton from '$lib/components/settings/sync/sync-button.svelte';
   import SyncRow from '$lib/components/settings/sync/sync-row.svelte';
   import SyncSection from '$lib/components/settings/sync/sync-section.svelte';
   import { showCustomOAuthDialog } from '$lib/components/settings/sync/custom-oauth-dialog.svelte';
+  import { showSyncLeaveDialog } from '$lib/components/settings/sync/sync-leave-dialog.svelte';
 
   // Hide the FS option entirely on browsers without showDirectoryPicker
   // (Firefox as of 2026) so unsupported users don't see a button that
@@ -42,32 +40,50 @@
   let activeCloud = $derived(active?.kind === 'cloud' ? active : null);
   let activeFs = $derived(active?.kind === 'fs' ? active : null);
 
+  function toProvider(target: 'gdrive' | 'onedrive'): CloudProviderType {
+    return target === 'gdrive' ? SyncEndpointType.GDRIVE : SyncEndpointType.ONEDRIVE;
+  }
+
+  /** Count downloaded books in the library (excludes placeholders) so
+   *  the leave-dialog's "wipe library" checkbox can quote a real number. */
+  async function countLibraryBooks(): Promise<number> {
+    const db = await database.db;
+    const all = await db.getAll('data');
+    return all.filter((b) => !!b.elementHtml).length;
+  }
+
+  function targetLabelFor(target: 'gdrive' | 'onedrive' | 'fs'): string {
+    return target === 'fs' ? 'your sync folder' : providerLabel(toProvider(target));
+  }
+
   /**
    * The user picked a destination from the alternatives list. If a
    * different location is currently active, confirm the destructive
-   * switch first.
+   * switch first — and offer to wipe this device's library at the
+   * same time, since switching might otherwise mirror downloaded
+   * books over to a destination the user thought of as a clean slate.
    */
   async function onPick(target: 'gdrive' | 'onedrive' | 'fs') {
     if (busy) return;
-    const targetLabel =
-      target === 'fs'
-        ? 'your local folder'
-        : providerLabel(toProvider(target as 'gdrive' | 'onedrive'));
+    const targetLabel = targetLabelFor(target);
 
+    let clearLibrary = false;
     if (active) {
-      const cancelled = await confirmDialog({
-        title: `Switch to ${targetLabel}?`,
-        message: `${appName} will sign out of ${describeSyncLocation(active)} first. Books already on this device stay where they are.`
+      const result = await showSyncLeaveDialog({
+        leaving: active,
+        nextLabel: targetLabel,
+        libraryBookCount: await countLibraryBooks()
       });
-      if (cancelled) return;
+      if (result.kind === 'cancel') return;
+      clearLibrary = result.clearLibrary;
     }
 
     busy = true;
     try {
       if (target === 'fs') {
-        await switchToFs();
+        await switchToFs({ clearLibrary });
       } else {
-        await switchToCloud(toProvider(target));
+        await switchToCloud(toProvider(target), { clearLibrary });
       }
     } catch (err) {
       // Picker cancel is silent; other errors surface.
@@ -82,22 +98,17 @@
     }
   }
 
-  function toProvider(target: 'gdrive' | 'onedrive'): CloudProviderType {
-    return target === 'gdrive' ? SyncEndpointType.GDRIVE : SyncEndpointType.ONEDRIVE;
-  }
-
   async function onDisconnect() {
-    const cancelled = await confirmDialog({
-      title: 'Disconnect sync?',
-      message:
-        active?.kind === 'cloud'
-          ? `This device will stop syncing with ${providerLabel(active.provider)}. Your cloud data won't be touched, and downloaded books stay on this device.`
-          : `${appName} will stop mirroring to your local folder. Files already written remain on disk.`
+    if (!active) return;
+    const result = await showSyncLeaveDialog({
+      leaving: active,
+      nextLabel: null,
+      libraryBookCount: await countLibraryBooks()
     });
-    if (cancelled) return;
+    if (result.kind === 'cancel') return;
     busy = true;
     try {
-      await disconnect();
+      await disconnect({ clearLibrary: result.clearLibrary });
     } finally {
       busy = false;
     }
@@ -259,10 +270,10 @@
       {#if supportsFsPicker}
         <SyncRow>
           {#snippet main()}
-            <div class="font-medium">Local folder</div>
+            <div class="font-medium">Sync folder</div>
             <div class="mt-1 text-sm text-gray-600">
-              Mirror to a folder on this device. Pair with your own sync tool (Syncthing, Dropbox,
-              etc.) for cross-device coverage.
+              Mirror your library to a folder on this device. Pair with your own sync tool
+              (Syncthing, Dropbox, etc.) for cross-device coverage.
             </div>
           {/snippet}
           {#snippet actions()}
@@ -344,6 +355,8 @@
       {#snippet main()}
         <div class="text-xs text-gray-500">
           Switching destinations signs you out of {providerLabel(activeCloud.provider)} on this device.
+          Your library on this device will sync up to the new destination unless you wipe it during the
+          switch.
         </div>
       {/snippet}
       {#snippet actions()}
@@ -360,7 +373,7 @@
           {/if}
           {#if supportsFsPicker}
             <SyncButton disabled={busy} onclick={() => onPick('fs')}>
-              Switch to local folder
+              Switch to a sync folder
             </SyncButton>
           {/if}
         </div>
@@ -370,7 +383,7 @@
     <SyncRow first>
       {#snippet main()}
         <div class="flex flex-wrap items-center gap-2">
-          <span class="font-medium">Local folder</span>
+          <span class="font-medium">Sync folder</span>
           {#if $syncHealth$.status === 'ok'}
             <SyncBadge variant="success">Connected</SyncBadge>
           {:else if $syncHealth$.status === 'permission-required'}
@@ -419,8 +432,9 @@
     <SyncRow>
       {#snippet main()}
         <div class="text-xs text-gray-500">
-          Switching destinations stops mirroring to your local folder. Files already there stay on
-          disk.
+          Switching destinations stops mirroring to your sync folder; files already there stay on
+          disk. Your library on this device will sync up to the new destination unless you wipe it
+          during the switch.
         </div>
       {/snippet}
       {#snippet actions()}

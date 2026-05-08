@@ -26,6 +26,18 @@ import {
   readSubject as read
 } from '$lib/data/sync/sync-helpers';
 
+export interface LeaveOptions {
+  /**
+   * Wipe the user's downloaded books, bookmarks, statistics, and
+   * goals from this device after disconnecting. Does NOT clear app
+   * settings, themes, or custom OAuth credentials — those survive
+   * (use the heavier "Sign out and wipe local data" action for a
+   * full reset). Defaults to false; the caller's confirm dialog is
+   * where this gets opted into.
+   */
+  clearLibrary?: boolean;
+}
+
 /**
  * Replace whatever sync location is currently set with a new one.
  * If a different location is already configured, disconnect it first
@@ -34,18 +46,21 @@ import {
  * Caller is responsible for confirming the destructive switch with
  * the user; this function just executes.
  */
-export async function switchToCloud(provider: CloudProviderType): Promise<void> {
+export async function switchToCloud(
+  provider: CloudProviderType,
+  opts: LeaveOptions = {}
+): Promise<void> {
   const current = read<SyncLocation | null>(syncLocation$);
   if (current && (current.kind !== 'cloud' || current.provider !== provider)) {
-    await disconnect();
+    await disconnect(opts);
   }
   await connectCloud(provider);
 }
 
-export async function switchToFs(): Promise<void> {
+export async function switchToFs(opts: LeaveOptions = {}): Promise<void> {
   const current = read<SyncLocation | null>(syncLocation$);
   if (current && current.kind !== 'fs') {
-    await disconnect();
+    await disconnect(opts);
   }
   await connectFs();
 }
@@ -202,12 +217,19 @@ export async function connectCloud(provider: CloudProviderType): Promise<void> {
  * a same-tab reconnect re-runs the popup, deletes the IDB storageSource
  * record, prunes placeholders that are no longer reachable, and clears
  * the connection + health subjects.
+ *
+ * If `opts.clearLibrary` is true, also wipes the user's books,
+ * bookmarks, statistics, and reading goals from this device — see
+ * LeaveOptions.
  */
-export async function disconnect(): Promise<void> {
+export async function disconnect(opts: LeaveOptions = {}): Promise<void> {
   const current = read<SyncLocation | null>(syncLocation$);
   if (!current) {
     syncLocation$.next(null);
     syncHealth$.next({ status: 'ok' });
+    if (opts.clearLibrary) {
+      await wipeLibraryContents();
+    }
     return;
   }
 
@@ -233,6 +255,11 @@ export async function disconnect(): Promise<void> {
   syncLocation$.next(null);
   syncHealth$.next({ status: 'ok' });
 
+  if (opts.clearLibrary) {
+    await wipeLibraryContents();
+    return;
+  }
+
   // No remaining source after disconnect (single-location model), so
   // every placeholder is unreachable. The empty reachable set drops
   // them all in one pass.
@@ -240,6 +267,35 @@ export async function disconnect(): Promise<void> {
   if (pruned > 0) {
     database.notifyDataListChanged();
   }
+}
+
+/**
+ * Wipe just the library — books, bookmarks, statistics, reading
+ * goals, last-item bookmark, plus the localStorage reading-goal hint
+ * (since that pairs with the readingGoal IDB store). App settings,
+ * themes, custom OAuth credentials, and reader prefs survive — use
+ * the heavier "Sign out and wipe local data" action for a full reset.
+ */
+async function wipeLibraryContents(): Promise<void> {
+  const db = await database.db;
+  const tx = db.transaction(
+    ['data', 'bookmark', 'statistic', 'lastModified', 'readingGoal', 'lastItem'],
+    'readwrite'
+  );
+  await Promise.all([
+    tx.objectStore('data').clear(),
+    tx.objectStore('bookmark').clear(),
+    tx.objectStore('statistic').clear(),
+    tx.objectStore('lastModified').clear(),
+    tx.objectStore('readingGoal').clear(),
+    tx.objectStore('lastItem').clear()
+  ]);
+  await tx.done;
+
+  localStorage.removeItem('readingGoal');
+  localStorage.removeItem('lastReadingGoalsModified');
+
+  database.notifyDataListChanged();
 }
 
 /**

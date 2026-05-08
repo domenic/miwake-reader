@@ -5,11 +5,11 @@ export function providerLabel(provider: CloudProviderType): string {
   return provider === SyncEndpointType.GDRIVE ? 'Google Drive' : 'OneDrive';
 }
 
-/** "Google Drive" or "your local folder (/Users/…)", or "" if no location. */
+/** "Google Drive" or "your sync folder (Books)", or "" if no location. */
 export function describeSyncLocation(location: SyncLocation | null): string {
   if (!location) return '';
   if (location.kind === 'cloud') return providerLabel(location.provider);
-  return `your local folder (${location.path})`;
+  return `your sync folder (${location.path})`;
 }
 
 const SECOND = 1_000;
