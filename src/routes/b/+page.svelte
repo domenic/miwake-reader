@@ -131,7 +131,7 @@
   import { getLibrary } from '$lib/data/storage/storage-handler-factory';
   import { BaseStorageHandler } from '$lib/data/storage/handler/base-handler';
   import type { Library } from '$lib/data/storage/handler/handler-roles';
-  import { StorageDataType, StorageKey } from '$lib/data/storage/storage-types';
+  import { StorageDataType, SyncEndpointType } from '$lib/data/storage/storage-types';
   import { availableThemes } from '$lib/data/theme-option';
   import { ViewMode } from '$lib/data/view-mode';
   import loadBookData from '$lib/functions/book-data-loader/load-book-data';

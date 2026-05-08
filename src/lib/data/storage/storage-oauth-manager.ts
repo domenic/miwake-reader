@@ -18,7 +18,7 @@ import {
   isRemoteContext,
   type RemoteContext
 } from '$lib/data/storage/storage-source-manager';
-import { StorageSourceDefault, StorageKey } from '$lib/data/storage/storage-types';
+import { StorageSourceDefault, SyncEndpointType } from '$lib/data/storage/storage-types';
 import { database } from '$lib/data/store';
 import { messageDialog } from '$lib/data/simple-dialogs';
 import { convertAuthErrorResponse } from '$lib/functions/replication/error-handler';
@@ -46,7 +46,7 @@ export function clearOAuthTokenCache(storageSourceName: string): void {
 }
 
 export class StorageOAuthManager {
-  private storageType: StorageKey;
+  private storageType: SyncEndpointType;
 
   private readonly refreshEndpoint;
 
@@ -76,7 +76,7 @@ export class StorageOAuthManager {
 
   private pendingGetToken: Promise<string | undefined> | undefined;
 
-  constructor(type: StorageKey, refreshEndpoint: string) {
+  constructor(type: SyncEndpointType, refreshEndpoint: string) {
     this.storageType = type;
     this.refreshEndpoint = refreshEndpoint;
   }
@@ -315,7 +315,7 @@ export class StorageOAuthManager {
     form.append('refresh_token', this.remoteData.refreshToken);
     form.append('grant_type', 'refresh_token');
 
-    if (this.storageType === StorageKey.GDRIVE) {
+    if (this.storageType === SyncEndpointType.GDRIVE) {
       form.append('client_secret', this.remoteData.clientSecret);
     }
 
@@ -488,16 +488,16 @@ export class StorageOAuthManager {
     return newWindow;
   }
 
-  static getAuthVariables(target: StorageKey) {
+  static getAuthVariables(target: SyncEndpointType) {
     switch (target) {
-      case StorageKey.GDRIVE:
+      case SyncEndpointType.GDRIVE:
         return {
           authEndpoint: gDriveAuthEndpoint,
           tokenEndpoint: gDriveTokenEndpoint,
           scope: gDriveScope
         };
 
-      case StorageKey.ONEDRIVE:
+      case SyncEndpointType.ONEDRIVE:
         return {
           authEndpoint: oneDriveAuthEndpoint,
           tokenEndpoint: oneDriveTokenEndpoint,

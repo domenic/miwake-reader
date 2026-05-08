@@ -1,4 +1,4 @@
-import { StorageKey } from '$lib/data/storage/storage-types';
+import { SyncEndpointType } from '$lib/data/storage/storage-types';
 
 import { BackupStorageHandler } from '$lib/data/storage/handler/backup-handler';
 import { FilesystemStorageHandler } from '$lib/data/storage/handler/filesystem-handler';
@@ -53,38 +53,38 @@ export function getLibrary(settings: SyncSettings = {}): Library {
  */
 export function getSyncEndpoint(
   window: Window,
-  storageType: StorageKey.GDRIVE,
+  storageType: SyncEndpointType.GDRIVE,
   storageSourceName: string,
   settings?: SyncSettings
 ): GDriveStorageHandler;
 export function getSyncEndpoint(
   window: Window,
-  storageType: StorageKey.ONEDRIVE,
+  storageType: SyncEndpointType.ONEDRIVE,
   storageSourceName: string,
   settings?: SyncSettings
 ): OneDriveStorageHandler;
 export function getSyncEndpoint(
   window: Window,
-  storageType: StorageKey.FS,
+  storageType: SyncEndpointType.FS,
   storageSourceName: string,
   settings?: SyncSettings
 ): FilesystemStorageHandler;
 export function getSyncEndpoint(
   window: Window,
-  storageType: StorageKey.BACKUP,
+  storageType: SyncEndpointType.BACKUP,
   storageSourceName?: string,
   settings?: SyncSettings
 ): BackupStorageHandler;
 export function getSyncEndpoint(
   window: Window,
-  storageType: StorageKey,
+  storageType: SyncEndpointType,
   storageSourceName = '',
   settings: SyncSettings = {}
 ) {
   const merged = { ...defaults, ...settings };
   switch (storageType) {
-    case StorageKey.BACKUP:
-      backupHandler = backupHandler ?? new BackupStorageHandler(window, StorageKey.BACKUP);
+    case SyncEndpointType.BACKUP:
+      backupHandler = backupHandler ?? new BackupStorageHandler(window, SyncEndpointType.BACKUP);
       backupHandler.updateSettings(
         window,
         merged.saveBehavior,
@@ -92,7 +92,7 @@ export function getSyncEndpoint(
         merged.readingGoalsMergeMode
       );
       return backupHandler;
-    case StorageKey.GDRIVE:
+    case SyncEndpointType.GDRIVE:
       gDriveHandler = gDriveHandler ?? new GDriveStorageHandler(window);
       gDriveHandler.updateSettings(
         window,
@@ -104,7 +104,7 @@ export function getSyncEndpoint(
         storageSourceName
       );
       return gDriveHandler;
-    case StorageKey.ONEDRIVE:
+    case SyncEndpointType.ONEDRIVE:
       oneDriveHandler = oneDriveHandler ?? new OneDriveStorageHandler(window);
       oneDriveHandler.updateSettings(
         window,
@@ -116,8 +116,8 @@ export function getSyncEndpoint(
         storageSourceName
       );
       return oneDriveHandler;
-    case StorageKey.FS:
-      fsHandler = fsHandler ?? new FilesystemStorageHandler(window, StorageKey.FS);
+    case SyncEndpointType.FS:
+      fsHandler = fsHandler ?? new FilesystemStorageHandler(window, SyncEndpointType.FS);
       fsHandler.updateSettings(
         window,
         merged.saveBehavior,

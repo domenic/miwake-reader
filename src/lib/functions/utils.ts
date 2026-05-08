@@ -1,4 +1,4 @@
-import { StorageKey } from '$lib/data/storage/storage-types';
+import { SyncEndpointType } from '$lib/data/storage/storage-types';
 import { getCharacterCount } from './get-character-count';
 import { writableSubject } from '$lib/functions/svelte/store';
 
@@ -33,8 +33,10 @@ export function dummyFn() {}
 
 export const isMobile$ = writableSubject<boolean>(false);
 
-export function isOnlineSourceAvailable(isOnline: boolean, storageKey: StorageKey) {
-  return isOnline || (storageKey !== StorageKey.GDRIVE && storageKey !== StorageKey.ONEDRIVE);
+export function isOnlineSourceAvailable(isOnline: boolean, storageKey: SyncEndpointType) {
+  return (
+    isOnline || (storageKey !== SyncEndpointType.GDRIVE && storageKey !== SyncEndpointType.ONEDRIVE)
+  );
 }
 
 export function caluclatePercentage(x: number, y: number) {

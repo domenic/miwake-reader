@@ -17,7 +17,7 @@
   import { confirmDialog, messageDialog } from '$lib/data/simple-dialogs';
   import { SortDirection, type SortOption } from '$lib/data/sort-types';
   import { getLibrary } from '$lib/data/storage/storage-handler-factory';
-  import { StorageKey } from '$lib/data/storage/storage-types';
+  import { SyncEndpointType } from '$lib/data/storage/storage-types';
   import {
     booklistSortOptions$,
     cacheStorageData$,

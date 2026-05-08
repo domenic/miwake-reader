@@ -2,7 +2,7 @@ import type { GDriveStorageHandler } from '$lib/data/storage/handler/gdrive-hand
 import type { OneDriveStorageHandler } from '$lib/data/storage/handler/onedrive-handler';
 import type { Library, SyncEndpoint } from '$lib/data/storage/handler/handler-roles';
 import { NeedsInteractiveAuthError, NeedsPermissionGrantError } from '$lib/data/storage/errors';
-import { StorageDataType, StorageKey } from '$lib/data/storage/storage-types';
+import { StorageDataType, SyncEndpointType } from '$lib/data/storage/storage-types';
 import { getLibrary, getSyncEndpoint } from '$lib/data/storage/storage-handler-factory';
 import { MergeMode } from '$lib/data/merge-mode';
 import {
@@ -61,13 +61,18 @@ function getCloudEndpoint(
   name: string,
   saveBehaviorOverride?: ReplicationSaveBehavior
 ): GDriveStorageHandler | OneDriveStorageHandler {
-  return provider === StorageKey.GDRIVE
-    ? getSyncEndpoint(window, StorageKey.GDRIVE, name, commonSettings(saveBehaviorOverride))
-    : getSyncEndpoint(window, StorageKey.ONEDRIVE, name, commonSettings(saveBehaviorOverride));
+  return provider === SyncEndpointType.GDRIVE
+    ? getSyncEndpoint(window, SyncEndpointType.GDRIVE, name, commonSettings(saveBehaviorOverride))
+    : getSyncEndpoint(
+        window,
+        SyncEndpointType.ONEDRIVE,
+        name,
+        commonSettings(saveBehaviorOverride)
+      );
 }
 
 function getFsEndpoint(name: string, saveBehaviorOverride?: ReplicationSaveBehavior): SyncEndpoint {
-  return getSyncEndpoint(window, StorageKey.FS, name, commonSettings(saveBehaviorOverride));
+  return getSyncEndpoint(window, SyncEndpointType.FS, name, commonSettings(saveBehaviorOverride));
 }
 
 function library(saveBehaviorOverride?: ReplicationSaveBehavior): Library {

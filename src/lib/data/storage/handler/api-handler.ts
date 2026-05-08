@@ -9,7 +9,7 @@ import { MergeMode } from '$lib/data/merge-mode';
 import { mergeReadingGoals, readingGoalSortFunction } from '$lib/data/reading-goal';
 import { BaseStorageHandler, type ExternalFile } from '$lib/data/storage/handler/base-handler';
 import { StorageOAuthManager } from '$lib/data/storage/storage-oauth-manager';
-import { StorageKey } from '$lib/data/storage/storage-types';
+import { SyncEndpointType } from '$lib/data/storage/storage-types';
 import { database } from '$lib/data/store';
 import {
   convertAuthErrorResponse,
@@ -69,7 +69,7 @@ export abstract class ApiStorageHandler extends BaseStorageHandler {
 
   protected titleToFiles = new Map<string, ExternalFile[]>();
 
-  constructor(storageType: StorageKey, window: Window, refreshEndpoint: string) {
+  constructor(storageType: SyncEndpointType, window: Window, refreshEndpoint: string) {
     super(window, storageType);
     this.authManager = new StorageOAuthManager(this.storageType, refreshEndpoint);
   }

@@ -1,8 +1,8 @@
 import { writable } from 'svelte/store';
 import { writableObjectLocalStorageSubject } from '$lib/data/internal/writable-object-local-storage-subject';
-import { StorageKey } from '$lib/data/storage/storage-types';
+import { SyncEndpointType } from '$lib/data/storage/storage-types';
 
-export type CloudProviderType = StorageKey.GDRIVE | StorageKey.ONEDRIVE;
+export type CloudProviderType = SyncEndpointType.GDRIVE | SyncEndpointType.ONEDRIVE;
 
 export interface CloudConnectionState {
   provider: CloudProviderType;

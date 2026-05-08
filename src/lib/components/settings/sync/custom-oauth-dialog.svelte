@@ -59,7 +59,7 @@
   import { faCircleCheck } from '@fortawesome/free-solid-svg-icons';
   import SyncButton from '$lib/components/settings/sync/sync-button.svelte';
   import { appName } from '$lib/data/env';
-  import { StorageKey } from '$lib/data/storage/storage-types';
+  import { SyncEndpointType } from '$lib/data/storage/storage-types';
 
   interface Props {
     provider: CloudProviderType;
@@ -87,7 +87,7 @@
   let clientSecret = $state(untrack(() => initialClientSecret));
   let tokenEndpoint = $state(untrack(() => initialTokenEndpoint));
 
-  const isOneDrive = untrack(() => provider === StorageKey.ONEDRIVE);
+  const isOneDrive = untrack(() => provider === SyncEndpointType.ONEDRIVE);
 
   let canSave = $derived(clientId.trim().length > 0 && clientSecret.trim().length > 0);
 

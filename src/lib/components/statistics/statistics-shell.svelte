@@ -32,7 +32,7 @@
   import { logger } from '$lib/data/logger';
   import { getDateRangeLabel } from '$lib/data/reading-goal';
   import { getSyncEndpoint } from '$lib/data/storage/storage-handler-factory';
-  import { StorageDataType, StorageKey } from '$lib/data/storage/storage-types';
+  import { StorageDataType, SyncEndpointType } from '$lib/data/storage/storage-types';
   import {
     confirmStatisticsDeletion$,
     database,
@@ -164,7 +164,7 @@
         }
 
         const entriesToExport = [...statisticsDataToExport.entries()];
-        const backupHandler = getSyncEndpoint(window, StorageKey.BACKUP);
+        const backupHandler = getSyncEndpoint(window, SyncEndpointType.BACKUP);
         const exportLimiter = pLimit(1);
         const exportTasks: Promise<void>[] = [];
 

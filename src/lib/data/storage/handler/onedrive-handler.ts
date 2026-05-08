@@ -2,7 +2,7 @@ import type { BookCardProps } from '$lib/components/book-card/book-card-props';
 import { oneDriveTokenEndpoint } from '$lib/data/env';
 import { ApiStorageHandler } from '$lib/data/storage/handler/api-handler';
 import { BaseStorageHandler, type ExternalFile } from '$lib/data/storage/handler/base-handler';
-import { StorageKey } from '$lib/data/storage/storage-types';
+import { SyncEndpointType } from '$lib/data/storage/storage-types';
 import pLimit from 'p-limit';
 
 interface OneDriveFile extends ExternalFile {
@@ -49,7 +49,7 @@ export class OneDriveStorageHandler extends ApiStorageHandler {
   private appRootEndpoint = 'https://graph.microsoft.com/v1.0/me/drive/special/approot';
 
   constructor(window: Window) {
-    super(StorageKey.ONEDRIVE, window, oneDriveTokenEndpoint);
+    super(SyncEndpointType.ONEDRIVE, window, oneDriveTokenEndpoint);
   }
 
   setInternalSettings(storageSourceName: string) {

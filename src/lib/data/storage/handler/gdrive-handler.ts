@@ -2,7 +2,7 @@ import type { BookCardProps } from '$lib/components/book-card/book-card-props';
 import { gDriveRefreshEndpoint } from '$lib/data/env';
 import { ApiStorageHandler } from '$lib/data/storage/handler/api-handler';
 import { BaseStorageHandler, type ExternalFile } from '$lib/data/storage/handler/base-handler';
-import { StorageKey } from '$lib/data/storage/storage-types';
+import { SyncEndpointType } from '$lib/data/storage/storage-types';
 import pLimit from 'p-limit';
 
 interface GDriveFile extends ExternalFile {
@@ -16,7 +16,7 @@ export class GDriveStorageHandler extends ApiStorageHandler {
   private baseUploadApiUrl = 'https://www.googleapis.com/upload/drive/v3/files';
 
   constructor(window: Window) {
-    super(StorageKey.GDRIVE, window, gDriveRefreshEndpoint);
+    super(SyncEndpointType.GDRIVE, window, gDriveRefreshEndpoint);
   }
 
   setInternalSettings(storageSourceName: string) {

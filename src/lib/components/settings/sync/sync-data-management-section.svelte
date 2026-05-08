@@ -20,7 +20,7 @@
   import { getLibrary, getSyncEndpoint } from '$lib/data/storage/storage-handler-factory';
   import { BaseStorageHandler } from '$lib/data/storage/handler/base-handler';
   import { BackupStorageHandler } from '$lib/data/storage/handler/backup-handler';
-  import { StorageDataType, StorageKey } from '$lib/data/storage/storage-types';
+  import { StorageDataType, SyncEndpointType } from '$lib/data/storage/storage-types';
   import { ReplicationSaveBehavior } from '$lib/functions/replication/replication-options';
   import { replicateData } from '$lib/functions/replication/replicator';
   import { BlobReader, ZipReader } from '@zip.js/zip.js';
@@ -100,7 +100,7 @@
       // reading-goal-state.json). Mirrors the
       // /settings/statistics/statistics-shell.svelte pattern.
       onExport: async (selection) => {
-        const backupHandler = getSyncEndpoint(window, StorageKey.BACKUP);
+        const backupHandler = getSyncEndpoint(window, SyncEndpointType.BACKUP);
         backupHandler.clearData();
 
         const db = await database.db;
@@ -265,7 +265,7 @@
             ? ReplicationSaveBehavior.Overwrite
             : ReplicationSaveBehavior.NewOnly;
 
-        const backupHandler = getSyncEndpoint(window, StorageKey.BACKUP, '', {
+        const backupHandler = getSyncEndpoint(window, SyncEndpointType.BACKUP, '', {
           cacheStorageData: $cacheStorageData$,
           saveBehavior: sourceBehavior,
           statisticsMergeMode: $statisticsMergeMode$,

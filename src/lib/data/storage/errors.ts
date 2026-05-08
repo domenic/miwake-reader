@@ -5,12 +5,12 @@
  * recovery affordance.
  */
 
-import type { StorageKey } from '$lib/data/storage/storage-types';
+import type { SyncEndpointType } from '$lib/data/storage/storage-types';
 
 export class NeedsInteractiveAuthError extends Error {
   constructor(
     public readonly storageSourceName: string,
-    public readonly storageType: StorageKey
+    public readonly storageType: SyncEndpointType
   ) {
     super(
       `Interactive sign-in required for ${storageSourceName} (${storageType}); ` +

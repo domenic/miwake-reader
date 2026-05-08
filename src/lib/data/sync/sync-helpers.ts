@@ -1,4 +1,4 @@
-import { StorageKey, StorageSourceDefault } from '$lib/data/storage/storage-types';
+import { SyncEndpointType, StorageSourceDefault } from '$lib/data/storage/storage-types';
 import type { CloudProviderType } from '$lib/data/sync/sync-store';
 
 /** Sentinel record name for the single filesystem slot. */
@@ -11,7 +11,7 @@ export const FS_SOURCE_NAME = 'miwake-fs';
  * parallel `*-custom` name for user-supplied credentials.
  */
 export function cloudSourceName(provider: CloudProviderType, custom: boolean): string {
-  if (provider === StorageKey.GDRIVE) {
+  if (provider === SyncEndpointType.GDRIVE) {
     return custom ? 'miwake-gdrive-custom' : StorageSourceDefault.GDRIVE_DEFAULT;
   }
   return custom ? 'miwake-onedrive-custom' : StorageSourceDefault.ONEDRIVE_DEFAULT;

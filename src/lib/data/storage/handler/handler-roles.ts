@@ -8,7 +8,7 @@ import type {
   ReplicationContext,
   ReplicationDeleteResult
 } from '$lib/functions/replication/replication-progress';
-import type { StorageKey, SyncTitle } from '$lib/data/storage/storage-types';
+import type { SyncEndpointType, SyncTitle } from '$lib/data/storage/storage-types';
 
 /**
  * The shared per-book operations the replicator drives on both sides
@@ -78,6 +78,6 @@ export interface Library extends BookOperations {
  */
 export interface SyncEndpoint extends BookOperations {
   readonly kind: 'sync-endpoint';
-  readonly storageType: StorageKey;
+  readonly storageType: SyncEndpointType;
   listSyncTitles(): Promise<SyncTitle[]>;
 }

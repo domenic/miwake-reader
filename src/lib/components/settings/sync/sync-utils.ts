@@ -1,4 +1,4 @@
-import { StorageKey } from '$lib/data/storage/storage-types';
+import { SyncEndpointType } from '$lib/data/storage/storage-types';
 import type {
   CloudConnectionState,
   CloudProviderType,
@@ -6,7 +6,7 @@ import type {
 } from '$lib/data/sync/sync-store';
 
 export function providerLabel(provider: CloudProviderType): string {
-  return provider === StorageKey.GDRIVE ? 'Google Drive' : 'OneDrive';
+  return provider === SyncEndpointType.GDRIVE ? 'Google Drive' : 'OneDrive';
 }
 
 function joinWithAnd(parts: string[]): string {

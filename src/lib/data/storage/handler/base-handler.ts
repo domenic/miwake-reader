@@ -9,7 +9,7 @@ import {
 import type { Section } from '$lib/data/database/books-db/versions/v4/books-db-v4';
 import { storageRootName } from '$lib/data/env';
 import { MergeMode } from '$lib/data/merge-mode';
-import type { StorageKey, SyncTitle } from '$lib/data/storage/storage-types';
+import type { SyncEndpointType, SyncTitle } from '$lib/data/storage/storage-types';
 import type { SyncEndpoint } from '$lib/data/storage/handler/handler-roles';
 import { exporterVersion } from '$lib/functions/replication/exporter-version';
 import { throwIfAborted } from '$lib/functions/replication/replication-error';
@@ -120,7 +120,7 @@ export abstract class BaseStorageHandler implements SyncEndpoint {
 
   static readingGoalsFilePrefix = 'miwake-user-goals_';
 
-  storageType: StorageKey;
+  storageType: SyncEndpointType;
 
   protected window: Window;
 
@@ -154,7 +154,7 @@ export abstract class BaseStorageHandler implements SyncEndpoint {
 
   protected validRootFiles = [BaseStorageHandler.readingGoalsFilePrefix];
 
-  constructor(window: Window, storageType: StorageKey) {
+  constructor(window: Window, storageType: SyncEndpointType) {
     this.window = window;
     this.storageType = storageType;
   }

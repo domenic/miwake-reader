@@ -2,7 +2,7 @@ import type { FsHandle, RemoteContext } from '$lib/data/storage/storage-source-m
 
 import type { DBSchema } from 'idb';
 import type { ReadingGoal } from '$lib/data/reading-goal';
-import type { StorageKey } from '$lib/data/storage/storage-types';
+import type { SyncEndpointType } from '$lib/data/storage/storage-types';
 
 interface BooksDbV5BookData {
   id: number;
@@ -30,7 +30,7 @@ interface BooksDbV5BookmarkData {
 
 interface BooksDbV5StorageSource {
   name: string;
-  type: StorageKey;
+  type: SyncEndpointType;
   data: FsHandle | ArrayBuffer | RemoteContext;
   storedInManager: boolean;
   encryptionDisabled: boolean;

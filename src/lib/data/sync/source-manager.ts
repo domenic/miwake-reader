@@ -3,7 +3,7 @@ import type { BooksDbStorageSource } from '$lib/data/database/books-db/versions/
 import { getSyncEndpoint } from '$lib/data/storage/storage-handler-factory';
 import type { FsHandle, RemoteContext } from '$lib/data/storage/storage-source-manager';
 import { clearOAuthTokenCache, StorageOAuthManager } from '$lib/data/storage/storage-oauth-manager';
-import { StorageKey } from '$lib/data/storage/storage-types';
+import { SyncEndpointType } from '$lib/data/storage/storage-types';
 import { database } from '$lib/data/store';
 import {
   cloudConnection$,
@@ -42,7 +42,7 @@ export async function connectFs(): Promise<void> {
   const data: FsHandle = { directoryHandle, fsPath };
   const record: BooksDbStorageSource = {
     name: FS_SOURCE_NAME,
-    type: StorageKey.FS,
+    type: SyncEndpointType.FS,
     data,
     lastSourceModified: Date.now()
   };
@@ -52,7 +52,7 @@ export async function connectFs(): Promise<void> {
 
   // Seed IndexedDB with placeholders for whatever's already in the
   // folder so /manage shows them under cloud icons; mirrors connectCloud.
-  const handler = getSyncEndpoint(window, StorageKey.FS, FS_SOURCE_NAME);
+  const handler = getSyncEndpoint(window, SyncEndpointType.FS, FS_SOURCE_NAME);
   const books = await handler.listSyncTitles();
   const created = await ensurePlaceholders(books);
   if (created > 0) {
@@ -140,7 +140,7 @@ export async function connectCloud(provider: CloudProviderType): Promise<void> {
           refreshToken: ''
         }
       : {
-          clientId: provider === StorageKey.GDRIVE ? gDriveClientId : oneDriveClientId,
+          clientId: provider === SyncEndpointType.GDRIVE ? gDriveClientId : oneDriveClientId,
           clientSecret: '',
           refreshToken: ''
         };
@@ -156,9 +156,9 @@ export async function connectCloud(provider: CloudProviderType): Promise<void> {
     await database.saveStorageSource(record, existing ? name : '');
 
     const handler =
-      provider === StorageKey.GDRIVE
-        ? getSyncEndpoint(window, StorageKey.GDRIVE, name)
-        : getSyncEndpoint(window, StorageKey.ONEDRIVE, name);
+      provider === SyncEndpointType.GDRIVE
+        ? getSyncEndpoint(window, SyncEndpointType.GDRIVE, name)
+        : getSyncEndpoint(window, SyncEndpointType.ONEDRIVE, name);
 
     try {
       await handler.authenticate(authWindow);
@@ -262,9 +262,9 @@ async function pruneAfterDisconnect(): Promise<void> {
     try {
       const name = cloudSourceName(cloud.provider, cloud.usesCustomCredentials);
       const handler =
-        cloud.provider === StorageKey.GDRIVE
-          ? getSyncEndpoint(window, StorageKey.GDRIVE, name)
-          : getSyncEndpoint(window, StorageKey.ONEDRIVE, name);
+        cloud.provider === SyncEndpointType.GDRIVE
+          ? getSyncEndpoint(window, SyncEndpointType.GDRIVE, name)
+          : getSyncEndpoint(window, SyncEndpointType.ONEDRIVE, name);
       await handler.authenticate(null, true);
       for (const book of await handler.listSyncTitles()) {
         reachableTitles.add(book.title);
@@ -277,7 +277,7 @@ async function pruneAfterDisconnect(): Promise<void> {
   const fs = read<{ path: string } | null>(fsConnection$);
   if (fs) {
     try {
-      const handler = getSyncEndpoint(window, StorageKey.FS, FS_SOURCE_NAME);
+      const handler = getSyncEndpoint(window, SyncEndpointType.FS, FS_SOURCE_NAME);
       for (const book of await handler.listSyncTitles()) {
         reachableTitles.add(book.title);
       }
@@ -301,7 +301,7 @@ export async function loadConnectionsFromDb(): Promise<void> {
   const records = await db.getAll('storageSource');
 
   const cloudRecord = records.find(
-    (r) => r.type === StorageKey.GDRIVE || r.type === StorageKey.ONEDRIVE
+    (r) => r.type === SyncEndpointType.GDRIVE || r.type === SyncEndpointType.ONEDRIVE
   );
   const persistedCloud = read<CloudConnectionState | null>(cloudConnection$);
   if (cloudRecord) {
@@ -326,7 +326,7 @@ export async function loadConnectionsFromDb(): Promise<void> {
     // was never configured.
     cloudHealth$.next({
       status: 'reauth-required',
-      summary: `Reconnect ${persistedCloud.provider === StorageKey.GDRIVE ? 'Google Drive' : 'OneDrive'}`,
+      summary: `Reconnect ${persistedCloud.provider === SyncEndpointType.GDRIVE ? 'Google Drive' : 'OneDrive'}`,
       detail:
         'This device is missing the sign-in for the cloud account in your last backup. Reconnect to resume syncing.'
     });
@@ -336,7 +336,7 @@ export async function loadConnectionsFromDb(): Promise<void> {
   // localStorage, which a subsequent "Keep newest" import would then
   // mistake for a user value worth preserving.
 
-  const fsRecord = records.find((r) => r.type === StorageKey.FS && r.name === FS_SOURCE_NAME);
+  const fsRecord = records.find((r) => r.type === SyncEndpointType.FS && r.name === FS_SOURCE_NAME);
   if (fsRecord && fsRecord.data && typeof fsRecord.data === 'object' && 'fsPath' in fsRecord.data) {
     const fsData = fsRecord.data as FsHandle;
     fsConnection$.next({

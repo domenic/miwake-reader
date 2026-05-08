@@ -1,7 +1,7 @@
 <script lang="ts">
   import { appName } from '$lib/data/env';
   import { confirmDialog, messageDialog } from '$lib/data/simple-dialogs';
-  import { StorageKey } from '$lib/data/storage/storage-types';
+  import { SyncEndpointType } from '$lib/data/storage/storage-types';
   import {
     cloudConnection$,
     cloudCustomCredentials$,
@@ -19,15 +19,15 @@
   import SyncSection from '$lib/components/settings/sync/sync-section.svelte';
   import { showCustomOAuthDialog } from '$lib/components/settings/sync/custom-oauth-dialog.svelte';
 
-  const PROVIDERS: CloudProviderType[] = [StorageKey.GDRIVE, StorageKey.ONEDRIVE];
+  const PROVIDERS: CloudProviderType[] = [SyncEndpointType.GDRIVE, SyncEndpointType.ONEDRIVE];
 
   let active = $derived($cloudConnection$);
   let activeProvider = $derived(active?.provider ?? null);
   let inactiveProvider = $derived(
-    activeProvider === StorageKey.GDRIVE
-      ? StorageKey.ONEDRIVE
-      : activeProvider === StorageKey.ONEDRIVE
-        ? StorageKey.GDRIVE
+    activeProvider === SyncEndpointType.GDRIVE
+      ? SyncEndpointType.ONEDRIVE
+      : activeProvider === SyncEndpointType.ONEDRIVE
+        ? SyncEndpointType.GDRIVE
         : null
   );
 
