@@ -20,8 +20,10 @@
      * ("Google Drive", "your sync folder", etc.).
      */
     nextLabel: string | null;
-    /** Number of downloaded books on this device (for the wipe checkbox copy). */
-    libraryBookCount: number;
+    /** Books on this device that have been fully downloaded (have content). */
+    downloadedCount: number;
+    /** Placeholder rows for books at the source that were never downloaded. */
+    placeholderCount: number;
   }): Promise<SyncLeaveResult> {
     let clearLibrary = false;
     return showDialog<SyncLeaveResult>(
@@ -29,7 +31,8 @@
       {
         leaving: params.leaving,
         nextLabel: params.nextLabel,
-        libraryBookCount: params.libraryBookCount,
+        downloadedCount: params.downloadedCount,
+        placeholderCount: params.placeholderCount,
         captureClearLibrary: (v: boolean) => {
           clearLibrary = v;
         }
@@ -51,11 +54,13 @@
   interface Props {
     leaving: SyncLocation;
     nextLabel: string | null;
-    libraryBookCount: number;
+    downloadedCount: number;
+    placeholderCount: number;
     captureClearLibrary: (v: boolean) => void;
   }
 
-  let { leaving, nextLabel, libraryBookCount, captureClearLibrary }: Props = $props();
+  let { leaving, nextLabel, downloadedCount, placeholderCount, captureClearLibrary }: Props =
+    $props();
 
   let clearLibrary = $state(false);
 
@@ -72,15 +77,36 @@
 
   let confirmLabel = $derived(nextLabel === null ? 'Disconnect' : `Switch to ${nextLabel}`);
 
-  let bodyText = $derived(() => {
-    const tail =
-      leaving.kind === 'fs'
-        ? 'Files in the folder are not touched.'
-        : 'Data in the cloud account is not touched.';
+  let bodyText = $derived(
+    nextLabel === null
+      ? `This device will stop syncing with ${leavingLabel}.`
+      : `This device will sign out of ${leavingLabel} before connecting to ${nextLabel}.`
+  );
+  let sourceUntouched = $derived(
+    leaving.kind === 'fs'
+      ? 'Files in the folder are not touched.'
+      : 'Data in the cloud account is not touched.'
+  );
+
+  function plural(n: number, word: string): string {
+    return `${n} ${word}${n === 1 ? '' : 's'}`;
+  }
+
+  let downloadedFate = $derived(() => {
+    if (downloadedCount === 0) return null;
     if (nextLabel === null) {
-      return `This device will stop syncing with ${leavingLabel}. ${tail} Books in your library on this device stay where they are unless you wipe them below.`;
+      return `${plural(downloadedCount, 'downloaded book')} in your library on this device — stay where they are unless you wipe them below.`;
     }
-    return `This device will sign out of ${leavingLabel} before connecting to ${nextLabel}. ${tail} Books in your library on this device will then sync up to ${nextLabel} unless you wipe them below.`;
+    return `${plural(downloadedCount, 'downloaded book')} in your library on this device — sync up to ${nextLabel} unless you wipe them below.`;
+  });
+
+  let placeholderFate = $derived(() => {
+    if (placeholderCount === 0) return null;
+    return `${plural(placeholderCount, 'book')} in your library on this device that ${
+      placeholderCount === 1 ? 'lives' : 'live'
+    } only at ${leavingLabel} — drops from your library here. Reconnect ${leavingLabel} later to get ${
+      placeholderCount === 1 ? 'it' : 'them'
+    } back.`;
   });
 
   $effect(() => {
@@ -91,24 +117,41 @@
 <div class="w-120 max-w-full">
   <header class="border-b border-black/10 pb-4">
     <h2 class="text-xl font-medium">{title}</h2>
-    <p class="mt-2 text-sm text-gray-700">{bodyText()}</p>
+    <p class="mt-2 text-sm text-gray-700">{bodyText} {sourceUntouched}</p>
   </header>
 
   <div class="py-4">
-    {#if libraryBookCount > 0}
-      <label class="flex items-start gap-3 rounded p-2 text-sm hover:bg-gray-400/15">
-        <input type="checkbox" class="mt-1" bind:checked={clearLibrary} />
-        <div>
-          <div class="font-medium">
-            Also wipe my library on this device ({libraryBookCount}
-            {libraryBookCount === 1 ? 'book' : 'books'})
+    {#if downloadedCount > 0 || placeholderCount > 0}
+      <div class="px-2 text-sm text-gray-700">What happens to your library on this device:</div>
+      <ul class="mt-2 ml-2 space-y-2 text-sm text-gray-700">
+        {#if downloadedFate()}
+          <li class="flex gap-2">
+            <span aria-hidden="true">•</span>
+            <span>{downloadedFate()}</span>
+          </li>
+        {/if}
+        {#if placeholderFate()}
+          <li class="flex gap-2">
+            <span aria-hidden="true">•</span>
+            <span>{placeholderFate()}</span>
+          </li>
+        {/if}
+      </ul>
+
+      {#if downloadedCount > 0}
+        <label class="mt-4 flex items-start gap-3 rounded p-2 text-sm hover:bg-gray-400/15">
+          <input type="checkbox" class="mt-1" bind:checked={clearLibrary} />
+          <div>
+            <div class="font-medium">
+              Also wipe my library on this device ({plural(downloadedCount, 'book')})
+            </div>
+            <div class="text-xs text-gray-600">
+              Deletes the downloaded books, bookmarks, and reading statistics from this device. Use
+              this for a clean slate{nextLabel === null ? '.' : ` at ${nextLabel}.`}
+            </div>
           </div>
-          <div class="text-xs text-gray-600">
-            Deletes the downloaded books, bookmarks, and reading statistics from this device. Use
-            this for a clean slate{nextLabel === null ? '.' : ` at ${nextLabel}.`}
-          </div>
-        </div>
-      </label>
+        </label>
+      {/if}
     {:else}
       <p class="px-2 text-sm text-gray-600">
         Your library is empty on this device — nothing to wipe.

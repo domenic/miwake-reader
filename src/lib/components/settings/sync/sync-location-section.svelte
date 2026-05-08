@@ -44,12 +44,21 @@
     return target === 'gdrive' ? SyncEndpointType.GDRIVE : SyncEndpointType.ONEDRIVE;
   }
 
-  /** Count downloaded books in the library (excludes placeholders) so
-   *  the leave-dialog's "wipe library" checkbox can quote a real number. */
-  async function countLibraryBooks(): Promise<number> {
+  /** Counts of what's in the library, split by status. Both numbers
+   *  feed the leave-dialog so the user sees what happens on disconnect:
+   *  downloaded books stay (or get wiped on opt-in); placeholders get
+   *  pruned regardless because there's no longer a source to fetch
+   *  them from. */
+  async function countLibraryBooks(): Promise<{ downloaded: number; placeholders: number }> {
     const db = await database.db;
     const all = await db.getAll('data');
-    return all.filter((b) => !!b.elementHtml).length;
+    let downloaded = 0;
+    let placeholders = 0;
+    for (const book of all) {
+      if (book.elementHtml) downloaded += 1;
+      else placeholders += 1;
+    }
+    return { downloaded, placeholders };
   }
 
   function targetLabelFor(target: 'gdrive' | 'onedrive' | 'fs'): string {
@@ -69,10 +78,12 @@
 
     let clearLibrary = false;
     if (active) {
+      const counts = await countLibraryBooks();
       const result = await showSyncLeaveDialog({
         leaving: active,
         nextLabel: targetLabel,
-        libraryBookCount: await countLibraryBooks()
+        downloadedCount: counts.downloaded,
+        placeholderCount: counts.placeholders
       });
       if (result.kind === 'cancel') return;
       clearLibrary = result.clearLibrary;
@@ -100,10 +111,12 @@
 
   async function onDisconnect() {
     if (!active) return;
+    const counts = await countLibraryBooks();
     const result = await showSyncLeaveDialog({
       leaving: active,
       nextLabel: null,
-      libraryBookCount: await countLibraryBooks()
+      downloadedCount: counts.downloaded,
+      placeholderCount: counts.placeholders
     });
     if (result.kind === 'cancel') return;
     busy = true;
