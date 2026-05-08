@@ -11,16 +11,15 @@
     statisticsMergeMode$
   } from '$lib/data/store';
   import { ImportHTMLFixMode } from '$lib/data/import-html-fix-mode';
-  import { cloudConnection$, fsConnection$ } from '$lib/data/sync/sync-store';
+  import { syncLocation$ } from '$lib/data/sync/sync-store';
   import { storage } from '$lib/data/window/navigator/storage';
   import Fa from 'svelte-fa';
   import { faChevronRight } from '@fortawesome/free-solid-svg-icons';
   import SyncRadioGroup from '$lib/components/settings/sync/sync-radio-group.svelte';
-  import { describeSyncLocations } from '$lib/components/settings/sync/sync-utils';
+  import { describeSyncLocation } from '$lib/components/settings/sync/sync-utils';
 
-  let locations = $derived(describeSyncLocations($cloudConnection$, $fsConnection$));
-  let hasLocation = $derived(locations.length > 0);
-  let locationsOrFallback = $derived(hasLocation ? locations : 'your sync locations');
+  let hasLocation = $derived($syncLocation$ !== null);
+  let locationLabel = $derived(describeSyncLocation($syncLocation$) || 'your sync location');
 
   let storagePersisted = $state<boolean | null>(null);
   let storageQuota = $state<string | null>(null);
@@ -61,18 +60,18 @@
     {
       id: AutoReplicationType.All,
       label: 'Both',
-      description: `Changes on this device are pushed to ${locationsOrFallback}, and changes there are pulled down.`,
+      description: `Changes on this device are pushed to ${locationLabel}, and changes there are pulled down.`,
       isDefault: true
     },
     {
       id: AutoReplicationType.Up,
       label: 'Up only',
-      description: `Push changes from this device to ${locationsOrFallback}, but don't pull changes from there. Useful if this device is the canonical source.`
+      description: `Push changes from this device to ${locationLabel}, but don't pull changes from there. Useful if this device is the canonical source.`
     },
     {
       id: AutoReplicationType.Down,
       label: 'Down only',
-      description: `Pull changes from ${locationsOrFallback}, but don't push. Useful for read-only devices.`
+      description: `Pull changes from ${locationLabel}, but don't push. Useful for read-only devices.`
     },
     {
       id: AutoReplicationType.Off,
@@ -120,7 +119,7 @@
   <p class="mt-2 mb-4 text-sm text-gray-600">
     Fine-tune how syncing works. Defaults are safe for most users.
     {#if !hasLocation}
-      These settings apply once you connect a sync location above.
+      These settings take effect once you connect a sync location above.
     {/if}
   </p>
 
@@ -149,13 +148,13 @@
   />
 
   <div class="mt-5">
-    <div class="mb-1 text-base font-medium">Cache remote file lists</div>
+    <div class="mb-1 text-base font-medium">Cache remote file list</div>
     <label class="flex items-start gap-3 rounded p-2 hover:bg-gray-400/15">
       <input type="checkbox" class="mt-1" bind:checked={$cacheStorageData$} />
       <div>
-        <div class="font-medium">Cache remote file lists in memory</div>
+        <div class="font-medium">Cache the remote file list in memory</div>
         <div class="text-sm text-gray-600">
-          When on, the app remembers the list of files at your sync locations for the rest of the
+          When on, the app remembers the list of files at your sync location for the rest of the
           session. This saves network traffic, but edits made from other devices won't appear until
           you reload the page or open a new tab. Off by default because the trade-off favors
           freshness for most users.

@@ -4,31 +4,32 @@ import { SyncEndpointType } from '$lib/data/storage/storage-types';
 
 export type CloudProviderType = SyncEndpointType.GDRIVE | SyncEndpointType.ONEDRIVE;
 
-export interface CloudConnectionState {
-  provider: CloudProviderType;
-  usesCustomCredentials: boolean;
-  connectedAt: number;
-  /**
-   * Timestamp of the most recent successful sync touching this source,
-   * or `null` if nothing has synced since the connection was made.
-   * Phase 4's ambient sync engine is responsible for updating this;
-   * pre-Phase-4 it stays `null` after connect.
-   */
-  lastSyncedAt: number | null;
-  /**
-   * Number of books at the remote source as of the last fetch (connect,
-   * app boot, or explicit refresh). `null` until first fetched.
-   * Expected to become derived from /manage's unified library view in
-   * Phase 5, at which point this field goes away.
-   */
-  bookCount: number | null;
-}
-
-export interface FsConnectionState {
-  path: string;
-  connectedAt: number;
-  lastSyncedAt: number | null;
-}
+/**
+ * The single sync location the user has configured, or null if none.
+ * Discriminated by `kind`; cloud variants carry provider/custom-creds
+ * info, the filesystem variant carries the local folder's display
+ * path.
+ *
+ * Runtime-only: rebuilt from IndexedDB on every app boot via
+ * loadConnectionsFromDb. localStorage keeps a preference snapshot
+ * (lastConfiguredCloud$) so a fresh device restored from app-settings
+ * backup can nudge the user to reconnect.
+ */
+export type SyncLocation =
+  | {
+      kind: 'cloud';
+      provider: CloudProviderType;
+      usesCustomCredentials: boolean;
+      connectedAt: number;
+      lastSyncedAt: number | null;
+      bookCount: number | null;
+    }
+  | {
+      kind: 'fs';
+      path: string;
+      connectedAt: number;
+      lastSyncedAt: number | null;
+    };
 
 export interface CustomOAuthCredentials {
   clientId: string;
@@ -47,25 +48,28 @@ export type SyncLocationHealth =
       technicalDetail?: string;
     };
 
-// cloudConnection$ is a 'preference' so app-settings backups carry a
-// hint of which provider you'd had configured. The actual refresh
-// token + IDB storageSource record do NOT travel — those are real
-// secrets and live in IndexedDB. On a restored device,
-// loadConnectionsFromDb sees the stale cloudConnection but no
-// matching IDB record and flips cloudHealth to "reauth-required" so
-// the UI nudges the user to reconnect rather than silently sitting
-// at "Sync not configured."
-export const cloudConnection$ = writableObjectLocalStorageSubject<CloudConnectionState | null>()(
-  'sync.cloudConnection',
-  null
-);
-
-// FS handles aren't device-portable — a FileSystemDirectoryHandle
-// only makes sense on the machine that granted it. Stay runtime.
-export const fsConnection$ = writableObjectLocalStorageSubject<FsConnectionState | null>()(
-  'sync.fsConnection',
+export const syncLocation$ = writableObjectLocalStorageSubject<SyncLocation | null>()(
+  'sync.location',
   null,
   'runtime'
+);
+
+/**
+ * Cross-device hint surviving in app-settings backups. Captures
+ * "the user had Google Drive configured on their other device" so a
+ * fresh-device restore can flip syncHealth to reauth-required and
+ * nudge them to reconnect, rather than silently looking unconfigured.
+ * FS isn't here — the directory handle is local, so a remembered
+ * folder name from another machine wouldn't be actionable.
+ */
+export interface LastCloudHint {
+  provider: CloudProviderType;
+  usesCustomCredentials: boolean;
+}
+
+export const lastCloudHint$ = writableObjectLocalStorageSubject<LastCloudHint | null>()(
+  'sync.lastCloudHint',
+  null
 );
 
 // Custom OAuth credentials are real user config — kept across
@@ -77,14 +81,8 @@ export const cloudCustomCredentials$ = writableObjectLocalStorageSubject<
 
 // Health is purely runtime — set by the engine in response to the
 // most recent sync attempt.
-export const cloudHealth$ = writableObjectLocalStorageSubject<SyncLocationHealth>()(
-  'sync.cloudHealth',
-  { status: 'ok' },
-  'runtime'
-);
-
-export const fsHealth$ = writableObjectLocalStorageSubject<SyncLocationHealth>()(
-  'sync.fsHealth',
+export const syncHealth$ = writableObjectLocalStorageSubject<SyncLocationHealth>()(
+  'sync.health',
   { status: 'ok' },
   'runtime'
 );

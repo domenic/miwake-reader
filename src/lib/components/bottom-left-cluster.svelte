@@ -27,22 +27,13 @@
   import { pagePath } from '$lib/data/env';
   import { isOnline$, statisticsEnabled$ } from '$lib/data/store';
   import { deriveIndicatorState } from '$lib/data/sync/sync-state';
-  import {
-    cloudConnection$,
-    cloudHealth$,
-    fsConnection$,
-    fsHealth$,
-    isSyncing$,
-    now$
-  } from '$lib/data/sync/sync-store';
+  import { isSyncing$, now$, syncHealth$, syncLocation$ } from '$lib/data/sync/sync-store';
   import { formatRelativeTime } from '$lib/components/settings/sync/sync-utils';
 
   let indicator = $derived(
     deriveIndicatorState({
-      cloud: $cloudConnection$,
-      fs: $fsConnection$,
-      cloudH: $cloudHealth$,
-      fsH: $fsHealth$,
+      location: $syncLocation$,
+      health: $syncHealth$,
       online: $isOnline$,
       syncing: $isSyncing$
     })

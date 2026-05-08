@@ -6,14 +6,13 @@ import { clearOAuthTokenCache, StorageOAuthManager } from '$lib/data/storage/sto
 import { SyncEndpointType } from '$lib/data/storage/storage-types';
 import { database } from '$lib/data/store';
 import {
-  cloudConnection$,
   cloudCustomCredentials$,
-  cloudHealth$,
-  fsConnection$,
-  fsHealth$,
-  type CloudConnectionState,
+  lastCloudHint$,
+  syncHealth$,
+  syncLocation$,
   type CloudProviderType,
-  type CustomOAuthCredentials
+  type CustomOAuthCredentials,
+  type SyncLocation
 } from '$lib/data/sync/sync-store';
 import {
   ensurePlaceholders,
@@ -28,9 +27,33 @@ import {
 } from '$lib/data/sync/sync-helpers';
 
 /**
- * Connect (or reconnect) the filesystem slot by showing the native
- * directory picker, creating the app subdirectory inside it, and
- * persisting the handle. Caller handles AbortError (picker cancel).
+ * Replace whatever sync location is currently set with a new one.
+ * If a different location is already configured, disconnect it first
+ * — at most one is connected at a time.
+ *
+ * Caller is responsible for confirming the destructive switch with
+ * the user; this function just executes.
+ */
+export async function switchToCloud(provider: CloudProviderType): Promise<void> {
+  const current = read<SyncLocation | null>(syncLocation$);
+  if (current && (current.kind !== 'cloud' || current.provider !== provider)) {
+    await disconnect();
+  }
+  await connectCloud(provider);
+}
+
+export async function switchToFs(): Promise<void> {
+  const current = read<SyncLocation | null>(syncLocation$);
+  if (current && current.kind !== 'fs') {
+    await disconnect();
+  }
+  await connectFs();
+}
+
+/**
+ * Connect a local folder by showing the native directory picker,
+ * persisting the handle, and seeding placeholders for whatever's
+ * already inside. Caller handles AbortError (picker cancel).
  */
 export async function connectFs(): Promise<void> {
   const directoryHandle = await window.showDirectoryPicker({
@@ -50,8 +73,6 @@ export async function connectFs(): Promise<void> {
   const existing = await (await database.db).get('storageSource', FS_SOURCE_NAME);
   await database.saveStorageSource(record, existing ? FS_SOURCE_NAME : '');
 
-  // Seed IndexedDB with placeholders for whatever's already in the
-  // folder so /manage shows them under cloud icons; mirrors connectCloud.
   const handler = getSyncEndpoint(window, SyncEndpointType.FS, FS_SOURCE_NAME);
   const books = await handler.listSyncTitles();
   const created = await ensurePlaceholders(books);
@@ -60,38 +81,20 @@ export async function connectFs(): Promise<void> {
   }
 
   const now = Date.now();
-  fsConnection$.next({
+  syncLocation$.next({
+    kind: 'fs',
     path: fsPath,
     connectedAt: now,
-    // The getBookList + placeholder seed IS a successful sync — record
-    // it so the UI doesn't sit at "Not yet synced" until the first
-    // ambient push.
+    // The booklist + placeholder seed counts as a successful sync.
     lastSyncedAt: now
   });
-  fsHealth$.next({ status: 'ok' });
+  syncHealth$.next({ status: 'ok' });
 
   // Mirror existing local content into the new folder. Ambient sync
   // only fires on local edits; without this, a fresh connect with an
   // empty folder would stay empty until the user happened to bookmark
   // something.
   await pushAllLocalBooks();
-}
-
-export async function disconnectFs(): Promise<void> {
-  const db = await database.db;
-  const existing = await db.get('storageSource', FS_SOURCE_NAME);
-  if (existing) {
-    await database.deleteStorageSource(existing);
-    // Clear the connection subject BEFORE pruning so pruneAfterDisconnect
-    // doesn't see this source as still connected and re-add its books to
-    // the reachable set.
-    fsConnection$.next(null);
-    fsHealth$.next({ status: 'ok' });
-    await pruneAfterDisconnect();
-    return;
-  }
-  fsConnection$.next(null);
-  fsHealth$.next({ status: 'ok' });
 }
 
 /**
@@ -102,18 +105,12 @@ export async function disconnectFs(): Promise<void> {
  * book count. Rolls back on OAuth failure.
  *
  * Opening the popup up-front — rather than letting StorageOAuthManager
- * do it inside the deeply-async `getBookList()` call — sidesteps the
+ * do it inside the deeply-async listSyncTitles call — sidesteps the
  * browser's popup blocker and the existing "popup blocked → messageDialog
  * → retry" fallback path, which has been observed producing PKCE
  * mismatches.
  */
 export async function connectCloud(provider: CloudProviderType): Promise<void> {
-  // Open the popup synchronously under the caller's user-activation so
-  // the browser allows it. We navigate it to OAuth once the async DB
-  // work is done — later navigations via location.assign inside
-  // StorageOAuthManager don't need user activation. This sidesteps the
-  // existing "popup blocked → messageDialog → retry" fallback path,
-  // which has been observed producing PKCE mismatches.
   const authWindow = StorageOAuthManager.createWindow(
     `${pagePath}/auth?miwake-init-wait=1`,
     'auth',
@@ -174,177 +171,134 @@ export async function connectCloud(provider: CloudProviderType): Promise<void> {
 
     // Token is cached now; this call won't re-open the popup.
     const books = await handler.listSyncTitles();
-
-    // Seed IndexedDB with placeholders so /manage immediately shows
-    // the user's remote library under cloud icons.
     const created = await ensurePlaceholders(books);
     if (created > 0) {
       database.notifyDataListChanged();
     }
 
     const now = Date.now();
-    cloudConnection$.next({
+    syncLocation$.next({
+      kind: 'cloud',
       provider,
       usesCustomCredentials: useCustom,
       connectedAt: now,
-      // The getBookList call above + placeholder seed IS a successful
-      // sync — record it so the UI doesn't sit at "Not yet synced"
-      // until the first ambient push.
       lastSyncedAt: now,
       bookCount: books.length
     });
-    cloudHealth$.next({ status: 'ok' });
+    syncHealth$.next({ status: 'ok' });
+    lastCloudHint$.next({ provider, usesCustomCredentials: useCustom });
 
-    // Mirror existing local content up to the cloud. Ambient sync
-    // only fires on local edits; without this, a fresh connect into
-    // an account with no overlap would stay empty until the user
-    // happened to bookmark something.
     await pushAllLocalBooks();
   } finally {
-    // Close the popup unconditionally. The auth-route page closes
-    // itself after sendMessage(), but if getToken short-circuits on
-    // an in-memory cached token (e.g., reconnect within the same
-    // session), the popup never navigates and is left idling at
-    // ?miwake-init-wait=1.
     if (!authWindow.closed) {
       authWindow.close();
     }
   }
 }
 
-export async function disconnectCloud(): Promise<void> {
-  const current = read<CloudConnectionState | null>(cloudConnection$);
-  if (current) {
+/**
+ * Tear down whatever sync location is currently configured. Idempotent
+ * if nothing is connected. Drops in-memory OAuth tokens (for cloud) so
+ * a same-tab reconnect re-runs the popup, deletes the IDB storageSource
+ * record, prunes placeholders that are no longer reachable, and clears
+ * the connection + health subjects.
+ */
+export async function disconnect(): Promise<void> {
+  const current = read<SyncLocation | null>(syncLocation$);
+  if (!current) {
+    syncLocation$.next(null);
+    syncHealth$.next({ status: 'ok' });
+    return;
+  }
+
+  const db = await database.db;
+
+  if (current.kind === 'cloud') {
     const name = cloudSourceName(current.provider, current.usesCustomCredentials);
     // Drop the in-memory access token so a same-tab reconnect actually
     // re-runs the OAuth popup; otherwise the manager would reuse the
-    // still-valid cached token and never persist a new refresh_token
-    // to the freshly-written storageSource record.
+    // still-valid cached token and never persist a new refresh_token.
     clearOAuthTokenCache(name);
-    const db = await database.db;
     const existing = await db.get('storageSource', name);
     if (existing) {
       await database.deleteStorageSource(existing);
-      // Clear the connection subject BEFORE pruning so pruneAfterDisconnect
-      // doesn't see this source as still connected and re-add its books to
-      // the reachable set.
-      cloudConnection$.next(null);
-      cloudHealth$.next({ status: 'ok' });
-      await pruneAfterDisconnect();
-      return;
     }
-  }
-  cloudConnection$.next(null);
-  cloudHealth$.next({ status: 'ok' });
-}
-
-/**
- * After dropping a source record, fetch the booklist from every
- * source still connected and prune any placeholder whose title isn't
- * present on at least one of them. Drives an atomic-feeling disconnect
- * UX: the library reflects the new reality the moment the disconnect
- * promise resolves, with no flicker through an inconsistent
- * intermediate state.
- *
- * If no source remains, all placeholders are pruned (their content is
- * unreachable). If a remaining source's booklist call fails, that
- * source contributes no titles to the reachable set — the conservative
- * choice would be to keep all placeholders, but that leaves dead rows;
- * the aggressive choice (treat as unreachable) is what we do. Users
- * will see "Sync failed" on the remaining source and can reconnect or
- * resync to recover.
- */
-async function pruneAfterDisconnect(): Promise<void> {
-  const reachableTitles = new Set<string>();
-
-  const cloud = read<CloudConnectionState | null>(cloudConnection$);
-  if (cloud) {
-    try {
-      const name = cloudSourceName(cloud.provider, cloud.usesCustomCredentials);
-      const handler =
-        cloud.provider === SyncEndpointType.GDRIVE
-          ? getSyncEndpoint(window, SyncEndpointType.GDRIVE, name)
-          : getSyncEndpoint(window, SyncEndpointType.ONEDRIVE, name);
-      await handler.authenticate(null, true);
-      for (const book of await handler.listSyncTitles()) {
-        reachableTitles.add(book.title);
-      }
-    } catch {
-      // Source unreachable — treat as contributing no titles.
+  } else {
+    const existing = await db.get('storageSource', FS_SOURCE_NAME);
+    if (existing) {
+      await database.deleteStorageSource(existing);
     }
   }
 
-  const fs = read<{ path: string } | null>(fsConnection$);
-  if (fs) {
-    try {
-      const handler = getSyncEndpoint(window, SyncEndpointType.FS, FS_SOURCE_NAME);
-      for (const book of await handler.listSyncTitles()) {
-        reachableTitles.add(book.title);
-      }
-    } catch {
-      // Source unreachable — treat as contributing no titles.
-    }
-  }
+  syncLocation$.next(null);
+  syncHealth$.next({ status: 'ok' });
 
-  const pruned = await pruneUnreachablePlaceholders(reachableTitles);
+  // No remaining source after disconnect (single-location model), so
+  // every placeholder is unreachable. The empty reachable set drops
+  // them all in one pass.
+  const pruned = await pruneUnreachablePlaceholders(new Set<string>());
   if (pruned > 0) {
     database.notifyDataListChanged();
   }
 }
 
 /**
- * On app boot, reconcile the new sync stores with what's actually
- * persisted in IndexedDB. Call once from the root layout on mount.
+ * On app boot, reconcile the syncLocation$ runtime subject with
+ * what's actually persisted in IndexedDB. Call once from the root
+ * layout on mount.
  */
 export async function loadConnectionsFromDb(): Promise<void> {
   const db = await database.db;
   const records = await db.getAll('storageSource');
 
+  // Cloud takes precedence: if both somehow exist (carried over from
+  // pre-pivot installs), the cloud record wins and the FS record is
+  // dropped. Disconnect/reconnect cycles maintain the at-most-one
+  // invariant going forward.
   const cloudRecord = records.find(
     (r) => r.type === SyncEndpointType.GDRIVE || r.type === SyncEndpointType.ONEDRIVE
   );
-  const persistedCloud = read<CloudConnectionState | null>(cloudConnection$);
+  const fsRecord = records.find((r) => r.type === SyncEndpointType.FS && r.name === FS_SOURCE_NAME);
+
   if (cloudRecord) {
-    cloudConnection$.next({
+    syncLocation$.next({
+      kind: 'cloud',
       provider: cloudRecord.type as CloudProviderType,
       usesCustomCredentials: isCustomCloudName(cloudRecord.name),
       connectedAt: cloudRecord.lastSourceModified,
-      lastSyncedAt: persistedCloud?.lastSyncedAt ?? null,
-      bookCount: persistedCloud?.bookCount ?? null
+      lastSyncedAt: null,
+      bookCount: null
     });
-    // Intentionally NO book-count refresh here: getBookList triggers the
-    // OAuth manager, and if the cached refresh token is missing/invalid
-    // the fallback popup path fires with no user gesture, which both
-    // gets blocked and surfaces a "login to your cloud provider" dialog
-    // on every page load. The count stays null until Phase 5's unified
-    // /manage view sources it from the local library.
-  } else if (persistedCloud) {
-    // localStorage carries a hint from a previous device's backup but
-    // there's no matching IndexedDB storageSource record (refresh
-    // token), so we can't actually sync. Keep the connection visible
-    // so the UI can prompt for reconnect instead of pretending sync
-    // was never configured.
-    cloudHealth$.next({
-      status: 'reauth-required',
-      summary: `Reconnect ${persistedCloud.provider === SyncEndpointType.GDRIVE ? 'Google Drive' : 'OneDrive'}`,
-      detail:
-        'This device is missing the sign-in for the cloud account in your last backup. Reconnect to resume syncing.'
-    });
-  }
-  // else: both empty — leave cloudConnection$ at its init-time null.
-  // Calling .next(null) here would write the string "null" to
-  // localStorage, which a subsequent "Keep newest" import would then
-  // mistake for a user value worth preserving.
-
-  const fsRecord = records.find((r) => r.type === SyncEndpointType.FS && r.name === FS_SOURCE_NAME);
-  if (fsRecord && fsRecord.data && typeof fsRecord.data === 'object' && 'fsPath' in fsRecord.data) {
+    if (fsRecord) {
+      // Stale FS record from a pre-pivot install — drop it.
+      await db.delete('storageSource', FS_SOURCE_NAME);
+    }
+  } else if (
+    fsRecord &&
+    fsRecord.data &&
+    typeof fsRecord.data === 'object' &&
+    'fsPath' in fsRecord.data
+  ) {
     const fsData = fsRecord.data as FsHandle;
-    fsConnection$.next({
+    syncLocation$.next({
+      kind: 'fs',
       path: fsData.fsPath,
       connectedAt: fsRecord.lastSourceModified,
       lastSyncedAt: null
     });
   } else {
-    fsConnection$.next(null);
+    // No IDB record. If we have a cross-device cloud hint from
+    // app-settings backup, surface a reconnect prompt.
+    const hint = read<{ provider: CloudProviderType; usesCustomCredentials: boolean } | null>(
+      lastCloudHint$
+    );
+    if (hint) {
+      syncHealth$.next({
+        status: 'reauth-required',
+        summary: `Reconnect ${hint.provider === SyncEndpointType.GDRIVE ? 'Google Drive' : 'OneDrive'}`,
+        detail:
+          'This device is missing the sign-in for the cloud account in your last backup. Reconnect to resume syncing.'
+      });
+    }
   }
 }

@@ -10,7 +10,7 @@ import {
   ReplicationSaveBehavior
 } from '$lib/functions/replication/replication-options';
 import type { ReplicationContext } from '$lib/functions/replication/replication-progress';
-import { replicateData, type ReplicationDirection } from '$lib/functions/replication/replicator';
+import { replicateData } from '$lib/functions/replication/replicator';
 import {
   autoReplication$,
   cacheStorageData$,
@@ -21,14 +21,10 @@ import {
   statisticsMergeMode$
 } from '$lib/data/store';
 import {
-  cloudConnection$,
-  cloudHealth$,
-  fsConnection$,
-  fsHealth$,
   isSyncing$,
-  type CloudConnectionState,
-  type CloudProviderType,
-  type FsConnectionState
+  syncHealth$,
+  syncLocation$,
+  type SyncLocation
 } from '$lib/data/sync/sync-store';
 import { cloudSourceName, FS_SOURCE_NAME, readSubject as read } from '$lib/data/sync/sync-helpers';
 import { logger } from '$lib/data/logger';
@@ -56,23 +52,20 @@ function commonSettings(saveBehaviorOverride?: ReplicationSaveBehavior) {
   };
 }
 
-function getCloudEndpoint(
-  provider: CloudProviderType,
-  name: string,
+/** Build the SyncEndpoint for whatever location is currently
+ *  configured. Returns null if no location is connected. */
+function endpointFor(
+  location: SyncLocation,
   saveBehaviorOverride?: ReplicationSaveBehavior
-): GDriveStorageHandler | OneDriveStorageHandler {
-  return provider === SyncEndpointType.GDRIVE
-    ? getSyncEndpoint(window, SyncEndpointType.GDRIVE, name, commonSettings(saveBehaviorOverride))
-    : getSyncEndpoint(
-        window,
-        SyncEndpointType.ONEDRIVE,
-        name,
-        commonSettings(saveBehaviorOverride)
-      );
-}
-
-function getFsEndpoint(name: string, saveBehaviorOverride?: ReplicationSaveBehavior): SyncEndpoint {
-  return getSyncEndpoint(window, SyncEndpointType.FS, name, commonSettings(saveBehaviorOverride));
+): SyncEndpoint {
+  const settings = commonSettings(saveBehaviorOverride);
+  if (location.kind === 'cloud') {
+    const name = cloudSourceName(location.provider, location.usesCustomCredentials);
+    return location.provider === SyncEndpointType.GDRIVE
+      ? getSyncEndpoint(window, SyncEndpointType.GDRIVE, name, settings)
+      : getSyncEndpoint(window, SyncEndpointType.ONEDRIVE, name, settings);
+  }
+  return getSyncEndpoint(window, SyncEndpointType.FS, FS_SOURCE_NAME, settings);
 }
 
 function library(saveBehaviorOverride?: ReplicationSaveBehavior): Library {
@@ -81,48 +74,30 @@ function library(saveBehaviorOverride?: ReplicationSaveBehavior): Library {
 
 // ---------------------------------------------------------------------
 // Connection-state updates
-//
-// Connect/disconnect lifecycle lives in source-manager.ts; here we
-// patch in per-sync metadata (`lastSyncedAt`, `bookCount`) after
-// successful engine operations. All writes go through these helpers so
-// we don't accidentally clobber unrelated fields.
 // ---------------------------------------------------------------------
 
-function patchCloudConnection(patch: Partial<CloudConnectionState>): void {
-  const current = read<CloudConnectionState | null>(cloudConnection$);
+function patchLocation(patch: Partial<SyncLocation>): void {
+  const current = read<SyncLocation | null>(syncLocation$);
   if (!current) return;
-  cloudConnection$.next({ ...current, ...patch });
+  syncLocation$.next({ ...current, ...patch } as SyncLocation);
 }
 
-function patchFsConnection(patch: Partial<FsConnectionState>): void {
-  const current = read<FsConnectionState | null>(fsConnection$);
-  if (!current) return;
-  fsConnection$.next({ ...current, ...patch });
-}
-
-function markCloudSynced(extra: Partial<CloudConnectionState> = {}): void {
-  patchCloudConnection({ lastSyncedAt: Date.now(), ...extra });
-  cloudHealth$.next({ status: 'ok' });
-}
-
-function markFsSynced(): void {
-  patchFsConnection({ lastSyncedAt: Date.now() });
-  fsHealth$.next({ status: 'ok' });
+function markSynced(extra: Partial<SyncLocation> = {}): void {
+  patchLocation({ lastSyncedAt: Date.now(), ...extra });
+  syncHealth$.next({ status: 'ok' });
 }
 
 /**
- * Classify a caught error and update the appropriate health store.
- * Returns `true` if the error was a `NeedsInteractiveAuthError` or
- * `NeedsPermissionGrantError` — i.e. a user-recoverable "needs
- * attention" state — so the caller can queue the op for replay
- * instead of treating it as a hard failure.
+ * Classify a caught error and update the health store. Returns true
+ * if the error was user-recoverable (NeedsInteractiveAuthError /
+ * NeedsPermissionGrantError) so the caller can queue the op for
+ * replay rather than treating it as a hard failure.
  */
-function reportSyncError(target: 'cloud' | 'fs', context: string, err: unknown): boolean {
-  const healthSubject = target === 'cloud' ? cloudHealth$ : fsHealth$;
+function reportSyncError(context: string, err: unknown): boolean {
   const message = err instanceof Error ? err.message : String(err);
 
   if (err instanceof NeedsInteractiveAuthError) {
-    healthSubject.next({
+    syncHealth$.next({
       status: 'reauth-required',
       summary: 'Sign-in expired',
       detail: 'Reconnect to resume syncing. Queued changes will be pushed on reconnect.'
@@ -131,7 +106,7 @@ function reportSyncError(target: 'cloud' | 'fs', context: string, err: unknown):
   }
 
   if (err instanceof NeedsPermissionGrantError) {
-    healthSubject.next({
+    syncHealth$.next({
       status: 'permission-required',
       summary: 'Filesystem access needed',
       detail:
@@ -140,12 +115,8 @@ function reportSyncError(target: 'cloud' | 'fs', context: string, err: unknown):
     return true;
   }
 
-  logger.warn(`sync ${context} failed (${target}): ${message}`);
-  healthSubject.next({
-    status: 'error',
-    summary: 'Sync failed',
-    detail: message
-  });
+  logger.warn(`sync ${context} failed: ${message}`);
+  syncHealth$.next({ status: 'error', summary: 'Sync failed', detail: message });
   return false;
 }
 
@@ -154,11 +125,11 @@ function reportSyncError(target: 'cloud' | 'fs', context: string, err: unknown):
 // ---------------------------------------------------------------------
 
 /**
- * Given a list of titles from a remote sync location, write a
- * placeholder row into local IndexedDB for any title that isn't
- * already present, and refresh the cover on existing placeholders
- * (cloud thumbnail URLs are session-scoped, so we re-store the fresh
- * one each reconcile). Returns the count of rows touched.
+ * Given a list of titles from the sync location, write a placeholder
+ * row into local IndexedDB for any title that isn't already present,
+ * and refresh the cover on existing placeholders (cloud thumbnail
+ * URLs are session-scoped, so we re-store the fresh one each
+ * reconcile). Returns the count of rows touched.
  */
 export async function ensurePlaceholders(remoteCards: ReadonlyArray<SyncTitle>): Promise<number> {
   let touched = 0;
@@ -203,9 +174,10 @@ export async function ensurePlaceholders(remoteCards: ReadonlyArray<SyncTitle>):
 }
 
 /**
- * Remove placeholder rows that aren't present in any currently-
- * reachable source's book list. Pass the union of titles seen on every
- * connected source; placeholders not in that set are unreachable.
+ * Remove placeholder rows that aren't present in the reachable-titles
+ * set. Pass an empty set to drop all placeholders (used by disconnect,
+ * since the single-location model has no remaining source to fall
+ * back on).
  */
 export async function pruneUnreachablePlaceholders(reachableTitles: Set<string>): Promise<number> {
   const db = await database.db;
@@ -223,88 +195,47 @@ export async function pruneUnreachablePlaceholders(reachableTitles: Set<string>)
 }
 
 /**
- * Boot-time reconciliation: pull the remote book list from the
- * connected cloud source and reconcile local placeholders. Silent
- * auth; on failure surfaces `reauth-required` health status.
+ * Boot-time reconciliation: pull the title list from the configured
+ * sync location and reconcile local placeholders. Silent auth (cloud)
+ * / silent permission (FS); failures surface via syncHealth$. No-op
+ * if no location is connected.
  */
-export async function reconcileCloudBooks(): Promise<void> {
-  const cloud = read<CloudConnectionState | null>(cloudConnection$);
-  if (!cloud) return;
+export async function reconcileBooksOnBoot(): Promise<void> {
+  const location = read<SyncLocation | null>(syncLocation$);
+  if (!location) return;
 
-  const name = cloudSourceName(cloud.provider, cloud.usesCustomCredentials);
-  const handler = getCloudEndpoint(cloud.provider, name);
+  const handler = endpointFor(location);
 
   beginLongRunning();
   try {
-    await handler.authenticate(null, true);
+    if (location.kind === 'cloud') {
+      // Cast: we built handler from a cloud location, so it's the
+      // OAuth-flavored variant. Other endpoint kinds don't have authenticate().
+      await (handler as GDriveStorageHandler | OneDriveStorageHandler).authenticate(null, true);
+    }
 
     const remoteBooks = await handler.listSyncTitles();
     logger.debug(
-      `reconcileCloudBooks: ${name} returned ${remoteBooks.length} remote book(s): ` +
+      `reconcileBooksOnBoot: ${location.kind} returned ${remoteBooks.length} book(s): ` +
         remoteBooks.map((b) => JSON.stringify(b.title)).join(', ')
     );
 
     const touched = await ensurePlaceholders(remoteBooks);
-    logger.debug(`reconcileCloudBooks: touched=${touched}`);
-
     if (touched > 0) {
       database.notifyDataListChanged();
     }
 
-    markCloudSynced({ bookCount: remoteBooks.length });
+    markSynced(location.kind === 'cloud' ? { bookCount: remoteBooks.length } : {});
     await drainReplayQueue();
   } catch (err) {
-    reportSyncError('cloud', 'reconcileCloudBooks', err);
-  } finally {
-    endLongRunning();
-  }
-}
-
-/**
- * Boot-time reconciliation for the filesystem source. Mirrors the
- * cloud variant: list books, seed placeholder rows for any title
- * that isn't already present, surface health on failure.
- *
- * Unlike cloud, FS may need a re-grant of the directory permission
- * (browsers can revoke it across sessions). The handler is created
- * with `askForStorageUnlock=false` so it doesn't pop a confirm dialog
- * out of nowhere; instead it throws NeedsPermissionGrantError, which
- * reportSyncError translates into the `permission-required` health
- * state. The settings UI's "Grant access" button is the place where
- * a real user gesture re-runs ensureRoot with `askForStorageUnlock=true`.
- */
-export async function reconcileFsBooks(): Promise<void> {
-  const fs = read<FsConnectionState | null>(fsConnection$);
-  if (!fs) return;
-
-  const handler = getFsEndpoint(FS_SOURCE_NAME);
-
-  beginLongRunning();
-  try {
-    const remoteBooks = await handler.listSyncTitles();
-    logger.debug(
-      `reconcileFsBooks: returned ${remoteBooks.length} book(s): ` +
-        remoteBooks.map((b) => JSON.stringify(b.title)).join(', ')
-    );
-
-    const touched = await ensurePlaceholders(remoteBooks);
-    logger.debug(`reconcileFsBooks: touched=${touched}`);
-
-    if (touched > 0) {
-      database.notifyDataListChanged();
-    }
-
-    markFsSynced();
-    await drainReplayQueue();
-  } catch (err) {
-    reportSyncError('fs', 'reconcileFsBooks', err);
+    reportSyncError('reconcileBooksOnBoot', err);
   } finally {
     endLongRunning();
   }
 }
 
 // ---------------------------------------------------------------------
-// Ambient push (local → connected locations)
+// Ambient push (local → connected location)
 //
 // triggerSync() is called by the reader whenever a local edit happens
 // (bookmark save, stat update, etc.). It coalesces multiple calls into
@@ -360,9 +291,8 @@ export function triggerSync(dataType: StorageDataType, context: ReplicationConte
   const direction = read<AutoReplicationType>(autoReplication$);
   if (direction === AutoReplicationType.Off || direction === AutoReplicationType.Down) return;
 
-  const cloud = read<CloudConnectionState | null>(cloudConnection$);
-  const fs = read<FsConnectionState | null>(fsConnection$);
-  if (!cloud && !fs) return;
+  const location = read<SyncLocation | null>(syncLocation$);
+  if (!location) return;
 
   const key = pendingKey(context);
   const existing = pending.get(key);
@@ -379,14 +309,12 @@ export function triggerSync(dataType: StorageDataType, context: ReplicationConte
 /**
  * Schedule ambient pushes for every locally-downloaded book. Called
  * from connect flows so existing library content propagates to the
- * newly-attached source: ambient sync only fires on local edits, so
- * a freshly-connected (and possibly empty) source would otherwise
+ * newly-attached location: ambient sync only fires on local edits, so
+ * a freshly-connected (and possibly empty) location would otherwise
  * stay empty until the user happened to bookmark something.
  *
  * Placeholders (no elementHtml) are skipped — they have nothing to
- * push. The replicator's per-leg up-to-date check elides redundant
- * work against any source that already has the book, so this doesn't
- * waste bandwidth on the previously-connected source.
+ * push.
  */
 export async function pushAllLocalBooks(): Promise<void> {
   const db = await database.db;
@@ -415,7 +343,6 @@ function schedulePushRun(): void {
 
 async function runPendingPushes(): Promise<void> {
   if (pushRunning) {
-    // Another run is in flight; reschedule so we catch what accumulated.
     schedulePushRun();
     return;
   }
@@ -435,7 +362,6 @@ async function runPendingPushes(): Promise<void> {
     }
   } finally {
     pushRunning = false;
-    // If anything accumulated while we were running, schedule again.
     if (pending.size > 0) schedulePushRun();
     emitSyncingState();
   }
@@ -447,41 +373,31 @@ function emitSyncingState(): void {
 }
 
 async function pushOne(context: ReplicationContext, types: StorageDataType[]): Promise<void> {
-  const cloud = read<CloudConnectionState | null>(cloudConnection$);
-  const fs = read<FsConnectionState | null>(fsConnection$);
-  const local = library();
+  const location = read<SyncLocation | null>(syncLocation$);
+  if (!location) return;
 
-  if (cloud) {
-    if (!read<boolean>(isOnline$)) {
-      // Offline — queue for replay and leave cloudHealth$ alone so the
-      // indicator shows the Wi-Fi/offline state rather than a
-      // spurious "Sync failed" error on every edit.
-      logger.debug(`push: offline, queueing cloud push for ${JSON.stringify(context.title)}`);
-      enqueueReplay(() => pushOne(context, types));
-    } else {
-      const name = cloudSourceName(cloud.provider, cloud.usesCustomCredentials);
-      const handler = getCloudEndpoint(cloud.provider, name);
-      try {
-        await handler.authenticate(null, true);
-        const error = await replicateData(local, handler, 'push', false, [context], types);
-        if (error) throw new Error(error);
-        markCloudSynced();
-      } catch (err) {
-        const wasReauth = reportSyncError('cloud', 'push', err);
-        if (wasReauth) enqueueReplay(() => pushOne(context, types));
-      }
-    }
+  if (location.kind === 'cloud' && !read<boolean>(isOnline$)) {
+    // Offline — queue for replay and leave syncHealth$ alone so the
+    // indicator shows the offline state rather than a spurious
+    // "Sync failed" error on every edit.
+    logger.debug(`push: offline, queueing cloud push for ${JSON.stringify(context.title)}`);
+    enqueueReplay(() => pushOne(context, types));
+    return;
   }
 
-  if (fs) {
-    const handler = getFsEndpoint(FS_SOURCE_NAME);
-    try {
-      const error = await replicateData(local, handler, 'push', false, [context], types);
-      if (error) throw new Error(error);
-      markFsSynced();
-    } catch (err) {
-      reportSyncError('fs', 'push', err);
+  const local = library();
+  const handler = endpointFor(location);
+
+  try {
+    if (location.kind === 'cloud') {
+      await (handler as GDriveStorageHandler | OneDriveStorageHandler).authenticate(null, true);
     }
+    const error = await replicateData(local, handler, 'push', false, [context], types);
+    if (error) throw new Error(error);
+    markSynced();
+  } catch (err) {
+    const recoverable = reportSyncError('push', err);
+    if (recoverable) enqueueReplay(() => pushOne(context, types));
   }
 }
 
@@ -503,10 +419,10 @@ async function drainReplayQueue(): Promise<void> {
 // ---------------------------------------------------------------------
 
 /**
- * Called by the reader when a book is opened. Pulls PROGRESS,
- * STATISTICS, and READING_GOALS from each connected location so the
- * reader starts from the freshest state. Silent auth — failures
- * surface via health state; the reader continues with local data.
+ * Called by the reader when a book is opened. Pulls per-book state
+ * (and the book content if local is a placeholder) from the configured
+ * sync location. Silent — failures surface via syncHealth$; the
+ * reader continues with whatever local data it has.
  *
  * Respects the autoReplication direction: only pulls if Down or Both.
  */
@@ -519,18 +435,15 @@ export async function reconcileForBookOpen(context: ReplicationContext): Promise
     return;
   }
 
-  const cloud = read<CloudConnectionState | null>(cloudConnection$);
-  const fs = read<FsConnectionState | null>(fsConnection$);
-  if (!cloud && !fs) {
-    logger.debug(`reconcileForBookOpen: no sync locations for ${JSON.stringify(context.title)}`);
+  const location = read<SyncLocation | null>(syncLocation$);
+  if (!location) {
+    logger.debug(`reconcileForBookOpen: no sync location for ${JSON.stringify(context.title)}`);
     return;
   }
 
   // If the local row is a placeholder (no elementHtml), the book hasn't
   // been downloaded yet — include DATA in the pull so the reader has
-  // something to render. This is the canonical download path: /manage,
-  // a direct /b?id=N URL, and "reopen a book I deleted locally" all
-  // funnel through here.
+  // something to render.
   const localBook = context.id
     ? await database.getData(context.id)
     : await database.getDataByTitle(context.title);
@@ -542,44 +455,24 @@ export async function reconcileForBookOpen(context: ReplicationContext): Promise
     StorageDataType.READING_GOALS
   ];
   const local = library();
+  const handler = endpointFor(location);
   logger.debug(
     `reconcileForBookOpen: start for ${JSON.stringify(context.title)} ` +
-      `(cloud=${!!cloud}, fs=${!!fs}, isPlaceholder=${isPlaceholder}, ` +
-      `types=[${types.join(',')}])`
+      `(location=${location.kind}, isPlaceholder=${isPlaceholder}, types=[${types.join(',')}])`
   );
 
   beginLongRunning();
   try {
-    if (cloud) {
-      const name = cloudSourceName(cloud.provider, cloud.usesCustomCredentials);
-      const handler = getCloudEndpoint(cloud.provider, name);
-      try {
-        logger.debug('reconcileForBookOpen: cloud authenticate (silent)');
-        await handler.authenticate(null, true);
-        logger.debug('reconcileForBookOpen: cloud replicateData (pull)');
-        const error = await replicateData(local, handler, 'pull', false, [context], types);
-        if (error) throw new Error(error);
-        logger.debug('reconcileForBookOpen: cloud replicateData done');
-        markCloudSynced();
-      } catch (err) {
-        reportSyncError('cloud', 'reconcileForBookOpen', err);
-      }
+    if (location.kind === 'cloud') {
+      logger.debug('reconcileForBookOpen: cloud authenticate (silent)');
+      await (handler as GDriveStorageHandler | OneDriveStorageHandler).authenticate(null, true);
     }
-
-    if (fs) {
-      const handler = getFsEndpoint(FS_SOURCE_NAME);
-      try {
-        logger.debug('reconcileForBookOpen: fs replicateData (pull)');
-        const error = await replicateData(local, handler, 'pull', false, [context], types);
-        if (error) throw new Error(error);
-        logger.debug('reconcileForBookOpen: fs replicateData done');
-        markFsSynced();
-      } catch (err) {
-        reportSyncError('fs', 'reconcileForBookOpen', err);
-      }
-    }
+    const error = await replicateData(local, handler, 'pull', false, [context], types);
+    if (error) throw new Error(error);
+    markSynced();
+  } catch (err) {
+    reportSyncError('reconcileForBookOpen', err);
   } finally {
-    logger.debug('reconcileForBookOpen: finally (endLongRunning)');
     endLongRunning();
   }
 }
@@ -592,7 +485,7 @@ export type ForceResyncDirection = 'newest' | 'local-wins' | 'remote-wins';
 
 /**
  * Force a full reconciliation of every book / bookmark / statistic /
- * reading goal between local and each connected sync location.
+ * reading goal between local and the configured sync location.
  * Direction controls conflict resolution:
  *   - `newest`: per-item timestamp wins (same as ambient sync)
  *   - `local-wins`: local version always replaces remote
@@ -601,11 +494,9 @@ export type ForceResyncDirection = 'newest' | 'local-wins' | 'remote-wins';
  * Throws on failure; caller (the force-resync dialog) shows the error.
  */
 export async function forceFullResync(direction: ForceResyncDirection): Promise<void> {
-  const cloud = read<CloudConnectionState | null>(cloudConnection$);
-  const fs = read<FsConnectionState | null>(fsConnection$);
-  if (!cloud && !fs) throw new Error('No sync locations connected.');
+  const location = read<SyncLocation | null>(syncLocation$);
+  if (!location) throw new Error('No sync location connected.');
 
-  const local = library();
   const allBooks = await (await database.db).getAll('data');
   const pullContexts: ReplicationContext[] = allBooks.map((b) => ({
     id: b.id,
@@ -624,16 +515,6 @@ export async function forceFullResync(direction: ForceResyncDirection): Promise<
     StorageDataType.STATISTICS,
     StorageDataType.READING_GOALS
   ];
-
-  async function runPair(
-    libraryArg: Library,
-    endpoint: SyncEndpoint,
-    direction: ReplicationDirection,
-    contexts: ReplicationContext[]
-  ): Promise<void> {
-    const error = await replicateData(libraryArg, endpoint, direction, true, contexts, types);
-    if (error) throw new Error(error);
-  }
 
   // In a winner-takes-all direction, override the *source* handler's
   // saveBehavior to Overwrite so replicator's getFilenameForRecentCheck
@@ -654,55 +535,37 @@ export async function forceFullResync(direction: ForceResyncDirection): Promise<
 
   beginLongRunning();
   try {
-    if (cloud) {
-      const name = cloudSourceName(cloud.provider, cloud.usesCustomCredentials);
+    if (location.kind === 'cloud') {
       try {
-        // Auth once up front; the handler singleton is shared across
-        // direction flips below.
-        await getCloudEndpoint(cloud.provider, name).authenticate(null, true);
+        await (endpointFor(location) as GDriveStorageHandler | OneDriveStorageHandler).authenticate(
+          null,
+          true
+        );
       } catch (err) {
-        reportSyncError('cloud', 'forceFullResync (auth)', err);
+        reportSyncError('forceFullResync (auth)', err);
         throw err;
       }
     }
 
-    const targets: Array<'cloud' | 'fs'> = [];
-    if (cloud) targets.push('cloud');
-    if (fs) targets.push('fs');
-
-    for (const target of targets) {
-      const cloudName =
-        cloud && target === 'cloud'
-          ? cloudSourceName(cloud.provider, cloud.usesCustomCredentials)
-          : '';
-      try {
-        if (direction === 'newest' || direction === 'remote-wins') {
-          const remote =
-            target === 'cloud'
-              ? getCloudEndpoint(cloud!.provider, cloudName, pullSourceOverride)
-              : getFsEndpoint(FS_SOURCE_NAME, pullSourceOverride);
-          logger.debug(`forceFullResync: pull ${target} → local (run)`);
-          await runPair(local, remote, 'pull', pullContexts);
-        }
-        if (direction === 'newest' || direction === 'local-wins') {
-          // Push: library is source, saveBehavior override applies to it.
-          const localSource = library(pushSourceOverride);
-          const remote =
-            target === 'cloud'
-              ? getCloudEndpoint(cloud!.provider, cloudName)
-              : getFsEndpoint(FS_SOURCE_NAME);
-          logger.debug(`forceFullResync: push local → ${target} (run)`);
-          await runPair(localSource, remote, 'push', pushContexts);
-        }
-        if (target === 'cloud') {
-          markCloudSynced();
-        } else {
-          markFsSynced();
-        }
-      } catch (err) {
-        reportSyncError(target, 'forceFullResync', err);
-        throw err;
+    try {
+      if (direction === 'newest' || direction === 'remote-wins') {
+        const remote = endpointFor(location, pullSourceOverride);
+        logger.debug(`forceFullResync: pull ${location.kind} → local`);
+        const error = await replicateData(library(), remote, 'pull', true, pullContexts, types);
+        if (error) throw new Error(error);
       }
+      if (direction === 'newest' || direction === 'local-wins') {
+        // Push: library is source, saveBehavior override applies to it.
+        const localSource = library(pushSourceOverride);
+        const remote = endpointFor(location);
+        logger.debug(`forceFullResync: push local → ${location.kind}`);
+        const error = await replicateData(localSource, remote, 'push', true, pushContexts, types);
+        if (error) throw new Error(error);
+      }
+      markSynced();
+    } catch (err) {
+      reportSyncError('forceFullResync', err);
+      throw err;
     }
   } finally {
     endLongRunning();
@@ -727,7 +590,7 @@ export function isSyncingOrPending(): boolean {
 // ---------------------------------------------------------------------
 
 /**
- * Run once on app boot. Reconciles connected sync locations with
+ * Run once on app boot. Reconciles the connected sync location with
  * local IndexedDB. Safe to call multiple times — each invocation is
  * independent.
  */
@@ -743,7 +606,7 @@ export async function syncEngineStart(): Promise<void> {
     wasOnline = online;
   });
 
-  await Promise.all([reconcileCloudBooks(), reconcileFsBooks()]);
+  await reconcileBooksOnBoot();
 }
 
 /**
@@ -752,6 +615,6 @@ export async function syncEngineStart(): Promise<void> {
  * any push operations that were queued while auth was bad.
  */
 export async function retryAfterReconnect(): Promise<void> {
-  await Promise.all([reconcileCloudBooks(), reconcileFsBooks()]);
+  await reconcileBooksOnBoot();
   await drainReplayQueue();
 }

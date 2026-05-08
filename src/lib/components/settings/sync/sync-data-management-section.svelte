@@ -12,7 +12,7 @@
   } from '$lib/data/store';
   import { localStoragePreferences } from '$lib/data/internal/writable-storage-subject';
   import { pagePath } from '$lib/data/env';
-  import { cloudConnection$, fsConnection$, isSyncing$ } from '$lib/data/sync/sync-store';
+  import { isSyncing$, syncLocation$ } from '$lib/data/sync/sync-store';
   import SyncButton from '$lib/components/settings/sync/sync-button.svelte';
   import SyncSection from '$lib/components/settings/sync/sync-section.svelte';
   import { showForceResyncDialog } from '$lib/components/settings/sync/force-resync-dialog.svelte';
@@ -25,7 +25,7 @@
   import { replicateData } from '$lib/functions/replication/replicator';
   import { BlobReader, ZipReader } from '@zip.js/zip.js';
 
-  let hasAnySyncLocation = $derived($cloudConnection$ !== null || $fsConnection$ !== null);
+  let hasSyncLocation = $derived($syncLocation$ !== null);
 
   /**
    * Reading-goal data lives in two places: archived goals in
@@ -386,17 +386,16 @@
   }
 
   async function onForceResync() {
-    if (!hasAnySyncLocation) {
+    if (!hasSyncLocation) {
       await messageDialog({
-        title: 'No sync locations connected',
+        title: 'No sync location connected',
         message: 'Connect a cloud account or local folder before running a full re-sync.'
       });
       return;
     }
 
     const result = await showForceResyncDialog({
-      cloud: $cloudConnection$,
-      fs: $fsConnection$
+      location: $syncLocation$
     });
     if (result.kind === 'cancel') return;
 
@@ -482,7 +481,7 @@
     {
       title: 'Force full re-sync',
       description:
-        'Walk every file in your library to ensure there are no differences between your sync locations and this device. Useful if you suspect something drifted.',
+        'Walk every file in your library to ensure there are no differences between your sync location and this device. Useful if you suspect something drifted.',
       action: $isSyncing$ ? 'Syncing…' : 'Re-sync',
       disabled: $isSyncing$,
       onclick: onForceResync
@@ -490,7 +489,7 @@
     {
       title: 'Sign out and wipe local data',
       description:
-        'Disconnect all sync locations and delete everything from this device. Your data stored elsewhere is unchanged.',
+        'Disconnect your sync location and delete everything from this device. Your data stored elsewhere is unchanged.',
       action: 'Sign out and wipe',
       variant: 'danger',
       danger: true,
