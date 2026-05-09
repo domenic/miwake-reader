@@ -631,7 +631,7 @@ export async function forceFullResync(direction: ForceResyncDirection): Promise<
  * instead — this function reads the same underlying state.
  */
 export function isSyncingOrPending(): boolean {
-  return pushRunning || pending.size > 0 || pushTimer !== null;
+  return pushRunning || pending.size > 0 || pushTimer !== null || longRunningOps > 0;
 }
 
 // ---------------------------------------------------------------------
