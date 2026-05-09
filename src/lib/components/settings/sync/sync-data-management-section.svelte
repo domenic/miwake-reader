@@ -421,13 +421,25 @@
     if (cancelled) return;
 
     try {
-      // Close the open IndexedDB connection so deleteDatabase doesn't
-      // get stuck on `blocked`. Then nuke the DB, clear localStorage
-      // (which is where settings, themes, sync state, reader prefs and
-      // custom OAuth creds all live), and reload to a fresh boot.
+      // Clear every IndexedDB store in-place rather than calling
+      // deleteDatabase. The latter races with in-flight transactions
+      // from RxJS subscribers (dataList$, bookmarks$) and surfaces a
+      // misleading "still open in another tab" error. Clearing stores
+      // is atomic in one transaction and leaves the schema intact —
+      // the next boot finds empty stores and behaves identically to
+      // a fresh install.
       const db = await database.db;
-      db.close();
-      await deleteDatabase('books');
+      const storeNames = [...db.objectStoreNames] as Array<
+        Parameters<typeof db.transaction>[0] extends infer T
+          ? T extends any[]
+            ? T[number]
+            : never
+          : never
+      >;
+      const tx = db.transaction(storeNames, 'readwrite');
+      await Promise.all(storeNames.map((name) => tx.objectStore(name).clear()));
+      await tx.done;
+
       localStorage.clear();
       window.location.replace(pagePath || '/');
     } catch (err: any) {
@@ -436,20 +448,6 @@
         message: err.message
       });
     }
-  }
-
-  function deleteDatabase(name: string): Promise<void> {
-    return new Promise((resolve, reject) => {
-      const req = indexedDB.deleteDatabase(name);
-      req.onsuccess = () => resolve();
-      req.onerror = () => reject(req.error ?? new Error(`Failed to delete database ${name}`));
-      req.onblocked = () =>
-        reject(
-          new Error(
-            `Database ${name} is still open in another tab. Close other tabs of this site and try again.`
-          )
-        );
-    });
   }
 
   interface Item {
