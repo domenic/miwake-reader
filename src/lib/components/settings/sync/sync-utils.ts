@@ -1,5 +1,6 @@
 import { SyncEndpointType } from '$lib/data/storage/storage-types';
 import type { CloudProviderType, SyncLocation } from '$lib/data/sync/sync-store.svelte';
+import { wallClock } from '$lib/data/sync/wall-clock.svelte';
 
 export function providerLabel(provider: CloudProviderType): string {
   return provider === SyncEndpointType.GDRIVE ? 'Google Drive' : 'OneDrive';
@@ -31,4 +32,13 @@ export function formatRelativeTime(timestamp: number, now = Date.now()): string 
   if (absDiff < HOUR) return rtf.format(Math.round(diff / MINUTE), 'minute');
   if (absDiff < DAY) return rtf.format(Math.round(diff / HOUR), 'hour');
   return rtf.format(Math.round(diff / DAY), 'day');
+}
+
+/**
+ * Reactive variant: pulls "now" from the wall-clock tick so callers
+ * in templates / `$derived` / `$effect` re-render every 30s without
+ * threading a `now` argument through.
+ */
+export function formatRelativeTimeLive(timestamp: number): string {
+  return formatRelativeTime(timestamp, wallClock.now);
 }

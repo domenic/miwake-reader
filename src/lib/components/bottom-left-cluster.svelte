@@ -28,7 +28,7 @@
   import { isOnline$, statisticsEnabled$ } from '$lib/data/store';
   import { deriveIndicatorState } from '$lib/data/sync/sync-state';
   import { syncState } from '$lib/data/sync/sync-store.svelte';
-  import { formatRelativeTime } from '$lib/components/settings/sync/sync-utils';
+  import { formatRelativeTimeLive } from '$lib/components/settings/sync/sync-utils';
 
   let indicator = $derived(
     deriveIndicatorState({
@@ -69,7 +69,7 @@
         return "Offline — changes will sync when you're back online";
       case 'idle':
         return indicator.lastSyncedAt
-          ? `Synced ${formatRelativeTime(indicator.lastSyncedAt, syncState.now)}`
+          ? `Synced ${formatRelativeTimeLive(indicator.lastSyncedAt)}`
           : 'Up to date';
       case 'syncing':
         return 'Syncing…';

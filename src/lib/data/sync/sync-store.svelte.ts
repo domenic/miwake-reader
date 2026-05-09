@@ -60,27 +60,16 @@ export type SyncLocationHealth =
  *   long-running attempt.
  * - `isSyncing`: live indicator of whether a push or long-running
  *   op is in flight or pending.
- * - `now`: coarse 30s wall-clock tick so `formatRelativeTime`
- *   consumers ("Synced 2 minutes ago") keep updating without other
- *   re-render triggers.
  */
 export const syncState = $state<{
   location: SyncLocation | null;
   health: SyncLocationHealth;
   isSyncing: boolean;
-  now: number;
 }>({
   location: null,
   health: { status: 'ok' },
-  isSyncing: false,
-  now: Date.now()
+  isSyncing: false
 });
-
-if (typeof window !== 'undefined') {
-  setInterval(() => {
-    syncState.now = Date.now();
-  }, 30_000);
-}
 
 /**
  * Cross-device hint surviving in app-settings backups. Captures
