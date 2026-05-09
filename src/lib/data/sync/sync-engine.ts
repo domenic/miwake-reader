@@ -223,7 +223,11 @@ export async function pruneUnreachablePlaceholders(reachableTitles: Set<string>)
   let pruned = 0;
   for (const book of allBooks) {
     if (!book.elementHtml && !reachableTitles.has(book.title)) {
+      // Placeholders since the placeholder-bookmark commit carry a
+      // companion bookmark row keyed by the same id; delete both so
+      // the bookmark store doesn't accumulate orphans.
       await db.delete('data', book.id);
+      await db.delete('bookmark', book.id);
       pruned += 1;
     }
   }
