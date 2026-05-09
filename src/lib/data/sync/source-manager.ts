@@ -51,14 +51,17 @@ export interface LeaveOptions {
  */
 export async function switchToCloud(
   provider: CloudProviderType,
-  opts: LeaveOptions = {}
+  opts: LeaveOptions & { useCustomCredentials?: boolean } = {}
 ): Promise<void> {
   const current = read<SyncLocation | null>(syncLocation$);
   const customCreds =
     read<Partial<Record<CloudProviderType, CustomOAuthCredentials>>>(cloudCustomCredentials$)[
       provider
     ];
-  const useCustom = !!customCreds;
+  // Caller can force a specific OAuth mode (e.g. revert-to-default
+  // wants default even though custom creds are still stored);
+  // otherwise derive from whether custom creds exist.
+  const useCustom = opts.useCustomCredentials ?? !!customCreds;
   const isSameSource =
     current?.kind === 'cloud' &&
     current.provider === provider &&
@@ -82,7 +85,8 @@ export async function switchToCloud(
   await connectCloud(provider, {
     authWindow,
     priorLocation: isSameSource ? null : current,
-    clearLibrary: opts.clearLibrary
+    clearLibrary: opts.clearLibrary,
+    useCustomCredentials: useCustom
   });
 }
 
@@ -124,6 +128,13 @@ interface ConnectOptions {
    * has to happen before push.
    */
   clearLibrary?: boolean;
+  /**
+   * Cloud only: force the OAuth mode rather than deriving it from
+   * whether stored custom creds exist. Used by revert-to-default,
+   * which keeps stored custom creds for later but wants this
+   * connection to use the default OAuth app.
+   */
+  useCustomCredentials?: boolean;
 }
 
 /**
@@ -242,21 +253,24 @@ export async function connectCloud(
       read<Partial<Record<CloudProviderType, CustomOAuthCredentials>>>(cloudCustomCredentials$)[
         provider
       ];
-    const useCustom = !!customCreds;
+    // Caller-provided override wins (revert-to-default forces default
+    // mode while custom creds remain stored); otherwise derive.
+    const useCustom = opts.useCustomCredentials ?? !!customCreds;
     const name = cloudSourceName(provider, useCustom);
 
-    const remoteData: RemoteContext = useCustom
-      ? {
-          clientId: customCreds.clientId,
-          clientSecret: customCreds.clientSecret,
-          refreshToken: '',
-          tokenEndpoint: customCreds.tokenEndpoint
-        }
-      : {
-          clientId: provider === SyncEndpointType.GDRIVE ? gDriveClientId : oneDriveClientId,
-          clientSecret: '',
-          refreshToken: ''
-        };
+    const remoteData: RemoteContext =
+      useCustom && customCreds
+        ? {
+            clientId: customCreds.clientId,
+            clientSecret: customCreds.clientSecret,
+            refreshToken: '',
+            tokenEndpoint: customCreds.tokenEndpoint
+          }
+        : {
+            clientId: provider === SyncEndpointType.GDRIVE ? gDriveClientId : oneDriveClientId,
+            clientSecret: '',
+            refreshToken: ''
+          };
 
     const record: BooksDbStorageSource = {
       name,

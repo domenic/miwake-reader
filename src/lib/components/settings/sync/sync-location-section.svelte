@@ -197,9 +197,15 @@
     }
 
     if (result.kind === 'revert-to-default') {
-      if (activeCloud?.provider === provider) {
-        await disconnect();
-        await connectCloud(provider);
+      if (activeCloud?.provider === provider && activeCloud.usesCustomCredentials) {
+        // Switch the active connection from custom to default OAuth,
+        // but keep the user's stored custom creds for later. The
+        // useCustomCredentials override is required because
+        // switchToCloud would otherwise re-derive useCustom=true from
+        // the still-stored creds. acquire-first ordering inside
+        // switchToCloud means a popup-blocked / canceled revert
+        // leaves the user on their existing custom connection.
+        await switchToCloud(provider, { useCustomCredentials: false });
       }
       return;
     }
@@ -210,8 +216,12 @@
     };
 
     if (result.activate) {
-      if (active) await disconnect();
-      await connectCloud(provider);
+      // switchToCloud handles the no-active and switch-from-other
+      // cases identically, opening the popup synchronously and only
+      // tearing down the prior connection after the new one is
+      // verified. Replaces the previous disconnect-then-connect that
+      // could strand the user on a popup-blocked attempt.
+      await switchToCloud(provider);
     }
   }
 </script>
