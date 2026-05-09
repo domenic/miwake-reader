@@ -77,12 +77,12 @@ function library(saveBehaviorOverride?: ReplicationSaveBehavior): Library {
 function patchLocation(patch: Partial<SyncLocation>): void {
   const current = read<SyncLocation | null>(syncLocation$);
   if (!current) return;
-  syncLocation$.next({ ...current, ...patch } as SyncLocation);
+  syncLocation$.set({ ...current, ...patch } as SyncLocation);
 }
 
 function markSynced(extra: Partial<SyncLocation> = {}): void {
   patchLocation({ lastSyncedAt: Date.now(), ...extra });
-  syncHealth$.next({ status: 'ok' });
+  syncHealth$.set({ status: 'ok' });
 }
 
 /**
@@ -95,7 +95,7 @@ function reportSyncError(context: string, err: unknown): boolean {
   const message = err instanceof Error ? err.message : String(err);
 
   if (err instanceof NeedsInteractiveAuthError) {
-    syncHealth$.next({
+    syncHealth$.set({
       status: 'reauth-required',
       summary: 'Sign-in expired',
       detail: 'Reconnect to resume syncing. Queued changes will be pushed on reconnect.'
@@ -104,7 +104,7 @@ function reportSyncError(context: string, err: unknown): boolean {
   }
 
   if (err instanceof NeedsPermissionGrantError) {
-    syncHealth$.next({
+    syncHealth$.set({
       status: 'permission-required',
       summary: 'Filesystem access needed',
       detail:
@@ -114,7 +114,7 @@ function reportSyncError(context: string, err: unknown): boolean {
   }
 
   logger.warn(`sync ${context} failed: ${message}`);
-  syncHealth$.next({ status: 'error', summary: 'Sync failed', detail: message });
+  syncHealth$.set({ status: 'error', summary: 'Sync failed', detail: message });
   return false;
 }
 

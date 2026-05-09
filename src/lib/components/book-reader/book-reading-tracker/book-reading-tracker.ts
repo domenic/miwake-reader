@@ -12,7 +12,7 @@ export const isTrackerPaused$ = writableSubject<boolean>(true);
  * Read by the bottom-left controls cluster to decide whether the
  * play/pause and stats-menu buttons should render.
  */
-export const trackerAvailable$ = writableSubject<boolean>(false);
+export const trackerAvailable$ = writable<boolean>(false);
 
 export enum TrackerAutoPause {
   OFF = 'off',

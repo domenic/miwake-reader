@@ -21,11 +21,17 @@ export function isCustomCloudName(name: string): boolean {
   return name === 'miwake-gdrive-custom' || name === 'miwake-onedrive-custom';
 }
 
-// `*$` stores in this codebase are BehaviorSubjects with `.getValue()`
-// and `.next()`. TypeScript's exports don't expose `.getValue()`
-// (they're typed as the wider writable interface) so we cast at the
-// call sites.
-type SubjectReader<T> = { getValue(): T };
+import { get as svelteGet, type Readable } from 'svelte/store';
+
+/**
+ * Synchronously read the current value from any Svelte-writable-shaped
+ * store. Works for plain `writable()`s as well as the BehaviorSubject
+ * wrappers (`writableSubject`) used elsewhere — svelte/store's `get`
+ * handles both the function-returning subscribe contract and the
+ * Subscription-returning RxJS shape. The parameter is `unknown`
+ * because RxJS BehaviorSubject's typed-subscribe doesn't structurally
+ * match `Readable<T>` even though it works at runtime.
+ */
 export function readSubject<T>(subject: unknown): T {
-  return (subject as SubjectReader<T>).getValue();
+  return svelteGet(subject as Readable<T>);
 }

@@ -193,14 +193,14 @@ async function completeFsConnection(
   await reconcilePlaceholders(books);
 
   const now = Date.now();
-  syncLocation$.next({
+  syncLocation$.set({
     kind: 'fs',
     path: fsPath,
     connectedAt: now,
     // The booklist + placeholder seed counts as a successful sync.
     lastSyncedAt: now
   });
-  syncHealth$.next({ status: 'ok' });
+  syncHealth$.set({ status: 'ok' });
 
   // Mirror existing local content into the new folder. Ambient sync
   // only fires on local edits; without this, a fresh connect with an
@@ -278,7 +278,7 @@ async function completeCloudConnection(
     await reconcilePlaceholders(books);
 
     const now = Date.now();
-    syncLocation$.next({
+    syncLocation$.set({
       kind: 'cloud',
       provider,
       usesCustomCredentials: useCustom,
@@ -286,7 +286,7 @@ async function completeCloudConnection(
       lastSyncedAt: now,
       bookCount: books.length
     });
-    syncHealth$.next({ status: 'ok' });
+    syncHealth$.set({ status: 'ok' });
     lastCloudHint$.next({ provider, usesCustomCredentials: useCustom });
 
     await pushAllLocalBooks();
@@ -348,8 +348,8 @@ async function teardownPriorLocation(
 export async function disconnect(opts: LeaveOptions = {}): Promise<void> {
   const current = read<SyncLocation | null>(syncLocation$);
   if (!current) {
-    syncLocation$.next(null);
-    syncHealth$.next({ status: 'ok' });
+    syncLocation$.set(null);
+    syncHealth$.set({ status: 'ok' });
     if (opts.clearLibrary) {
       await wipeLibraryContents();
     }
@@ -375,8 +375,8 @@ export async function disconnect(opts: LeaveOptions = {}): Promise<void> {
     }
   }
 
-  syncLocation$.next(null);
-  syncHealth$.next({ status: 'ok' });
+  syncLocation$.set(null);
+  syncHealth$.set({ status: 'ok' });
 
   if (opts.clearLibrary) {
     await wipeLibraryContents();
@@ -440,7 +440,7 @@ export async function loadConnectionsFromDb(): Promise<void> {
   const fsRecord = records.find((r) => r.type === SyncEndpointType.FS && r.name === FS_SOURCE_NAME);
 
   if (cloudRecord) {
-    syncLocation$.next({
+    syncLocation$.set({
       kind: 'cloud',
       provider: cloudRecord.type as CloudProviderType,
       usesCustomCredentials: isCustomCloudName(cloudRecord.name),
@@ -459,7 +459,7 @@ export async function loadConnectionsFromDb(): Promise<void> {
     'fsPath' in fsRecord.data
   ) {
     const fsData = fsRecord.data as FsHandle;
-    syncLocation$.next({
+    syncLocation$.set({
       kind: 'fs',
       path: fsData.fsPath,
       connectedAt: fsRecord.lastSourceModified,
@@ -472,7 +472,7 @@ export async function loadConnectionsFromDb(): Promise<void> {
       lastCloudHint$
     );
     if (hint) {
-      syncHealth$.next({
+      syncHealth$.set({
         status: 'reauth-required',
         summary: `Reconnect ${hint.provider === SyncEndpointType.GDRIVE ? 'Google Drive' : 'OneDrive'}`,
         detail:

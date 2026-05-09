@@ -425,7 +425,7 @@
   onDestroy(() => {
     yomiObserver.disconnect();
     dictionaryObserver.disconnect();
-    trackerAvailable$.next(false);
+    trackerAvailable$.set(false);
   });
 
   function handleYomiMutation() {
@@ -615,7 +615,7 @@
         }
       }
 
-      trackerAvailable$.next(true);
+      trackerAvailable$.set(true);
     } catch ({ message }: any) {
       logger.error(`Error initializing timer: ${message}`);
     }
