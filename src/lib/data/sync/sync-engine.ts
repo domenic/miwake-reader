@@ -261,8 +261,16 @@ export async function reconcileBooksOnBoot(): Promise<void> {
         remoteBooks.map((b) => JSON.stringify(b.title)).join(', ')
     );
 
+    // Reconcile in both directions: add placeholders for titles the
+    // source advertises but we don't have, and prune placeholders for
+    // titles the source no longer advertises. Pruning is gated on
+    // listSyncTitles having succeeded (we wouldn't be here otherwise),
+    // so a transient network / permission error can't nuke
+    // placeholders by accident — the throw above short-circuits.
     const touched = await ensurePlaceholders(remoteBooks);
-    if (touched > 0) {
+    const reachable = new Set(remoteBooks.map((b) => b.title));
+    const pruned = await pruneUnreachablePlaceholders(reachable);
+    if (touched > 0 || pruned > 0) {
       database.notifyDataListChanged();
     }
 
