@@ -592,10 +592,21 @@ export async function forceFullResync(direction: ForceResyncDirection): Promise<
     // first — otherwise a remote-only book (added since boot, or
     // missed by a failed reconcile) is invisible to the loops below
     // because they iterate local `data`, and we'd silently leave the
-    // resync incomplete.
-    const remoteBooks = await endpointFor(location).listSyncTitles();
+    // resync incomplete. Prune in the same step so a placeholder for
+    // a remote-deleted book doesn't waste a "force" iteration trying
+    // to pull a file that no longer exists.
+    //
+    // clearData() before listing because handlers are module-level
+    // singletons that cache the title listing. A user pressing
+    // "Re-sync" after deleting a remote file would otherwise see the
+    // stale cache, and the prune would do nothing.
+    const handler = endpointFor(location);
+    handler.clearData();
+    const remoteBooks = await handler.listSyncTitles();
     const ensured = await ensurePlaceholders(remoteBooks);
-    if (ensured > 0) database.notifyDataListChanged();
+    const reachable = new Set(remoteBooks.map((b) => b.title));
+    const pruned = await pruneUnreachablePlaceholders(reachable);
+    if (ensured > 0 || pruned > 0) database.notifyDataListChanged();
 
     const allBooks = await (await database.db).getAll('data');
     const pullContexts: ReplicationContext[] = allBooks.map((b) => ({
