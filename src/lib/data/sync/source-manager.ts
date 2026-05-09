@@ -40,8 +40,11 @@ export interface LeaveOptions {
 
 /**
  * Replace whatever sync location is currently set with a new one.
- * If a different location is already configured, disconnect it first
- * — at most one is connected at a time.
+ * If a different location is already configured, this acquires the
+ * new destination first (popup / picker, both of which require a
+ * user-activation), then tears the prior one down only after auth /
+ * pickup succeeds. Failing late means a canceled or popup-blocked
+ * switch leaves the prior connection intact.
  *
  * Caller is responsible for confirming the destructive switch with
  * the user; this function just executes.
@@ -51,30 +54,96 @@ export async function switchToCloud(
   opts: LeaveOptions = {}
 ): Promise<void> {
   const current = read<SyncLocation | null>(syncLocation$);
-  if (current && (current.kind !== 'cloud' || current.provider !== provider)) {
-    await disconnect(opts);
+  const customCreds =
+    read<Partial<Record<CloudProviderType, CustomOAuthCredentials>>>(cloudCustomCredentials$)[
+      provider
+    ];
+  const useCustom = !!customCreds;
+  const isSameSource =
+    current?.kind === 'cloud' &&
+    current.provider === provider &&
+    current.usesCustomCredentials === useCustom;
+
+  // Open the auth popup synchronously while we're still inside the
+  // click's user activation. Awaiting anything (disconnect, count
+  // queries, IDB transactions) before window.open risks the popup
+  // blocker firing.
+  const authWindow = StorageOAuthManager.createWindow(
+    `${pagePath}/auth?miwake-init-wait=1`,
+    'auth',
+    Math.min(Math.max(window.innerWidth, 300), 560),
+    Math.min(Math.max(window.innerHeight, 300), 560),
+    window
+  );
+  if (!authWindow) {
+    throw new Error('Unable to open the sign-in window. Check your popup blocker settings.');
   }
-  await connectCloud(provider);
+
+  await connectCloud(provider, {
+    authWindow,
+    priorLocation: isSameSource ? null : current,
+    clearLibrary: opts.clearLibrary
+  });
 }
 
 export async function switchToFs(opts: LeaveOptions = {}): Promise<void> {
   const current = read<SyncLocation | null>(syncLocation$);
-  if (current && current.kind !== 'fs') {
-    await disconnect(opts);
-  }
-  await connectFs();
+
+  // showDirectoryPicker dispatches synchronously and consumes the
+  // user activation; the await is just for the user's pick. Have to
+  // call it before any other awaits.
+  const directoryHandle = await window.showDirectoryPicker({
+    id: 'miwake-reader-root',
+    mode: 'readwrite'
+  });
+
+  // Same-kind switch (FS → FS, just a different folder) writes to the
+  // single FS_SOURCE_NAME record and replaces in place — no separate
+  // teardown step.
+  const isSameSource = current?.kind === 'fs';
+
+  await connectFs({
+    directoryHandle,
+    priorLocation: isSameSource ? null : current,
+    clearLibrary: opts.clearLibrary
+  });
+}
+
+interface ConnectOptions {
+  /**
+   * If set, the prior sync location whose record + OAuth cache (cloud
+   * only) should be torn down after the new connection succeeds. Used
+   * by switchToCloud / switchToFs so the destructive part can't run
+   * before the new destination is locked in.
+   */
+  priorLocation?: SyncLocation | null;
+  /**
+   * If true, wipe the local library between auth/pickup and the new
+   * source's pushAllLocalBooks step. The user's intent with this is
+   * "don't pollute the new sync with my old device's content," so it
+   * has to happen before push.
+   */
+  clearLibrary?: boolean;
 }
 
 /**
  * Connect a local folder by showing the native directory picker,
  * persisting the handle, and seeding placeholders for whatever's
  * already inside. Caller handles AbortError (picker cancel).
+ *
+ * `directoryHandle` lets switchToFs call showDirectoryPicker under
+ * the click's user activation and then pass the handle in here, so
+ * the rest of the flow can take its time without losing the gesture.
  */
-export async function connectFs(): Promise<void> {
-  const directoryHandle = await window.showDirectoryPicker({
-    id: 'miwake-reader-root',
-    mode: 'readwrite'
-  });
+export async function connectFs(
+  opts: { directoryHandle?: FileSystemDirectoryHandle } & ConnectOptions = {}
+): Promise<void> {
+  const directoryHandle =
+    opts.directoryHandle ??
+    (await window.showDirectoryPicker({
+      id: 'miwake-reader-root',
+      mode: 'readwrite'
+    }));
   const fsPath = directoryHandle.name;
 
   const data: FsHandle = { directoryHandle, fsPath };
@@ -88,12 +157,16 @@ export async function connectFs(): Promise<void> {
   const existing = await (await database.db).get('storageSource', FS_SOURCE_NAME);
   await database.saveStorageSource(record, existing ? FS_SOURCE_NAME : '');
 
-  const handler = getSyncEndpoint(window, SyncEndpointType.FS, FS_SOURCE_NAME);
-  const books = await handler.listSyncTitles();
-  const created = await ensurePlaceholders(books);
-  if (created > 0) {
-    database.notifyDataListChanged();
+  // Tear down the prior connection (cloud record / FS record under a
+  // different key — only matters when prior was cloud, since FS uses
+  // the same record name). Library wipe happens here too, before the
+  // upcoming push, so the new sync doesn't end up mirroring the old
+  // device's content.
+  if (opts.priorLocation || opts.clearLibrary) {
+    await teardownPriorLocation(opts.priorLocation ?? null, !!opts.clearLibrary);
   }
+
+  await reconcileFromSource(SyncEndpointType.FS, FS_SOURCE_NAME);
 
   const now = Date.now();
   syncLocation$.next({
@@ -115,24 +188,30 @@ export async function connectFs(): Promise<void> {
 /**
  * Connect a cloud provider. Opens the OAuth popup _synchronously_ under
  * the caller's user-activation window (must be called directly from a
- * click handler, no prior awaits), writes the storage-source record,
- * drives OAuth through that pre-opened popup, then fetches the initial
- * book count. Rolls back on OAuth failure.
+ * click handler, no prior awaits) unless the caller already opened one
+ * and passed it in. Writes the storage-source record, drives OAuth
+ * through that popup, then fetches the initial book count. Rolls back
+ * on OAuth failure.
  *
- * Opening the popup up-front — rather than letting StorageOAuthManager
- * do it inside the deeply-async listSyncTitles call — sidesteps the
- * browser's popup blocker and the existing "popup blocked → messageDialog
- * → retry" fallback path, which has been observed producing PKCE
- * mismatches.
+ * `authWindow` lets switchToCloud open the popup itself (so it gets
+ * to consume the click's user activation before any awaits) and pass
+ * it in here. `priorLocation` opts into teardown of an old source
+ * after auth succeeds — never before, since a popup-blocked or
+ * user-canceled switch should leave the prior connection intact.
  */
-export async function connectCloud(provider: CloudProviderType): Promise<void> {
-  const authWindow = StorageOAuthManager.createWindow(
-    `${pagePath}/auth?miwake-init-wait=1`,
-    'auth',
-    Math.min(Math.max(window.innerWidth, 300), 560),
-    Math.min(Math.max(window.innerHeight, 300), 560),
-    window
-  );
+export async function connectCloud(
+  provider: CloudProviderType,
+  opts: { authWindow?: Window } & ConnectOptions = {}
+): Promise<void> {
+  const authWindow =
+    opts.authWindow ??
+    StorageOAuthManager.createWindow(
+      `${pagePath}/auth?miwake-init-wait=1`,
+      'auth',
+      Math.min(Math.max(window.innerWidth, 300), 560),
+      Math.min(Math.max(window.innerHeight, 300), 560),
+      window
+    );
   if (!authWindow) {
     throw new Error('Unable to open the sign-in window. Check your popup blocker settings.');
   }
@@ -199,12 +278,15 @@ export async function connectCloud(provider: CloudProviderType): Promise<void> {
       throw err;
     }
 
-    // Token is cached now; this call won't re-open the popup.
-    const books = await handler.listSyncTitles();
-    const created = await ensurePlaceholders(books);
-    if (created > 0) {
-      database.notifyDataListChanged();
+    // Tear down the prior connection now that auth has succeeded —
+    // never before, since a popup-blocked or canceled flow would leave
+    // the user with no working sync.
+    if (opts.priorLocation || opts.clearLibrary) {
+      await teardownPriorLocation(opts.priorLocation ?? null, !!opts.clearLibrary);
     }
+
+    // Token is cached now; this call won't re-open the popup.
+    const books = await reconcileFromSource(provider, name);
 
     const now = Date.now();
     syncLocation$.next({
@@ -223,6 +305,77 @@ export async function connectCloud(provider: CloudProviderType): Promise<void> {
     if (!authWindow.closed) {
       authWindow.close();
     }
+  }
+}
+
+/**
+ * After connecting (or switching to) a sync location, list its titles
+ * and reconcile placeholders both ways: ensure rows exist for every
+ * remote title, prune rows for titles that don't (e.g., placeholders
+ * left over from a prior cloud the user just switched away from).
+ * Returns the remote book list so cloud connects can stamp bookCount
+ * onto syncLocation$.
+ */
+async function reconcileFromSource(
+  type: SyncEndpointType.GDRIVE | SyncEndpointType.ONEDRIVE | SyncEndpointType.FS,
+  storageSourceName: string
+) {
+  const handler =
+    type === SyncEndpointType.GDRIVE
+      ? getSyncEndpoint(window, SyncEndpointType.GDRIVE, storageSourceName)
+      : type === SyncEndpointType.ONEDRIVE
+        ? getSyncEndpoint(window, SyncEndpointType.ONEDRIVE, storageSourceName)
+        : getSyncEndpoint(window, SyncEndpointType.FS, storageSourceName);
+
+  // Handlers are module-level singletons that cache title listings (and
+  // for FS, the root directory handle) keyed by storageSourceName. On
+  // a fresh connect or a folder swap, those caches are stale even
+  // though the name didn't change. Reset before listing.
+  handler.clearData();
+
+  const books = await handler.listSyncTitles();
+  const ensured = await ensurePlaceholders(books);
+  const reachable = new Set(books.map((b) => b.title));
+  const pruned = await pruneUnreachablePlaceholders(reachable);
+  if (ensured > 0 || pruned > 0) {
+    database.notifyDataListChanged();
+  }
+  return books;
+}
+
+/**
+ * Tear down a prior sync location's persistent state — the
+ * storageSource record, OAuth in-memory cache (cloud only), and
+ * (optionally) the local library. Used by switchToCloud / switchToFs
+ * after the new destination has been successfully acquired, so a
+ * canceled or popup-blocked switch doesn't strand the user.
+ */
+async function teardownPriorLocation(
+  prev: SyncLocation | null,
+  clearLibrary: boolean
+): Promise<void> {
+  if (prev) {
+    const db = await database.db;
+    if (prev.kind === 'cloud') {
+      const name = cloudSourceName(prev.provider, prev.usesCustomCredentials);
+      clearOAuthTokenCache(name);
+      const existing = await db.get('storageSource', name);
+      if (existing) {
+        await database.deleteStorageSource(existing);
+      }
+    } else {
+      // FS → cloud teardown: drop the FS record. (FS → FS replaces
+      // the same record in place via connectFs; this branch only
+      // runs when the prior was a different kind.)
+      const existing = await db.get('storageSource', FS_SOURCE_NAME);
+      if (existing) {
+        await database.deleteStorageSource(existing);
+      }
+    }
+  }
+
+  if (clearLibrary) {
+    await wipeLibraryContents();
   }
 }
 
