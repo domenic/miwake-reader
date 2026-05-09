@@ -7,7 +7,6 @@ import { SyncEndpointType } from '$lib/data/storage/storage-types';
 import { database } from '$lib/data/store';
 import {
   cloudCustomCredentials$,
-  lastCloudHint$,
   syncState,
   type CloudProviderType,
   type CustomOAuthCredentials,
@@ -279,7 +278,6 @@ async function completeCloudConnection(
       bookCount: books.length
     };
     syncState.health = { status: 'ok' };
-    lastCloudHint$.next({ provider, usesCustomCredentials: useCustom });
 
     await pushAllLocalBooks();
   } finally {
@@ -457,17 +455,5 @@ export async function loadConnectionsFromDb(): Promise<void> {
       connectedAt: fsRecord.lastSourceModified,
       lastSyncedAt: null
     };
-  } else {
-    // No IDB record. If we have a cross-device cloud hint from
-    // app-settings backup, surface a reconnect prompt.
-    const hint = lastCloudHint$.getValue();
-    if (hint) {
-      syncState.health = {
-        status: 'reauth-required',
-        summary: `Reconnect ${hint.provider === SyncEndpointType.GDRIVE ? 'Google Drive' : 'OneDrive'}`,
-        detail:
-          'This device is missing the sign-in for the cloud account in your last backup. Reconnect to resume syncing.'
-      };
-    }
   }
 }

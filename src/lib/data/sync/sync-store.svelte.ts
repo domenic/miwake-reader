@@ -10,9 +10,7 @@ export type CloudProviderType = SyncEndpointType.GDRIVE | SyncEndpointType.ONEDR
  * path.
  *
  * Runtime-only: rebuilt from IndexedDB on every app boot via
- * loadConnectionsFromDb. lastCloudHint$ (below) carries a separate
- * preference snapshot so a fresh device restored from app-settings
- * backup can nudge the user to reconnect.
+ * loadConnectionsFromDb.
  */
 export type SyncLocation =
   | {
@@ -70,24 +68,6 @@ export const syncState = $state<{
   health: { status: 'ok' },
   isSyncing: false
 });
-
-/**
- * Cross-device hint surviving in app-settings backups. Captures
- * "the user had Google Drive configured on their other device" so a
- * fresh-device restore can flip syncHealth to reauth-required and
- * nudge them to reconnect, rather than silently looking unconfigured.
- * FS isn't here — the directory handle is local, so a remembered
- * folder name from another machine wouldn't be actionable.
- */
-export interface LastCloudHint {
-  provider: CloudProviderType;
-  usesCustomCredentials: boolean;
-}
-
-export const lastCloudHint$ = writableObjectLocalStorageSubject<LastCloudHint | null>()(
-  'sync.lastCloudHint',
-  null
-);
 
 // Custom OAuth credentials are real user config — kept across
 // reconnects, switched providers, etc. — so they DO travel with
