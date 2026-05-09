@@ -20,7 +20,6 @@ import { getLibrary, getSyncEndpoint } from '$lib/data/storage/storage-handler-f
 import { StorageDataType, SyncEndpointType } from '$lib/data/storage/storage-types';
 import { ReplicationSaveBehavior } from '$lib/functions/replication/replication-options';
 import { replicateData } from '$lib/functions/replication/replicator';
-import { readSubject as read } from '$lib/data/sync/sync-helpers';
 
 /**
  * Reading-goal data lives in two places: archived goals in IDB's
@@ -119,7 +118,7 @@ export async function exportBackup(selection: BackupSelection): Promise<void> {
   if (selection.readingGoals) {
     const goals = await db.getAll('readingGoal');
     if (goals.length > 0) {
-      await backupHandler.saveReadingGoals(goals, read<number>(lastReadingGoalsModified$));
+      await backupHandler.saveReadingGoals(goals, lastReadingGoalsModified$.getValue());
     }
     // Current-goal-in-localStorage travels alongside, owned by the
     // Reading-goals checkbox.
@@ -228,16 +227,16 @@ export async function importBackup(
     direction === 'zip-wins' ? ReplicationSaveBehavior.Overwrite : ReplicationSaveBehavior.NewOnly;
 
   const backupHandler = getSyncEndpoint(window, SyncEndpointType.BACKUP, '', {
-    cacheStorageData: read<boolean>(cacheStorageData$),
+    cacheStorageData: cacheStorageData$.getValue(),
     saveBehavior: sourceBehavior,
-    statisticsMergeMode: read(statisticsMergeMode$),
-    readingGoalsMergeMode: read(readingGoalsMergeMode$)
+    statisticsMergeMode: statisticsMergeMode$.getValue(),
+    readingGoalsMergeMode: readingGoalsMergeMode$.getValue()
   });
   const browserHandler = getLibrary({
-    cacheStorageData: read<boolean>(cacheStorageData$),
+    cacheStorageData: cacheStorageData$.getValue(),
     saveBehavior: ReplicationSaveBehavior.NewOnly,
-    statisticsMergeMode: read(statisticsMergeMode$),
-    readingGoalsMergeMode: read(readingGoalsMergeMode$)
+    statisticsMergeMode: statisticsMergeMode$.getValue(),
+    readingGoalsMergeMode: readingGoalsMergeMode$.getValue()
   });
 
   const allContexts = await backupHandler.setBackupZip(file);

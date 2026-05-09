@@ -11,15 +11,15 @@
     statisticsMergeMode$
   } from '$lib/data/store';
   import { ImportHTMLFixMode } from '$lib/data/import-html-fix-mode';
-  import { syncLocation$ } from '$lib/data/sync/sync-store';
+  import { syncState } from '$lib/data/sync/sync-store.svelte';
   import { storage } from '$lib/data/window/navigator/storage';
   import Fa from 'svelte-fa';
   import { faChevronRight } from '@fortawesome/free-solid-svg-icons';
   import SyncRadioGroup from '$lib/components/settings/sync/sync-radio-group.svelte';
   import { describeSyncLocation } from '$lib/components/settings/sync/sync-utils';
 
-  let hasLocation = $derived($syncLocation$ !== null);
-  let locationLabel = $derived(describeSyncLocation($syncLocation$) || 'your sync location');
+  let hasLocation = $derived(syncState.location !== null);
+  let locationLabel = $derived(describeSyncLocation(syncState.location) || 'your sync location');
 
   let storagePersisted = $state<boolean | null>(null);
   let storageQuota = $state<string | null>(null);

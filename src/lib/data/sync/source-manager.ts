@@ -8,28 +8,20 @@ import { database } from '$lib/data/store';
 import {
   cloudCustomCredentials$,
   lastCloudHint$,
-  syncHealth$,
-  syncLocation$,
+  syncState,
   type CloudProviderType,
   type CustomOAuthCredentials,
   type SyncLocation
-} from '$lib/data/sync/sync-store';
+} from '$lib/data/sync/sync-store.svelte';
 import {
   pruneUnreachablePlaceholders,
   pushAllLocalBooks,
   reconcilePlaceholders
 } from '$lib/data/sync/sync-engine';
-import {
-  cloudSourceName,
-  FS_SOURCE_NAME,
-  isCustomCloudName,
-  readSubject as read
-} from '$lib/data/sync/sync-helpers';
+import { cloudSourceName, FS_SOURCE_NAME, isCustomCloudName } from '$lib/data/sync/sync-helpers';
 
 function readCustomCreds(provider: CloudProviderType): CustomOAuthCredentials | undefined {
-  return read<Partial<Record<CloudProviderType, CustomOAuthCredentials>>>(cloudCustomCredentials$)[
-    provider
-  ];
+  return cloudCustomCredentials$.getValue()[provider];
 }
 
 /**
@@ -78,7 +70,7 @@ export interface LeaveOptions {
  * destination is validated.
  */
 export async function connectFs(opts: ConnectFsOptions = {}): Promise<void> {
-  const current = read<SyncLocation | null>(syncLocation$);
+  const current = syncState.location;
   const directoryHandle = await window.showDirectoryPicker({
     id: 'miwake-reader-root',
     mode: 'readwrite'
@@ -108,7 +100,7 @@ export async function connectCloud(
   provider: CloudProviderType,
   opts: ConnectCloudOptions = {}
 ): Promise<void> {
-  const current = read<SyncLocation | null>(syncLocation$);
+  const current = syncState.location;
   const useCustom = opts.useCustomCredentials ?? !!readCustomCreds(provider);
   const isSameSource =
     current?.kind === 'cloud' &&
@@ -193,14 +185,14 @@ async function completeFsConnection(
   await reconcilePlaceholders(books);
 
   const now = Date.now();
-  syncLocation$.set({
+  syncState.location = {
     kind: 'fs',
     path: fsPath,
     connectedAt: now,
     // The booklist + placeholder seed counts as a successful sync.
     lastSyncedAt: now
-  });
-  syncHealth$.set({ status: 'ok' });
+  };
+  syncState.health = { status: 'ok' };
 
   // Mirror existing local content into the new folder. Ambient sync
   // only fires on local edits; without this, a fresh connect with an
@@ -278,15 +270,15 @@ async function completeCloudConnection(
     await reconcilePlaceholders(books);
 
     const now = Date.now();
-    syncLocation$.set({
+    syncState.location = {
       kind: 'cloud',
       provider,
       usesCustomCredentials: useCustom,
       connectedAt: now,
       lastSyncedAt: now,
       bookCount: books.length
-    });
-    syncHealth$.set({ status: 'ok' });
+    };
+    syncState.health = { status: 'ok' };
     lastCloudHint$.next({ provider, usesCustomCredentials: useCustom });
 
     await pushAllLocalBooks();
@@ -346,10 +338,10 @@ async function teardownPriorLocation(
  * LeaveOptions.
  */
 export async function disconnect(opts: LeaveOptions = {}): Promise<void> {
-  const current = read<SyncLocation | null>(syncLocation$);
+  const current = syncState.location;
   if (!current) {
-    syncLocation$.set(null);
-    syncHealth$.set({ status: 'ok' });
+    syncState.location = null;
+    syncState.health = { status: 'ok' };
     if (opts.clearLibrary) {
       await wipeLibraryContents();
     }
@@ -375,8 +367,8 @@ export async function disconnect(opts: LeaveOptions = {}): Promise<void> {
     }
   }
 
-  syncLocation$.set(null);
-  syncHealth$.set({ status: 'ok' });
+  syncState.location = null;
+  syncState.health = { status: 'ok' };
 
   if (opts.clearLibrary) {
     await wipeLibraryContents();
@@ -422,7 +414,7 @@ async function wipeLibraryContents(): Promise<void> {
 }
 
 /**
- * On app boot, reconcile the syncLocation$ runtime subject with
+ * On app boot, reconcile syncState.location with
  * what's actually persisted in IndexedDB. Call once from the root
  * layout on mount.
  */
@@ -440,14 +432,14 @@ export async function loadConnectionsFromDb(): Promise<void> {
   const fsRecord = records.find((r) => r.type === SyncEndpointType.FS && r.name === FS_SOURCE_NAME);
 
   if (cloudRecord) {
-    syncLocation$.set({
+    syncState.location = {
       kind: 'cloud',
       provider: cloudRecord.type as CloudProviderType,
       usesCustomCredentials: isCustomCloudName(cloudRecord.name),
       connectedAt: cloudRecord.lastSourceModified,
       lastSyncedAt: null,
       bookCount: null
-    });
+    };
     if (fsRecord) {
       // Stale FS record from a pre-pivot install — drop it.
       await db.delete('storageSource', FS_SOURCE_NAME);
@@ -459,25 +451,23 @@ export async function loadConnectionsFromDb(): Promise<void> {
     'fsPath' in fsRecord.data
   ) {
     const fsData = fsRecord.data as FsHandle;
-    syncLocation$.set({
+    syncState.location = {
       kind: 'fs',
       path: fsData.fsPath,
       connectedAt: fsRecord.lastSourceModified,
       lastSyncedAt: null
-    });
+    };
   } else {
     // No IDB record. If we have a cross-device cloud hint from
     // app-settings backup, surface a reconnect prompt.
-    const hint = read<{ provider: CloudProviderType; usesCustomCredentials: boolean } | null>(
-      lastCloudHint$
-    );
+    const hint = lastCloudHint$.getValue();
     if (hint) {
-      syncHealth$.set({
+      syncState.health = {
         status: 'reauth-required',
         summary: `Reconnect ${hint.provider === SyncEndpointType.GDRIVE ? 'Google Drive' : 'OneDrive'}`,
         detail:
           'This device is missing the sign-in for the cloud account in your last backup. Reconnect to resume syncing.'
-      });
+      };
     }
   }
 }

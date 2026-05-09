@@ -6,11 +6,9 @@
   import { database } from '$lib/data/store';
   import {
     cloudCustomCredentials$,
-    now$,
-    syncHealth$,
-    syncLocation$,
+    syncState,
     type CloudProviderType
-  } from '$lib/data/sync/sync-store';
+  } from '$lib/data/sync/sync-store.svelte';
   import { connectCloud, connectFs, disconnect } from '$lib/data/sync/source-manager';
   import { retryAfterReconnect } from '$lib/data/sync/sync-engine';
   import { formatRelativeTime, providerLabel } from '$lib/components/settings/sync/sync-utils';
@@ -27,7 +25,7 @@
   // would throw on click.
   let supportsFsPicker = $derived(browser && 'showDirectoryPicker' in window);
 
-  let active = $derived($syncLocation$);
+  let active = $derived(syncState.location);
   let busy = $state(false);
 
   // Cloud-active variant — narrowed for template ergonomics.
@@ -296,11 +294,11 @@
       {#snippet main()}
         <div class="flex flex-wrap items-center gap-2">
           <span class="font-medium">{providerLabel(activeCloud.provider)}</span>
-          {#if $syncHealth$.status === 'ok'}
+          {#if syncState.health.status === 'ok'}
             <SyncBadge variant="success">Connected</SyncBadge>
-          {:else if $syncHealth$.status === 'reauth-required'}
+          {:else if syncState.health.status === 'reauth-required'}
             <SyncBadge variant="warning">Reconnect required</SyncBadge>
-          {:else if $syncHealth$.status === 'error'}
+          {:else if syncState.health.status === 'error'}
             <SyncBadge variant="danger">Sync failed</SyncBadge>
           {/if}
           {#if activeCloud.usesCustomCredentials}
@@ -310,27 +308,27 @@
         <div class="mt-1 text-sm text-gray-600">
           {#if activeCloud.lastSyncedAt === null}
             Not yet synced
-          {:else if $syncHealth$.status === 'ok'}
-            Synced {formatRelativeTime(activeCloud.lastSyncedAt, $now$)}
+          {:else if syncState.health.status === 'ok'}
+            Synced {formatRelativeTime(activeCloud.lastSyncedAt, syncState.now)}
           {:else}
-            Last successful sync {formatRelativeTime(activeCloud.lastSyncedAt, $now$)}
+            Last successful sync {formatRelativeTime(activeCloud.lastSyncedAt, syncState.now)}
           {/if}
           {#if activeCloud.bookCount !== null}
             · {activeCloud.bookCount} book{activeCloud.bookCount === 1 ? '' : 's'}
           {/if}
         </div>
-        {#if $syncHealth$.status === 'reauth-required' || $syncHealth$.status === 'permission-required'}
+        {#if syncState.health.status === 'reauth-required' || syncState.health.status === 'permission-required'}
           <SyncAlert
             variant="warning"
-            summary={$syncHealth$.summary}
-            detail={$syncHealth$.detail}
+            summary={syncState.health.summary}
+            detail={syncState.health.detail}
           />
-        {:else if $syncHealth$.status === 'error'}
+        {:else if syncState.health.status === 'error'}
           <SyncAlert
             variant="danger"
-            summary={$syncHealth$.summary}
-            detail={$syncHealth$.detail}
-            technicalDetail={$syncHealth$.technicalDetail}
+            summary={syncState.health.summary}
+            detail={syncState.health.detail}
+            technicalDetail={syncState.health.technicalDetail}
           />
         {/if}
         <div class="mt-1.5 flex flex-wrap items-center gap-2 text-xs text-gray-600">
@@ -348,9 +346,9 @@
         </div>
       {/snippet}
       {#snippet actions()}
-        {#if $syncHealth$.status === 'reauth-required' || $syncHealth$.status === 'permission-required'}
+        {#if syncState.health.status === 'reauth-required' || syncState.health.status === 'permission-required'}
           <SyncButton variant="warning" onclick={onReconnect}>Reconnect</SyncButton>
-        {:else if $syncHealth$.status === 'error'}
+        {:else if syncState.health.status === 'error'}
           <SyncButton onclick={onRetry}>Retry</SyncButton>
         {:else}
           <SyncButton onclick={onDisconnect}>Disconnect</SyncButton>
@@ -391,43 +389,43 @@
       {#snippet main()}
         <div class="flex flex-wrap items-center gap-2">
           <span class="font-medium">Sync folder</span>
-          {#if $syncHealth$.status === 'ok'}
+          {#if syncState.health.status === 'ok'}
             <SyncBadge variant="success">Connected</SyncBadge>
-          {:else if $syncHealth$.status === 'permission-required'}
+          {:else if syncState.health.status === 'permission-required'}
             <SyncBadge variant="warning">Permission required</SyncBadge>
-          {:else if $syncHealth$.status === 'error'}
+          {:else if syncState.health.status === 'error'}
             <SyncBadge variant="danger">Sync failed</SyncBadge>
           {/if}
         </div>
         <div class="mt-1 font-mono text-xs text-gray-600">{activeFs.path}</div>
-        {#if $syncHealth$.status === 'ok'}
+        {#if syncState.health.status === 'ok'}
           <div class="text-sm text-gray-600">
             {#if activeFs.lastSyncedAt === null}
               Not yet synced
             {:else}
-              Synced {formatRelativeTime(activeFs.lastSyncedAt, $now$)}
+              Synced {formatRelativeTime(activeFs.lastSyncedAt, syncState.now)}
             {/if}
           </div>
         {/if}
-        {#if $syncHealth$.status === 'reauth-required' || $syncHealth$.status === 'permission-required'}
+        {#if syncState.health.status === 'reauth-required' || syncState.health.status === 'permission-required'}
           <SyncAlert
             variant="warning"
-            summary={$syncHealth$.summary}
-            detail={$syncHealth$.detail}
+            summary={syncState.health.summary}
+            detail={syncState.health.detail}
           />
-        {:else if $syncHealth$.status === 'error'}
+        {:else if syncState.health.status === 'error'}
           <SyncAlert
             variant="danger"
-            summary={$syncHealth$.summary}
-            detail={$syncHealth$.detail}
-            technicalDetail={$syncHealth$.technicalDetail}
+            summary={syncState.health.summary}
+            detail={syncState.health.detail}
+            technicalDetail={syncState.health.technicalDetail}
           />
         {/if}
       {/snippet}
       {#snippet actions()}
-        {#if $syncHealth$.status === 'permission-required' || $syncHealth$.status === 'reauth-required'}
+        {#if syncState.health.status === 'permission-required' || syncState.health.status === 'reauth-required'}
           <SyncButton variant="warning" onclick={onGrantFsAccess}>Grant access</SyncButton>
-        {:else if $syncHealth$.status === 'error'}
+        {:else if syncState.health.status === 'error'}
           <SyncButton onclick={onRetry}>Retry</SyncButton>
         {:else}
           <SyncButton onclick={() => onPick('fs')}>Change folder</SyncButton>

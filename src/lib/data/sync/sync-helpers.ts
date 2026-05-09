@@ -1,5 +1,5 @@
 import { SyncEndpointType, StorageSourceDefault } from '$lib/data/storage/storage-types';
-import type { CloudProviderType } from '$lib/data/sync/sync-store';
+import type { CloudProviderType } from '$lib/data/sync/sync-store.svelte';
 
 /** Sentinel record name for the single filesystem slot. */
 export const FS_SOURCE_NAME = 'miwake-fs';
@@ -19,19 +19,4 @@ export function cloudSourceName(provider: CloudProviderType, custom: boolean): s
 
 export function isCustomCloudName(name: string): boolean {
   return name === 'miwake-gdrive-custom' || name === 'miwake-onedrive-custom';
-}
-
-import { get as svelteGet, type Readable } from 'svelte/store';
-
-/**
- * Synchronously read the current value from any Svelte-writable-shaped
- * store. Works for plain `writable()`s as well as the BehaviorSubject
- * wrappers (`writableSubject`) used elsewhere — svelte/store's `get`
- * handles both the function-returning subscribe contract and the
- * Subscription-returning RxJS shape. The parameter is `unknown`
- * because RxJS BehaviorSubject's typed-subscribe doesn't structurally
- * match `Readable<T>` even though it works at runtime.
- */
-export function readSubject<T>(subject: unknown): T {
-  return svelteGet(subject as Readable<T>);
 }

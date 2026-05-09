@@ -1,7 +1,7 @@
 <script module lang="ts">
   import SyncLeaveDialog from '$lib/components/settings/sync/sync-leave-dialog.svelte';
   import { showDialog } from '$lib/data/simple-dialogs';
-  import type { SyncLocation } from '$lib/data/sync/sync-store';
+  import type { SyncLocation } from '$lib/data/sync/sync-store.svelte';
 
   /**
    * Confirmation for a destructive sync state change: either

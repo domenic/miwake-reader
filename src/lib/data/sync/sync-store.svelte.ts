@@ -1,4 +1,3 @@
-import { writable } from 'svelte/store';
 import { writableObjectLocalStorageSubject } from '$lib/data/internal/writable-object-local-storage-subject';
 import { SyncEndpointType } from '$lib/data/storage/storage-types';
 
@@ -49,11 +48,39 @@ export type SyncLocationHealth =
     };
 
 /**
- * In-memory only: rebuilt from IndexedDB on every app boot via
- * loadConnectionsFromDb. Persisting to localStorage would just be a
- * stale cache against the IDB-of-record (and was, up to now).
+ * Runtime sync state. Read directly (`syncState.location`) from both
+ * imperative TS callers and component templates / `$derived` /
+ * `$effect` — runes track property access automatically. Written
+ * directly too (`syncState.location = …`).
+ *
+ * - `location`: rebuilt from IndexedDB at boot via
+ *   loadConnectionsFromDb; never persisted here, since the
+ *   storageSource record is the source of truth.
+ * - `health`: written by the sync engine after each ambient or
+ *   long-running attempt.
+ * - `isSyncing`: live indicator of whether a push or long-running
+ *   op is in flight or pending.
+ * - `now`: coarse 30s wall-clock tick so `formatRelativeTime`
+ *   consumers ("Synced 2 minutes ago") keep updating without other
+ *   re-render triggers.
  */
-export const syncLocation$ = writable<SyncLocation | null>(null);
+export const syncState = $state<{
+  location: SyncLocation | null;
+  health: SyncLocationHealth;
+  isSyncing: boolean;
+  now: number;
+}>({
+  location: null,
+  health: { status: 'ok' },
+  isSyncing: false,
+  now: Date.now()
+});
+
+if (typeof window !== 'undefined') {
+  setInterval(() => {
+    syncState.now = Date.now();
+  }, 30_000);
+}
 
 /**
  * Cross-device hint surviving in app-settings backups. Captures
@@ -79,28 +106,3 @@ export const lastCloudHint$ = writableObjectLocalStorageSubject<LastCloudHint | 
 export const cloudCustomCredentials$ = writableObjectLocalStorageSubject<
   Partial<Record<CloudProviderType, CustomOAuthCredentials>>
 >()('sync.cloudCustomCredentials', {});
-
-// Health is purely runtime — set by the engine in response to the
-// most recent sync attempt.
-export const syncHealth$ = writable<SyncLocationHealth>({ status: 'ok' });
-
-/**
- * Live indicator of whether the sync engine is either actively pushing
- * or has work pending. The engine flips this as it schedules, runs, and
- * completes debounced pushes; UI subscribes via `$isSyncing$`.
- */
-export const isSyncing$ = writable(false);
-
-/**
- * Coarse-grained wall-clock tick for `formatRelativeTime` consumers so
- * "Synced 2 minutes ago" keeps rolling even when nothing else triggers
- * a re-render. Updates every 30 seconds — finer than the minute
- * granularity of the label, so drift is bounded.
- *
- * Browser-only: the `setInterval` is a no-op under SSR (module is only
- * imported client-side in our pages), but guarding keeps it honest.
- */
-export const now$ = writable(Date.now());
-if (typeof window !== 'undefined') {
-  setInterval(() => now$.set(Date.now()), 30_000);
-}

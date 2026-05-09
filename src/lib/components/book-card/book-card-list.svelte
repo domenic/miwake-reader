@@ -8,7 +8,7 @@
   import BookCard from '$lib/components/book-card/book-card.svelte';
   import type { BookCardProps } from '$lib/components/book-card/book-card-props';
   import Popover from '$lib/components/popover/popover.svelte';
-  import { syncLocation$ } from '$lib/data/sync/sync-store';
+  import { syncState } from '$lib/data/sync/sync-store.svelte';
   import { dummyFn } from '$lib/functions/utils';
   import Fa from 'svelte-fa';
 
@@ -28,9 +28,11 @@
     onremoveBookClick
   }: Props = $props();
 
-  let placeholderIcon = $derived($syncLocation$?.kind === 'fs' ? faFolderOpen : faCloudArrowDown);
+  let placeholderIcon = $derived(
+    syncState.location?.kind === 'fs' ? faFolderOpen : faCloudArrowDown
+  );
   let placeholderTooltip = $derived(
-    $syncLocation$?.kind === 'fs'
+    syncState.location?.kind === 'fs'
       ? 'Not downloaded yet — click the book to copy it from your local sync folder'
       : 'Not downloaded yet — click the book to fetch it from its sync location'
   );

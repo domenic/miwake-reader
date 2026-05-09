@@ -1,7 +1,7 @@
 <script module lang="ts">
   import ForceResyncDialog from '$lib/components/settings/sync/force-resync-dialog.svelte';
   import { showDialog } from '$lib/data/simple-dialogs';
-  import type { SyncLocation } from '$lib/data/sync/sync-store';
+  import type { SyncLocation } from '$lib/data/sync/sync-store.svelte';
 
   export type ForceResyncDirection = 'newest' | 'local-wins' | 'remote-wins';
 

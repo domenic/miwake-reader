@@ -2,7 +2,6 @@ import type { Library, SyncEndpoint } from '$lib/data/storage/handler/handler-ro
 import { NeedsInteractiveAuthError, NeedsPermissionGrantError } from '$lib/data/storage/errors';
 import { StorageDataType, SyncEndpointType, type SyncTitle } from '$lib/data/storage/storage-types';
 import { getLibrary, getSyncEndpoint } from '$lib/data/storage/storage-handler-factory';
-import { MergeMode } from '$lib/data/merge-mode';
 import {
   AutoReplicationType,
   ReplicationSaveBehavior
@@ -18,15 +17,9 @@ import {
   replicationSaveBehavior$,
   statisticsMergeMode$
 } from '$lib/data/store';
-import {
-  isSyncing$,
-  syncHealth$,
-  syncLocation$,
-  type SyncLocation
-} from '$lib/data/sync/sync-store';
-import { cloudSourceName, FS_SOURCE_NAME, readSubject as read } from '$lib/data/sync/sync-helpers';
+import { syncState, type SyncLocation } from '$lib/data/sync/sync-store.svelte';
+import { cloudSourceName, FS_SOURCE_NAME } from '$lib/data/sync/sync-helpers';
 import { logger } from '$lib/data/logger';
-import { get } from 'svelte/store';
 
 // ---------------------------------------------------------------------
 // Handler factories
@@ -42,10 +35,10 @@ import { get } from 'svelte/store';
  */
 function commonSettings(saveBehaviorOverride?: ReplicationSaveBehavior) {
   return {
-    saveBehavior: saveBehaviorOverride ?? read<ReplicationSaveBehavior>(replicationSaveBehavior$),
-    statisticsMergeMode: read<MergeMode>(statisticsMergeMode$),
-    readingGoalsMergeMode: read<MergeMode>(readingGoalsMergeMode$),
-    cacheStorageData: read<boolean>(cacheStorageData$),
+    saveBehavior: saveBehaviorOverride ?? replicationSaveBehavior$.getValue(),
+    statisticsMergeMode: statisticsMergeMode$.getValue(),
+    readingGoalsMergeMode: readingGoalsMergeMode$.getValue(),
+    cacheStorageData: cacheStorageData$.getValue(),
     askForStorageUnlock: false
   };
 }
@@ -75,14 +68,14 @@ function library(saveBehaviorOverride?: ReplicationSaveBehavior): Library {
 // ---------------------------------------------------------------------
 
 function patchLocation(patch: Partial<SyncLocation>): void {
-  const current = read<SyncLocation | null>(syncLocation$);
+  const current = syncState.location;
   if (!current) return;
-  syncLocation$.set({ ...current, ...patch } as SyncLocation);
+  syncState.location = { ...current, ...patch } as SyncLocation;
 }
 
 function markSynced(extra: Partial<SyncLocation> = {}): void {
   patchLocation({ lastSyncedAt: Date.now(), ...extra });
-  syncHealth$.set({ status: 'ok' });
+  syncState.health = { status: 'ok' };
 }
 
 /**
@@ -95,26 +88,26 @@ function reportSyncError(context: string, err: unknown): boolean {
   const message = err instanceof Error ? err.message : String(err);
 
   if (err instanceof NeedsInteractiveAuthError) {
-    syncHealth$.set({
+    syncState.health = {
       status: 'reauth-required',
       summary: 'Sign-in expired',
       detail: 'Reconnect to resume syncing. Queued changes will be pushed on reconnect.'
-    });
+    };
     return true;
   }
 
   if (err instanceof NeedsPermissionGrantError) {
-    syncHealth$.set({
+    syncState.health = {
       status: 'permission-required',
       summary: 'Filesystem access needed',
       detail:
         'Grant access to your sync folder to resume syncing. Queued changes will be pushed once granted.'
-    });
+    };
     return true;
   }
 
   logger.warn(`sync ${context} failed: ${message}`);
-  syncHealth$.set({ status: 'error', summary: 'Sync failed', detail: message });
+  syncState.health = { status: 'error', summary: 'Sync failed', detail: message };
   return false;
 }
 
@@ -267,7 +260,7 @@ export async function pruneUnreachablePlaceholders(reachableTitles: Set<string>)
  * if no location is connected.
  */
 export async function reconcileBooksOnBoot(): Promise<void> {
-  const location = read<SyncLocation | null>(syncLocation$);
+  const location = syncState.location;
   if (!location) return;
 
   const handler = endpointFor(location);
@@ -352,10 +345,10 @@ function pendingKey(context: ReplicationContext): string {
 }
 
 export function triggerSync(dataType: StorageDataType, context: ReplicationContext): void {
-  const direction = read<AutoReplicationType>(autoReplication$);
+  const direction = autoReplication$.getValue();
   if (direction === AutoReplicationType.Off || direction === AutoReplicationType.Down) return;
 
-  const location = read<SyncLocation | null>(syncLocation$);
+  const location = syncState.location;
   if (!location) return;
 
   const key = pendingKey(context);
@@ -366,7 +359,7 @@ export function triggerSync(dataType: StorageDataType, context: ReplicationConte
     pending.set(key, { context, types: new Set([dataType]) });
   }
 
-  isSyncing$.set(true);
+  syncState.isSyncing = true;
   schedulePushRun();
 }
 
@@ -433,14 +426,14 @@ async function runPendingPushes(): Promise<void> {
 
 function emitSyncingState(): void {
   const active = pushRunning || pending.size > 0 || pushTimer !== null || longRunningOps > 0;
-  if (get(isSyncing$) !== active) isSyncing$.set(active);
+  if (syncState.isSyncing !== active) syncState.isSyncing = active;
 }
 
 async function pushOne(context: ReplicationContext, types: StorageDataType[]): Promise<void> {
-  const location = read<SyncLocation | null>(syncLocation$);
+  const location = syncState.location;
   if (!location) return;
 
-  if (location.kind === 'cloud' && !read<boolean>(isOnline$)) {
+  if (location.kind === 'cloud' && !isOnline$.getValue()) {
     // Offline — queue for replay and leave syncHealth$ alone so the
     // indicator shows the offline state rather than a spurious
     // "Sync failed" error on every edit.
@@ -491,7 +484,7 @@ async function drainReplayQueue(): Promise<void> {
  * Respects the autoReplication direction: only pulls if Down or Both.
  */
 export async function reconcileForBookOpen(context: ReplicationContext): Promise<void> {
-  const direction = read<AutoReplicationType>(autoReplication$);
+  const direction = autoReplication$.getValue();
   if (direction !== AutoReplicationType.Down && direction !== AutoReplicationType.All) {
     logger.debug(
       `reconcileForBookOpen: skipping (autoReplication=${direction}) for ${JSON.stringify(context.title)}`
@@ -499,7 +492,7 @@ export async function reconcileForBookOpen(context: ReplicationContext): Promise
     return;
   }
 
-  const location = read<SyncLocation | null>(syncLocation$);
+  const location = syncState.location;
   if (!location) {
     logger.debug(`reconcileForBookOpen: no sync location for ${JSON.stringify(context.title)}`);
     return;
@@ -558,7 +551,7 @@ export type ForceResyncDirection = 'newest' | 'local-wins' | 'remote-wins';
  * Throws on failure; caller (the force-resync dialog) shows the error.
  */
 export async function forceFullResync(direction: ForceResyncDirection): Promise<void> {
-  const location = read<SyncLocation | null>(syncLocation$);
+  const location = syncState.location;
   if (!location) throw new Error('No sync location connected.');
 
   const types = [
@@ -667,7 +660,7 @@ export function isSyncingOrPending(): boolean {
 export async function syncEngineStart(): Promise<void> {
   // Drain queued pushes when we come back online. Ambient pushes while
   // offline enqueue instead of erroring — this is where they flush.
-  let wasOnline = read<boolean>(isOnline$);
+  let wasOnline = isOnline$.getValue();
   isOnline$.subscribe((online) => {
     if (online && !wasOnline) {
       logger.debug('syncEngine: back online, draining replay queue');

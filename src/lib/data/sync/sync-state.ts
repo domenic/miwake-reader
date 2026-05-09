@@ -1,4 +1,4 @@
-import type { SyncLocation, SyncLocationHealth } from './sync-store';
+import type { SyncLocation, SyncLocationHealth } from './sync-store.svelte';
 
 export type SyncIndicatorState =
   | { kind: 'disabled' }

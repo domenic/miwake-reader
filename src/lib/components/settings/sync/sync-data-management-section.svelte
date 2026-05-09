@@ -3,7 +3,7 @@
   import { showBackupImportDialog } from '$lib/components/backup/backup-import-dialog.svelte';
   import type { BackupCatalog } from '$lib/components/backup/backup-types';
   import { confirmDialog, messageDialog } from '$lib/data/simple-dialogs';
-  import { isSyncing$, syncLocation$ } from '$lib/data/sync/sync-store';
+  import { syncState } from '$lib/data/sync/sync-store.svelte';
   import SyncButton from '$lib/components/settings/sync/sync-button.svelte';
   import SyncSection from '$lib/components/settings/sync/sync-section.svelte';
   import { showForceResyncDialog } from '$lib/components/settings/sync/force-resync-dialog.svelte';
@@ -16,7 +16,7 @@
     wipeAllStorage
   } from '$lib/data/sync/backup-service';
 
-  let hasSyncLocation = $derived($syncLocation$ !== null);
+  let hasSyncLocation = $derived(syncState.location !== null);
 
   async function onExport() {
     const catalog = await buildCurrentCatalog();
@@ -62,7 +62,7 @@
       return;
     }
 
-    const result = await showForceResyncDialog({ location: $syncLocation$ });
+    const result = await showForceResyncDialog({ location: syncState.location });
     if (result.kind === 'cancel') return;
 
     try {
@@ -121,8 +121,8 @@
       title: 'Force full re-sync',
       description:
         'Walk every file in your library to ensure there are no differences between your sync location and this device. Useful if you suspect something drifted.',
-      action: $isSyncing$ ? 'Syncing…' : 'Re-sync',
-      disabled: $isSyncing$,
+      action: syncState.isSyncing ? 'Syncing…' : 'Re-sync',
+      disabled: syncState.isSyncing,
       onclick: onForceResync
     },
     {
