@@ -61,7 +61,8 @@ export class FilesystemStorageHandler extends BaseStorageHandler {
     this.storageSourceName = storageSourceName;
   }
 
-  async listSyncTitles() {
+  async listSyncTitles({ refresh = false } = {}) {
+    if (refresh) this.clearData();
     if (!this.dataListFetched) {
       const rootDirectory = await this.ensureRoot();
       const directories = (await FilesystemStorageHandler.list(

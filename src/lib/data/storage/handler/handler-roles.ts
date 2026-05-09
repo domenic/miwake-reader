@@ -79,5 +79,11 @@ export interface Library extends BookOperations {
 export interface SyncEndpoint extends BookOperations {
   readonly kind: 'sync-endpoint';
   readonly storageType: SyncEndpointType;
-  listSyncTitles(): Promise<SyncTitle[]>;
+  /**
+   * List the titles the source advertises. Pass `{ refresh: true }` to
+   * bust the handler's cached listing first — necessary when the
+   * remote may have changed since this handler-singleton was last
+   * used (folder swap, force-resync, post-disconnect reconnect).
+   */
+  listSyncTitles(opts?: { refresh?: boolean }): Promise<SyncTitle[]>;
 }

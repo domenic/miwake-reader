@@ -188,10 +188,9 @@ export async function connectFs(
   // failure (revoked handle, parse error) throws with the prior
   // connection still in place.
   const handler = getSyncEndpoint(window, SyncEndpointType.FS, FS_SOURCE_NAME);
-  handler.clearData();
   let books;
   try {
-    books = await handler.listSyncTitles();
+    books = await handler.listSyncTitles({ refresh: true });
   } catch (err) {
     await restoreOrDropStorageSource(FS_SOURCE_NAME, existing);
     throw err;
@@ -300,10 +299,9 @@ export async function connectCloud(
 
     // Validate listing before any destructive teardown so a cloud
     // hiccup leaves the prior connection intact.
-    handler.clearData();
     let books;
     try {
-      books = await handler.listSyncTitles();
+      books = await handler.listSyncTitles({ refresh: true });
     } catch (err) {
       await restoreOrDropStorageSource(name, existing);
       throw err;

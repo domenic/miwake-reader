@@ -600,11 +600,9 @@ export async function forceFullResync(direction: ForceResyncDirection): Promise<
     // Reconcile placeholders against the current remote listing
     // first — otherwise the loops below iterate stale local `data`
     // and miss remote-only books or waste cycles on remote-deleted
-    // ones. clearData() because handlers are module-level singletons
-    // whose listing cache outlives the user's last edit.
+    // ones.
     const handler = endpointFor(location);
-    handler.clearData();
-    const remoteBooks = await handler.listSyncTitles();
+    const remoteBooks = await handler.listSyncTitles({ refresh: true });
     await reconcilePlaceholders(remoteBooks);
 
     const allBooks = await (await database.db).getAll('data');

@@ -59,7 +59,8 @@ export class OneDriveStorageHandler extends ApiStorageHandler {
     this.storageSourceName = storageSourceName;
   }
 
-  async listSyncTitles() {
+  async listSyncTitles({ refresh = false } = {}) {
+    if (refresh) this.clearData();
     if (!this.dataListFetched) {
       try {
         await this.ensureTitle();
