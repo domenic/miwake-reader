@@ -65,7 +65,9 @@ export abstract class BaseStorageHandler implements SyncEndpoint {
    * data; BROWSER and backup return [] (the unified library view
    * doesn't go through this method — it reads IndexedDB directly).
    */
-  abstract listSyncTitles(): Promise<SyncTitle[]>;
+  abstract listSyncTitles(opts?: { refresh?: boolean }): Promise<SyncTitle[]>;
+
+  abstract authenticate(authWindow: Window | null, silentOnly?: boolean): Promise<void>;
 
   abstract clearData(clearAll?: boolean): void;
 

@@ -40,6 +40,10 @@ export class BackupStorageHandler extends BaseStorageHandler {
     return Promise.resolve([]);
   }
 
+  authenticate(): Promise<void> {
+    return Promise.resolve();
+  }
+
   isBookPresentAndUpToDate() {
     BaseStorageHandler.reportProgress();
     return Promise.resolve(false);

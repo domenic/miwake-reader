@@ -86,4 +86,12 @@ export interface SyncEndpoint extends BookOperations {
    * used (folder swap, force-resync, post-disconnect reconnect).
    */
   listSyncTitles(opts?: { refresh?: boolean }): Promise<SyncTitle[]>;
+  /**
+   * OAuth-flavored endpoints (GDrive, OneDrive) re-establish a token
+   * here. FS/backup are no-ops. `silentOnly` skips popup-opening and
+   * throws `NeedsInteractiveAuthError` if a fresh token can't be
+   * obtained from cache or refresh — used on the boot / ambient paths
+   * where there's no user gesture available.
+   */
+  authenticate(authWindow: Window | null, silentOnly?: boolean): Promise<void>;
 }

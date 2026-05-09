@@ -1,5 +1,3 @@
-import type { GDriveStorageHandler } from '$lib/data/storage/handler/gdrive-handler';
-import type { OneDriveStorageHandler } from '$lib/data/storage/handler/onedrive-handler';
 import type { Library, SyncEndpoint } from '$lib/data/storage/handler/handler-roles';
 import { NeedsInteractiveAuthError, NeedsPermissionGrantError } from '$lib/data/storage/errors';
 import { StorageDataType, SyncEndpointType, type SyncTitle } from '$lib/data/storage/storage-types';
@@ -277,9 +275,7 @@ export async function reconcileBooksOnBoot(): Promise<void> {
   beginLongRunning();
   try {
     if (location.kind === 'cloud') {
-      // Cast: we built handler from a cloud location, so it's the
-      // OAuth-flavored variant. Other endpoint kinds don't have authenticate().
-      await (handler as GDriveStorageHandler | OneDriveStorageHandler).authenticate(null, true);
+      await handler.authenticate(null, true);
     }
 
     const remoteBooks = await handler.listSyncTitles();
@@ -458,7 +454,7 @@ async function pushOne(context: ReplicationContext, types: StorageDataType[]): P
 
   try {
     if (location.kind === 'cloud') {
-      await (handler as GDriveStorageHandler | OneDriveStorageHandler).authenticate(null, true);
+      await handler.authenticate(null, true);
     }
     const error = await replicateData(local, handler, 'push', false, [context], types);
     if (error) throw new Error(error);
@@ -533,7 +529,7 @@ export async function reconcileForBookOpen(context: ReplicationContext): Promise
   try {
     if (location.kind === 'cloud') {
       logger.debug('reconcileForBookOpen: cloud authenticate (silent)');
-      await (handler as GDriveStorageHandler | OneDriveStorageHandler).authenticate(null, true);
+      await handler.authenticate(null, true);
     }
     const error = await replicateData(local, handler, 'pull', false, [context], types);
     if (error) throw new Error(error);
@@ -587,10 +583,7 @@ export async function forceFullResync(direction: ForceResyncDirection): Promise<
   try {
     if (location.kind === 'cloud') {
       try {
-        await (endpointFor(location) as GDriveStorageHandler | OneDriveStorageHandler).authenticate(
-          null,
-          true
-        );
+        await endpointFor(location).authenticate(null, true);
       } catch (err) {
         reportSyncError('forceFullResync (auth)', err);
         throw err;

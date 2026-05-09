@@ -87,6 +87,14 @@ export class FilesystemStorageHandler extends BaseStorageHandler {
     }));
   }
 
+  authenticate(): Promise<void> {
+    // FS handles auth via the picker handle + fs-permission flow,
+    // which lives outside the SyncEndpoint surface. The interface
+    // method is a no-op here so the sync engine can call it without
+    // type-narrowing on cloud-flavored handlers.
+    return Promise.resolve();
+  }
+
   clearData(clearAll = true) {
     this.titleToFiles.clear();
     this.rootFileHandles.clear();
