@@ -1,7 +1,7 @@
 <script module lang="ts">
   import ForceResyncDialog from '$lib/components/settings/sync/force-resync-dialog.svelte';
   import { showDialog } from '$lib/data/simple-dialogs';
-  import type { SyncLocation as SyncLocation_ } from '$lib/data/sync/sync-store';
+  import type { SyncLocation } from '$lib/data/sync/sync-store';
 
   export type ForceResyncDirection = 'newest' | 'local-wins' | 'remote-wins';
 
@@ -10,7 +10,7 @@
     | { kind: 'confirm'; direction: ForceResyncDirection };
 
   export function showForceResyncDialog(params: {
-    location: SyncLocation_ | null;
+    location: SyncLocation | null;
   }): Promise<ForceResyncDialogResult> {
     let chosenDirection: ForceResyncDirection = 'newest';
     return showDialog<ForceResyncDialogResult>(
@@ -36,7 +36,6 @@
   import SyncButton from '$lib/components/settings/sync/sync-button.svelte';
   import SyncRadioGroup from '$lib/components/settings/sync/sync-radio-group.svelte';
   import { describeSyncLocation } from '$lib/components/settings/sync/sync-utils';
-  import type { SyncLocation } from '$lib/data/sync/sync-store';
 
   interface Props {
     location: SyncLocation | null;

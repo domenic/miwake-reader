@@ -1,14 +1,11 @@
 <script module lang="ts">
   import BackupExportDialog from '$lib/components/backup/backup-export-dialog.svelte';
   import { showDialog } from '$lib/data/simple-dialogs';
-  import type {
-    BackupCatalog as BackupCatalog_,
-    BackupSelection as BackupSelection_
-  } from '$lib/components/backup/backup-types';
+  import type { BackupCatalog, BackupSelection } from '$lib/components/backup/backup-types';
 
   export function showBackupExportDialog(params: {
-    catalog: BackupCatalog_;
-    onExport: (selection: BackupSelection_) => Promise<void>;
+    catalog: BackupCatalog;
+    onExport: (selection: BackupSelection) => Promise<void>;
   }): Promise<void> {
     return showDialog<void>(
       BackupExportDialog,
@@ -24,11 +21,7 @@
 <script lang="ts">
   import BackupSelectionTree from '$lib/components/backup/backup-selection-tree.svelte';
   import SyncButton from '$lib/components/settings/sync/sync-button.svelte';
-  import {
-    isEmptySelection,
-    type BackupCatalog,
-    type BackupSelection
-  } from '$lib/components/backup/backup-types';
+  import { isEmptySelection } from '$lib/components/backup/backup-types';
 
   interface Props {
     catalog: BackupCatalog;

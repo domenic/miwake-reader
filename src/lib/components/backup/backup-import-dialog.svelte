@@ -2,16 +2,16 @@
   import BackupImportDialog from '$lib/components/backup/backup-import-dialog.svelte';
   import { showDialog } from '$lib/data/simple-dialogs';
   import type {
-    BackupCatalog as BackupCatalog_,
+    BackupCatalog,
     BackupImportDirection,
-    BackupSelection as BackupSelection_
+    BackupSelection
   } from '$lib/components/backup/backup-types';
 
   export function showBackupImportDialog(params: {
     fileName: string;
-    catalog: BackupCatalog_;
+    catalog: BackupCatalog;
     onImport: (
-      selection: BackupSelection_,
+      selection: BackupSelection,
       direction: BackupImportDirection
     ) => Promise<{
       books: number;
@@ -36,11 +36,7 @@
   import BackupSelectionTree from '$lib/components/backup/backup-selection-tree.svelte';
   import SyncButton from '$lib/components/settings/sync/sync-button.svelte';
   import SyncRadioGroup from '$lib/components/settings/sync/sync-radio-group.svelte';
-  import {
-    isEmptySelection,
-    type BackupCatalog,
-    type BackupSelection
-  } from '$lib/components/backup/backup-types';
+  import { isEmptySelection } from '$lib/components/backup/backup-types';
   import { untrack } from 'svelte';
 
   interface Props {

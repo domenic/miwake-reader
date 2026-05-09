@@ -1,7 +1,7 @@
 <script module lang="ts">
   import SyncLeaveDialog from '$lib/components/settings/sync/sync-leave-dialog.svelte';
   import { showDialog } from '$lib/data/simple-dialogs';
-  import type { SyncLocation as SyncLocation_ } from '$lib/data/sync/sync-store';
+  import type { SyncLocation } from '$lib/data/sync/sync-store';
 
   /**
    * Confirmation for a destructive sync state change: either
@@ -13,7 +13,7 @@
 
   export function showSyncLeaveDialog(params: {
     /** The location being left. Required so we can describe it. */
-    leaving: SyncLocation_;
+    leaving: SyncLocation;
     /**
      * The target after the change. `null` = disconnect, no successor.
      * Otherwise a label describing what the user is switching to
@@ -49,7 +49,6 @@
 <script lang="ts">
   import SyncButton from '$lib/components/settings/sync/sync-button.svelte';
   import { describeSyncLocation } from '$lib/components/settings/sync/sync-utils';
-  import type { SyncLocation } from '$lib/data/sync/sync-store';
 
   interface Props {
     leaving: SyncLocation;
