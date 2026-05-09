@@ -10,6 +10,14 @@ export interface RemoteContext {
   clientId: string;
   clientSecret: string;
   refreshToken?: string;
+  /**
+   * OAuth token endpoint override. Custom-credential users on
+   * tenant-pinned OneDrive (work/school, GovCloud) need to point
+   * code-exchange and refresh at their tenant's authority URL rather
+   * than the consumer endpoint. When undefined, the env-default for
+   * the provider is used. See StorageOAuthManager.getAuthVariables.
+   */
+  tokenEndpoint?: string;
 }
 
 export interface StorageSourceSaveResult {

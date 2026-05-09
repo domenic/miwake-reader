@@ -149,7 +149,8 @@ export async function connectCloud(provider: CloudProviderType): Promise<void> {
       ? {
           clientId: customCreds.clientId,
           clientSecret: customCreds.clientSecret,
-          refreshToken: ''
+          refreshToken: '',
+          tokenEndpoint: customCreds.tokenEndpoint
         }
       : {
           clientId: provider === SyncEndpointType.GDRIVE ? gDriveClientId : oneDriveClientId,

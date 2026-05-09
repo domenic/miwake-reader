@@ -291,9 +291,13 @@ export class StorageOAuthManager {
   }
 
   private async refreshToken() {
+    // Prefer the per-source custom token endpoint when the user
+    // supplied one (tenant-pinned OneDrive, etc.); otherwise fall back
+    // to the env-default this manager was constructed with.
+    const refreshUrl = this.remoteData?.tokenEndpoint || this.refreshEndpoint;
     if (
       !(
-        this.refreshEndpoint &&
+        refreshUrl &&
         this.storageSourceName &&
         this.remoteData?.clientId &&
         this.remoteData.refreshToken
@@ -301,14 +305,14 @@ export class StorageOAuthManager {
     ) {
       logger.debug(
         `refreshToken: silent early-return — ` +
-          `refreshEndpoint=${!!this.refreshEndpoint}, ` +
+          `refreshUrl=${!!refreshUrl}, ` +
           `storageSourceName=${JSON.stringify(this.storageSourceName ?? null)}, ` +
           `clientId=${!!this.remoteData?.clientId}, ` +
           `refreshToken=${!!this.remoteData?.refreshToken}`
       );
       return undefined;
     }
-    logger.debug(`refreshToken: posting to ${this.refreshEndpoint} for ${this.storageSourceName}`);
+    logger.debug(`refreshToken: posting to ${refreshUrl} for ${this.storageSourceName}`);
 
     const form = new FormData();
     form.append('client_id', this.remoteData.clientId);
@@ -319,7 +323,7 @@ export class StorageOAuthManager {
       form.append('client_secret', this.remoteData.clientSecret);
     }
 
-    const response = await fetch(this.refreshEndpoint, { method: 'POST', body: form })
+    const response = await fetch(refreshUrl, { method: 'POST', body: form })
       .then(async (httpResponse) => {
         if (!httpResponse.ok) {
           throw new Error(await convertAuthErrorResponse(httpResponse));
@@ -383,9 +387,12 @@ export class StorageOAuthManager {
       )
     );
 
+    // Defaults first, then remoteData — so a user-provided custom
+    // tokenEndpoint (RemoteContext.tokenEndpoint) wins over the
+    // env-default for this provider when present.
     const authData = {
-      ...this.remoteData,
       ...StorageOAuthManager.getAuthVariables(this.storageType),
+      ...this.remoteData,
       needsRefreshToken: !this.remoteData.refreshToken,
       codeVerifier: this.codeVerifier,
       codeChallenge
