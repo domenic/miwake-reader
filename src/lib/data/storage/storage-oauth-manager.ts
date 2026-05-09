@@ -251,9 +251,14 @@ export class StorageOAuthManager {
             ...(storageSource ?? {}),
             name: storageSourceName,
             type: this.storageType,
+            // Spread remoteData so optional fields (notably the
+            // user-supplied tokenEndpoint for tenant-pinned OneDrive)
+            // survive the rewrite. A naive enumerate-and-list of
+            // {clientId, clientSecret, refreshToken} dropped them and
+            // forced silent refresh back onto the env-default endpoint
+            // on the next reload.
             data: {
-              clientId: this.remoteData.clientId,
-              clientSecret: this.remoteData.clientSecret,
+              ...this.remoteData,
               refreshToken: token.refreshToken
             },
             lastSourceModified: Date.now()
