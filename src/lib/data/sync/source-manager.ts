@@ -3,7 +3,7 @@ import type { BooksDbStorageSource } from '$lib/data/database/books-db/versions/
 import { getSyncEndpoint } from '$lib/data/storage/storage-handler-factory';
 import type { FsHandle, RemoteContext } from '$lib/data/storage/storage-source-manager';
 import { clearOAuthTokenCache, StorageOAuthManager } from '$lib/data/storage/storage-oauth-manager';
-import { SyncEndpointType, type SyncTitle } from '$lib/data/storage/storage-types';
+import { SyncEndpointType } from '$lib/data/storage/storage-types';
 import { database } from '$lib/data/store';
 import {
   cloudCustomCredentials$,
@@ -15,9 +15,9 @@ import {
   type SyncLocation
 } from '$lib/data/sync/sync-store';
 import {
-  ensurePlaceholders,
   pruneUnreachablePlaceholders,
-  pushAllLocalBooks
+  pushAllLocalBooks,
+  reconcilePlaceholders
 } from '$lib/data/sync/sync-engine';
 import {
   cloudSourceName,
@@ -25,6 +25,29 @@ import {
   isCustomCloudName,
   readSubject as read
 } from '$lib/data/sync/sync-helpers';
+
+function readCustomCreds(provider: CloudProviderType): CustomOAuthCredentials | undefined {
+  return read<Partial<Record<CloudProviderType, CustomOAuthCredentials>>>(cloudCustomCredentials$)[
+    provider
+  ];
+}
+
+/**
+ * Roll back the storageSource record we just wrote. If a record
+ * existed before, restore it (so its previous refresh token survives
+ * a failed reconnect); otherwise drop the placeholder we wrote.
+ */
+async function restoreOrDropStorageSource(
+  name: string,
+  existing: BooksDbStorageSource | undefined
+): Promise<void> {
+  if (existing) {
+    await database.saveStorageSource(existing, name);
+    return;
+  }
+  const stored = await (await database.db).get('storageSource', name);
+  if (stored) await database.deleteStorageSource(stored);
+}
 
 export interface LeaveOptions {
   /**
@@ -54,14 +77,7 @@ export async function switchToCloud(
   opts: LeaveOptions & { useCustomCredentials?: boolean } = {}
 ): Promise<void> {
   const current = read<SyncLocation | null>(syncLocation$);
-  const customCreds =
-    read<Partial<Record<CloudProviderType, CustomOAuthCredentials>>>(cloudCustomCredentials$)[
-      provider
-    ];
-  // Caller can force a specific OAuth mode (e.g. revert-to-default
-  // wants default even though custom creds are still stored);
-  // otherwise derive from whether custom creds exist.
-  const useCustom = opts.useCustomCredentials ?? !!customCreds;
+  const useCustom = opts.useCustomCredentials ?? !!readCustomCreds(provider);
   const isSameSource =
     current?.kind === 'cloud' &&
     current.provider === provider &&
@@ -168,37 +184,24 @@ export async function connectFs(
   const existing = await (await database.db).get('storageSource', FS_SOURCE_NAME);
   await database.saveStorageSource(record, existing ? FS_SOURCE_NAME : '');
 
-  // Validate the new source is actually usable BEFORE tearing down
-  // the old. If listing fails (handle revoked, parse errors,
-  // permission flake), we throw with the prior connection still in
-  // place — the user is no worse off than before they clicked.
-  const fsHandler = getSyncEndpoint(window, SyncEndpointType.FS, FS_SOURCE_NAME);
-  fsHandler.clearData();
+  // Validate the new source before tearing down the old: a listing
+  // failure (revoked handle, parse error) throws with the prior
+  // connection still in place.
+  const handler = getSyncEndpoint(window, SyncEndpointType.FS, FS_SOURCE_NAME);
+  handler.clearData();
   let books;
   try {
-    books = await fsHandler.listSyncTitles();
+    books = await handler.listSyncTitles();
   } catch (err) {
-    // Re-instate the prior storageSource record so the user is still
-    // syncing where they were. (FS_SOURCE_NAME is shared, so we just
-    // overwrote the old; put it back if it existed.)
-    if (existing) {
-      await database.saveStorageSource(existing, FS_SOURCE_NAME);
-    } else {
-      const stored = await (await database.db).get('storageSource', FS_SOURCE_NAME);
-      if (stored) await database.deleteStorageSource(stored);
-    }
+    await restoreOrDropStorageSource(FS_SOURCE_NAME, existing);
     throw err;
   }
 
-  // Listing succeeded — only NOW perform the destructive prior
-  // teardown. Library wipe (if requested) lands here too, before the
-  // upcoming push, so the new sync doesn't end up mirroring the old
-  // device's content.
   if (opts.priorLocation || opts.clearLibrary) {
     await teardownPriorLocation(opts.priorLocation ?? null, !!opts.clearLibrary);
   }
 
-  await applyReconciliation(books);
+  await reconcilePlaceholders(books);
 
   const now = Date.now();
   syncLocation$.next({
@@ -249,12 +252,7 @@ export async function connectCloud(
   }
 
   try {
-    const customCreds =
-      read<Partial<Record<CloudProviderType, CustomOAuthCredentials>>>(cloudCustomCredentials$)[
-        provider
-      ];
-    // Caller-provided override wins (revert-to-default forces default
-    // mode while custom creds remain stored); otherwise derive.
+    const customCreds = readCustomCreds(provider);
     const useCustom = opts.useCustomCredentials ?? !!customCreds;
     const name = cloudSourceName(provider, useCustom);
 
@@ -282,11 +280,10 @@ export async function connectCloud(
     const existing = await (await database.db).get('storageSource', name);
     await database.saveStorageSource(record, existing ? name : '');
 
-    // Clear any in-memory access token so authenticate() doesn't
-    // short-circuit on a still-valid cached access token while the
-    // persisted refreshToken we just wrote is empty — the user would
-    // appear connected for the rest of the session and then have no
-    // way to refresh on the next boot.
+    // Drop the in-memory access token so authenticate() doesn't
+    // short-circuit on a still-valid cached token: we just clobbered
+    // the persisted refreshToken to '', and a silent success would
+    // leave nothing for the next boot to refresh from.
     clearOAuthTokenCache(name);
 
     const handler =
@@ -297,53 +294,26 @@ export async function connectCloud(
     try {
       await handler.authenticate(authWindow);
     } catch (err) {
-      // OAuth failed — restore prior state. If a record existed
-      // before, put it back: we just clobbered its refreshToken with
-      // an empty string, so a naive delete-on-failure would leave the
-      // user permanently signed out instead of merely failing this
-      // attempt. If there was no prior record, drop the placeholder
-      // we wrote.
-      if (existing) {
-        await database.saveStorageSource(existing, name);
-      } else {
-        const db = await database.db;
-        const stored = await db.get('storageSource', name);
-        if (stored) await database.deleteStorageSource(stored);
-      }
+      await restoreOrDropStorageSource(name, existing);
       throw err;
     }
 
-    // Validate the new source is actually usable BEFORE tearing down
-    // the old. If listing fails (cloud API hiccup, permission flake,
-    // malformed remote files), the throw propagates with the prior
-    // connection still active. Restore the storageSource record we
-    // just clobbered so subsequent reads see the user's previous
-    // refresh token, not the empty one.
-    const newHandler =
-      provider === SyncEndpointType.GDRIVE
-        ? getSyncEndpoint(window, SyncEndpointType.GDRIVE, name)
-        : getSyncEndpoint(window, SyncEndpointType.ONEDRIVE, name);
-    newHandler.clearData();
+    // Validate listing before any destructive teardown so a cloud
+    // hiccup leaves the prior connection intact.
+    handler.clearData();
     let books;
     try {
-      books = await newHandler.listSyncTitles();
+      books = await handler.listSyncTitles();
     } catch (err) {
-      if (existing) {
-        await database.saveStorageSource(existing, name);
-      } else {
-        const db = await database.db;
-        const stored = await db.get('storageSource', name);
-        if (stored) await database.deleteStorageSource(stored);
-      }
+      await restoreOrDropStorageSource(name, existing);
       throw err;
     }
 
-    // Listing succeeded — only now tear down the prior connection.
     if (opts.priorLocation || opts.clearLibrary) {
       await teardownPriorLocation(opts.priorLocation ?? null, !!opts.clearLibrary);
     }
 
-    await applyReconciliation(books);
+    await reconcilePlaceholders(books);
 
     const now = Date.now();
     syncLocation$.next({
@@ -362,22 +332,6 @@ export async function connectCloud(
     if (!authWindow.closed) {
       authWindow.close();
     }
-  }
-}
-
-/**
- * Apply an already-fetched remote book list to local state: seed
- * placeholders for every remote-listed title, prune ones the source
- * didn't list (e.g., leftovers from a prior sync we just switched
- * away from). Used after the caller has validated that the source
- * is reachable, so failures here only affect the new connection.
- */
-async function applyReconciliation(books: SyncTitle[]) {
-  const ensured = await ensurePlaceholders(books);
-  const reachable = new Set(books.map((b) => b.title));
-  const pruned = await pruneUnreachablePlaceholders(reachable);
-  if (ensured > 0 || pruned > 0) {
-    database.notifyDataListChanged();
   }
 }
 

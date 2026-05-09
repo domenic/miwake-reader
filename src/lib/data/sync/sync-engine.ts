@@ -216,6 +216,22 @@ async function maybeWritePlaceholderBookmark(
  * since the single-location model has no remaining source to fall
  * back on).
  */
+/**
+ * Apply a remote book list to local state: seed placeholders for every
+ * remote-listed title, prune ones the source didn't list. Used after
+ * the caller has confirmed the source is reachable (boot reconcile,
+ * fresh connect, switch, force resync) so failures here only affect
+ * the new connection.
+ */
+export async function reconcilePlaceholders(books: SyncTitle[]): Promise<void> {
+  const ensured = await ensurePlaceholders(books);
+  const reachable = new Set(books.map((b) => b.title));
+  const pruned = await pruneUnreachablePlaceholders(reachable);
+  if (ensured > 0 || pruned > 0) {
+    database.notifyDataListChanged();
+  }
+}
+
 export async function pruneUnreachablePlaceholders(reachableTitles: Set<string>): Promise<number> {
   const db = await database.db;
   const allBooks = await db.getAll('data');
@@ -271,18 +287,10 @@ export async function reconcileBooksOnBoot(): Promise<void> {
         remoteBooks.map((b) => JSON.stringify(b.title)).join(', ')
     );
 
-    // Reconcile in both directions: add placeholders for titles the
-    // source advertises but we don't have, and prune placeholders for
-    // titles the source no longer advertises. Pruning is gated on
-    // listSyncTitles having succeeded (we wouldn't be here otherwise),
-    // so a transient network / permission error can't nuke
-    // placeholders by accident — the throw above short-circuits.
-    const touched = await ensurePlaceholders(remoteBooks);
-    const reachable = new Set(remoteBooks.map((b) => b.title));
-    const pruned = await pruneUnreachablePlaceholders(reachable);
-    if (touched > 0 || pruned > 0) {
-      database.notifyDataListChanged();
-    }
+    // Listing succeeded; if it had thrown above, the outer catch would
+    // skip this block — so a transient network / permission error
+    // can't nuke placeholders by accident.
+    await reconcilePlaceholders(remoteBooks);
 
     markSynced(location.kind === 'cloud' ? { bookCount: remoteBooks.length } : {});
     await drainReplayQueue();
@@ -588,25 +596,15 @@ export async function forceFullResync(direction: ForceResyncDirection): Promise<
       }
     }
 
-    // Reconcile the placeholder set against what the source advertises
-    // first — otherwise a remote-only book (added since boot, or
-    // missed by a failed reconcile) is invisible to the loops below
-    // because they iterate local `data`, and we'd silently leave the
-    // resync incomplete. Prune in the same step so a placeholder for
-    // a remote-deleted book doesn't waste a "force" iteration trying
-    // to pull a file that no longer exists.
-    //
-    // clearData() before listing because handlers are module-level
-    // singletons that cache the title listing. A user pressing
-    // "Re-sync" after deleting a remote file would otherwise see the
-    // stale cache, and the prune would do nothing.
+    // Reconcile placeholders against the current remote listing
+    // first — otherwise the loops below iterate stale local `data`
+    // and miss remote-only books or waste cycles on remote-deleted
+    // ones. clearData() because handlers are module-level singletons
+    // whose listing cache outlives the user's last edit.
     const handler = endpointFor(location);
     handler.clearData();
     const remoteBooks = await handler.listSyncTitles();
-    const ensured = await ensurePlaceholders(remoteBooks);
-    const reachable = new Set(remoteBooks.map((b) => b.title));
-    const pruned = await pruneUnreachablePlaceholders(reachable);
-    if (ensured > 0 || pruned > 0) database.notifyDataListChanged();
+    await reconcilePlaceholders(remoteBooks);
 
     const allBooks = await (await database.db).getAll('data');
     const pullContexts: ReplicationContext[] = allBooks.map((b) => ({
