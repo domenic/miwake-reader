@@ -62,14 +62,20 @@ export interface LeaveOptions {
 }
 
 /**
- * Public connect / switch entry for a local folder. MUST be called
- * directly from a click handler — showDirectoryPicker requires a live
- * user activation, and any await before the picker call risks
- * consuming it. Covers all of: fresh connect, change folder, switch
- * from cloud, regrant after permission revoke. The function
- * dispatches based on the current sync location; same-source becomes
- * an in-place replacement, different-source goes through the
- * prior-teardown path after the new destination is validated.
+ * Public connect / switch entry for a local folder. Must be called
+ * inside a live user-activation window: showDirectoryPicker fails
+ * without one. The activation can come either from a click handler
+ * directly, or from the synchronous continuation of a dialog whose
+ * Confirm button just resolved (the dialog click produces its own
+ * transient activation that the continuation inherits). Don't add
+ * unrelated awaits between the dialog resolve and the call here —
+ * each one risks the activation timing out (~5s in Chromium).
+ *
+ * Covers fresh connect, change folder, switch from cloud, and
+ * regrant after permission revoke. Dispatches on the current sync
+ * location: same-source becomes an in-place replacement,
+ * different-source goes through prior-teardown after the new
+ * destination is validated.
  */
 export async function connectFs(opts: ConnectFsOptions = {}): Promise<void> {
   const current = read<SyncLocation | null>(syncLocation$);
@@ -84,11 +90,19 @@ export async function connectFs(opts: ConnectFsOptions = {}): Promise<void> {
 }
 
 /**
- * Public connect / switch entry for a cloud provider. MUST be called
- * directly from a click handler — opens the OAuth popup synchronously
- * before any await, so the user activation is consumed by window.open
- * rather than a later API call. Covers fresh connect, switch (incl.
- * default ↔ custom OAuth on the same provider), and reconnect.
+ * Public connect / switch entry for a cloud provider. Must be called
+ * inside a live user-activation window: window.open is silently
+ * popup-blocked without one. The activation can come either from a
+ * click handler directly, or from the synchronous continuation of a
+ * dialog whose Confirm button just resolved (the dialog click
+ * produces its own transient activation that the continuation
+ * inherits). The popup is opened before any other await here so the
+ * activation is consumed by window.open rather than a later API call.
+ * Don't add unrelated awaits between the dialog resolve and the call
+ * here — each one risks the activation timing out (~5s in Chromium).
+ *
+ * Covers fresh connect, switch (incl. default ↔ custom OAuth on the
+ * same provider), and reconnect.
  */
 export async function connectCloud(
   provider: CloudProviderType,
