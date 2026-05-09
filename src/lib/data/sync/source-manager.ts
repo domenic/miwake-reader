@@ -12,11 +12,11 @@ import {
   type CustomOAuthCredentials,
   type SyncLocation
 } from '$lib/data/sync/sync-store.svelte';
+import { pushAllLocalBooks } from '$lib/data/sync/sync-engine';
 import {
   pruneUnreachablePlaceholders,
-  pushAllLocalBooks,
   reconcilePlaceholders
-} from '$lib/data/sync/sync-engine';
+} from '$lib/data/sync/placeholder-reconciler';
 import { cloudSourceName, FS_SOURCE_NAME, isCustomCloudName } from '$lib/data/sync/sync-helpers';
 
 function readCustomCreds(provider: CloudProviderType): CustomOAuthCredentials | undefined {
