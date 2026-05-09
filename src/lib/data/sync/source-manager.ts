@@ -167,6 +167,13 @@ export async function connectCloud(provider: CloudProviderType): Promise<void> {
     const existing = await (await database.db).get('storageSource', name);
     await database.saveStorageSource(record, existing ? name : '');
 
+    // Clear any in-memory access token so authenticate() doesn't
+    // short-circuit on a still-valid cached access token while the
+    // persisted refreshToken we just wrote is empty — the user would
+    // appear connected for the rest of the session and then have no
+    // way to refresh on the next boot.
+    clearOAuthTokenCache(name);
+
     const handler =
       provider === SyncEndpointType.GDRIVE
         ? getSyncEndpoint(window, SyncEndpointType.GDRIVE, name)
@@ -175,11 +182,18 @@ export async function connectCloud(provider: CloudProviderType): Promise<void> {
     try {
       await handler.authenticate(authWindow);
     } catch (err) {
-      // OAuth failed — roll back the DB record.
-      const db = await database.db;
-      const stored = await db.get('storageSource', name);
-      if (stored) {
-        await database.deleteStorageSource(stored);
+      // OAuth failed — restore prior state. If a record existed
+      // before, put it back: we just clobbered its refreshToken with
+      // an empty string, so a naive delete-on-failure would leave the
+      // user permanently signed out instead of merely failing this
+      // attempt. If there was no prior record, drop the placeholder
+      // we wrote.
+      if (existing) {
+        await database.saveStorageSource(existing, name);
+      } else {
+        const db = await database.db;
+        const stored = await db.get('storageSource', name);
+        if (stored) await database.deleteStorageSource(stored);
       }
       throw err;
     }
