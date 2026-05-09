@@ -3,7 +3,7 @@ import type { BooksDbStorageSource } from '$lib/data/database/books-db/versions/
 import { getSyncEndpoint } from '$lib/data/storage/storage-handler-factory';
 import type { FsHandle, RemoteContext } from '$lib/data/storage/storage-source-manager';
 import { clearOAuthTokenCache, StorageOAuthManager } from '$lib/data/storage/storage-oauth-manager';
-import { SyncEndpointType } from '$lib/data/storage/storage-types';
+import { SyncEndpointType, type SyncTitle } from '$lib/data/storage/storage-types';
 import { database } from '$lib/data/store';
 import {
   cloudCustomCredentials$,
@@ -157,16 +157,37 @@ export async function connectFs(
   const existing = await (await database.db).get('storageSource', FS_SOURCE_NAME);
   await database.saveStorageSource(record, existing ? FS_SOURCE_NAME : '');
 
-  // Tear down the prior connection (cloud record / FS record under a
-  // different key — only matters when prior was cloud, since FS uses
-  // the same record name). Library wipe happens here too, before the
+  // Validate the new source is actually usable BEFORE tearing down
+  // the old. If listing fails (handle revoked, parse errors,
+  // permission flake), we throw with the prior connection still in
+  // place — the user is no worse off than before they clicked.
+  const fsHandler = getSyncEndpoint(window, SyncEndpointType.FS, FS_SOURCE_NAME);
+  fsHandler.clearData();
+  let books;
+  try {
+    books = await fsHandler.listSyncTitles();
+  } catch (err) {
+    // Re-instate the prior storageSource record so the user is still
+    // syncing where they were. (FS_SOURCE_NAME is shared, so we just
+    // overwrote the old; put it back if it existed.)
+    if (existing) {
+      await database.saveStorageSource(existing, FS_SOURCE_NAME);
+    } else {
+      const stored = await (await database.db).get('storageSource', FS_SOURCE_NAME);
+      if (stored) await database.deleteStorageSource(stored);
+    }
+    throw err;
+  }
+
+  // Listing succeeded — only NOW perform the destructive prior
+  // teardown. Library wipe (if requested) lands here too, before the
   // upcoming push, so the new sync doesn't end up mirroring the old
   // device's content.
   if (opts.priorLocation || opts.clearLibrary) {
     await teardownPriorLocation(opts.priorLocation ?? null, !!opts.clearLibrary);
   }
 
-  await reconcileFromSource(SyncEndpointType.FS, FS_SOURCE_NAME);
+  await applyReconciliation(books);
 
   const now = Date.now();
   syncLocation$.next({
@@ -278,15 +299,37 @@ export async function connectCloud(
       throw err;
     }
 
-    // Tear down the prior connection now that auth has succeeded —
-    // never before, since a popup-blocked or canceled flow would leave
-    // the user with no working sync.
+    // Validate the new source is actually usable BEFORE tearing down
+    // the old. If listing fails (cloud API hiccup, permission flake,
+    // malformed remote files), the throw propagates with the prior
+    // connection still active. Restore the storageSource record we
+    // just clobbered so subsequent reads see the user's previous
+    // refresh token, not the empty one.
+    const newHandler =
+      provider === SyncEndpointType.GDRIVE
+        ? getSyncEndpoint(window, SyncEndpointType.GDRIVE, name)
+        : getSyncEndpoint(window, SyncEndpointType.ONEDRIVE, name);
+    newHandler.clearData();
+    let books;
+    try {
+      books = await newHandler.listSyncTitles();
+    } catch (err) {
+      if (existing) {
+        await database.saveStorageSource(existing, name);
+      } else {
+        const db = await database.db;
+        const stored = await db.get('storageSource', name);
+        if (stored) await database.deleteStorageSource(stored);
+      }
+      throw err;
+    }
+
+    // Listing succeeded — only now tear down the prior connection.
     if (opts.priorLocation || opts.clearLibrary) {
       await teardownPriorLocation(opts.priorLocation ?? null, !!opts.clearLibrary);
     }
 
-    // Token is cached now; this call won't re-open the popup.
-    const books = await reconcileFromSource(provider, name);
+    await applyReconciliation(books);
 
     const now = Date.now();
     syncLocation$.next({
@@ -309,38 +352,19 @@ export async function connectCloud(
 }
 
 /**
- * After connecting (or switching to) a sync location, list its titles
- * and reconcile placeholders both ways: ensure rows exist for every
- * remote title, prune rows for titles that don't (e.g., placeholders
- * left over from a prior cloud the user just switched away from).
- * Returns the remote book list so cloud connects can stamp bookCount
- * onto syncLocation$.
+ * Apply an already-fetched remote book list to local state: seed
+ * placeholders for every remote-listed title, prune ones the source
+ * didn't list (e.g., leftovers from a prior sync we just switched
+ * away from). Used after the caller has validated that the source
+ * is reachable, so failures here only affect the new connection.
  */
-async function reconcileFromSource(
-  type: SyncEndpointType.GDRIVE | SyncEndpointType.ONEDRIVE | SyncEndpointType.FS,
-  storageSourceName: string
-) {
-  const handler =
-    type === SyncEndpointType.GDRIVE
-      ? getSyncEndpoint(window, SyncEndpointType.GDRIVE, storageSourceName)
-      : type === SyncEndpointType.ONEDRIVE
-        ? getSyncEndpoint(window, SyncEndpointType.ONEDRIVE, storageSourceName)
-        : getSyncEndpoint(window, SyncEndpointType.FS, storageSourceName);
-
-  // Handlers are module-level singletons that cache title listings (and
-  // for FS, the root directory handle) keyed by storageSourceName. On
-  // a fresh connect or a folder swap, those caches are stale even
-  // though the name didn't change. Reset before listing.
-  handler.clearData();
-
-  const books = await handler.listSyncTitles();
+async function applyReconciliation(books: SyncTitle[]) {
   const ensured = await ensurePlaceholders(books);
   const reachable = new Set(books.map((b) => b.title));
   const pruned = await pruneUnreachablePlaceholders(reachable);
   if (ensured > 0 || pruned > 0) {
     database.notifyDataListChanged();
   }
-  return books;
 }
 
 /**
