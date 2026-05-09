@@ -12,8 +12,8 @@ export type CloudProviderType = SyncEndpointType.GDRIVE | SyncEndpointType.ONEDR
  * path.
  *
  * Runtime-only: rebuilt from IndexedDB on every app boot via
- * loadConnectionsFromDb. localStorage keeps a preference snapshot
- * (lastConfiguredCloud$) so a fresh device restored from app-settings
+ * loadConnectionsFromDb. lastCloudHint$ (below) carries a separate
+ * preference snapshot so a fresh device restored from app-settings
  * backup can nudge the user to reconnect.
  */
 export type SyncLocation =

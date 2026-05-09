@@ -89,8 +89,9 @@ errors. No sync works yet.
 
 ## Phase 3 — Storage source manager rewrite
 
-**Goal.** Replace `src/lib/data/storage/storage-source-manager.ts` with a thin,
-non-RxJS module that manages exactly one cloud source and one FS source.
+**Goal.** Replace `src/lib/data/storage/storage-source-manager.ts` (later
+renamed to `storage-source-types.ts`) with a thin, non-RxJS module that
+manages exactly one cloud source and one FS source.
 
 Steps:
 

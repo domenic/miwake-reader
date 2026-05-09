@@ -17,6 +17,8 @@ export interface BackupSelection {
   perBook: Map<number, { book: true; bookmarks: boolean; statistics: boolean }>;
 }
 
+export type BackupImportDirection = 'newest' | 'zip-wins';
+
 export function isEmptySelection(sel: BackupSelection): boolean {
   return !sel.appSettings && !sel.readingGoals && sel.perBook.size === 0;
 }

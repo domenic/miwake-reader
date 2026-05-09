@@ -1,9 +1,9 @@
 import type {
   BackupBook,
   BackupCatalog,
+  BackupImportDirection,
   BackupSelection
 } from '$lib/components/backup/backup-types';
-import type { BackupImportDirection } from '$lib/components/backup/backup-import-dialog.svelte';
 import { BlobReader, ZipReader } from '@zip.js/zip.js';
 import {
   cacheStorageData$,

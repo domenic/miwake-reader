@@ -3,10 +3,9 @@
   import { showDialog } from '$lib/data/simple-dialogs';
   import type {
     BackupCatalog as BackupCatalog_,
+    BackupImportDirection,
     BackupSelection as BackupSelection_
   } from '$lib/components/backup/backup-types';
-
-  export type BackupImportDirection = 'newest' | 'zip-wins';
 
   export function showBackupImportDialog(params: {
     fileName: string;
