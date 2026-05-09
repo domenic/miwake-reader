@@ -1,5 +1,6 @@
 import { writable } from 'svelte/store';
 import { writableObjectLocalStorageSubject } from '$lib/data/internal/writable-object-local-storage-subject';
+import { writableSubject } from '$lib/functions/svelte/store';
 import { SyncEndpointType } from '$lib/data/storage/storage-types';
 
 export type CloudProviderType = SyncEndpointType.GDRIVE | SyncEndpointType.ONEDRIVE;
@@ -48,11 +49,12 @@ export type SyncLocationHealth =
       technicalDetail?: string;
     };
 
-export const syncLocation$ = writableObjectLocalStorageSubject<SyncLocation | null>()(
-  'sync.location',
-  null,
-  'runtime'
-);
+/**
+ * In-memory only: rebuilt from IndexedDB on every app boot via
+ * loadConnectionsFromDb. Persisting to localStorage would just be a
+ * stale cache against the IDB-of-record (and was, up to now).
+ */
+export const syncLocation$ = writableSubject<SyncLocation | null>(null);
 
 /**
  * Cross-device hint surviving in app-settings backups. Captures
@@ -81,11 +83,7 @@ export const cloudCustomCredentials$ = writableObjectLocalStorageSubject<
 
 // Health is purely runtime — set by the engine in response to the
 // most recent sync attempt.
-export const syncHealth$ = writableObjectLocalStorageSubject<SyncLocationHealth>()(
-  'sync.health',
-  { status: 'ok' },
-  'runtime'
-);
+export const syncHealth$ = writableSubject<SyncLocationHealth>({ status: 'ok' });
 
 /**
  * Live indicator of whether the sync engine is either actively pushing
