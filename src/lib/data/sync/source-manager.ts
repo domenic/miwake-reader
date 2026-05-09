@@ -62,19 +62,37 @@ export interface LeaveOptions {
 }
 
 /**
- * Replace whatever sync location is currently set with a new one.
- * If a different location is already configured, this acquires the
- * new destination first (popup / picker, both of which require a
- * user-activation), then tears the prior one down only after auth /
- * pickup succeeds. Failing late means a canceled or popup-blocked
- * switch leaves the prior connection intact.
- *
- * Caller is responsible for confirming the destructive switch with
- * the user; this function just executes.
+ * Public connect / switch entry for a local folder. MUST be called
+ * directly from a click handler — showDirectoryPicker requires a live
+ * user activation, and any await before the picker call risks
+ * consuming it. Covers all of: fresh connect, change folder, switch
+ * from cloud, regrant after permission revoke. The function
+ * dispatches based on the current sync location; same-source becomes
+ * an in-place replacement, different-source goes through the
+ * prior-teardown path after the new destination is validated.
  */
-export async function switchToCloud(
+export async function connectFs(opts: ConnectFsOptions = {}): Promise<void> {
+  const current = read<SyncLocation | null>(syncLocation$);
+  const directoryHandle = await window.showDirectoryPicker({
+    id: 'miwake-reader-root',
+    mode: 'readwrite'
+  });
+  await completeFsConnection(directoryHandle, {
+    priorLocation: current?.kind === 'fs' ? null : current,
+    clearLibrary: opts.clearLibrary
+  });
+}
+
+/**
+ * Public connect / switch entry for a cloud provider. MUST be called
+ * directly from a click handler — opens the OAuth popup synchronously
+ * before any await, so the user activation is consumed by window.open
+ * rather than a later API call. Covers fresh connect, switch (incl.
+ * default ↔ custom OAuth on the same provider), and reconnect.
+ */
+export async function connectCloud(
   provider: CloudProviderType,
-  opts: LeaveOptions & { useCustomCredentials?: boolean } = {}
+  opts: ConnectCloudOptions = {}
 ): Promise<void> {
   const current = read<SyncLocation | null>(syncLocation$);
   const useCustom = opts.useCustomCredentials ?? !!readCustomCreds(provider);
@@ -83,10 +101,6 @@ export async function switchToCloud(
     current.provider === provider &&
     current.usesCustomCredentials === useCustom;
 
-  // Open the auth popup synchronously while we're still inside the
-  // click's user activation. Awaiting anything (disconnect, count
-  // queries, IDB transactions) before window.open risks the popup
-  // blocker firing.
   const authWindow = StorageOAuthManager.createWindow(
     `${pagePath}/auth?miwake-init-wait=1`,
     'auth',
@@ -98,79 +112,41 @@ export async function switchToCloud(
     throw new Error('Unable to open the sign-in window. Check your popup blocker settings.');
   }
 
-  await connectCloud(provider, {
-    authWindow,
+  await completeCloudConnection(provider, authWindow, {
     priorLocation: isSameSource ? null : current,
     clearLibrary: opts.clearLibrary,
     useCustomCredentials: useCustom
   });
 }
 
-export async function switchToFs(opts: LeaveOptions = {}): Promise<void> {
-  const current = read<SyncLocation | null>(syncLocation$);
+export type ConnectFsOptions = LeaveOptions;
 
-  // showDirectoryPicker dispatches synchronously and consumes the
-  // user activation; the await is just for the user's pick. Have to
-  // call it before any other awaits.
-  const directoryHandle = await window.showDirectoryPicker({
-    id: 'miwake-reader-root',
-    mode: 'readwrite'
-  });
-
-  // Same-kind switch (FS → FS, just a different folder) writes to the
-  // single FS_SOURCE_NAME record and replaces in place — no separate
-  // teardown step.
-  const isSameSource = current?.kind === 'fs';
-
-  await connectFs({
-    directoryHandle,
-    priorLocation: isSameSource ? null : current,
-    clearLibrary: opts.clearLibrary
-  });
-}
-
-interface ConnectOptions {
+export interface ConnectCloudOptions extends LeaveOptions {
   /**
-   * If set, the prior sync location whose record + OAuth cache (cloud
-   * only) should be torn down after the new connection succeeds. Used
-   * by switchToCloud / switchToFs so the destructive part can't run
-   * before the new destination is locked in.
-   */
-  priorLocation?: SyncLocation | null;
-  /**
-   * If true, wipe the local library between auth/pickup and the new
-   * source's pushAllLocalBooks step. The user's intent with this is
-   * "don't pollute the new sync with my old device's content," so it
-   * has to happen before push.
-   */
-  clearLibrary?: boolean;
-  /**
-   * Cloud only: force the OAuth mode rather than deriving it from
-   * whether stored custom creds exist. Used by revert-to-default,
-   * which keeps stored custom creds for later but wants this
-   * connection to use the default OAuth app.
+   * Force the OAuth mode rather than deriving it from whether stored
+   * custom creds exist. Used by revert-to-default, which keeps stored
+   * custom creds for later but wants this connection to use the
+   * default OAuth app.
    */
   useCustomCredentials?: boolean;
 }
 
-/**
- * Connect a local folder by showing the native directory picker,
- * persisting the handle, and seeding placeholders for whatever's
- * already inside. Caller handles AbortError (picker cancel).
- *
- * `directoryHandle` lets switchToFs call showDirectoryPicker under
- * the click's user activation and then pass the handle in here, so
- * the rest of the flow can take its time without losing the gesture.
- */
-export async function connectFs(
-  opts: { directoryHandle?: FileSystemDirectoryHandle } & ConnectOptions = {}
+interface CompleteOptions extends LeaveOptions {
+  /**
+   * The prior sync location to tear down after the new one validates,
+   * or null when this is a same-source replace.
+   */
+  priorLocation: SyncLocation | null;
+}
+
+interface CompleteCloudOptions extends CompleteOptions {
+  useCustomCredentials: boolean;
+}
+
+async function completeFsConnection(
+  directoryHandle: FileSystemDirectoryHandle,
+  opts: CompleteOptions
 ): Promise<void> {
-  const directoryHandle =
-    opts.directoryHandle ??
-    (await window.showDirectoryPicker({
-      id: 'miwake-reader-root',
-      mode: 'readwrite'
-    }));
   const fsPath = directoryHandle.name;
 
   const data: FsHandle = { directoryHandle, fsPath };
@@ -197,7 +173,7 @@ export async function connectFs(
   }
 
   if (opts.priorLocation || opts.clearLibrary) {
-    await teardownPriorLocation(opts.priorLocation ?? null, !!opts.clearLibrary);
+    await teardownPriorLocation(opts.priorLocation, !!opts.clearLibrary);
   }
 
   await reconcilePlaceholders(books);
@@ -219,40 +195,14 @@ export async function connectFs(
   await pushAllLocalBooks();
 }
 
-/**
- * Connect a cloud provider. Opens the OAuth popup _synchronously_ under
- * the caller's user-activation window (must be called directly from a
- * click handler, no prior awaits) unless the caller already opened one
- * and passed it in. Writes the storage-source record, drives OAuth
- * through that popup, then fetches the initial book count. Rolls back
- * on OAuth failure.
- *
- * `authWindow` lets switchToCloud open the popup itself (so it gets
- * to consume the click's user activation before any awaits) and pass
- * it in here. `priorLocation` opts into teardown of an old source
- * after auth succeeds — never before, since a popup-blocked or
- * user-canceled switch should leave the prior connection intact.
- */
-export async function connectCloud(
+async function completeCloudConnection(
   provider: CloudProviderType,
-  opts: { authWindow?: Window } & ConnectOptions = {}
+  authWindow: Window,
+  opts: CompleteCloudOptions
 ): Promise<void> {
-  const authWindow =
-    opts.authWindow ??
-    StorageOAuthManager.createWindow(
-      `${pagePath}/auth?miwake-init-wait=1`,
-      'auth',
-      Math.min(Math.max(window.innerWidth, 300), 560),
-      Math.min(Math.max(window.innerHeight, 300), 560),
-      window
-    );
-  if (!authWindow) {
-    throw new Error('Unable to open the sign-in window. Check your popup blocker settings.');
-  }
-
   try {
     const customCreds = readCustomCreds(provider);
-    const useCustom = opts.useCustomCredentials ?? !!customCreds;
+    const useCustom = opts.useCustomCredentials;
     const name = cloudSourceName(provider, useCustom);
 
     const remoteData: RemoteContext =
@@ -308,7 +258,7 @@ export async function connectCloud(
     }
 
     if (opts.priorLocation || opts.clearLibrary) {
-      await teardownPriorLocation(opts.priorLocation ?? null, !!opts.clearLibrary);
+      await teardownPriorLocation(opts.priorLocation, !!opts.clearLibrary);
     }
 
     await reconcilePlaceholders(books);
@@ -336,9 +286,10 @@ export async function connectCloud(
 /**
  * Tear down a prior sync location's persistent state — the
  * storageSource record, OAuth in-memory cache (cloud only), and
- * (optionally) the local library. Used by switchToCloud / switchToFs
- * after the new destination has been successfully acquired, so a
- * canceled or popup-blocked switch doesn't strand the user.
+ * (optionally) the local library. Called from completeCloudConnection
+ * / completeFsConnection only after the new destination's listing
+ * succeeded, so a canceled or popup-blocked switch leaves the user on
+ * their existing connection.
  */
 async function teardownPriorLocation(
   prev: SyncLocation | null,
@@ -354,9 +305,9 @@ async function teardownPriorLocation(
         await database.deleteStorageSource(existing);
       }
     } else {
-      // FS → cloud teardown: drop the FS record. (FS → FS replaces
-      // the same record in place via connectFs; this branch only
-      // runs when the prior was a different kind.)
+      // Prior is FS, new is cloud. Drop the FS record; FS→FS replaces
+      // in place via the same-name overwrite in completeFsConnection
+      // and skips this teardown branch (priorLocation = null).
       const existing = await db.get('storageSource', FS_SOURCE_NAME);
       if (existing) {
         await database.deleteStorageSource(existing);

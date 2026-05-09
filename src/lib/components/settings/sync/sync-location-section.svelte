@@ -11,13 +11,7 @@
     syncLocation$,
     type CloudProviderType
   } from '$lib/data/sync/sync-store';
-  import {
-    connectCloud,
-    connectFs,
-    disconnect,
-    switchToCloud,
-    switchToFs
-  } from '$lib/data/sync/source-manager';
+  import { connectCloud, connectFs, disconnect } from '$lib/data/sync/source-manager';
   import { retryAfterReconnect } from '$lib/data/sync/sync-engine';
   import { formatRelativeTime, providerLabel } from '$lib/components/settings/sync/sync-utils';
   import SyncAlert from '$lib/components/settings/sync/sync-alert.svelte';
@@ -92,9 +86,9 @@
     busy = true;
     try {
       if (target === 'fs') {
-        await switchToFs({ clearLibrary });
+        await connectFs({ clearLibrary });
       } else {
-        await switchToCloud(toProvider(target), { clearLibrary });
+        await connectCloud(toProvider(target), { clearLibrary });
       }
     } catch (err) {
       // Picker cancel is silent; other errors surface.
@@ -200,7 +194,7 @@
       if (activeCloud?.provider === provider && activeCloud.usesCustomCredentials) {
         // Force default mode while leaving stored custom creds in
         // place, so the user can re-Save them later without re-typing.
-        await switchToCloud(provider, { useCustomCredentials: false });
+        await connectCloud(provider, { useCustomCredentials: false });
       }
       return;
     }
@@ -211,7 +205,7 @@
     };
 
     if (result.activate) {
-      await switchToCloud(provider);
+      await connectCloud(provider);
     }
   }
 </script>
