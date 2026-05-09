@@ -211,12 +211,6 @@ async function maybeWritePlaceholderBookmark(
 }
 
 /**
- * Remove placeholder rows that aren't present in the reachable-titles
- * set. Pass an empty set to drop all placeholders (used by disconnect,
- * since the single-location model has no remaining source to fall
- * back on).
- */
-/**
  * Apply a remote book list to local state: seed placeholders for every
  * remote-listed title, prune ones the source didn't list. Used after
  * the caller has confirmed the source is reachable (boot reconcile,
@@ -232,6 +226,13 @@ export async function reconcilePlaceholders(books: SyncTitle[]): Promise<void> {
   }
 }
 
+/**
+ * Drop placeholder rows whose titles aren't in `reachableTitles`. The
+ * cascade-delete via database.deleteData also clears companion
+ * bookmark / lastItem rows. Pass an empty set to drop all placeholders
+ * (used by disconnect, since the single-location model has no
+ * remaining source to fall back on).
+ */
 export async function pruneUnreachablePlaceholders(reachableTitles: Set<string>): Promise<number> {
   const db = await database.db;
   const allBooks = await db.getAll('data');
