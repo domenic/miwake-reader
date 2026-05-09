@@ -546,18 +546,6 @@ export async function forceFullResync(direction: ForceResyncDirection): Promise<
   const location = read<SyncLocation | null>(syncLocation$);
   if (!location) throw new Error('No sync location connected.');
 
-  const allBooks = await (await database.db).getAll('data');
-  const pullContexts: ReplicationContext[] = allBooks.map((b) => ({
-    id: b.id,
-    title: b.title,
-    imagePath: b.coverImage ?? ''
-  }));
-  // Pushing a placeholder (no elementHtml) would zip an empty book and
-  // overwrite the real one on the remote — catastrophic in local-wins.
-  // Filter pushContexts to books we actually hold content for.
-  const pushContexts: ReplicationContext[] = allBooks
-    .filter((b) => !!b.elementHtml)
-    .map((b) => ({ id: b.id, title: b.title, imagePath: b.coverImage ?? '' }));
   const types = [
     StorageDataType.DATA,
     StorageDataType.PROGRESS,
@@ -576,12 +564,6 @@ export async function forceFullResync(direction: ForceResyncDirection): Promise<
   const pushSourceOverride: ReplicationSaveBehavior | undefined =
     direction === 'local-wins' ? ReplicationSaveBehavior.Overwrite : undefined;
 
-  logger.debug(
-    `forceFullResync: direction=${direction}, ` +
-      `pullContexts=${pullContexts.length}, pushContexts=${pushContexts.length}, ` +
-      `pullOverride=${pullSourceOverride ?? 'default'}, pushOverride=${pushSourceOverride ?? 'default'}`
-  );
-
   beginLongRunning();
   try {
     if (location.kind === 'cloud') {
@@ -595,6 +577,34 @@ export async function forceFullResync(direction: ForceResyncDirection): Promise<
         throw err;
       }
     }
+
+    // Reconcile the placeholder set against what the source advertises
+    // first — otherwise a remote-only book (added since boot, or
+    // missed by a failed reconcile) is invisible to the loops below
+    // because they iterate local `data`, and we'd silently leave the
+    // resync incomplete.
+    const remoteBooks = await endpointFor(location).listSyncTitles();
+    const ensured = await ensurePlaceholders(remoteBooks);
+    if (ensured > 0) database.notifyDataListChanged();
+
+    const allBooks = await (await database.db).getAll('data');
+    const pullContexts: ReplicationContext[] = allBooks.map((b) => ({
+      id: b.id,
+      title: b.title,
+      imagePath: b.coverImage ?? ''
+    }));
+    // Pushing a placeholder (no elementHtml) would zip an empty book and
+    // overwrite the real one on the remote — catastrophic in local-wins.
+    // Filter pushContexts to books we actually hold content for.
+    const pushContexts: ReplicationContext[] = allBooks
+      .filter((b) => !!b.elementHtml)
+      .map((b) => ({ id: b.id, title: b.title, imagePath: b.coverImage ?? '' }));
+
+    logger.debug(
+      `forceFullResync: direction=${direction}, ` +
+        `pullContexts=${pullContexts.length}, pushContexts=${pushContexts.length}, ` +
+        `pullOverride=${pullSourceOverride ?? 'default'}, pushOverride=${pushSourceOverride ?? 'default'}`
+    );
 
     try {
       if (direction === 'newest' || direction === 'remote-wins') {
