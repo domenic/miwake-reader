@@ -5,18 +5,6 @@ import { writableSubject } from '$lib/functions/svelte/store';
 type Storage = typeof appLocalStorage;
 
 /**
- * "preference" — the key is part of the user's saved configuration
- * (theme, fonts, sync direction, custom OAuth creds, etc.) and should
- * be included in app-settings backups.
- *
- * "runtime" — the key holds engine-managed state that's reconciled
- * from another source on app boot (e.g. cloudConnection$ rebuilt
- * from IndexedDB by loadConnectionsFromDb). Excluded from backups
- * because restoring stale runtime state is meaningless.
- */
-export type StorageSubjectKind = 'preference' | 'runtime';
-
-/**
  * Registry of preference stores keyed by their localStorage key. The
  * value is a closure that returns the store's *effective* serialized
  * value (defaults included), letting backup capture settings the
@@ -40,13 +28,13 @@ export function writableStorageSubject<T>(
   mapFromString: (s: string) => T,
   mapToString: (t: T) => string
 ) {
-  return (key: string, defaultValue: T, kind: StorageSubjectKind = 'preference') => {
+  return (key: string, defaultValue: T) => {
     const initValue = getStoredOrDefault(storage)(key, defaultValue, mapFromString);
     const subject = writableSubject(initValue);
     subject.pipe(skip(1)).subscribe((updatedValue) => {
       storage.setItem(key, mapToString(updatedValue ?? defaultValue));
     });
-    if (kind === 'preference' && storage === appLocalStorage) {
+    if (storage === appLocalStorage) {
       preferenceSerializers.set(key, () => mapToString(subject.getValue() ?? defaultValue));
     }
     return subject;
