@@ -220,19 +220,29 @@ export async function pruneUnreachablePlaceholders(reachableTitles: Set<string>)
   const db = await database.db;
   const allBooks = await db.getAll('data');
 
-  let pruned = 0;
+  const ids: number[] = [];
+  const idsToTitles = new Map<number, string>();
   for (const book of allBooks) {
     if (!book.elementHtml && !reachableTitles.has(book.title)) {
-      // Placeholders since the placeholder-bookmark commit carry a
-      // companion bookmark row keyed by the same id; delete both so
-      // the bookmark store doesn't accumulate orphans.
-      await db.delete('data', book.id);
-      await db.delete('bookmark', book.id);
-      pruned += 1;
+      ids.push(book.id);
+      idsToTitles.set(book.id, book.title);
     }
   }
+  if (ids.length === 0) return 0;
 
-  return pruned;
+  // Defer to database.deleteData so every related store is cleaned up
+  // in one transaction: bookmark (placeholder bookmarks since the
+  // placeholder-bookmark commit), lastItem (if the user opened this
+  // placeholder, b/+page.svelte writes lastItem), statistic /
+  // lastModified (only present for hydrated books, skipped via
+  // keepLocalStatistics here as a no-op safety belt).
+  const { deleted } = await database.deleteData(
+    ids,
+    idsToTitles,
+    new AbortController().signal,
+    /* keepLocalStatistics */ true
+  );
+  return deleted.length;
 }
 
 /**
