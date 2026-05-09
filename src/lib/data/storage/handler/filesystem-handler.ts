@@ -12,7 +12,7 @@ import { BaseStorageHandler } from '$lib/data/storage/handler/base-handler';
 import type { BookCardProps } from '$lib/components/book-card/book-card-props';
 import { MergeMode } from '$lib/data/merge-mode';
 import { ReplicationSaveBehavior } from '$lib/functions/replication/replication-options';
-import { isRemoteContext } from '$lib/data/storage/storage-source-manager';
+import { isRemoteContext } from '$lib/data/storage/storage-source-types';
 import { NeedsPermissionGrantError } from '$lib/data/storage/errors';
 import { confirmDialog } from '$lib/data/simple-dialogs';
 import { handleErrorDuringReplication } from '$lib/functions/replication/error-handler';

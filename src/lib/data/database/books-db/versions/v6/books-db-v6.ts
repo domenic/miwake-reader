@@ -1,4 +1,4 @@
-import type { FsHandle, RemoteContext } from '$lib/data/storage/storage-source-manager';
+import type { FsHandle, RemoteContext } from '$lib/data/storage/storage-source-types';
 
 import type { DBSchema } from 'idb';
 import type { ReadingGoal } from '$lib/data/reading-goal';

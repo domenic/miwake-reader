@@ -1,4 +1,3 @@
-import type { BooksDbStorageSource } from '$lib/data/database/books-db/versions/books-db';
 import { StorageSourceDefault } from '$lib/data/storage/storage-types';
 
 export interface FsHandle {
@@ -18,11 +17,6 @@ export interface RemoteContext {
    * the provider is used. See StorageOAuthManager.getAuthVariables.
    */
   tokenEndpoint?: string;
-}
-
-export interface StorageSourceSaveResult {
-  new: BooksDbStorageSource;
-  old?: string;
 }
 
 export function isAppDefault(name: string) {

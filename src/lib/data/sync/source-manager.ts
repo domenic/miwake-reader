@@ -1,7 +1,7 @@
 import { gDriveClientId, oneDriveClientId, pagePath } from '$lib/data/env';
 import type { BooksDbStorageSource } from '$lib/data/database/books-db/versions/books-db';
 import { getSyncEndpoint } from '$lib/data/storage/storage-handler-factory';
-import type { FsHandle, RemoteContext } from '$lib/data/storage/storage-source-manager';
+import type { FsHandle, RemoteContext } from '$lib/data/storage/storage-source-types';
 import { clearOAuthTokenCache, StorageOAuthManager } from '$lib/data/storage/storage-oauth-manager';
 import { SyncEndpointType } from '$lib/data/storage/storage-types';
 import { database } from '$lib/data/store';

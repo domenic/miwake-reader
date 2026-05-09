@@ -1,5 +1,5 @@
 import type { DBSchema } from 'idb';
-import type { FsHandle } from '$lib/data/storage/storage-source-manager';
+import type { FsHandle } from '$lib/data/storage/storage-source-types';
 import type { SyncEndpointType } from '$lib/data/storage/storage-types';
 
 interface BooksDbV4BookData {

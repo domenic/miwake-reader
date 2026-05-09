@@ -17,7 +17,7 @@ import {
   isAppDefault,
   isRemoteContext,
   type RemoteContext
-} from '$lib/data/storage/storage-source-manager';
+} from '$lib/data/storage/storage-source-types';
 import { StorageSourceDefault, SyncEndpointType } from '$lib/data/storage/storage-types';
 import { database } from '$lib/data/store';
 import { messageDialog } from '$lib/data/simple-dialogs';
