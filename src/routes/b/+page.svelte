@@ -146,6 +146,7 @@
     reconcileForBookOpen,
     triggerSync
   } from '$lib/data/sync/sync-engine';
+  import { syncState } from '$lib/data/sync/sync-store.svelte';
   import { getDateKey } from '$lib/functions/statistic-util';
   import { clickOutside } from '$lib/functions/use-click-outside';
   import {
@@ -283,8 +284,11 @@
           }
           if (!bookData.elementHtml) {
             throw new Error(
-              "This book's content hasn't been downloaded yet. " +
-                'Connect its sync location in Settings → Sync, then try again.'
+              syncState.location
+                ? "This book's content couldn't be loaded from sync — the source file may be corrupt or incomplete. " +
+                    'Try Force re-sync in Settings → Sync to re-pull it.'
+                : "This book's content hasn't been downloaded yet. " +
+                    'Connect its sync location in Settings → Sync, then try again.'
             );
           }
         }
