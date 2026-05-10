@@ -18,6 +18,7 @@ import {
   replicationProgress$,
   type ReplicationContext
 } from '$lib/functions/replication/replication-progress';
+import { triggerSync } from '$lib/data/sync/sync-engine';
 import pLimit from 'p-limit';
 
 /**
@@ -94,13 +95,24 @@ export async function importData(
             cancelSignal
           );
 
-          dataIds.push(await library.saveBook(bookContent, false));
+          const dataId = await library.saveBook(bookContent, false);
+          dataIds.push(dataId);
 
           checkCancelAndProgress(cancelSignal, false);
 
           if (bookContent.coverImage) {
             await library.saveCover(bookContent.coverImage);
           }
+
+          // Newly-imported books need to propagate to whatever sync
+          // location is connected — saveBook only writes the local
+          // library, and the ambient push is gated on triggerSync().
+          // Cover ships bundled with the DATA push.
+          triggerSync(StorageDataType.DATA, {
+            id: dataId,
+            title: bookContent.title,
+            imagePath: bookContent.coverImage
+          });
 
           // The library always drives /manage's view; emit unconditionally.
           database.dataListChanged$.next();

@@ -225,9 +225,11 @@ export function triggerSync(dataType: StorageDataType, context: ReplicationConte
 /**
  * Schedule ambient pushes for every locally-downloaded book. Called
  * from connect flows so existing library content propagates to the
- * newly-attached location: ambient sync only fires on local edits, so
- * a freshly-connected (and possibly empty) location would otherwise
- * stay empty until the user happened to bookmark something.
+ * newly-attached location: ambient sync only fires on local edits
+ * via triggerSync, so a freshly-connected (and possibly empty)
+ * location would otherwise stay missing every book the user already
+ * has — bookmark/edit triggers only fire PROGRESS/STATISTICS for the
+ * touched book, never DATA.
  *
  * Placeholders (no elementHtml) are skipped — they have nothing to
  * push.
