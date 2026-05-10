@@ -10,7 +10,7 @@ import { mergeStatistics, updateStatisticToStore } from '$lib/functions/statisti
 
 import { BaseStorageHandler } from '$lib/data/storage/handler/base-handler';
 import type { BookCardProps } from '$lib/components/book-card/book-card-props';
-import { MergeMode } from '$lib/data/merge-mode';
+import type { MergeMode } from '$lib/data/merge-mode';
 import { ReplicationSaveBehavior } from '$lib/functions/replication/replication-options';
 import { isRemoteContext } from '$lib/data/storage/storage-source-types';
 import { NeedsPermissionGrantError } from '$lib/data/storage/errors';
@@ -324,7 +324,7 @@ export class FilesystemStorageHandler extends BaseStorageHandler {
   }
 
   async saveStatistics(statistics: BooksDbStatistic[], lastStatisticModified: number) {
-    const isMerge = this.statisticsMergeMode === MergeMode.MERGE;
+    const isMerge = this.statisticsMergeMode === 'merge';
     const { file, files, rootDirectory } = await this.getExternalFile('statistics_');
 
     let statisticsToStore: BooksDbStatistic[] = statistics;
@@ -388,7 +388,7 @@ export class FilesystemStorageHandler extends BaseStorageHandler {
   }
 
   async saveReadingGoals(readingGoals: BooksDbReadingGoal[], lastGoalModified: number) {
-    const isMerge = this.readingGoalsMergeMode === MergeMode.MERGE;
+    const isMerge = this.readingGoalsMergeMode === 'merge';
     const { file, rootDirectory } = await this.getRootFile(
       BaseStorageHandler.readingGoalsFilePrefix,
       0.4

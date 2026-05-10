@@ -5,7 +5,7 @@ import type {
   BooksDbStatistic
 } from '$lib/data/database/books-db/versions/books-db';
 import { logger } from '$lib/data/logger';
-import { MergeMode } from '$lib/data/merge-mode';
+import type { MergeMode } from '$lib/data/merge-mode';
 import { mergeReadingGoals, readingGoalSortFunction } from '$lib/data/reading-goal';
 import { BaseStorageHandler, type ExternalFile } from '$lib/data/storage/handler/base-handler';
 import { StorageOAuthManager } from '$lib/data/storage/storage-oauth-manager';
@@ -316,7 +316,7 @@ export abstract class ApiStorageHandler extends BaseStorageHandler {
   }
 
   async saveStatistics(statistics: BooksDbStatistic[], lastStatisticModified: number) {
-    const isMerge = this.statisticsMergeMode === MergeMode.MERGE;
+    const isMerge = this.statisticsMergeMode === 'merge';
     const {
       titleId,
       files,
@@ -370,7 +370,7 @@ export abstract class ApiStorageHandler extends BaseStorageHandler {
   }
 
   async saveReadingGoals(readingGoals: BooksDbReadingGoal[], lastGoalModified: number) {
-    const isMerge = this.readingGoalsMergeMode === MergeMode.MERGE;
+    const isMerge = this.readingGoalsMergeMode === 'merge';
     const { file, data: existingData } = await this.getRootFile(
       BaseStorageHandler.readingGoalsFilePrefix,
       isMerge ? 'json' : '',

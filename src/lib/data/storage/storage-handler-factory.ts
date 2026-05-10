@@ -4,7 +4,7 @@ import { BackupStorageHandler } from '$lib/data/storage/handler/backup-handler';
 import { FilesystemStorageHandler } from '$lib/data/storage/handler/filesystem-handler';
 import { GDriveStorageHandler } from '$lib/data/storage/handler/gdrive-handler';
 import { LocalReplicationEndpoint } from '$lib/data/storage/handler/local-replication-endpoint';
-import { MergeMode } from '$lib/data/merge-mode';
+import type { MergeMode } from '$lib/data/merge-mode';
 import { OneDriveStorageHandler } from '$lib/data/storage/handler/onedrive-handler';
 import { ReplicationSaveBehavior } from '$lib/functions/replication/replication-options';
 
@@ -24,8 +24,8 @@ interface SyncSettings {
 
 const defaults: Required<SyncSettings> = {
   saveBehavior: ReplicationSaveBehavior.NewOnly,
-  statisticsMergeMode: MergeMode.MERGE,
-  readingGoalsMergeMode: MergeMode.MERGE,
+  statisticsMergeMode: 'merge',
+  readingGoalsMergeMode: 'merge',
   cacheStorageData: false,
   askForStorageUnlock: true
 };

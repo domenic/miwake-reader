@@ -127,7 +127,7 @@
   import { fullscreenManager } from '$lib/data/fullscreen-manager';
   import { logger } from '$lib/data/logger';
   import { confirmDialog, messageDialog } from '$lib/data/simple-dialogs';
-  import { MergeMode } from '$lib/data/merge-mode';
+  import type { MergeMode } from '$lib/data/merge-mode';
   import { getLocalEndpoint } from '$lib/data/storage/storage-handler-factory';
   import { BaseStorageHandler } from '$lib/data/storage/handler/base-handler';
   import type { LocalReplicationEndpoint } from '$lib/data/storage/handler/handler-roles';
@@ -775,7 +775,7 @@
           $rawBookData$.title,
           statisticsToStore,
           ReplicationSaveBehavior.Overwrite,
-          MergeMode.MERGE,
+          'merge',
           lastStatisticModified
         );
 

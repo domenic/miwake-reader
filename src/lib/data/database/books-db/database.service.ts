@@ -29,7 +29,7 @@ import type { BooksDb } from '$lib/data/database/books-db/versions/books-db';
 import type { IDBPDatabase } from 'idb';
 import { showErrorDialogWithLogReport } from '$lib/components/log-report-dialog-content.svelte';
 import { messageDialog } from '$lib/data/simple-dialogs';
-import { MergeMode } from '$lib/data/merge-mode';
+import type { MergeMode } from '$lib/data/merge-mode';
 import { ReplicationSaveBehavior } from '$lib/functions/replication/replication-options';
 import { getDefaultStatistic } from '$lib/components/book-reader/book-reading-tracker/book-reading-tracker';
 import { handleErrorDuringReplication } from '$lib/functions/replication/error-handler';
@@ -486,7 +486,7 @@ export class DatabaseService {
     let statisticsToStore: BooksDbStatistic[] = statistics;
     let newStatisticModified = currentLastModified;
 
-    if (statisticsMergeMode === MergeMode.MERGE) {
+    if (statisticsMergeMode === 'merge') {
       const existingStatistics = await this.getStatisticsForBook(bookTitle);
 
       statisticsToStore = mergeStatistics(
@@ -900,7 +900,7 @@ export class DatabaseService {
     let readingGoalsToStore: BooksDbReadingGoal[] = readingGoals;
     let newReadingGoalModified = lastGoalModified;
 
-    if (readingGoalsMergeMode === MergeMode.MERGE) {
+    if (readingGoalsMergeMode === 'merge') {
       const existingReadingGoals = await this.getReadingGoals();
 
       ({ readingGoalsToStore, newReadingGoalModified } = mergeReadingGoals(

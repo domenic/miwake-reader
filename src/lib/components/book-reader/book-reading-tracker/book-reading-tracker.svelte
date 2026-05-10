@@ -18,7 +18,7 @@
   } from '$lib/data/database/books-db/versions/books-db';
   import { PAGE_CHANGE } from '$lib/data/events';
   import { logger } from '$lib/data/logger';
-  import { MergeMode } from '$lib/data/merge-mode';
+  import type { MergeMode } from '$lib/data/merge-mode';
   import { getReadingGoalWindow, type ReadingGoal } from '$lib/data/reading-goal';
   import {
     adjustStatisticsAfterIdleTime$,
@@ -213,7 +213,7 @@
         bookTitle,
         itemsToStore,
         ReplicationSaveBehavior.Overwrite,
-        MergeMode.MERGE
+        'merge'
       );
 
       trackingHistory = trackingHistory.map((item) => {

@@ -8,7 +8,7 @@ import {
 } from '$lib/data/database/books-db/versions/books-db';
 import type { Section } from '$lib/data/database/books-db/versions/v4/books-db-v4';
 import { storageRootName } from '$lib/data/env';
-import { MergeMode } from '$lib/data/merge-mode';
+import type { MergeMode } from '$lib/data/merge-mode';
 import type { SyncEndpointType, SyncTitle } from '$lib/data/storage/storage-types';
 import type { SyncEndpoint } from '$lib/data/storage/handler/handler-roles';
 import { exporterVersion } from '$lib/functions/replication/exporter-version';
@@ -133,9 +133,9 @@ export abstract class BaseStorageHandler implements SyncEndpoint {
 
   protected saveBehavior = ReplicationSaveBehavior.NewOnly;
 
-  protected statisticsMergeMode = MergeMode.MERGE;
+  protected statisticsMergeMode: MergeMode = 'merge';
 
-  protected readingGoalsMergeMode = MergeMode.MERGE;
+  protected readingGoalsMergeMode: MergeMode = 'merge';
 
   protected currentContext: ReplicationContext = { title: '' };
 

@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { MergeMode } from '$lib/data/merge-mode';
+  import type { MergeMode } from '$lib/data/merge-mode';
   import { AutoReplicationType } from '$lib/functions/replication/replication-options';
   import {
     autoReplication$,
@@ -80,31 +80,41 @@
     }
   ]);
 
-  let statisticsMergeOptions = [
+  let statisticsMergeOptions: Array<{
+    id: MergeMode;
+    label: string;
+    description: string;
+    isDefault?: boolean;
+  }> = [
     {
-      id: MergeMode.MERGE,
+      id: 'merge',
       label: 'Merge',
       description:
         'Days that only exist on one side are kept. When the same day has statistics on both sides, the more recently updated entry wins.',
       isDefault: true
     },
     {
-      id: MergeMode.REPLACE,
+      id: 'replace',
       label: 'Replace',
       description: `When sync copies statistics for a book, the receiving side's entire set for that book is replaced with the source side's set. Days that only existed on the receiving side are lost.`
     }
   ];
 
-  let goalsMergeOptions = [
+  let goalsMergeOptions: Array<{
+    id: MergeMode;
+    label: string;
+    description: string;
+    isDefault?: boolean;
+  }> = [
     {
-      id: MergeMode.MERGE,
+      id: 'merge',
       label: 'Merge',
       description:
         'Goals from both sides are combined. When the same goal exists on both sides, the more recently updated version wins.',
       isDefault: true
     },
     {
-      id: MergeMode.REPLACE,
+      id: 'replace',
       label: 'Replace',
       description: `When sync copies goals, the receiving side's entire set of goals is replaced with the source side's set, including deletions.`
     }

@@ -32,7 +32,7 @@ import {
   statisticsMergeMode$
 } from '$lib/data/store';
 import { logger } from '$lib/data/logger';
-import { MergeMode } from '$lib/data/merge-mode';
+import type { MergeMode } from '$lib/data/merge-mode';
 import { ReplicationSaveBehavior } from '$lib/functions/replication/replication-options';
 import {
   checkCancelAndProgress,
@@ -282,11 +282,11 @@ export async function userDeleteStatisticEntries(
 
   // Force-replace semantics: source.getFilenameForRecentCheck returns
   // undefined under Overwrite, so the up-to-date check short-circuits;
-  // MergeMode.REPLACE on the target keeps the cloud handler from
+  // 'replace' on the target keeps the cloud handler from
   // merging the empty array back into its existing populated file.
-  const overrides = {
+  const overrides: EndpointSettings = {
     saveBehavior: ReplicationSaveBehavior.Overwrite,
-    statisticsMergeMode: MergeMode.REPLACE
+    statisticsMergeMode: 'replace'
   };
   const local = getLocalEndpoint(overrides);
   const handler = endpointForCurrentLocation(location, overrides);
