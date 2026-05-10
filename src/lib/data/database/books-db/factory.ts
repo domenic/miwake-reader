@@ -71,13 +71,13 @@ export function createBooksDb(name = 'books') {
           break;
         }
         case 6: {
-          // Per the storage redesign (docs/storage-redesign.md): drop the
-          // never-written audioBook/subtitle/handle stores, drop the
-          // password-encryption-era fields on storageSource records,
-          // drop per-book storageSource and ArrayBuffer-shaped source
-          // data. Existing rows lose those fields silently — this is a
-          // type-only narrowing for `data` and `book`; IndexedDB stores
-          // arbitrary objects and just drops references on next write.
+          // Drop the never-written audioBook/subtitle/handle stores,
+          // drop the password-encryption-era fields on storageSource
+          // records, drop per-book storageSource and ArrayBuffer-shaped
+          // source data. Existing rows lose those fields silently —
+          // this is a type-only narrowing for `data` and `book`;
+          // IndexedDB stores arbitrary objects and just drops
+          // references on next write.
           for (const storeName of ['audioBook', 'subtitle', 'handle'] as const) {
             if (oldDb.objectStoreNames.contains(storeName as never)) {
               oldDb.deleteObjectStore(storeName as never);
