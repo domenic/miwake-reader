@@ -1,7 +1,8 @@
 /**
- * Identifies a sync endpoint kind. The local library isn't here —
- * it's structurally a different thing (see Library in
- * src/lib/data/storage/library.ts and the role split in handler-roles.ts).
+ * Identifies a sync endpoint kind. The local-IDB side isn't here —
+ * it's structurally a different thing (see LocalReplicationEndpoint
+ * in src/lib/data/storage/handler/local-replication-endpoint.ts and
+ * the role split in handler-roles.ts).
  */
 export enum SyncEndpointType {
   BACKUP = 'backup',

@@ -3,12 +3,12 @@ import { SyncEndpointType } from '$lib/data/storage/storage-types';
 import { BackupStorageHandler } from '$lib/data/storage/handler/backup-handler';
 import { FilesystemStorageHandler } from '$lib/data/storage/handler/filesystem-handler';
 import { GDriveStorageHandler } from '$lib/data/storage/handler/gdrive-handler';
-import { Library } from '$lib/data/storage/library';
+import { LocalReplicationEndpoint } from '$lib/data/storage/handler/local-replication-endpoint';
 import { MergeMode } from '$lib/data/merge-mode';
 import { OneDriveStorageHandler } from '$lib/data/storage/handler/onedrive-handler';
 import { ReplicationSaveBehavior } from '$lib/functions/replication/replication-options';
 
-let library: Library;
+let localEndpoint: LocalReplicationEndpoint;
 let backupHandler: BackupStorageHandler;
 let gDriveHandler: GDriveStorageHandler;
 let oneDriveHandler: OneDriveStorageHandler;
@@ -31,25 +31,31 @@ const defaults: Required<SyncSettings> = {
 };
 
 /**
- * Get the singleton local library. Settings are applied on every
- * call; pass overrides if needed (e.g. saveBehavior=Overwrite for the
- * push leg of force-resync's local-wins direction).
+ * Get the singleton local replication endpoint — the BookOperations
+ * adapter the replicator uses for its local side. Settings are
+ * applied on every call; pass overrides if needed (e.g.
+ * saveBehavior=Overwrite for the push leg of force-resync's
+ * local-wins direction).
+ *
+ * Not user-facing. UI code should reach through `$lib/data/library`
+ * instead — that module pairs each edit with the appropriate
+ * triggerSync call.
  */
-export function getLibrary(settings: SyncSettings = {}): Library {
+export function getLocalEndpoint(settings: SyncSettings = {}): LocalReplicationEndpoint {
   const merged = { ...defaults, ...settings };
-  library = library ?? new Library();
-  library.updateSettings(
+  localEndpoint = localEndpoint ?? new LocalReplicationEndpoint();
+  localEndpoint.updateSettings(
     merged.saveBehavior,
     merged.statisticsMergeMode,
     merged.readingGoalsMergeMode,
     merged.cacheStorageData
   );
-  return library;
+  return localEndpoint;
 }
 
 /**
  * Get a sync endpoint for the given external location. The local
- * library is fetched via getLibrary() — it's not a sync endpoint.
+ * endpoint is fetched via getLocalEndpoint() — it's not a sync endpoint.
  */
 export function getSyncEndpoint(
   window: Window,

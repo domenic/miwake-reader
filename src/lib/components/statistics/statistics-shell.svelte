@@ -32,6 +32,7 @@
   import { logger } from '$lib/data/logger';
   import { getDateRangeLabel } from '$lib/data/reading-goal';
   import { getSyncEndpoint } from '$lib/data/storage/storage-handler-factory';
+  import { userUpdateStatistic } from '$lib/data/library';
   import { StorageDataType, SyncEndpointType } from '$lib/data/storage/storage-types';
   import {
     confirmStatisticsDeletion$,
@@ -486,7 +487,7 @@
     }
 
     try {
-      await database.updateStatistic(newStatistic);
+      await userUpdateStatistic(newStatistic);
       statisticsData[statisticIndex] = { ...statistic, ...newStatistic };
       updateStatisticsData();
     } catch ({ message }: any) {

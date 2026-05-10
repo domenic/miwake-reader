@@ -39,7 +39,8 @@ export interface ExternalFile {
  * Shared chassis for sync-endpoint implementations (cloud / FS /
  * backup). Provides the ZIP-on-the-wire framing, file-name parsing,
  * progress reporting, and other generic plumbing every endpoint
- * needs. NOT extended by Library — see src/lib/data/storage/library.ts.
+ * needs. NOT extended by LocalReplicationEndpoint — see
+ * src/lib/data/storage/handler/local-replication-endpoint.ts.
  */
 export abstract class BaseStorageHandler implements SyncEndpoint {
   readonly kind = 'sync-endpoint' as const;

@@ -2,7 +2,7 @@ import { BackupStorageHandler } from '$lib/data/storage/handler/backup-handler';
 import { BaseStorageHandler } from '$lib/data/storage/handler/base-handler';
 import type {
   BookOperations,
-  Library,
+  LocalReplicationEndpoint,
   SyncEndpoint
 } from '$lib/data/storage/handler/handler-roles';
 import { storage } from '$lib/data/window/navigator/storage';
@@ -30,7 +30,7 @@ export type ReplicationDirection = 'push' | 'pull';
 
 export async function importData(
   document: Document,
-  library: Library,
+  library: LocalReplicationEndpoint,
   files: File[],
   cancelSignal: AbortSignal,
   fileCountData?: Record<string, number>
@@ -151,7 +151,7 @@ export async function importData(
 
 export async function importBackup(
   source: BackupStorageHandler,
-  library: Library,
+  library: LocalReplicationEndpoint,
   file: File,
   cancelSignal: AbortSignal
 ) {
@@ -179,7 +179,7 @@ export async function importBackup(
  * notifications fire only on `'pull'`.
  */
 export async function replicateData(
-  library: Library,
+  library: LocalReplicationEndpoint,
   endpoint: SyncEndpoint,
   direction: ReplicationDirection,
   refreshDataList: boolean,

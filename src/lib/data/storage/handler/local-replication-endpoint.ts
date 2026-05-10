@@ -10,25 +10,30 @@ import { ReplicationSaveBehavior } from '$lib/functions/replication/replication-
 import { StorageDataType } from '$lib/data/storage/storage-types';
 import type { ReplicationContext } from '$lib/functions/replication/replication-progress';
 import { BaseStorageHandler } from '$lib/data/storage/handler/base-handler';
-import type { Library as LibraryRole } from '$lib/data/storage/handler/handler-roles';
+import type { LocalReplicationEndpoint as LocalReplicationEndpointRole } from '$lib/data/storage/handler/handler-roles';
 
 /**
- * The local canonical book store, backed by IndexedDB.
+ * The local-IDB-backed implementation of the BookOperations contract,
+ * used as the local-side adapter by the replicator.
  *
- * Distinct from the SyncEndpoint family (cloud / FS / backup): the
- * library is the "real" library, and sync endpoints mirror to/from it.
- * Replicator is parameterized as `(library: Library, endpoint:
- * SyncEndpoint, direction: 'push' | 'pull', ...)` so the asymmetry is
- * encoded in the type and "is the target BROWSER?" branches in shared
- * code disappear — the call site already knows which side is the
- * library.
+ * NOT user-facing: components writing on a user's behalf should go
+ * through `$lib/data/library` instead, which pairs each edit with the
+ * appropriate `triggerSync` call. This class deliberately performs no
+ * sync triggering — replicator pulls already write through it, and a
+ * trigger here would loop the just-pulled data back to the remote.
+ *
+ * Replicator is parameterized as `(local: LocalReplicationEndpoint,
+ * endpoint: SyncEndpoint, direction: 'push' | 'pull', ...)` so the
+ * asymmetry is encoded in the type and "is the target BROWSER?"
+ * branches in shared code disappear — the call site already knows
+ * which side is local.
  *
  * Static helpers (file-name parsers, progress reporting) are reused
- * from BaseStorageHandler since they're storage-agnostic; the Library
- * itself doesn't extend the sync-endpoint chassis.
+ * from BaseStorageHandler since they're storage-agnostic; the
+ * endpoint itself doesn't extend the sync-endpoint chassis.
  */
-export class Library implements LibraryRole {
-  readonly kind = 'library' as const;
+export class LocalReplicationEndpoint implements LocalReplicationEndpointRole {
+  readonly kind = 'local' as const;
 
   private currentContext: ReplicationContext = { id: 0, title: '', imagePath: '' };
 
@@ -59,7 +64,7 @@ export class Library implements LibraryRole {
   }
 
   clearData() {
-    // The library's only state is IndexedDB itself; there's no
+    // The local endpoint's only state is IndexedDB itself; there's no
     // in-memory cache to invalidate. Sync endpoints use this hook to
     // drop fetched-listing caches.
   }
@@ -272,7 +277,7 @@ export class Library implements LibraryRole {
 
   async saveStatistics(data: BooksDbStatistic[], lastStatisticModified: number) {
     if (!this.statisticsMergeMode) {
-      throw new Error('Library.saveStatistics called before updateSettings');
+      throw new Error('LocalReplicationEndpoint.saveStatistics called before updateSettings');
     }
     await database.storeStatistics(
       this.currentContext.title,
@@ -292,7 +297,7 @@ export class Library implements LibraryRole {
 
   async saveReadingGoals(data: BooksDbReadingGoal[], lastGoalModified: number) {
     if (!this.readingGoalsMergeMode) {
-      throw new Error('Library.saveReadingGoals called before updateSettings');
+      throw new Error('LocalReplicationEndpoint.saveReadingGoals called before updateSettings');
     }
     await database.storeReadingGoals(
       data,

@@ -13,10 +13,11 @@
   import type { BooksDbBookmarkData } from '$lib/data/database/books-db/versions/books-db';
   import { dialogManager } from '$lib/data/dialog-manager';
   import { appName, pagePath } from '$lib/data/env';
+  import { userDeleteBooks, userDeleteStatisticEntries } from '$lib/data/library';
   import { logger } from '$lib/data/logger';
   import { confirmDialog, messageDialog } from '$lib/data/simple-dialogs';
   import { SortDirection, type SortOption } from '$lib/data/sort-types';
-  import { getLibrary } from '$lib/data/storage/storage-handler-factory';
+  import { getLocalEndpoint } from '$lib/data/storage/storage-handler-factory';
   import { SyncEndpointType } from '$lib/data/storage/storage-types';
   import {
     booklistSortOptions$,
@@ -281,7 +282,7 @@
 
     const error = await importData(
       document,
-      getLibrary({
+      getLocalEndpoint({
         cacheStorageData: $cacheStorageData$,
         saveBehavior: $replicationSaveBehavior$,
         statisticsMergeMode: $statisticsMergeMode$,
@@ -325,12 +326,12 @@
     initializeReplicationProgressData();
 
     const currentBookCount = $bookCards$.length;
-    const handler = getLibrary();
-    const { error, deleted } = await handler.deleteBookData(
-      $bookCards$.reduce((toDelete, card) => {
-        if (bookIds.includes(card.id)) toDelete.push(card.title);
-        return toDelete;
-      }, [] as string[]),
+    const titlesToDelete = $bookCards$.reduce((toDelete, card) => {
+      if (bookIds.includes(card.id)) toDelete.push(card.title);
+      return toDelete;
+    }, [] as string[]);
+    const { error, deleted } = await userDeleteBooks(
+      titlesToDelete,
       cancelSignal,
       $keepLocalStatisticsOnDeletion$
     );
@@ -366,7 +367,7 @@
           titles.length,
           'book',
           false
-        )} (which may include start and/or completion data).\n\nExecute a one-time sync with an export behavior of "replace" and/or a statistics merge mode of "replace" to apply deletions to other devices.`
+        )} (which may include start and/or completion data). The deletion will sync to your other devices.`
       });
     }
 
@@ -387,7 +388,7 @@
         limiter(async () => {
           try {
             throwIfAborted(cancelSignal);
-            await database.deleteStatisticEntries([title], true);
+            await userDeleteStatisticEntries([title], true);
             replicationProgress$.next({ progressToAdd: 1 });
           } catch (error) {
             handleErrorDuringReplication(error, `Error on deleting statistics for ${title}: `, [

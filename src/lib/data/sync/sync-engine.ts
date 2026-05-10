@@ -1,7 +1,10 @@
-import type { Library, SyncEndpoint } from '$lib/data/storage/handler/handler-roles';
+import type {
+  LocalReplicationEndpoint,
+  SyncEndpoint
+} from '$lib/data/storage/handler/handler-roles';
 import { NeedsInteractiveAuthError, NeedsPermissionGrantError } from '$lib/data/storage/errors';
 import { StorageDataType, SyncEndpointType } from '$lib/data/storage/storage-types';
-import { getLibrary, getSyncEndpoint } from '$lib/data/storage/storage-handler-factory';
+import { getLocalEndpoint, getSyncEndpoint } from '$lib/data/storage/storage-handler-factory';
 import {
   AutoReplicationType,
   ReplicationSaveBehavior
@@ -60,8 +63,8 @@ function endpointFor(
   return getSyncEndpoint(window, SyncEndpointType.FS, FS_SOURCE_NAME, settings);
 }
 
-function library(saveBehaviorOverride?: ReplicationSaveBehavior): Library {
-  return getLibrary(commonSettings(saveBehaviorOverride));
+function localEndpoint(saveBehaviorOverride?: ReplicationSaveBehavior): LocalReplicationEndpoint {
+  return getLocalEndpoint(commonSettings(saveBehaviorOverride));
 }
 
 // ---------------------------------------------------------------------
@@ -303,7 +306,7 @@ async function pushOne(context: ReplicationContext, types: StorageDataType[]): P
     return;
   }
 
-  const local = library();
+  const local = localEndpoint();
   const handler = endpointFor(location);
 
   try {
@@ -372,7 +375,7 @@ export async function reconcileForBookOpen(context: ReplicationContext): Promise
     StorageDataType.STATISTICS,
     StorageDataType.READING_GOALS
   ];
-  const local = library();
+  const local = localEndpoint();
   const handler = endpointFor(location);
   logger.debug(
     `reconcileForBookOpen: start for ${JSON.stringify(context.title)} ` +
@@ -475,12 +478,19 @@ export async function forceFullResync(direction: ForceResyncDirection): Promise<
       if (direction === 'newest' || direction === 'remote-wins') {
         const remote = endpointFor(location, pullSourceOverride);
         logger.debug(`forceFullResync: pull ${location.kind} → local`);
-        const error = await replicateData(library(), remote, 'pull', true, pullContexts, types);
+        const error = await replicateData(
+          localEndpoint(),
+          remote,
+          'pull',
+          true,
+          pullContexts,
+          types
+        );
         if (error) throw new Error(error);
       }
       if (direction === 'newest' || direction === 'local-wins') {
         // Push: library is source, saveBehavior override applies to it.
-        const localSource = library(pushSourceOverride);
+        const localSource = localEndpoint(pushSourceOverride);
         const remote = endpointFor(location);
         logger.debug(`forceFullResync: push local → ${location.kind}`);
         const error = await replicateData(localSource, remote, 'push', true, pushContexts, types);

@@ -16,7 +16,7 @@ import { localStoragePreferences } from '$lib/data/internal/writable-storage-sub
 import { pagePath } from '$lib/data/env';
 import { BackupStorageHandler } from '$lib/data/storage/handler/backup-handler';
 import { BaseStorageHandler } from '$lib/data/storage/handler/base-handler';
-import { getLibrary, getSyncEndpoint } from '$lib/data/storage/storage-handler-factory';
+import { getLocalEndpoint, getSyncEndpoint } from '$lib/data/storage/storage-handler-factory';
 import { StorageDataType, SyncEndpointType } from '$lib/data/storage/storage-types';
 import { ReplicationSaveBehavior } from '$lib/functions/replication/replication-options';
 import { replicateData } from '$lib/functions/replication/replicator';
@@ -232,7 +232,7 @@ export async function importBackup(
     statisticsMergeMode: statisticsMergeMode$.getValue(),
     readingGoalsMergeMode: readingGoalsMergeMode$.getValue()
   });
-  const browserHandler = getLibrary({
+  const browserHandler = getLocalEndpoint({
     cacheStorageData: cacheStorageData$.getValue(),
     saveBehavior: ReplicationSaveBehavior.NewOnly,
     statisticsMergeMode: statisticsMergeMode$.getValue(),

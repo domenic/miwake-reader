@@ -12,11 +12,12 @@ import type { SyncEndpointType, SyncTitle } from '$lib/data/storage/storage-type
 
 /**
  * The shared per-book operations the replicator drives on both sides
- * of a sync. Library and SyncEndpoint both extend this — the replicator
- * codes against the shared surface, but its parameter types are still
- * the asymmetric Library / SyncEndpoint pair so calls like
- * `replicateData(syncEndpointA, syncEndpointB)` are rejected at the
- * type level (we never replicate between two endpoints).
+ * of a sync. LocalReplicationEndpoint and SyncEndpoint both extend
+ * this — the replicator codes against the shared surface, but its
+ * parameter types are still the asymmetric (local, endpoint) pair so
+ * calls like `replicateData(syncEndpointA, syncEndpointB)` are
+ * rejected at the type level (we never replicate between two
+ * endpoints).
  */
 export interface BookOperations {
   isCacheDisabled(): boolean;
@@ -55,16 +56,23 @@ export interface BookOperations {
 }
 
 /**
- * The local canonical book store backed by IndexedDB. Replicator
- * pulls into this and pushes from this; never an "endpoint." Exactly
- * one implementation: the Library class.
+ * The local-side adapter the replicator pulls into and pushes from —
+ * a BookOperations peer of GDriveStorageHandler /
+ * OneDriveStorageHandler / FilesystemStorageHandler that happens to
+ * be backed by the local IDB. Exactly one implementation:
+ * LocalReplicationEndpoint.
+ *
+ * Distinct from `$lib/data/library` (the user-facing module). UI
+ * handlers should reach through library, not this interface — writes
+ * here are sync-naive by design (a triggerSync at this layer would
+ * loop replicator pulls right back to the remote).
  */
-export interface Library extends BookOperations {
-  readonly kind: 'library';
+export interface LocalReplicationEndpoint extends BookOperations {
+  readonly kind: 'local';
 
   /**
-   * The library always knows the IDB id of a book it holds, so its
-   * getBook return is narrower than the BookOperations contract:
+   * The local endpoint always knows the IDB id of a book it holds,
+   * so its getBook return is narrower than the BookOperations contract:
    * callers like the reader can rely on `id` being present.
    */
   getBook(): Promise<BooksDbBookData | undefined>;
