@@ -20,10 +20,17 @@
     type ReadingGoalSaveResult
   } from '$lib/data/reading-goal';
   import { database, readingGoal$, startDayHoursForTracker$ } from '$lib/data/store';
+  import { StorageDataType } from '$lib/data/storage/storage-types';
+  import { triggerSync } from '$lib/data/sync/sync-engine';
   import { pluralize } from '$lib/functions/utils';
   import { getDateKey, secondsToMinutes } from '$lib/functions/statistic-util';
   import { onMount, tick } from 'svelte';
   import Fa from 'svelte-fa';
+
+  // Reading goals are global (not per-book), so any title works as a
+  // pendingKey here — pick a sentinel that won't collide with a real
+  // book and is recognizable in debug logs.
+  const READING_GOALS_CONTEXT = { title: '<reading-goals>' };
 
   interface Props {
     onspinner?: (value: boolean) => void;
@@ -167,6 +174,7 @@
       onspinner?.(true);
 
       await database.updateReadingGoals(readingGoalsToDelete, readingGoalsToInsert);
+      triggerSync(StorageDataType.READING_GOALS, READING_GOALS_CONTEXT);
     } catch (error: any) {
       tick().then(() =>
         messageDialog({
@@ -223,6 +231,7 @@
 
     try {
       await database.deleteReadingGoal(readingGoalToDelete?.goalStartDate);
+      triggerSync(StorageDataType.READING_GOALS, READING_GOALS_CONTEXT);
       await updateReadingGoalsData();
     } catch ({ message }: any) {
       messageDialog({ title: 'Error', message: `An error occurred: ${message}` });
