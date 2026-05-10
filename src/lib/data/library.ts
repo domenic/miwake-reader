@@ -18,6 +18,7 @@
  * book-delete / stat-delete trigger-after-write bugs slipped through.
  */
 
+import type { BookStatistic } from '$lib/components/statistics/statistics-types';
 import type {
   BooksDbBookmarkData,
   BooksDbReadingGoal,
@@ -117,7 +118,7 @@ export async function userImportBooks(
   await persistLibraryStorage();
 
   if (local.isCacheDisabled()) {
-    local.clearData(false);
+    local.clearData();
   }
 
   let newFileData = 0;
@@ -250,7 +251,7 @@ export async function userSaveStatistics(
  * Update a single statistic row (used by /statistics' edit dialog)
  * and trigger STATISTICS sync.
  */
-export async function userUpdateStatistic(statistic: BooksDbStatistic): Promise<void> {
+export async function userUpdateStatistic(statistic: BookStatistic): Promise<void> {
   await database.updateStatistic(statistic);
   triggerSync(StorageDataType.STATISTICS, { title: statistic.title });
 }
@@ -281,11 +282,11 @@ export async function userDeleteStatisticEntries(
 
   // Force-replace semantics: source.getFilenameForRecentCheck returns
   // undefined under Overwrite, so the up-to-date check short-circuits;
-  // MergeMode.NEWEST on the target keeps the cloud handler from
+  // MergeMode.REPLACE on the target keeps the cloud handler from
   // merging the empty array back into its existing populated file.
   const overrides = {
     saveBehavior: ReplicationSaveBehavior.Overwrite,
-    statisticsMergeMode: MergeMode.NEWEST
+    statisticsMergeMode: MergeMode.REPLACE
   };
   const local = getLocalEndpoint(overrides);
   const handler = endpointForCurrentLocation(location, overrides);
@@ -351,7 +352,11 @@ export async function userDeleteBooks(
   if (location && titles.length) {
     try {
       const handler = endpointForCurrentLocation(location);
-      await handler.deleteBookData(titles, cancelSignal, keepLocalStatistics);
+      // Cloud / FS handlers don't take keepLocalStatistics — that flag
+      // is local-side only (controls whether stats rows survive after
+      // the book row goes). Deleting the remote book folder removes
+      // every file inside it regardless.
+      await handler.deleteBookData(titles, cancelSignal);
     } catch (err) {
       logger.warn(
         `userDeleteBooks: remote-side delete failed (${err instanceof Error ? err.message : String(err)}); ` +
