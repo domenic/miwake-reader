@@ -1,7 +1,11 @@
 import { gDriveClientId, oneDriveClientId, pagePath } from '$lib/data/env';
 import type { BooksDbStorageSource } from '$lib/data/database/books-db/versions/books-db';
 import { getSyncEndpoint } from '$lib/data/storage/storage-handler-factory';
-import type { FsHandle, RemoteContext } from '$lib/data/storage/storage-source-types';
+import {
+  isRemoteContext,
+  type FsHandle,
+  type RemoteContext
+} from '$lib/data/storage/storage-source-types';
 import { clearOAuthTokenCache, StorageOAuthManager } from '$lib/data/storage/storage-oauth-manager';
 import { SyncEndpointType } from '$lib/data/storage/storage-types';
 import { database } from '$lib/data/store';
@@ -210,18 +214,26 @@ async function completeCloudConnection(
     const useCustom = opts.useCustomCredentials;
     const name = cloudSourceName(provider, useCustom);
 
+    const existing = await (await database.db).get('storageSource', name);
+    // Reuse a previously-stored refresh token if we have one for this
+    // exact source: lets cloud → FS → cloud (or default ↔ custom on
+    // the same provider) reconnect silently instead of forcing a fresh
+    // OAuth popup. A blank string means "no usable RT, popup needed."
+    const existingRT =
+      existing && isRemoteContext(existing.data) ? (existing.data.refreshToken ?? '') : '';
+
     const remoteData: RemoteContext =
       useCustom && customCreds
         ? {
             clientId: customCreds.clientId,
             clientSecret: customCreds.clientSecret,
-            refreshToken: '',
+            refreshToken: existingRT,
             tokenEndpoint: customCreds.tokenEndpoint
           }
         : {
             clientId: provider === SyncEndpointType.GDRIVE ? gDriveClientId : oneDriveClientId,
             clientSecret: '',
-            refreshToken: ''
+            refreshToken: existingRT
           };
 
     const record: BooksDbStorageSource = {
@@ -231,14 +243,14 @@ async function completeCloudConnection(
       lastSourceModified: Date.now()
     };
 
-    const existing = await (await database.db).get('storageSource', name);
     await database.saveStorageSource(record, existing ? name : '');
 
-    // Drop the in-memory access token so authenticate() doesn't
-    // short-circuit on a still-valid cached token: we just clobbered
-    // the persisted refreshToken to '', and a silent success would
-    // leave nothing for the next boot to refresh from.
-    clearOAuthTokenCache(name);
+    // Drop the in-memory access token only when there's no stored RT
+    // to fall back to: a stale cached AT paired with a fresh-but-empty
+    // RT would short-circuit silently and leave nothing for the next
+    // boot. With a stored RT, the cache is fine to keep — verifyToken
+    // will refresh from it as needed.
+    if (!existingRT) clearOAuthTokenCache(name);
 
     const handler =
       provider === SyncEndpointType.GDRIVE
@@ -302,12 +314,14 @@ async function teardownPriorLocation(
   if (prev) {
     const db = await database.db;
     if (prev.kind === 'cloud') {
-      const name = cloudSourceName(prev.provider, prev.usesCustomCredentials);
-      clearOAuthTokenCache(name);
-      const existing = await db.get('storageSource', name);
-      if (existing) {
-        await database.deleteStorageSource(existing);
-      }
+      // Keep the cloud record (with its stored RT) and the OAuth
+      // in-memory cache around so a switch back later in the session
+      // — or after a reload — can reuse the credentials silently.
+      // loadConnectionsFromDb's most-recent-wins rule prevents the
+      // dormant record from hijacking the active source. Disconnect
+      // (which DOES intend to fully sign out) goes through
+      // disconnect() instead, which clears the cache and deletes the
+      // record explicitly.
     } else {
       // Prior is FS, new is cloud. Drop the FS record; FS→FS replaces
       // in place via the same-name overwrite in completeFsConnection
@@ -420,39 +434,38 @@ export async function loadConnectionsFromDb(): Promise<void> {
   const db = await database.db;
   const records = await db.getAll('storageSource');
 
-  // Cloud takes precedence: if both somehow exist (carried over from
-  // pre-pivot installs), the cloud record wins and the FS record is
-  // dropped. Disconnect/reconnect cycles maintain the at-most-one
-  // invariant going forward.
-  const cloudRecord = records.find(
-    (r) => r.type === SyncEndpointType.GDRIVE || r.type === SyncEndpointType.ONEDRIVE
+  // Pick the most-recently-modified record as the active source. We
+  // intentionally keep stale records (e.g. a cloud RT after the user
+  // detoured to a sync folder) so a switch back to that provider can
+  // reuse the stored token silently — completeCloudConnection /
+  // completeFsConnection bumps lastSourceModified on the new active,
+  // making "most-recent wins" the right tiebreaker.
+  if (!records.length) return;
+  const active = records.reduce((a, b) =>
+    (b.lastSourceModified ?? 0) > (a.lastSourceModified ?? 0) ? b : a
   );
-  const fsRecord = records.find((r) => r.type === SyncEndpointType.FS && r.name === FS_SOURCE_NAME);
 
-  if (cloudRecord) {
+  if (active.type === SyncEndpointType.GDRIVE || active.type === SyncEndpointType.ONEDRIVE) {
     syncState.location = {
       kind: 'cloud',
-      provider: cloudRecord.type as CloudProviderType,
-      usesCustomCredentials: isCustomCloudName(cloudRecord.name),
-      connectedAt: cloudRecord.lastSourceModified,
+      provider: active.type,
+      usesCustomCredentials: isCustomCloudName(active.name),
+      connectedAt: active.lastSourceModified,
       lastSyncedAt: null,
       bookCount: null
     };
-    if (fsRecord) {
-      // Stale FS record from a pre-pivot install — drop it.
-      await db.delete('storageSource', FS_SOURCE_NAME);
-    }
   } else if (
-    fsRecord &&
-    fsRecord.data &&
-    typeof fsRecord.data === 'object' &&
-    'fsPath' in fsRecord.data
+    active.type === SyncEndpointType.FS &&
+    active.name === FS_SOURCE_NAME &&
+    active.data &&
+    typeof active.data === 'object' &&
+    'fsPath' in active.data
   ) {
-    const fsData = fsRecord.data as FsHandle;
+    const fsData = active.data as FsHandle;
     syncState.location = {
       kind: 'fs',
       path: fsData.fsPath,
-      connectedAt: fsRecord.lastSourceModified,
+      connectedAt: active.lastSourceModified,
       lastSyncedAt: null
     };
   }
