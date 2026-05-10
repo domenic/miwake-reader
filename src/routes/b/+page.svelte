@@ -127,7 +127,7 @@
   import { fullscreenManager } from '$lib/data/fullscreen-manager';
   import { logger } from '$lib/data/logger';
   import { confirmDialog, messageDialog } from '$lib/data/simple-dialogs';
-  import type { MergeMode } from '$lib/data/merge-mode';
+  import { userSaveBookmark, userSaveStatistics } from '$lib/data/library';
   import { getLocalEndpoint } from '$lib/data/storage/storage-handler-factory';
   import { BaseStorageHandler } from '$lib/data/storage/handler/base-handler';
   import type { LocalReplicationEndpoint } from '$lib/data/storage/handler/handler-roles';
@@ -771,20 +771,23 @@
       }
 
       if (statisticsToStore.length) {
-        await database.storeStatistics(
+        await userSaveStatistics(
           $rawBookData$.title,
           statisticsToStore,
           ReplicationSaveBehavior.Overwrite,
           'merge',
-          lastStatisticModified
+          {
+            id: $rawBookData$.id,
+            title: $rawBookData$.title,
+            imagePath: $rawBookData$.coverImage
+          },
+          { silent: blockDataUpdates, lastStatisticModified }
         );
 
         trackerElm?.updateCompletedBook(
           todayStatistic,
           updateFinishedStatistic ? finishedStatistic : undefined
         );
-
-        scheduleReplication(StorageDataType.STATISTICS);
       }
 
       if (bookmarkManager) {
@@ -793,11 +796,17 @@
           completed: true
         };
 
-        await database.putBookmark(data);
+        await userSaveBookmark(
+          data,
+          {
+            id: $rawBookData$.id,
+            title: $rawBookData$.title,
+            imagePath: $rawBookData$.coverImage
+          },
+          { silent: blockDataUpdates }
+        );
 
         bookmarkData = Promise.resolve(data);
-
-        scheduleReplication(StorageDataType.PROGRESS);
       }
 
       if ($statisticsEnabled$ && $openTrackerOnCompletion$) {
@@ -825,18 +834,24 @@
 
   async function uncompleteBook() {
     const bookId = getBookIdSync();
-    if (!bookId || !bookmarkManager) return;
+    if (!bookId || !bookmarkManager || !$rawBookData$) return;
 
     const data = {
       ...bookmarkManager.formatBookmarkData(bookId, customReadingPointScrollOffset),
       completed: false
     };
 
-    await database.putBookmark(data);
+    await userSaveBookmark(
+      data,
+      {
+        id: $rawBookData$.id,
+        title: $rawBookData$.title,
+        imagePath: $rawBookData$.coverImage
+      },
+      { silent: blockDataUpdates }
+    );
 
     bookmarkData = Promise.resolve(data);
-
-    scheduleReplication(StorageDataType.PROGRESS);
   }
 
   function getCurrentChapterProgress(sectionData: SectionWithProgress[]) {
@@ -971,11 +986,21 @@
       data.completed = true;
     }
 
-    await database.putBookmark(data);
+    if ($rawBookData$) {
+      await userSaveBookmark(
+        data,
+        {
+          id: $rawBookData$.id,
+          title: $rawBookData$.title,
+          imagePath: $rawBookData$.coverImage
+        },
+        { silent: blockDataUpdates }
+      );
+    } else {
+      await database.putBookmark(data);
+    }
 
     bookmarkData = Promise.resolve(data);
-
-    scheduleReplication(StorageDataType.PROGRESS);
   }
 
   async function scrollToBookmark() {
