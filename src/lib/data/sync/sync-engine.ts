@@ -531,6 +531,15 @@ export async function syncEngineStart(): Promise<void> {
   });
 
   await reconcileBooksOnBoot();
+
+  // Mirror the local library upward at every boot. Catches any books
+  // the source is missing — including the post-importBackup reload
+  // (where the in-flight ambient triggers were dropped by the reload)
+  // and any other path that writes to the library without firing
+  // triggerSync. isBookPresentAndUpToDate short-circuits the no-op
+  // case, so the cost when nothing changed is one cheap check per
+  // book.
+  if (syncState.location) void pushAllLocalBooks();
 }
 
 /**
