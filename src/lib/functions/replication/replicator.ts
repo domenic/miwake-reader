@@ -8,17 +8,12 @@ import type {
 import { storage } from '$lib/data/window/navigator/storage';
 import { StorageDataType } from '$lib/data/storage/storage-types';
 import { database } from '$lib/data/store';
-import loadEpub from '$lib/functions/file-loaders/epub/load-epub';
-import loadHtmlz from '$lib/functions/file-loaders/htmlz/load-htmlz';
-import loadTxt from '$lib/functions/file-loaders/txt/load-txt';
-import type { LoadData } from '$lib/functions/file-loaders/types';
 import { handleErrorDuringReplication } from '$lib/functions/replication/error-handler';
 import { throwIfAborted } from '$lib/functions/replication/replication-error';
 import {
   replicationProgress$,
   type ReplicationContext
 } from '$lib/functions/replication/replication-progress';
-import { triggerSync } from '$lib/data/sync/sync-engine';
 import pLimit from 'p-limit';
 
 /**
@@ -27,127 +22,6 @@ import pLimit from 'p-limit';
  *   - `'push'`: library → endpoint (the library is the source)
  */
 export type ReplicationDirection = 'push' | 'pull';
-
-export async function importData(
-  document: Document,
-  library: LocalReplicationEndpoint,
-  files: File[],
-  cancelSignal: AbortSignal,
-  fileCountData?: Record<string, number>
-) {
-  const dataIds: number[] = [];
-  const tasks: Promise<void>[] = [];
-  const lastBookModified = new Date().getTime();
-  const progressBase = 3; // load -> save -> cover;
-  const maxProgress = progressBase * files.length;
-  const limiter = pLimit(1);
-
-  let errorMessage = '';
-
-  replicationProgress$.next({ progressBase, maxProgress });
-  await persistLibraryStorage();
-
-  if (library.isCacheDisabled()) {
-    library.clearData(false);
-  }
-
-  let newFileData = 0;
-
-  files.forEach((file) =>
-    tasks.push(
-      limiter(async () => {
-        let currentTitle = file.name;
-
-        if (fileCountData && Object.prototype.hasOwnProperty.call(fileCountData, currentTitle)) {
-          checkCancelAndProgress(cancelSignal, true, true);
-          checkCancelAndProgress(cancelSignal, true, true);
-          checkCancelAndProgress(cancelSignal, true, true);
-          return;
-        }
-
-        try {
-          throwIfAborted(cancelSignal);
-
-          let bookContent: LoadData;
-          if (file.name.endsWith('.epub')) {
-            bookContent = await loadEpub(file, document, lastBookModified);
-          } else if (file.name.endsWith('.txt')) {
-            bookContent = await loadTxt(file, lastBookModified);
-          } else {
-            bookContent = await loadHtmlz(file, document, lastBookModified);
-          }
-
-          if (fileCountData) {
-            fileCountData[currentTitle] = bookContent.characters;
-            checkCancelAndProgress(cancelSignal, true, true);
-            checkCancelAndProgress(cancelSignal, true, true);
-            checkCancelAndProgress(cancelSignal, true, true);
-            newFileData += 1;
-            return;
-          }
-
-          checkCancelAndProgress(cancelSignal, true, true);
-
-          currentTitle = bookContent.title;
-
-          library.startContext(
-            { title: bookContent.title, imagePath: bookContent.coverImage || '' },
-            cancelSignal
-          );
-
-          const dataId = await library.saveBook(bookContent, false);
-          dataIds.push(dataId);
-
-          checkCancelAndProgress(cancelSignal, false);
-
-          if (bookContent.coverImage) {
-            await library.saveCover(bookContent.coverImage);
-          }
-
-          // Newly-imported books need to propagate to whatever sync
-          // location is connected — saveBook only writes the local
-          // library, and the ambient push is gated on triggerSync().
-          // Cover ships bundled with the DATA push.
-          triggerSync(StorageDataType.DATA, {
-            id: dataId,
-            title: bookContent.title,
-            imagePath: bookContent.coverImage
-          });
-
-          // The library always drives /manage's view; emit unconditionally.
-          database.dataListChanged$.next();
-
-          checkCancelAndProgress(cancelSignal, true, !bookContent.coverImage);
-        } catch (error: any) {
-          errorMessage = handleErrorDuringReplication(error, `Error importing ${currentTitle}: `, [
-            limiter
-          ]);
-        }
-      })
-    )
-  );
-
-  await Promise.all(tasks).catch(() => {});
-
-  if (fileCountData && newFileData) {
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(
-      new Blob([JSON.stringify(fileCountData)], { type: 'application/json' })
-    );
-    a.rel = 'noopener';
-    a.download = 'characters';
-
-    setTimeout(() => {
-      URL.revokeObjectURL(a.href);
-    }, 1e4);
-
-    setTimeout(() => {
-      a.click();
-    });
-  }
-
-  return errorMessage;
-}
 
 export async function importBackup(
   source: BackupStorageHandler,
@@ -367,14 +241,14 @@ export async function replicateData(
   return errorMessage;
 }
 
-async function persistLibraryStorage() {
+export async function persistLibraryStorage() {
   // Best-effort. Browsers either grant on this call (and remember it
   // forever) or deny silently per their own engagement heuristics —
   // either way there's nothing useful for us to do beyond ask.
   await storage.persist().catch(() => {});
 }
 
-function checkCancelAndProgress(
+export function checkCancelAndProgress(
   cancelSignal: AbortSignal | undefined,
   allowCancel = true,
   addDefaultProgress = false

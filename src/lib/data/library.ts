@@ -23,17 +23,37 @@ import type {
   BooksDbReadingGoal,
   BooksDbStatistic
 } from '$lib/data/database/books-db/versions/books-db';
-import { database } from '$lib/data/store';
+import {
+  cacheStorageData$,
+  database,
+  readingGoalsMergeMode$,
+  replicationSaveBehavior$,
+  statisticsMergeMode$
+} from '$lib/data/store';
 import { logger } from '$lib/data/logger';
 import { MergeMode } from '$lib/data/merge-mode';
 import { ReplicationSaveBehavior } from '$lib/functions/replication/replication-options';
-import { replicateData } from '$lib/functions/replication/replicator';
+import {
+  checkCancelAndProgress,
+  persistLibraryStorage,
+  replicateData
+} from '$lib/functions/replication/replicator';
+import { handleErrorDuringReplication } from '$lib/functions/replication/error-handler';
+import { throwIfAborted } from '$lib/functions/replication/replication-error';
+import {
+  replicationProgress$,
+  type ReplicationContext
+} from '$lib/functions/replication/replication-progress';
+import loadEpub from '$lib/functions/file-loaders/epub/load-epub';
+import loadHtmlz from '$lib/functions/file-loaders/htmlz/load-htmlz';
+import loadTxt from '$lib/functions/file-loaders/txt/load-txt';
+import type { LoadData } from '$lib/functions/file-loaders/types';
 import { getLocalEndpoint, getSyncEndpoint } from '$lib/data/storage/storage-handler-factory';
 import { StorageDataType, SyncEndpointType } from '$lib/data/storage/storage-types';
-import type { ReplicationContext } from '$lib/functions/replication/replication-progress';
 import { cloudSourceName, FS_SOURCE_NAME } from '$lib/data/sync/sync-helpers';
 import { triggerSync } from '$lib/data/sync/sync-engine';
 import { syncState, type SyncLocation } from '$lib/data/sync/sync-store.svelte';
+import pLimit from 'p-limit';
 
 // Reading goals are global rather than per-book; pendingKey only needs
 // a stable, recognizable title for deduplication.
@@ -54,6 +74,147 @@ function endpointForCurrentLocation(location: SyncLocation, settings?: EndpointS
       : getSyncEndpoint(window, SyncEndpointType.ONEDRIVE, name, settings);
   }
   return getSyncEndpoint(window, SyncEndpointType.FS, FS_SOURCE_NAME, settings);
+}
+
+/**
+ * Import books the user picked from the file picker (or dropped on
+ * /manage). Each successfully-loaded book is saved to the local
+ * library and the DATA sync is triggered so the new content
+ * propagates to the connected sync location. Cover ships bundled
+ * with the DATA push.
+ *
+ * `fileCountData` is the manage page's character-counting trick:
+ * when present, files are loaded only to count characters, not
+ * saved, and a counts JSON is auto-downloaded at the end.
+ *
+ * Returns an aggregated error message string (or empty on success);
+ * mirrors the legacy importData contract the manage page already
+ * handled.
+ */
+export async function userImportBooks(
+  document: Document,
+  files: File[],
+  cancelSignal: AbortSignal,
+  fileCountData?: Record<string, number>
+): Promise<string> {
+  const local = getLocalEndpoint({
+    cacheStorageData: cacheStorageData$.getValue(),
+    saveBehavior: replicationSaveBehavior$.getValue(),
+    statisticsMergeMode: statisticsMergeMode$.getValue(),
+    readingGoalsMergeMode: readingGoalsMergeMode$.getValue()
+  });
+
+  const dataIds: number[] = [];
+  const tasks: Promise<void>[] = [];
+  const lastBookModified = new Date().getTime();
+  const progressBase = 3; // load -> save -> cover
+  const maxProgress = progressBase * files.length;
+  const limiter = pLimit(1);
+
+  let errorMessage = '';
+
+  replicationProgress$.next({ progressBase, maxProgress });
+  await persistLibraryStorage();
+
+  if (local.isCacheDisabled()) {
+    local.clearData(false);
+  }
+
+  let newFileData = 0;
+
+  files.forEach((file) =>
+    tasks.push(
+      limiter(async () => {
+        let currentTitle = file.name;
+
+        if (fileCountData && Object.prototype.hasOwnProperty.call(fileCountData, currentTitle)) {
+          checkCancelAndProgress(cancelSignal, true, true);
+          checkCancelAndProgress(cancelSignal, true, true);
+          checkCancelAndProgress(cancelSignal, true, true);
+          return;
+        }
+
+        try {
+          throwIfAborted(cancelSignal);
+
+          let bookContent: LoadData;
+          if (file.name.endsWith('.epub')) {
+            bookContent = await loadEpub(file, document, lastBookModified);
+          } else if (file.name.endsWith('.txt')) {
+            bookContent = await loadTxt(file, lastBookModified);
+          } else {
+            bookContent = await loadHtmlz(file, document, lastBookModified);
+          }
+
+          if (fileCountData) {
+            fileCountData[currentTitle] = bookContent.characters;
+            checkCancelAndProgress(cancelSignal, true, true);
+            checkCancelAndProgress(cancelSignal, true, true);
+            checkCancelAndProgress(cancelSignal, true, true);
+            newFileData += 1;
+            return;
+          }
+
+          checkCancelAndProgress(cancelSignal, true, true);
+
+          currentTitle = bookContent.title;
+
+          local.startContext(
+            { title: bookContent.title, imagePath: bookContent.coverImage || '' },
+            cancelSignal
+          );
+
+          const dataId = await local.saveBook(bookContent, false);
+          dataIds.push(dataId);
+
+          checkCancelAndProgress(cancelSignal, false);
+
+          if (bookContent.coverImage) {
+            await local.saveCover(bookContent.coverImage);
+          }
+
+          // Pair the local write with a DATA trigger so the imported
+          // book reaches the connected sync location ambiently. Cover
+          // ships bundled with the DATA push.
+          triggerSync(StorageDataType.DATA, {
+            id: dataId,
+            title: bookContent.title,
+            imagePath: bookContent.coverImage
+          });
+
+          // The library always drives /manage's view; emit unconditionally.
+          database.dataListChanged$.next();
+
+          checkCancelAndProgress(cancelSignal, true, !bookContent.coverImage);
+        } catch (error: any) {
+          errorMessage = handleErrorDuringReplication(error, `Error importing ${currentTitle}: `, [
+            limiter
+          ]);
+        }
+      })
+    )
+  );
+
+  await Promise.all(tasks).catch(() => {});
+
+  if (fileCountData && newFileData) {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(
+      new Blob([JSON.stringify(fileCountData)], { type: 'application/json' })
+    );
+    a.rel = 'noopener';
+    a.download = 'characters';
+
+    setTimeout(() => {
+      URL.revokeObjectURL(a.href);
+    }, 1e4);
+
+    setTimeout(() => {
+      a.click();
+    });
+  }
+
+  return errorMessage;
 }
 
 /**

@@ -13,22 +13,17 @@
   import type { BooksDbBookmarkData } from '$lib/data/database/books-db/versions/books-db';
   import { dialogManager } from '$lib/data/dialog-manager';
   import { appName, pagePath } from '$lib/data/env';
-  import { userDeleteBooks, userDeleteStatisticEntries } from '$lib/data/library';
+  import { userDeleteBooks, userDeleteStatisticEntries, userImportBooks } from '$lib/data/library';
   import { logger } from '$lib/data/logger';
   import { confirmDialog, messageDialog } from '$lib/data/simple-dialogs';
   import { SortDirection, type SortOption } from '$lib/data/sort-types';
-  import { getLocalEndpoint } from '$lib/data/storage/storage-handler-factory';
   import { SyncEndpointType } from '$lib/data/storage/storage-types';
   import {
     booklistSortOptions$,
-    cacheStorageData$,
     confirmStatisticsDeletion$,
     database,
     fileCountData$,
-    keepLocalStatisticsOnDeletion$,
-    readingGoalsMergeMode$,
-    replicationSaveBehavior$,
-    statisticsMergeMode$
+    keepLocalStatisticsOnDeletion$
   } from '$lib/data/store';
   import { cloneMutateSet } from '$lib/functions/clone-mutate-set';
   import { getDropEventFiles } from '$lib/functions/file-dom/get-drop-event-files';
@@ -36,7 +31,6 @@
   import { formatPageTitle } from '$lib/functions/format-page-title';
   import { keyBy } from '$lib/functions/key-by';
   import { handleErrorDuringReplication } from '$lib/functions/replication/error-handler';
-  import { importData } from '$lib/functions/replication/replicator';
   import { throwIfAborted } from '$lib/functions/replication/replication-error';
   import {
     replicationProgress$,
@@ -280,18 +274,9 @@
     cancelTooltip = 'Cancels the current import\nAlready imported data will not be deleted';
     initializeReplicationProgressData();
 
-    const error = await importData(
-      document,
-      getLocalEndpoint({
-        cacheStorageData: $cacheStorageData$,
-        saveBehavior: $replicationSaveBehavior$,
-        statisticsMergeMode: $statisticsMergeMode$,
-        readingGoalsMergeMode: $readingGoalsMergeMode$
-      }),
-      files,
-      cancelSignal,
-      $fileCountData$
-    ).catch((catchedError) => catchedError.message);
+    const error = await userImportBooks(document, files, cancelSignal, $fileCountData$).catch(
+      (catchedError) => catchedError.message
+    );
 
     resetProgress();
 
