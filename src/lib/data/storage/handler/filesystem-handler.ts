@@ -14,13 +14,8 @@ import type { BookCardProps } from '$lib/components/book-card/book-card-props';
 import { isRemoteContext } from '$lib/data/storage/storage-source-types';
 import { NeedsPermissionGrantError } from '$lib/data/storage/errors';
 import { confirmDialog } from '$lib/data/simple-dialogs';
-import { handleErrorDuringReplication } from '$lib/functions/replication/error-handler';
 import pLimit from 'p-limit';
-import {
-  replicationProgress$,
-  type ReplicationContext
-} from '$lib/functions/replication/replication-progress';
-import { throwIfAborted } from '$lib/functions/replication/replication-error';
+import type { ReplicationContext } from '$lib/functions/replication/replication-progress';
 
 export class FilesystemStorageHandler extends BaseStorageHandler {
   private rootDirectory: FileSystemDirectoryHandle | undefined;
@@ -118,47 +113,16 @@ export class FilesystemStorageHandler extends BaseStorageHandler {
 
   async deleteBookData(booksToDelete: string[], cancelSignal: AbortSignal) {
     const rootDirectory = await this.ensureRoot();
-    const deleted: number[] = [];
-    const deletionLimiter = pLimit(1);
-    const deleteTasks: Promise<void>[] = [];
-
-    let error = '';
-
-    replicationProgress$.next({ progressBase: 1, maxProgress: booksToDelete.length });
-
-    booksToDelete.forEach((bookToDelete) =>
-      deleteTasks.push(
-        deletionLimiter(async () => {
-          try {
-            throwIfAborted(cancelSignal);
-
-            await rootDirectory.removeEntry(BaseStorageHandler.sanitizeForFilename(bookToDelete), {
-              recursive: true
-            });
-
-            const deletedId = this.titleToBookCard.get(bookToDelete)?.id;
-
-            if (deletedId) {
-              deleted.push(deletedId);
-            }
-
-            this.titleToDirectory.delete(bookToDelete);
-            this.titleToFiles.delete(bookToDelete);
-            this.titleToBookCard.delete(bookToDelete);
-
-            BaseStorageHandler.reportProgress();
-          } catch (err) {
-            error = handleErrorDuringReplication(err, `Error deleting ${bookToDelete}: `, [
-              deletionLimiter
-            ]);
-          }
-        })
-      )
-    );
-
-    await Promise.all(deleteTasks).catch(() => {});
-
-    return { error, deleted };
+    return this.deleteSequentially(booksToDelete, cancelSignal, async (title) => {
+      await rootDirectory.removeEntry(BaseStorageHandler.sanitizeForFilename(title), {
+        recursive: true
+      });
+      const deletedId = this.titleToBookCard.get(title)?.id;
+      this.titleToDirectory.delete(title);
+      this.titleToFiles.delete(title);
+      this.titleToBookCard.delete(title);
+      return deletedId;
+    });
   }
 
   /** @internal Used by `ScopedFilesystemHandler` and handler-level methods. */

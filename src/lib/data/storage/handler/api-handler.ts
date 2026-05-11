@@ -15,17 +15,10 @@ import type { ScopedBookOperations, ScopedSettings } from '$lib/data/storage/han
 import { StorageOAuthManager } from '$lib/data/storage/storage-oauth-manager';
 import { SyncEndpointType } from '$lib/data/storage/storage-types';
 import { database } from '$lib/data/store';
-import {
-  convertAuthErrorResponse,
-  handleErrorDuringReplication
-} from '$lib/functions/replication/error-handler';
-import { AbortError, throwIfAborted } from '$lib/functions/replication/replication-error';
-import {
-  replicationProgress$,
-  type ReplicationContext
-} from '$lib/functions/replication/replication-progress';
+import { convertAuthErrorResponse } from '$lib/functions/replication/error-handler';
+import { AbortError } from '$lib/functions/replication/replication-error';
+import type { ReplicationContext } from '$lib/functions/replication/replication-progress';
 import { mergeStatistics, updateStatisticToStore } from '$lib/functions/statistic-util';
-import pLimit from 'p-limit';
 
 export interface RequestOptions {
   method?: string;
@@ -145,53 +138,18 @@ export abstract class ApiStorageHandler extends BaseStorageHandler {
 
   async deleteBookData(booksToDelete: string[], cancelSignal: AbortSignal) {
     await this.ensureTitle();
-
-    let error = '';
-
-    const deleted: number[] = [];
-    const deletionLimiter = pLimit(1);
-    const deleteTasks: Promise<void>[] = [];
-
-    replicationProgress$.next({ progressBase: 1, maxProgress: booksToDelete.length });
-
-    booksToDelete.forEach((bookToDelete) =>
-      deleteTasks.push(
-        deletionLimiter(async () => {
-          try {
-            throwIfAborted(cancelSignal);
-
-            const externalId = this.titleToId.get(bookToDelete);
-
-            if (externalId) {
-              await this.executeDelete(externalId, cancelSignal);
-            }
-
-            this.titleToFiles.delete(bookToDelete);
-
-            const deletedBookCard = this.titleToBookCard.get(bookToDelete);
-
-            if (deletedBookCard) {
-              deleted.push(deletedBookCard.id);
-            }
-
-            this.titleToId.delete(bookToDelete);
-            this.titleToBookCard.delete(bookToDelete);
-
-            database.dataListChanged$.next();
-
-            BaseStorageHandler.reportProgress();
-          } catch (err) {
-            error = handleErrorDuringReplication(err, `Error deleting ${bookToDelete}: `, [
-              deletionLimiter
-            ]);
-          }
-        })
-      )
-    );
-
-    await Promise.all(deleteTasks).catch(() => {});
-
-    return { error, deleted };
+    return this.deleteSequentially(booksToDelete, cancelSignal, async (title) => {
+      const externalId = this.titleToId.get(title);
+      if (externalId) {
+        await this.executeDelete(externalId, cancelSignal);
+      }
+      const deletedId = this.titleToBookCard.get(title)?.id;
+      this.titleToFiles.delete(title);
+      this.titleToId.delete(title);
+      this.titleToBookCard.delete(title);
+      database.dataListChanged$.next();
+      return deletedId;
+    });
   }
 
   /** @internal Shared XHR plumbing for subclass `retrieve`/`upload`/etc. */

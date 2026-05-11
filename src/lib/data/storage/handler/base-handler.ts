@@ -13,6 +13,7 @@ import type {
   ScopedSettings,
   SyncEndpoint
 } from '$lib/data/storage/handler/handler-roles';
+import { handleErrorDuringReplication } from '$lib/functions/replication/error-handler';
 import { exporterVersion } from '$lib/functions/replication/exporter-version';
 import { throwIfAborted } from '$lib/functions/replication/replication-error';
 import { ReplicationSaveBehavior } from '$lib/functions/replication/replication-options';
@@ -136,6 +137,40 @@ export abstract class BaseStorageHandler implements SyncEndpoint {
     };
 
     this.titleToBookCard.set(title, bookCard);
+  }
+
+  /**
+   * Shared scaffold for `deleteBookData` impls: sequential per-title
+   * loop with the standard progress/cancel/error reporting. The
+   * subclass provides `deleteOne`, which returns the deleted book-card
+   * id (or undefined if there was no matching card to surface).
+   */
+  protected async deleteSequentially(
+    booksToDelete: string[],
+    cancelSignal: AbortSignal,
+    deleteOne: (title: string) => Promise<number | undefined>
+  ): Promise<ReplicationDeleteResult> {
+    const deleted: number[] = [];
+    const limiter = pLimit(1);
+    let error = '';
+
+    replicationProgress$.next({ progressBase: 1, maxProgress: booksToDelete.length });
+
+    const tasks = booksToDelete.map((title) =>
+      limiter(async () => {
+        try {
+          throwIfAborted(cancelSignal);
+          const id = await deleteOne(title);
+          if (id !== undefined) deleted.push(id);
+          BaseStorageHandler.reportProgress();
+        } catch (err) {
+          error = handleErrorDuringReplication(err, `Error deleting ${title}: `, [limiter]);
+        }
+      })
+    );
+
+    await Promise.all(tasks).catch(() => {});
+    return { error, deleted };
   }
 
   /** @internal Used by `BaseScopedHandler` subclasses. */
