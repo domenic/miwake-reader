@@ -3,6 +3,7 @@ import { BaseStorageHandler } from '$lib/data/storage/handler/base-handler';
 import type {
   BookOperations,
   LocalReplicationEndpoint,
+  ScopedSettings,
   SyncEndpoint
 } from '$lib/data/storage/handler/handler-roles';
 import { storage } from '$lib/data/window/navigator/storage';
@@ -16,6 +17,8 @@ import {
 } from '$lib/functions/replication/replication-progress';
 import pLimit from 'p-limit';
 
+const READING_GOALS_SCOPE_CONTEXT: ReplicationContext = { title: '<reading-goals>' };
+
 /**
  * Direction of a replication relative to the library:
  *   - `'pull'`: endpoint → library (the library is the target)
@@ -27,6 +30,8 @@ export async function importBackup(
   source: BackupStorageHandler,
   library: LocalReplicationEndpoint,
   file: File,
+  sourceSettings: ScopedSettings,
+  targetSettings: ScopedSettings,
   cancelSignal: AbortSignal
 ) {
   return replicateData(
@@ -41,6 +46,8 @@ export async function importBackup(
       StorageDataType.STATISTICS,
       StorageDataType.READING_GOALS
     ],
+    sourceSettings,
+    targetSettings,
     cancelSignal
   );
 }
@@ -52,6 +59,15 @@ export async function importBackup(
  * directly. The library always drives /manage's view, so post-write
  * notifications fire only on `'pull'`.
  */
+/**
+ * `sourceSettings` and `targetSettings` are separate so the
+ * asymmetric force-resync flows (source's saveBehavior overridden to
+ * Overwrite while target stays default) and backup-import (zip-wins
+ * source vs browser-default target) can express their per-side
+ * settings without leaking back into mutable handler state. The
+ * symmetric callers (ambient push, force-resync newest leg)
+ * typically pass the same object for both.
+ */
 export async function replicateData(
   library: LocalReplicationEndpoint,
   endpoint: SyncEndpoint,
@@ -59,6 +75,8 @@ export async function replicateData(
   refreshDataList: boolean,
   contexts: ReplicationContext[],
   dataToReplicate: StorageDataType[],
+  sourceSettings: ScopedSettings,
+  targetSettings: ScopedSettings,
   cancelSignal?: AbortSignal
 ) {
   const source: BookOperations = direction === 'push' ? library : endpoint;
@@ -106,22 +124,22 @@ export async function replicateData(
 
           let dataProcessed = false;
 
-          source.startContext(context, cancelSignal);
-          target.startContext(context, cancelSignal);
+          const sourceScoped = source.scoped(context, sourceSettings, cancelSignal);
+          const targetScoped = target.scoped(context, targetSettings, cancelSignal);
 
           if (processBookData) {
             if (
-              await target.isBookPresentAndUpToDate(
-                await source.getFilenameForRecentCheck('bookdata_')
+              await targetScoped.isBookPresentAndUpToDate(
+                await sourceScoped.getFilenameForRecentCheck('bookdata_')
               )
             ) {
               checkCancelAndProgress(cancelSignal, true, true);
               checkCancelAndProgress(cancelSignal, true, true);
             } else {
-              const bookData = await source.getBook();
+              const bookData = await sourceScoped.getBook();
               checkCancelAndProgress(cancelSignal);
               if (bookData) {
-                await target.saveBook(bookData);
+                await targetScoped.saveBook(bookData);
                 dataProcessed = true;
               }
               checkCancelAndProgress(cancelSignal, bookOperationsLength === 1, !bookData);
@@ -130,17 +148,17 @@ export async function replicateData(
 
           if (processProgressData) {
             if (
-              await target.isProgressPresentAndUpToDate(
-                await source.getFilenameForRecentCheck('progress_')
+              await targetScoped.isProgressPresentAndUpToDate(
+                await sourceScoped.getFilenameForRecentCheck('progress_')
               )
             ) {
               checkCancelAndProgress(cancelSignal, !dataProcessed, true);
               checkCancelAndProgress(cancelSignal, !dataProcessed, true);
             } else {
-              const progressData = await source.getProgress();
+              const progressData = await sourceScoped.getProgress();
               checkCancelAndProgress(cancelSignal, !dataProcessed);
               if (progressData) {
-                await target.saveProgress(progressData);
+                await targetScoped.saveProgress(progressData);
                 dataProcessed = true;
               }
               checkCancelAndProgress(cancelSignal, !dataProcessed, !progressData);
@@ -149,17 +167,17 @@ export async function replicateData(
 
           if (processStatistics) {
             if (
-              await target.areStatisticsPresentAndUpToDate(
-                await source.getFilenameForRecentCheck('statistics_')
+              await targetScoped.areStatisticsPresentAndUpToDate(
+                await sourceScoped.getFilenameForRecentCheck('statistics_')
               )
             ) {
               checkCancelAndProgress(cancelSignal, !dataProcessed, true);
               checkCancelAndProgress(cancelSignal, !dataProcessed, true);
             } else {
-              const { statistics, lastStatisticModified } = await source.getStatistics();
+              const { statistics, lastStatisticModified } = await sourceScoped.getStatistics();
               checkCancelAndProgress(cancelSignal, !dataProcessed);
               if (statistics) {
-                await target.saveStatistics(statistics, lastStatisticModified);
+                await targetScoped.saveStatistics(statistics, lastStatisticModified);
                 dataProcessed = true;
               }
               checkCancelAndProgress(cancelSignal, !dataProcessed, !statistics);
@@ -167,9 +185,9 @@ export async function replicateData(
           }
 
           if (dataProcessed) {
-            const coverData = await source.getCover();
+            const coverData = await sourceScoped.getCover();
             checkCancelAndProgress(cancelSignal, !coverData);
-            await target.saveCover(coverData);
+            await targetScoped.saveCover(coverData);
             checkCancelAndProgress(cancelSignal);
 
             if (direction === 'pull') {
@@ -202,18 +220,33 @@ export async function replicateData(
     replicationTasks.push(
       replicationLimiter(async () => {
         try {
+          // Reading goals are global; the context here is a sentinel
+          // that satisfies the scoped() signature without colliding
+          // with any real book title.
+          const sourceScoped = source.scoped(
+            READING_GOALS_SCOPE_CONTEXT,
+            sourceSettings,
+            cancelSignal
+          );
+          const targetScoped = target.scoped(
+            READING_GOALS_SCOPE_CONTEXT,
+            targetSettings,
+            cancelSignal
+          );
           if (
-            await target.areReadingGoalsPresentAndUpToDate(
-              await source.getFilenameForRecentCheck(BaseStorageHandler.readingGoalsFilePrefix)
+            await targetScoped.areReadingGoalsPresentAndUpToDate(
+              await sourceScoped.getFilenameForRecentCheck(
+                BaseStorageHandler.readingGoalsFilePrefix
+              )
             )
           ) {
             checkCancelAndProgress(cancelSignal, true, true);
             checkCancelAndProgress(cancelSignal, true, true);
           } else {
-            const { readingGoals, lastGoalModified } = await source.getReadingGoals();
+            const { readingGoals, lastGoalModified } = await sourceScoped.getReadingGoals();
             checkCancelAndProgress(cancelSignal);
             if (readingGoals) {
-              await target.saveReadingGoals(readingGoals, lastGoalModified);
+              await targetScoped.saveReadingGoals(readingGoals, lastGoalModified);
             }
             checkCancelAndProgress(cancelSignal, false, !readingGoals);
           }

@@ -34,6 +34,7 @@
   import { getSyncEndpoint } from '$lib/data/storage/storage-handler-factory';
   import { userUpdateStatistic } from '$lib/data/library';
   import { StorageDataType, SyncEndpointType } from '$lib/data/storage/storage-types';
+  import { ReplicationSaveBehavior } from '$lib/functions/replication/replication-options';
   import {
     confirmStatisticsDeletion$,
     database,
@@ -168,6 +169,11 @@
         const backupHandler = getSyncEndpoint(window, SyncEndpointType.BACKUP);
         const exportLimiter = pLimit(1);
         const exportTasks: Promise<void>[] = [];
+        const exportScopedSettings = {
+          saveBehavior: ReplicationSaveBehavior.NewOnly,
+          statisticsMergeMode: 'replace' as const,
+          readingGoalsMergeMode: 'replace' as const
+        };
 
         backupHandler.clearData();
 
@@ -181,8 +187,11 @@
                 );
 
                 if (dataToExport.length) {
-                  backupHandler.startContext({ id: 0, title: titleToExport, imagePath: '' });
-                  await backupHandler.saveStatistics(dataToExport, lastStatisticsModified);
+                  const scoped = backupHandler.scoped(
+                    { title: titleToExport },
+                    exportScopedSettings
+                  );
+                  await scoped.saveStatistics(dataToExport, lastStatisticsModified);
                 }
               } catch (error) {
                 exportLimiter.clearQueue();

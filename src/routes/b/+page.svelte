@@ -242,8 +242,13 @@
           readingGoalsMergeMode: $readingGoalsMergeMode$
         });
 
-        localStorageHandler.startContext({ id, title: '' });
-        bookData = await localStorageHandler.getBook();
+        const scopedSettings = {
+          saveBehavior: $replicationSaveBehavior$,
+          statisticsMergeMode: $statisticsMergeMode$,
+          readingGoalsMergeMode: $readingGoalsMergeMode$
+        };
+        const idLookupScoped = localStorageHandler.scoped({ id, title: '' }, scopedSettings);
+        bookData = await idLookupScoped.getBook();
         logger.debug(
           `reader/rawBookData$: getBook → ${
             bookData
@@ -262,12 +267,12 @@
           imagePath: bookData.coverImage
         };
 
-        localStorageHandler.startContext(currentContext);
+        const localScoped = localStorageHandler.scoped(currentContext, scopedSettings);
 
         bookData.lastBookOpen = new Date().getTime();
 
         logger.debug('reader/rawBookData$: updateLastRead (local)');
-        await localStorageHandler.updateLastRead(bookData);
+        await localScoped.updateLastRead(bookData);
         logger.debug('reader/rawBookData$: reconcileForBookOpen start');
         await reconcileForBookOpen(currentContext);
         logger.debug('reader/rawBookData$: reconcileForBookOpen done');
@@ -278,8 +283,8 @@
         // placeholder, syncing didn't (or couldn't) pull the content
         // and there's nothing to render.
         if (!bookData.elementHtml) {
-          const refreshed = await localStorageHandler.getBook();
-          if (refreshed && !(refreshed instanceof File)) {
+          const refreshed = await localScoped.getBook();
+          if (refreshed) {
             bookData = refreshed;
           }
           if (!bookData.elementHtml) {

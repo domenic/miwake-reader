@@ -1,5 +1,6 @@
 import type {
   LocalReplicationEndpoint,
+  ScopedSettings,
   SyncEndpoint
 } from '$lib/data/storage/handler/handler-roles';
 import { NeedsInteractiveAuthError, NeedsPermissionGrantError } from '$lib/data/storage/errors';
@@ -44,6 +45,14 @@ function commonSettings(saveBehaviorOverride?: ReplicationSaveBehavior) {
     readingGoalsMergeMode: readingGoalsMergeMode$.getValue(),
     cacheStorageData: cacheStorageData$.getValue(),
     askForStorageUnlock: false
+  };
+}
+
+function scopedSettings(saveBehaviorOverride?: ReplicationSaveBehavior): ScopedSettings {
+  return {
+    saveBehavior: saveBehaviorOverride ?? replicationSaveBehavior$.getValue(),
+    statisticsMergeMode: statisticsMergeMode$.getValue(),
+    readingGoalsMergeMode: readingGoalsMergeMode$.getValue()
   };
 }
 
@@ -313,7 +322,17 @@ async function pushOne(context: ReplicationContext, types: StorageDataType[]): P
     if (location.kind === 'cloud') {
       await handler.authenticate(null, true);
     }
-    const error = await replicateData(local, handler, 'push', false, [context], types);
+    const settings = scopedSettings();
+    const error = await replicateData(
+      local,
+      handler,
+      'push',
+      false,
+      [context],
+      types,
+      settings,
+      settings
+    );
     if (error) throw new Error(error);
     markSynced();
   } catch (err) {
@@ -388,7 +407,17 @@ export async function reconcileForBookOpen(context: ReplicationContext): Promise
       logger.debug('reconcileForBookOpen: cloud authenticate (silent)');
       await handler.authenticate(null, true);
     }
-    const error = await replicateData(local, handler, 'pull', false, [context], types);
+    const settings = scopedSettings();
+    const error = await replicateData(
+      local,
+      handler,
+      'pull',
+      false,
+      [context],
+      types,
+      settings,
+      settings
+    );
     if (error) throw new Error(error);
     markSynced();
   } catch (err) {
@@ -478,13 +507,16 @@ export async function forceFullResync(direction: ForceResyncDirection): Promise<
       if (direction === 'newest' || direction === 'remote-wins') {
         const remote = endpointFor(location, pullSourceOverride);
         logger.debug(`forceFullResync: pull ${location.kind} → local`);
+        // Source (remote) gets the override; target (local) stays default.
         const error = await replicateData(
           localEndpoint(),
           remote,
           'pull',
           true,
           pullContexts,
-          types
+          types,
+          scopedSettings(pullSourceOverride),
+          scopedSettings()
         );
         if (error) throw new Error(error);
       }
@@ -493,7 +525,16 @@ export async function forceFullResync(direction: ForceResyncDirection): Promise<
         const localSource = localEndpoint(pushSourceOverride);
         const remote = endpointFor(location);
         logger.debug(`forceFullResync: push local → ${location.kind}`);
-        const error = await replicateData(localSource, remote, 'push', true, pushContexts, types);
+        const error = await replicateData(
+          localSource,
+          remote,
+          'push',
+          true,
+          pushContexts,
+          types,
+          scopedSettings(pushSourceOverride),
+          scopedSettings()
+        );
         if (error) throw new Error(error);
       }
       markSynced();

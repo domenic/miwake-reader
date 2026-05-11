@@ -104,6 +104,11 @@ export async function userImportBooks(
     statisticsMergeMode: statisticsMergeMode$.getValue(),
     readingGoalsMergeMode: readingGoalsMergeMode$.getValue()
   });
+  const importScopedSettings = {
+    saveBehavior: replicationSaveBehavior$.getValue(),
+    statisticsMergeMode: statisticsMergeMode$.getValue(),
+    readingGoalsMergeMode: readingGoalsMergeMode$.getValue()
+  };
 
   const dataIds: number[] = [];
   const tasks: Promise<void>[] = [];
@@ -160,18 +165,19 @@ export async function userImportBooks(
 
           currentTitle = bookContent.title;
 
-          local.startContext(
+          const scoped = local.scoped(
             { title: bookContent.title, imagePath: bookContent.coverImage || '' },
+            importScopedSettings,
             cancelSignal
           );
 
-          const dataId = await local.saveBook(bookContent, false);
+          const dataId = await scoped.saveBook(bookContent, false);
           dataIds.push(dataId);
 
           checkCancelAndProgress(cancelSignal, false);
 
           if (bookContent.coverImage) {
-            await local.saveCover(bookContent.coverImage);
+            await scoped.saveCover(bookContent.coverImage);
           }
 
           // Pair the local write with a DATA trigger so the imported
@@ -291,10 +297,22 @@ export async function userDeleteStatisticEntries(
   const local = getLocalEndpoint(overrides);
   const handler = endpointForCurrentLocation(location, overrides);
   const contexts: ReplicationContext[] = bookTitles.map((title) => ({ title }));
+  const deletePushSettings = {
+    saveBehavior: ReplicationSaveBehavior.Overwrite,
+    statisticsMergeMode: 'replace' as const,
+    readingGoalsMergeMode: readingGoalsMergeMode$.getValue()
+  };
   try {
-    const error = await replicateData(local, handler, 'push', false, contexts, [
-      StorageDataType.STATISTICS
-    ]);
+    const error = await replicateData(
+      local,
+      handler,
+      'push',
+      false,
+      contexts,
+      [StorageDataType.STATISTICS],
+      deletePushSettings,
+      deletePushSettings
+    );
     if (error) {
       logger.warn(`userDeleteStatisticEntries: remote push reported "${error}"`);
     }

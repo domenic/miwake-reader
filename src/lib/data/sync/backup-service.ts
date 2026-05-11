@@ -86,22 +86,26 @@ export async function exportBackup(selection: BackupSelection): Promise<void> {
   backupHandler.clearData();
 
   const db = await database.db;
+  const exportSettings = {
+    saveBehavior: ReplicationSaveBehavior.Overwrite,
+    statisticsMergeMode: statisticsMergeMode$.getValue(),
+    readingGoalsMergeMode: readingGoalsMergeMode$.getValue()
+  };
 
   for (const [bookId, choices] of selection.perBook) {
     const book = await database.getData(bookId);
     if (!book) continue;
-    backupHandler.startContext({
-      id: 0,
-      title: book.title,
-      imagePath: book.coverImage ?? ''
-    });
-    await backupHandler.saveBook(book);
+    const scoped = backupHandler.scoped(
+      { id: 0, title: book.title, imagePath: book.coverImage ?? '' },
+      exportSettings
+    );
+    await scoped.saveBook(book);
     if (book.coverImage instanceof Blob) {
-      await backupHandler.saveCover(book.coverImage);
+      await scoped.saveCover(book.coverImage);
     }
     if (choices.bookmarks) {
       const bookmark = await database.getBookmark(book.id);
-      if (bookmark) await backupHandler.saveProgress(bookmark);
+      if (bookmark) await scoped.saveProgress(bookmark);
     }
     if (choices.statistics) {
       const stats = await database.getStatisticsForBook(book.title);
@@ -110,7 +114,7 @@ export async function exportBackup(selection: BackupSelection): Promise<void> {
           book.title,
           StorageDataType.STATISTICS
         );
-        await backupHandler.saveStatistics(stats, lastModified);
+        await scoped.saveStatistics(stats, lastModified);
       }
     }
   }
@@ -118,7 +122,8 @@ export async function exportBackup(selection: BackupSelection): Promise<void> {
   if (selection.readingGoals) {
     const goals = await db.getAll('readingGoal');
     if (goals.length > 0) {
-      await backupHandler.saveReadingGoals(goals, lastReadingGoalsModified$.getValue());
+      const scoped = backupHandler.scoped({ title: '<reading-goals>' }, exportSettings);
+      await scoped.saveReadingGoals(goals, lastReadingGoalsModified$.getValue());
     }
     // Current-goal-in-localStorage travels alongside, owned by the
     // Reading-goals checkbox.
@@ -241,6 +246,15 @@ export async function importBackup(
 
   const allContexts = await backupHandler.setBackupZip(file);
   const contextsByTitle = new Map(allContexts.map((c) => [c.title, c]));
+  const importSettings = {
+    saveBehavior: sourceBehavior,
+    statisticsMergeMode: statisticsMergeMode$.getValue(),
+    readingGoalsMergeMode: readingGoalsMergeMode$.getValue()
+  };
+  const browserImportSettings = {
+    ...importSettings,
+    saveBehavior: ReplicationSaveBehavior.NewOnly
+  };
 
   let booksImported = 0;
   let bookmarksImported = 0;
@@ -254,7 +268,16 @@ export async function importBackup(
     if (choices.bookmarks) types.push(StorageDataType.PROGRESS);
     if (choices.statistics) types.push(StorageDataType.STATISTICS);
 
-    const error = await replicateData(browserHandler, backupHandler, 'pull', true, [ctx], types);
+    const error = await replicateData(
+      browserHandler,
+      backupHandler,
+      'pull',
+      true,
+      [ctx],
+      types,
+      importSettings,
+      browserImportSettings
+    );
     if (error) throw new Error(error);
 
     booksImported += 1;
@@ -270,7 +293,9 @@ export async function importBackup(
       'pull',
       false,
       [],
-      [StorageDataType.READING_GOALS]
+      [StorageDataType.READING_GOALS],
+      importSettings,
+      browserImportSettings
     );
     if (error) throw new Error(error);
 

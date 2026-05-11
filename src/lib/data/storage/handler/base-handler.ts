@@ -10,7 +10,11 @@ import type { Section } from '$lib/data/database/books-db/versions/v4/books-db-v
 import { storageRootName } from '$lib/data/env';
 import type { MergeMode } from '$lib/data/merge-mode';
 import type { SyncEndpointType, SyncTitle } from '$lib/data/storage/storage-types';
-import type { SyncEndpoint } from '$lib/data/storage/handler/handler-roles';
+import type {
+  ScopedBookOperations,
+  ScopedSettings,
+  SyncEndpoint
+} from '$lib/data/storage/handler/handler-roles';
 import { exporterVersion } from '$lib/functions/replication/exporter-version';
 import { throwIfAborted } from '$lib/functions/replication/replication-error';
 import { ReplicationSaveBehavior } from '$lib/functions/replication/replication-options';
@@ -192,12 +196,49 @@ export abstract class BaseStorageHandler implements SyncEndpoint {
     return !this.cacheStorageData;
   }
 
-  startContext(context: ReplicationContext, cancelSignal?: AbortSignal) {
+  /**
+   * Bind a (context, settings) pair to this handler for a short
+   * sequence of operations. Returns a proxy whose per-operation
+   * methods delegate to the handler with the captured context. Phase
+   * A — the handler is still stateful internally; the proxy just
+   * sets that state and exposes a cleaner call surface to the
+   * replicator. Future work can refactor the underlying methods to
+   * read context directly from args, making the proxy genuinely
+   * stateless.
+   */
+  scoped(
+    context: ReplicationContext,
+    settings: ScopedSettings,
+    cancelSignal?: AbortSignal
+  ): ScopedBookOperations {
     this.currentContext = context;
     this.cancelSignal = cancelSignal;
     this.currentLastProgressValue = 0;
     this.currentProgressBase = 0;
-    this.sanitizedTitle = BaseStorageHandler.sanitizeForFilename(this.currentContext.title);
+    this.sanitizedTitle = BaseStorageHandler.sanitizeForFilename(context.title);
+    this.saveBehavior = settings.saveBehavior;
+    this.statisticsMergeMode = settings.statisticsMergeMode;
+    this.readingGoalsMergeMode = settings.readingGoalsMergeMode;
+
+    return {
+      getFilenameForRecentCheck: (prefix) => this.getFilenameForRecentCheck(prefix),
+      isBookPresentAndUpToDate: (filename) => this.isBookPresentAndUpToDate(filename),
+      isProgressPresentAndUpToDate: (filename) => this.isProgressPresentAndUpToDate(filename),
+      areStatisticsPresentAndUpToDate: (filename) => this.areStatisticsPresentAndUpToDate(filename),
+      areReadingGoalsPresentAndUpToDate: (filename) =>
+        this.areReadingGoalsPresentAndUpToDate(filename),
+      getBook: () => this.getBook(),
+      getProgress: () => this.getProgress(),
+      getStatistics: () => this.getStatistics(),
+      getCover: () => this.getCover(),
+      getReadingGoals: () => this.getReadingGoals(),
+      saveBook: (data, skipTimestampFallback) => this.saveBook(data, skipTimestampFallback),
+      saveProgress: (data) => this.saveProgress(data),
+      saveStatistics: (data, lastStatisticModified) =>
+        this.saveStatistics(data, lastStatisticModified),
+      saveCover: (data) => this.saveCover(data),
+      saveReadingGoals: (data, lastGoalModified) => this.saveReadingGoals(data, lastGoalModified)
+    };
   }
 
   static getStatisticsMetadata(filename: string) {

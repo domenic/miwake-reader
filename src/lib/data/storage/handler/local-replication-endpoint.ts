@@ -10,7 +10,11 @@ import { ReplicationSaveBehavior } from '$lib/functions/replication/replication-
 import { StorageDataType } from '$lib/data/storage/storage-types';
 import type { ReplicationContext } from '$lib/functions/replication/replication-progress';
 import { BaseStorageHandler } from '$lib/data/storage/handler/base-handler';
-import type { LocalReplicationEndpoint as LocalReplicationEndpointRole } from '$lib/data/storage/handler/handler-roles';
+import type {
+  LocalReplicationEndpoint as LocalReplicationEndpointRole,
+  LocalScopedBookOperations,
+  ScopedSettings
+} from '$lib/data/storage/handler/handler-roles';
 
 /**
  * The local-IDB-backed implementation of the BookOperations contract,
@@ -69,9 +73,36 @@ export class LocalReplicationEndpoint implements LocalReplicationEndpointRole {
     // drop fetched-listing caches.
   }
 
-  startContext(context: ReplicationContext, cancelSignal?: AbortSignal) {
+  scoped(
+    context: ReplicationContext,
+    settings: ScopedSettings,
+    cancelSignal?: AbortSignal
+  ): LocalScopedBookOperations {
     this.currentContext = context;
     this.cancelSignal = cancelSignal;
+    this.saveBehavior = settings.saveBehavior;
+    this.statisticsMergeMode = settings.statisticsMergeMode;
+    this.readingGoalsMergeMode = settings.readingGoalsMergeMode;
+    return {
+      getFilenameForRecentCheck: (prefix) => this.getFilenameForRecentCheck(prefix),
+      isBookPresentAndUpToDate: (filename) => this.isBookPresentAndUpToDate(filename),
+      isProgressPresentAndUpToDate: (filename) => this.isProgressPresentAndUpToDate(filename),
+      areStatisticsPresentAndUpToDate: (filename) => this.areStatisticsPresentAndUpToDate(filename),
+      areReadingGoalsPresentAndUpToDate: (filename) =>
+        this.areReadingGoalsPresentAndUpToDate(filename),
+      getBook: () => this.getBook(),
+      getProgress: () => this.getProgress(),
+      getStatistics: () => this.getStatistics(),
+      getCover: () => this.getCover(),
+      getReadingGoals: () => this.getReadingGoals(),
+      saveBook: (data, skipTimestampFallback) => this.saveBook(data, skipTimestampFallback),
+      saveProgress: (data) => this.saveProgress(data),
+      saveStatistics: (data, lastStatisticModified) =>
+        this.saveStatistics(data, lastStatisticModified),
+      saveCover: (data) => this.saveCover(data),
+      saveReadingGoals: (data, lastGoalModified) => this.saveReadingGoals(data, lastGoalModified),
+      updateLastRead: (book) => this.updateLastRead(book)
+    };
   }
 
   async getFilenameForRecentCheck(fileIdentifier: string) {
