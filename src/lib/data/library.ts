@@ -219,27 +219,16 @@ export async function userImportBooks(
 }
 
 /**
- * Reader-edit options. `silent: true` performs the local IDB write
- * but skips the ambient sync trigger — used during reader teardown
- * (b/+page.svelte:blockDataUpdates) so a 5s-debounced push doesn't
- * race with navigation away.
- */
-export interface UserEditOptions {
-  silent?: boolean;
-}
-
-/**
  * Save (or replace) a bookmark and ambient-push it to the connected
  * sync location. Use from the reader's bookmark / scroll / completion
  * handlers.
  */
 export async function userSaveBookmark(
   data: BooksDbBookmarkData,
-  context: ReplicationContext,
-  options: UserEditOptions = {}
+  context: ReplicationContext
 ): Promise<void> {
   await database.putBookmark(data);
-  if (!options.silent) triggerSync(StorageDataType.PROGRESS, context);
+  triggerSync(StorageDataType.PROGRESS, context);
 }
 
 /**
@@ -252,16 +241,10 @@ export async function userSaveStatistics(
   saveBehavior: ReplicationSaveBehavior,
   mergeMode: MergeMode,
   context: ReplicationContext,
-  options: UserEditOptions & { lastStatisticModified?: number } = {}
+  lastStatisticModified?: number
 ): Promise<void> {
-  await database.storeStatistics(
-    bookTitle,
-    data,
-    saveBehavior,
-    mergeMode,
-    options.lastStatisticModified
-  );
-  if (!options.silent) triggerSync(StorageDataType.STATISTICS, context);
+  await database.storeStatistics(bookTitle, data, saveBehavior, mergeMode, lastStatisticModified);
+  triggerSync(StorageDataType.STATISTICS, context);
 }
 
 /**

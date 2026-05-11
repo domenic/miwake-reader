@@ -781,7 +781,7 @@
             title: $rawBookData$.title,
             imagePath: $rawBookData$.coverImage
           },
-          { silent: blockDataUpdates, lastStatisticModified }
+          lastStatisticModified
         );
 
         trackerElm?.updateCompletedBook(
@@ -796,15 +796,11 @@
           completed: true
         };
 
-        await userSaveBookmark(
-          data,
-          {
-            id: $rawBookData$.id,
-            title: $rawBookData$.title,
-            imagePath: $rawBookData$.coverImage
-          },
-          { silent: blockDataUpdates }
-        );
+        await userSaveBookmark(data, {
+          id: $rawBookData$.id,
+          title: $rawBookData$.title,
+          imagePath: $rawBookData$.coverImage
+        });
 
         bookmarkData = Promise.resolve(data);
       }
@@ -841,15 +837,11 @@
       completed: false
     };
 
-    await userSaveBookmark(
-      data,
-      {
-        id: $rawBookData$.id,
-        title: $rawBookData$.title,
-        imagePath: $rawBookData$.coverImage
-      },
-      { silent: blockDataUpdates }
-    );
+    await userSaveBookmark(data, {
+      id: $rawBookData$.id,
+      title: $rawBookData$.title,
+      imagePath: $rawBookData$.coverImage
+    });
 
     bookmarkData = Promise.resolve(data);
   }
@@ -987,15 +979,11 @@
     }
 
     if ($rawBookData$) {
-      await userSaveBookmark(
-        data,
-        {
-          id: $rawBookData$.id,
-          title: $rawBookData$.title,
-          imagePath: $rawBookData$.coverImage
-        },
-        { silent: blockDataUpdates }
-      );
+      await userSaveBookmark(data, {
+        id: $rawBookData$.id,
+        title: $rawBookData$.title,
+        imagePath: $rawBookData$.coverImage
+      });
     } else {
       await database.putBookmark(data);
     }
@@ -1253,11 +1241,12 @@
 
   /**
    * Forward a local-edit event to the sync engine, which handles
-   * debouncing / auth / direction gating internally. Silent during
-   * reader teardown via `blockDataUpdates`.
+   * debouncing / auth / direction gating internally. Called from
+   * trigger-only paths where the write happened elsewhere (e.g. the
+   * tracker's onstatisticssaved callback) — paired writes go through
+   * library.user* instead.
    */
   function scheduleReplication(dataType: StorageDataType) {
-    if (blockDataUpdates) return;
     if (!$rawBookData$) return;
     triggerSync(dataType, {
       id: $rawBookData$.id,
@@ -1374,11 +1363,7 @@
       bind:wasTrackerPaused
       bind:this={trackerElm}
       onfreezecurrentlocation={freezeTrackerPosition}
-      onstatisticssaved={() => {
-        if (!blockDataUpdates) {
-          scheduleReplication(StorageDataType.STATISTICS);
-        }
-      }}
+      onstatisticssaved={() => scheduleReplication(StorageDataType.STATISTICS)}
     />
   {/if}
   <StyleSheetRenderer styleSheet={$bookData$.styleSheet} />
