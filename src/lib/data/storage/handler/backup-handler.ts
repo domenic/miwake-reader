@@ -97,38 +97,46 @@ export class BackupStorageHandler extends BaseStorageHandler {
     return [...titles.values()];
   }
 
-  async saveAppSettings(json: string) {
-    this.exportZipWriter = await BaseStorageHandler.addDataToZip(
+  saveAppSettings(json: string) {
+    return this.saveRootJson(BackupStorageHandler.appSettingsFilename, json);
+  }
+
+  getAppSettings() {
+    return this.getRootJson(
       BackupStorageHandler.appSettingsFilename,
-      json,
-      this.exportZipWriter
+      'Unable to read app settings'
     );
   }
 
-  async getAppSettings(): Promise<Record<string, string> | undefined> {
-    const rootFile = this.rootFiles.get(BackupStorageHandler.appSettingsFilename);
-    const zipEntry = rootFile
-      ? this.importEntries.find((e) => e.filename === rootFile.name)
-      : undefined;
-    if (!zipEntry) return undefined;
-    return BaseStorageHandler.extractAsJSON(zipEntry, 'Unable to read app settings');
+  saveReadingGoalState(json: string) {
+    return this.saveRootJson(BackupStorageHandler.readingGoalStateFilename, json);
   }
 
-  async saveReadingGoalState(json: string) {
-    this.exportZipWriter = await BaseStorageHandler.addDataToZip(
+  getReadingGoalState() {
+    return this.getRootJson(
       BackupStorageHandler.readingGoalStateFilename,
+      'Unable to read reading-goal state'
+    );
+  }
+
+  private async saveRootJson(filename: string, json: string) {
+    this.exportZipWriter = await BaseStorageHandler.addDataToZip(
+      filename,
       json,
       this.exportZipWriter
     );
   }
 
-  async getReadingGoalState(): Promise<Record<string, string> | undefined> {
-    const rootFile = this.rootFiles.get(BackupStorageHandler.readingGoalStateFilename);
+  private async getRootJson(
+    filename: string,
+    errorMessage: string
+  ): Promise<Record<string, string> | undefined> {
+    const rootFile = this.rootFiles.get(filename);
     const zipEntry = rootFile
       ? this.importEntries.find((e) => e.filename === rootFile.name)
       : undefined;
     if (!zipEntry) return undefined;
-    return BaseStorageHandler.extractAsJSON(zipEntry, 'Unable to read reading-goal state');
+    return BaseStorageHandler.extractAsJSON(zipEntry, errorMessage);
   }
 
   async createExportZip(document: Document, resetOnly: boolean) {

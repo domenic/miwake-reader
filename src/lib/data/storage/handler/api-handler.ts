@@ -36,6 +36,23 @@ export interface RequestOptions {
   skipAuth?: boolean;
 }
 
+/**
+ * `title` keys the per-book file cache after a successful upload.
+ * When `rootFilePrefix` is set the upload is a root-level file (not
+ * tied to a book); `title` is ignored in that branch.
+ */
+export interface UploadOptions {
+  folderId: string;
+  name: string;
+  files: ExternalFile[];
+  externalFile: ExternalFile | undefined;
+  data: Blob | string | undefined;
+  title: string;
+  rootFilePrefix?: string;
+  progressBase?: number;
+  cancelSignal?: AbortSignal;
+}
+
 export abstract class ApiStorageHandler extends BaseStorageHandler {
   /** @internal Subclass hook: react to a storageSourceName change. */
   abstract setInternalSettings(storageSourceName: string): void;
@@ -57,22 +74,8 @@ export abstract class ApiStorageHandler extends BaseStorageHandler {
     cancelSignal?: AbortSignal
   ): Promise<any>;
 
-  /**
-   * @internal Used by `ScopedApiHandler` to upload a single file.
-   * `title` is for the per-book file cache; ignored when
-   * `rootFilePrefix` is set (root files don't belong to any title).
-   */
-  abstract upload(
-    folderId: string,
-    name: string,
-    files: ExternalFile[],
-    externalFile: ExternalFile | undefined,
-    data: Blob | string | undefined,
-    rootFilePrefix: string | undefined,
-    progressBase: number | undefined,
-    cancelSignal: AbortSignal | undefined,
-    title: string
-  ): Promise<ExternalFile>;
+  /** @internal Used by `ScopedApiHandler` to upload a single file. */
+  abstract upload(opts: UploadOptions): Promise<ExternalFile>;
 
   protected abstract executeDelete(id: string, cancelSignal?: AbortSignal): Promise<void>;
 
@@ -203,76 +206,89 @@ export abstract class ApiStorageHandler extends BaseStorageHandler {
       ? Promise.resolve('')
       : this.authManager.getToken(this.window, this.storageSourceName));
 
-    return new Promise((resolve, reject) => {
-      const xhr = new XMLHttpRequest();
+    let abortHandler: (() => void) | undefined;
+    try {
+      return await new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
 
-      xhr.responseType = type;
+        xhr.responseType = type;
 
-      xhr.addEventListener('abort', () => {
-        reject(new AbortError());
-      });
+        xhr.addEventListener('abort', () => {
+          reject(new AbortError());
+        });
 
-      const trackProgress = (event: ProgressEvent, state: { last: number }) => {
-        if (cancelSignal?.aborted) {
-          xhr.abort();
-          return;
+        // Wire cancelSignal directly to xhr.abort() so requests that
+        // don't emit progress events (small bodies, DELETE) are still
+        // cancellable mid-flight.
+        if (cancelSignal) {
+          if (cancelSignal.aborted) {
+            xhr.abort();
+            return;
+          }
+          abortHandler = () => xhr.abort();
+          cancelSignal.addEventListener('abort', abortHandler);
         }
-        if (!event.lengthComputable || !progressBase || !event.total) return;
-        const next = event.loaded / event.total;
-        const delta = next - state.last;
-        state.last = next;
-        BaseStorageHandler.reportProgress(delta * progressBase);
-      };
 
-      if (options.trackDownload) {
-        const state = { last: 0 };
-        xhr.onprogress = (event) => trackProgress(event, state);
-      }
+        if (options.trackDownload) {
+          const report = BaseStorageHandler.makeProgressReporter(progressBase);
+          xhr.onprogress = (event) => {
+            if (event.lengthComputable) report(event.loaded, event.total);
+          };
+        }
 
-      if (options.trackUpload) {
-        const state = { last: 0 };
-        xhr.upload.onprogress = (event) => trackProgress(event, state);
-      }
+        if (options.trackUpload) {
+          const report = BaseStorageHandler.makeProgressReporter(progressBase);
+          xhr.upload.onprogress = (event) => {
+            if (event.lengthComputable) report(event.loaded, event.total);
+          };
+        }
 
-      xhr.addEventListener(
-        'readystatechange',
-        async function stateHandler() {
-          if (this.readyState === 4) {
-            if (this.status >= 200 && this.status < 400) {
-              resolve(this.response);
-            } else {
-              const errorMessage = await convertAuthErrorResponse(this);
-
-              if (this.status === 404) {
-                logger.error(errorMessage);
-                reject(new Error('Resource not found. Refresh your current tab and try again'));
+        xhr.addEventListener(
+          'readystatechange',
+          async function stateHandler() {
+            if (this.readyState === 4) {
+              if (this.status >= 200 && this.status < 400) {
+                resolve(this.response);
               } else {
-                reject(new Error(errorMessage));
+                const errorMessage = await convertAuthErrorResponse(this);
+
+                if (this.status === 404) {
+                  logger.error(errorMessage);
+                  reject(new Error('Resource not found. Refresh your current tab and try again'));
+                } else {
+                  reject(new Error(errorMessage));
+                }
               }
             }
+          },
+          false
+        );
+
+        xhr.open(options.method || 'GET', url, true);
+
+        if (options.headers) {
+          const entries = Object.entries(options.headers);
+
+          for (let index = 0, { length } = entries; index < length; index += 1) {
+            const [headerName, headerValue] = entries[index];
+
+            xhr.setRequestHeader(headerName, headerValue);
           }
-        },
-        false
-      );
-
-      xhr.open(options.method || 'GET', url, true);
-
-      if (options.headers) {
-        const entries = Object.entries(options.headers);
-
-        for (let index = 0, { length } = entries; index < length; index += 1) {
-          const [headerName, headerValue] = entries[index];
-
-          xhr.setRequestHeader(headerName, headerValue);
         }
-      }
 
-      if (token) {
-        xhr.setRequestHeader('Authorization', `Bearer ${token}`);
-      }
+        if (token) {
+          xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+        }
 
-      xhr.send(options.body || null);
-    });
+        xhr.send(options.body || null);
+      });
+    } finally {
+      if (abortHandler && cancelSignal) {
+        // Always remove — long-lived signals (force-resync) accumulate
+        // listeners otherwise. AbortSignal doesn't auto-clean.
+        cancelSignal.removeEventListener('abort', abortHandler);
+      }
+    }
   }
 
   /** @internal Subclass hook: record the result of a successful upload. */
@@ -495,17 +511,16 @@ export class ScopedApiHandler
       cancelSignal: this.cancelSignal
     });
 
-    await this.handler.upload(
-      titleId,
-      filename,
+    await this.handler.upload({
+      folderId: titleId,
+      name: filename,
       files,
-      file,
-      zipped,
-      '',
-      0.6,
-      this.cancelSignal,
-      this.title
-    );
+      externalFile: file,
+      data: zipped,
+      progressBase: 0.6,
+      cancelSignal: this.cancelSignal,
+      title: this.title
+    });
 
     this.handler.addBookCard(this.title, { characters, lastBookModified, lastBookOpen });
 
@@ -518,17 +533,15 @@ export class ScopedApiHandler
     const { lastBookmarkModified, progress, completed } =
       BaseStorageHandler.getProgressMetadata(filename);
 
-    await this.handler.upload(
-      titleId,
-      filename,
+    await this.handler.upload({
+      folderId: titleId,
+      name: filename,
       files,
-      file,
-      JSON.stringify(data),
-      undefined,
-      undefined,
-      this.cancelSignal,
-      this.title
-    );
+      externalFile: file,
+      data: JSON.stringify(data),
+      cancelSignal: this.cancelSignal,
+      title: this.title
+    });
 
     this.handler.addBookCard(this.title, { lastBookmarkModified, progress, completed });
   }
@@ -559,17 +572,15 @@ export class ScopedApiHandler
       newStatisticModified
     );
 
-    await this.handler.upload(
-      titleId,
-      filename,
+    await this.handler.upload({
+      folderId: titleId,
+      name: filename,
       files,
-      file,
-      JSON.stringify(statisticsToStore),
-      undefined,
-      undefined,
-      this.cancelSignal,
-      this.title
-    );
+      externalFile: file,
+      data: JSON.stringify(statisticsToStore),
+      cancelSignal: this.cancelSignal,
+      title: this.title
+    });
 
     this.handler.addBookCard(this.title, {});
   }
@@ -585,17 +596,15 @@ export class ScopedApiHandler
     if (!file?.id) {
       const filename = await BaseStorageHandler.getCoverFileName(data);
 
-      await this.handler.upload(
-        titleId,
-        filename,
+      await this.handler.upload({
+        folderId: titleId,
+        name: filename,
         files,
-        undefined,
+        externalFile: undefined,
         data,
-        undefined,
-        undefined,
-        this.cancelSignal,
-        this.title
-      );
+        cancelSignal: this.cancelSignal,
+        title: this.title
+      });
     }
 
     if (this.handler.titleToBookCard.has(this.title)) {
@@ -627,17 +636,16 @@ export class ScopedApiHandler
 
     readingGoalsToStore.sort(readingGoalSortFunction);
 
-    await this.handler.upload(
-      this.handler.rootId,
-      filename,
-      [],
-      file,
-      JSON.stringify(readingGoalsToStore),
-      BaseStorageHandler.readingGoalsFilePrefix,
-      undefined,
-      this.cancelSignal,
-      ''
-    );
+    await this.handler.upload({
+      folderId: this.handler.rootId,
+      name: filename,
+      files: [],
+      externalFile: file,
+      data: JSON.stringify(readingGoalsToStore),
+      rootFilePrefix: BaseStorageHandler.readingGoalsFilePrefix,
+      cancelSignal: this.cancelSignal,
+      title: ''
+    });
   }
 
   private async getExternalFile(

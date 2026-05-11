@@ -1,6 +1,6 @@
 import type { BookCardProps } from '$lib/components/book-card/book-card-props';
 import { gDriveRefreshEndpoint } from '$lib/data/env';
-import { ApiStorageHandler } from '$lib/data/storage/handler/api-handler';
+import { ApiStorageHandler, type UploadOptions } from '$lib/data/storage/handler/api-handler';
 import { BaseStorageHandler, type ExternalFile } from '$lib/data/storage/handler/base-handler';
 import { SyncEndpointType } from '$lib/data/storage/storage-types';
 import pLimit from 'p-limit';
@@ -207,17 +207,18 @@ export class GDriveStorageHandler extends ApiStorageHandler {
     );
   }
 
-  async upload(
-    folderId: string,
-    name: string,
-    files: GDriveFile[],
-    externalFile: GDriveFile | undefined,
-    data: Blob | string | undefined,
-    rootFilePrefix: string | undefined = undefined,
-    progressBase = 0.8,
-    cancelSignal: AbortSignal | undefined = undefined,
-    title = ''
-  ): Promise<GDriveFile> {
+  async upload(opts: UploadOptions): Promise<GDriveFile> {
+    const {
+      folderId,
+      name,
+      files,
+      externalFile,
+      data,
+      title,
+      rootFilePrefix,
+      progressBase = 0.8,
+      cancelSignal
+    } = opts;
     const form = new FormData();
     const params = new URLSearchParams();
 
@@ -260,9 +261,7 @@ export class GDriveStorageHandler extends ApiStorageHandler {
       response.name,
       files,
       externalFile,
-      {
-        parents: [folderId]
-      },
+      { parents: [folderId] },
       rootFilePrefix
     );
 

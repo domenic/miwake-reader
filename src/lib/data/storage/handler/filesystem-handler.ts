@@ -146,12 +146,6 @@ export class FilesystemStorageHandler extends BaseStorageHandler {
             this.titleToFiles.delete(bookToDelete);
             this.titleToBookCard.delete(bookToDelete);
 
-            // FS-side deletes don't affect /manage's view (which reads
-            // local IDB), but a future caller might want a refresh
-            // signal anyway. Emit the void event for symmetry with
-            // browser-handler's delete path.
-            database.dataListChanged$.next();
-
             BaseStorageHandler.reportProgress();
           } catch (err) {
             error = handleErrorDuringReplication(err, `Error deleting ${bookToDelete}: `, [

@@ -12,12 +12,6 @@ let gDriveHandler: GDriveStorageHandler;
 let oneDriveHandler: OneDriveStorageHandler;
 let fsHandler: FilesystemStorageHandler;
 
-/**
- * Per-handler settings: things that vary per-source over the
- * handler's lifetime. Per-scope save-behavior and merge-modes live on
- * the `ScopedSettings` passed to `handler.scoped(...)` — they do
- * NOT belong here.
- */
 interface SyncSettings {
   cacheStorageData?: boolean;
   askForStorageUnlock?: boolean;
@@ -30,13 +24,9 @@ const defaults: Required<SyncSettings> = {
 
 /**
  * Get the singleton local replication endpoint — the BookOperations
- * adapter the replicator uses for its local side. Per-scope settings
- * (save-behavior, merge-modes) are applied at `local.scoped(...)`
- * time, not here.
- *
- * Not user-facing. UI code should reach through `$lib/data/library`
- * instead — that module pairs each edit with the appropriate
- * triggerSync call.
+ * adapter the replicator uses for its local side. Not user-facing:
+ * UI code should reach through `$lib/data/library` instead, which
+ * pairs each edit with the appropriate triggerSync call.
  */
 export function getLocalEndpoint(settings: SyncSettings = {}): LocalReplicationEndpoint {
   const merged = { ...defaults, ...settings };

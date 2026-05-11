@@ -44,15 +44,10 @@ export interface ZipOpOptions {
 
 /**
  * Shared chassis for sync-endpoint implementations (cloud / FS /
- * backup). Owns the long-lived state for a given storage source —
- * source name, fetched-listing caches, network clients — plus the
- * static ZIP / file-name helpers every endpoint needs.
- *
- * Per-call state (which book, which save-behavior, which cancel
- * signal) lives on the matching `ScopedBookOperations` class returned
- * by `scoped()` — typically `Scoped<X>Handler extends
- * BaseScopedHandler<X>`. NOT extended by `LocalReplicationEndpoint`,
- * which has its own (Local + ScopedLocal) pair.
+ * backup). Owns long-lived state (source name, fetched-listing
+ * caches, network clients) and static ZIP / file-name helpers.
+ * Per-call state lives on the `ScopedBookOperations` returned by
+ * `scoped()`.
  */
 export abstract class BaseStorageHandler implements SyncEndpoint {
   readonly kind = 'sync-endpoint' as const;
@@ -76,10 +71,9 @@ export abstract class BaseStorageHandler implements SyncEndpoint {
   ): Promise<ReplicationDeleteResult>;
 
   /**
-   * Bind a (context, settings) pair to this handler for a sequence of
-   * per-book operations. Each call returns a fresh scoped object that
-   * owns its own per-call state — handlers themselves are scope-free,
-   * so concurrent scopes don't trample each other.
+   * Bind a (context, settings) pair for a sequence of per-book
+   * operations. Each call returns a fresh scoped object — handlers
+   * themselves carry no per-call state.
    */
   abstract scoped(
     context: ReplicationContext,
@@ -179,6 +173,23 @@ export abstract class BaseStorageHandler implements SyncEndpoint {
 
   static completeStep() {
     replicationProgress$.next({ completeStep: true });
+  }
+
+  /**
+   * Build an onprogress callback that streams progress deltas into the
+   * shared replicationProgress$ subject. The `last` watermark stays in
+   * the closure so each call site gets independent book-keeping —
+   * concurrent in-flight operations don't interfere.
+   */
+  static makeProgressReporter(progressBase: number) {
+    let last = 0;
+    return async (loaded: number, total: number): Promise<void> => {
+      if (!progressBase || !total) return;
+      const next = loaded / total;
+      const delta = next - last;
+      last = next;
+      BaseStorageHandler.reportProgress(delta * progressBase);
+    };
   }
 
   static getStatisticsMetadata(filename: string) {
@@ -386,15 +397,7 @@ export abstract class BaseStorageHandler implements SyncEndpoint {
     throwIfAborted(cancelSignal);
 
     const zipWriter = writer || new ZipWriter(new BlobWriter('application/zip'));
-
-    let last = 0;
-    const onprogress = async (progress: number, total: number) => {
-      if (!progressBase || !total) return;
-      const next = progress / total;
-      const delta = next - last;
-      last = next;
-      BaseStorageHandler.reportProgress(delta * progressBase);
-    };
+    const onprogress = BaseStorageHandler.makeProgressReporter(progressBase);
 
     if (data instanceof Blob) {
       await zipWriter.add(name, new BlobReader(data), { onprogress });
@@ -427,15 +430,7 @@ export abstract class BaseStorageHandler implements SyncEndpoint {
       throw new Error(errorForNoRead);
     }
 
-    let last = 0;
-    const onprogress = async (progress: number, total: number) => {
-      if (!progressBase || !total) return;
-      const next = progress / total;
-      const delta = next - last;
-      last = next;
-      BaseStorageHandler.reportProgress(delta * progressBase);
-    };
-
+    const onprogress = BaseStorageHandler.makeProgressReporter(progressBase);
     const zipData = await retrievedData.getData(writer, { onprogress });
 
     if (!zipData) {
@@ -710,15 +705,10 @@ export abstract class BaseStorageHandler implements SyncEndpoint {
 }
 
 /**
- * Per-scope chassis. Each call to a handler's `scoped(ctx, settings,
- * cancelSignal)` returns one of these — short-lived, immutable after
- * construction, no aliasing with concurrent scopes. The handler owns
- * the caches; the scoped instance owns the "which book / how to save
- * / when to bail" half of the operation.
- *
- * Subclasses provide the per-endpoint implementation of
- * `ScopedBookOperations` and reach into `this.handler` for shared
- * infrastructure (network clients, file caches).
+ * Per-scope chassis. Short-lived and immutable after construction, so
+ * concurrent scopes on the same handler don't alias each other.
+ * Subclasses implement `ScopedBookOperations` and reach into
+ * `this.handler` for caches and network clients.
  */
 export abstract class BaseScopedHandler<H> {
   protected readonly handler: H;

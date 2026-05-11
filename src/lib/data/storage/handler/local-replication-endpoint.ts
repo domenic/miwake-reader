@@ -15,24 +15,14 @@ import type {
 } from '$lib/data/storage/handler/handler-roles';
 
 /**
- * The local-IDB-backed implementation of the BookOperations contract,
- * used as the local-side adapter by the replicator.
+ * Local-IDB-backed implementation of the BookOperations contract,
+ * used as the local side of the replicator's (local, endpoint) pair.
  *
  * NOT user-facing: components writing on a user's behalf should go
  * through `$lib/data/library` instead, which pairs each edit with the
- * appropriate `triggerSync` call. This class deliberately performs no
- * sync triggering — replicator pulls already write through it, and a
- * trigger here would loop the just-pulled data back to the remote.
- *
- * Replicator is parameterized as `(local: LocalReplicationEndpoint,
- * endpoint: SyncEndpoint, direction: 'push' | 'pull', ...)` so the
- * asymmetry is encoded in the type and "is the target BROWSER?"
- * branches in shared code disappear — the call site already knows
- * which side is local.
- *
- * Static helpers (file-name parsers, progress reporting) are reused
- * from BaseStorageHandler since they're storage-agnostic; the
- * endpoint itself doesn't extend the sync-endpoint chassis.
+ * appropriate `triggerSync` call. Writes here are sync-naive by
+ * design — a trigger at this layer would loop just-pulled data back
+ * to the remote.
  */
 export class LocalReplicationEndpoint implements LocalReplicationEndpointRole {
   readonly kind = 'local' as const;

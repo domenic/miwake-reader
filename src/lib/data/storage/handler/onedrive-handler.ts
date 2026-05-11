@@ -1,6 +1,6 @@
 import type { BookCardProps } from '$lib/components/book-card/book-card-props';
 import { oneDriveTokenEndpoint } from '$lib/data/env';
-import { ApiStorageHandler } from '$lib/data/storage/handler/api-handler';
+import { ApiStorageHandler, type UploadOptions } from '$lib/data/storage/handler/api-handler';
 import { BaseStorageHandler, type ExternalFile } from '$lib/data/storage/handler/base-handler';
 import { SyncEndpointType } from '$lib/data/storage/storage-types';
 import pLimit from 'p-limit';
@@ -275,17 +275,18 @@ export class OneDriveStorageHandler extends ApiStorageHandler {
     );
   }
 
-  async upload(
-    folderId: string,
-    name: string,
-    files: OneDriveFile[],
-    remoteFile: OneDriveFile | undefined = undefined,
-    body: Blob | string | undefined = undefined,
-    rootFilePrefix: string | undefined = undefined,
-    progressBase = 0.8,
-    cancelSignal: AbortSignal | undefined = undefined,
-    title = ''
-  ) {
+  async upload(opts: UploadOptions) {
+    const {
+      folderId,
+      name,
+      files,
+      externalFile: remoteFile,
+      data: body,
+      title,
+      rootFilePrefix,
+      progressBase = 0.8,
+      cancelSignal
+    } = opts;
     const params = new URLSearchParams();
     params.append('select', `id,name`);
 
@@ -493,8 +494,8 @@ export class OneDriveStorageHandler extends ApiStorageHandler {
 
   private async rename(
     name: string,
-    files: OneDriveFile[],
-    remoteFile: OneDriveFile,
+    files: ExternalFile[],
+    remoteFile: ExternalFile,
     params: URLSearchParams,
     rootFilePrefix: string | undefined,
     cancelSignal: AbortSignal | undefined,

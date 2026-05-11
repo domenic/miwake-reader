@@ -30,12 +30,6 @@ import { logger } from '$lib/data/logger';
 // Handler factories
 // ---------------------------------------------------------------------
 
-/**
- * Handler-level settings, applied per `getSyncEndpoint` /
- * `getLocalEndpoint` call. Per-scope concerns (save-behavior,
- * merge-modes) come from `scopedSettings` and pass straight through
- * to `handler.scoped(...)`.
- */
 function handlerSettings() {
   return {
     cacheStorageData: cacheStorageData$.getValue(),
