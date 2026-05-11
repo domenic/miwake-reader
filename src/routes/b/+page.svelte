@@ -191,7 +191,6 @@
   let localStorageHandler: LocalReplicationEndpoint;
   let storedExploredCharacter = 0;
   let hasBookmarkData = $state(false);
-  let blockDataUpdates = $state(false);
   let trackerElm: BookReadingTracker = $state()!;
   let wasTrackerPaused = $state(true);
   let frozenPosition = $state(-1);
@@ -1052,8 +1051,6 @@
     let message;
 
     try {
-      blockDataUpdates = true;
-
       await tick();
 
       autoScroller?.off();
@@ -1067,7 +1064,6 @@
         });
 
         if (wasCanceled) {
-          blockDataUpdates = false;
           return;
         }
 
@@ -1085,15 +1081,14 @@
       }
 
       if ($statisticsEnabled$ && trackerElm) {
-        const [hadError, updated] = await trackerElm.flushUpdates(true);
+        const [hadError] = await trackerElm.flushUpdates();
 
         if (hadError) {
           throw new Error('Error updating Statistics');
         }
-
-        if (updated) {
-          scheduleReplication(StorageDataType.STATISTICS);
-        }
+        // Sync trigger fires via the tracker's onstatisticssaved
+        // callback (and from the auto-flush when isTrackerPaused$
+        // flipped above), so no explicit scheduleReplication here.
       }
 
       dialogManager.dialogs$.next([]);
@@ -1359,7 +1354,6 @@
       {exploredCharCount}
       {bookCharCount}
       {autoScroller}
-      {blockDataUpdates}
       bind:wasTrackerPaused
       bind:this={trackerElm}
       onfreezecurrentlocation={freezeTrackerPosition}

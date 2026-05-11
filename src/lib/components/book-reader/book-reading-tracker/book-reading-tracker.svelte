@@ -66,7 +66,6 @@
     sectionData: SectionWithProgress[];
     frozenPosition: number;
     autoScroller: AutoScroller | undefined;
-    blockDataUpdates: boolean;
     onstatisticssaved?: () => void;
     onfreezecurrentlocation?: () => void;
   }
@@ -81,7 +80,6 @@
     sectionData,
     frozenPosition,
     autoScroller,
-    blockDataUpdates,
     onstatisticssaved,
     onfreezecurrentlocation
   }: Props = $props();
@@ -190,8 +188,8 @@
     return flushData ? flushUpdates() : Promise.resolve([false, 0]);
   }
 
-  export async function flushUpdates(force = false) {
-    if (!statisticsToStore.size || (blockDataUpdates && !force)) {
+  export async function flushUpdates() {
+    if (!statisticsToStore.size) {
       return [false, 0];
     }
 
