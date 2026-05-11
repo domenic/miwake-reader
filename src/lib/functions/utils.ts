@@ -31,6 +31,17 @@ export function isMobile(window: Window) {
 
 export function dummyFn() {}
 
+/**
+ * Mark a promise as deliberately fire-and-forget: log nothing here,
+ * trust the called code to have handled its own visibility (e.g. the
+ * tracker's hadError UI indicator). The wrapper exists to make the
+ * intent explicit at the call site and to keep unhandled-rejection
+ * warnings out of the console.
+ */
+export function fireAndForget(promise: Promise<unknown>): void {
+  promise.catch(() => {});
+}
+
 export const isMobile$ = writableSubject<boolean>(false);
 
 export function isOnlineSourceAvailable(isOnline: boolean, storageKey: SyncEndpointType) {

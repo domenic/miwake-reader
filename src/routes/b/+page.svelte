@@ -138,6 +138,7 @@
   import { formatPageTitle } from '$lib/functions/format-page-title';
   import { iffBrowser } from '$lib/functions/rxjs/iff-browser';
   import { ReplicationSaveBehavior } from '$lib/functions/replication/replication-options';
+  import type { ReplicationContext } from '$lib/functions/replication/replication-progress';
   import { reduceToEmptyString } from '$lib/functions/rxjs/reduce-to-empty-string';
   import { takeWhenBrowser } from '$lib/functions/rxjs/take-when-browser';
   import { tapDom } from '$lib/functions/rxjs/tap-dom';
@@ -765,17 +766,15 @@
         statisticsToStore.push(todayStatistic);
       }
 
-      if (statisticsToStore.length) {
+      const ctx = bookReplicationContext();
+
+      if (statisticsToStore.length && ctx) {
         await userSaveStatistics(
           $rawBookData$.title,
           statisticsToStore,
           ReplicationSaveBehavior.Overwrite,
           'merge',
-          {
-            id: $rawBookData$.id,
-            title: $rawBookData$.title,
-            imagePath: $rawBookData$.coverImage
-          },
+          ctx,
           lastStatisticModified
         );
 
@@ -785,17 +784,13 @@
         );
       }
 
-      if (bookmarkManager) {
+      if (bookmarkManager && ctx) {
         const data = {
           ...bookmarkManager.formatBookmarkData($rawBookData$.id, customReadingPointScrollOffset),
           completed: true
         };
 
-        await userSaveBookmark(data, {
-          id: $rawBookData$.id,
-          title: $rawBookData$.title,
-          imagePath: $rawBookData$.coverImage
-        });
+        await userSaveBookmark(data, ctx);
 
         bookmarkData = Promise.resolve(data);
       }
@@ -825,18 +820,15 @@
 
   async function uncompleteBook() {
     const bookId = getBookIdSync();
-    if (!bookId || !bookmarkManager || !$rawBookData$) return;
+    const ctx = bookReplicationContext();
+    if (!bookId || !bookmarkManager || !ctx) return;
 
     const data = {
       ...bookmarkManager.formatBookmarkData(bookId, customReadingPointScrollOffset),
       completed: false
     };
 
-    await userSaveBookmark(data, {
-      id: $rawBookData$.id,
-      title: $rawBookData$.title,
-      imagePath: $rawBookData$.coverImage
-    });
+    await userSaveBookmark(data, ctx);
 
     bookmarkData = Promise.resolve(data);
   }
@@ -973,12 +965,9 @@
       data.completed = true;
     }
 
-    if ($rawBookData$) {
-      await userSaveBookmark(data, {
-        id: $rawBookData$.id,
-        title: $rawBookData$.title,
-        imagePath: $rawBookData$.coverImage
-      });
+    const ctx = bookReplicationContext();
+    if (ctx) {
+      await userSaveBookmark(data, ctx);
     } else {
       await database.putBookmark(data);
     }
@@ -1077,13 +1066,7 @@
       }
 
       if ($statisticsEnabled$ && trackerElm) {
-        // Sync trigger fires via the tracker's onstatisticssaved
-        // callback (and from the auto-flush when isTrackerPaused$
-        // flipped above), so no explicit scheduleReplication here.
-        // If flushUpdates rejects (persistent IDB error after the
-        // tracker's own recovery), the outer try/catch surfaces it
-        // as the "Error" dialog — same as before, just routed
-        // through standard exception flow.
+        // Sync trigger rides the tracker's onstatisticssaved callback.
         await trackerElm.flushUpdates();
       }
 
@@ -1230,20 +1213,24 @@
       });
   }
 
-  /**
-   * Forward a local-edit event to the sync engine, which handles
-   * debouncing / auth / direction gating internally. Called from
-   * trigger-only paths where the write happened elsewhere (e.g. the
-   * tracker's onstatisticssaved callback) — paired writes go through
-   * library.user* instead.
-   */
-  function scheduleReplication(dataType: StorageDataType) {
-    if (!$rawBookData$) return;
-    triggerSync(dataType, {
+  function bookReplicationContext(): ReplicationContext | undefined {
+    if (!$rawBookData$) return undefined;
+    return {
       id: $rawBookData$.id,
       title: $rawBookData$.title,
       imagePath: $rawBookData$.coverImage
-    });
+    };
+  }
+
+  /**
+   * Forward a local-edit event to the sync engine for trigger-only
+   * paths where the write happened elsewhere (e.g. the tracker's
+   * onstatisticssaved callback). Paired writes go through
+   * library.user* directly.
+   */
+  function scheduleReplication(dataType: StorageDataType) {
+    const ctx = bookReplicationContext();
+    if (ctx) triggerSync(dataType, ctx);
   }
 </script>
 

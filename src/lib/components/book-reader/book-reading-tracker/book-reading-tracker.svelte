@@ -18,7 +18,6 @@
   } from '$lib/data/database/books-db/versions/books-db';
   import { PAGE_CHANGE } from '$lib/data/events';
   import { logger } from '$lib/data/logger';
-  import type { MergeMode } from '$lib/data/merge-mode';
   import { getReadingGoalWindow, type ReadingGoal } from '$lib/data/reading-goal';
   import {
     adjustStatisticsAfterIdleTime$,
@@ -42,7 +41,7 @@
     getSecondsToDate,
     toTimeString
   } from '$lib/functions/statistic-util';
-  import { filterNotNullAndNotUndefined } from '$lib/functions/utils';
+  import { fireAndForget, filterNotNullAndNotUndefined } from '$lib/functions/utils';
   import {
     fromEvent,
     interval,
@@ -222,12 +221,8 @@
 
       onstatisticssaved?.();
     } catch (error: any) {
-      // Local recovery: re-queue the items for the next flush attempt,
-      // set the tracker-menu error indicator, and log. Then let the
-      // caller decide whether to surface a user-visible message —
-      // fire-and-forget callers (auto-flush on pause, undo, manual
-      // save) suppress; operational callers (reader teardown,
-      // mark-complete) let it propagate to their outer try/catch.
+      // Re-queue so the next flush retries; rethrow so operational
+      // callers can decide whether to surface a dialog.
       hadError = true;
       statisticsToStore = new Set([...statisticsToStore, ...toUpdate]);
       logger.error(`Error updating statistics: ${error.message}`);
@@ -317,10 +312,7 @@
       if (isPaused) {
         trackerIdleTime = 0;
 
-        // Fire-and-forget: flushUpdates handles its own logging + UI
-        // (hadError indicator); we just need to keep the promise from
-        // surfacing as an unhandled rejection.
-        flushUpdates().catch(() => {});
+        fireAndForget(flushUpdates());
 
         return NEVER;
       }
@@ -552,7 +544,7 @@
     sessionStatistics = { ...sessionStatistics };
 
     updateTimeToFinishBook();
-    flushUpdates().catch(() => {});
+    fireAndForget(flushUpdates());
   }
 
   function handleVisibilityChange(state: DocumentVisibilityState) {
@@ -692,9 +684,9 @@
 
       if (frozenPosition === -1) {
         if ($adjustStatisticsAfterIdleTime$) {
-          processStatistics(0, elapsed - $trackerIdleTime$, lastTrackerTick, true).catch(() => {});
+          fireAndForget(processStatistics(0, elapsed - $trackerIdleTime$, lastTrackerTick, true));
         } else if (elapsed) {
-          processStatistics(0, elapsed, lastTrackerTick, true).catch(() => {});
+          fireAndForget(processStatistics(0, elapsed, lastTrackerTick, true));
         }
       }
 
@@ -727,12 +719,14 @@
       previousLastExploredCharCount = lastExploredCharCount;
       lastExploredCharCount = exploredCharCount;
 
-      processStatistics(
-        finalCharacterDiff,
-        elapsed,
-        lastTrackerTick,
-        now - lastTrackerFlushTime > 10000
-      ).catch(() => {});
+      fireAndForget(
+        processStatistics(
+          finalCharacterDiff,
+          elapsed,
+          lastTrackerTick,
+          now - lastTrackerFlushTime > 10000
+        )
+      );
     }
   }
 
@@ -841,7 +835,7 @@
     bind:wasTrackerPaused
     {onfreezecurrentlocation}
     onupdatecurrentlocation={updateLastExploredCharCount}
-    onsavestatistics={() => flushUpdates().catch(() => {})}
+    onsavestatistics={() => fireAndForget(flushUpdates())}
     onrevertstatistic={revertTrackerHistory}
   />
 </SidebarOverlay>
