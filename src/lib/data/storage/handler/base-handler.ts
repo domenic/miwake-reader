@@ -3,12 +3,10 @@ import {
   currentDbVersion,
   type BooksDbBookData,
   type BooksDbBookmarkData,
-  type BooksDbStatistic,
-  type BooksDbReadingGoal
+  type BooksDbStatistic
 } from '$lib/data/database/books-db/versions/books-db';
 import type { Section } from '$lib/data/database/books-db/versions/v4/books-db-v4';
 import { storageRootName } from '$lib/data/env';
-import type { MergeMode } from '$lib/data/merge-mode';
 import type { SyncEndpointType, SyncTitle } from '$lib/data/storage/storage-types';
 import type {
   ScopedBookOperations,
@@ -39,30 +37,25 @@ export interface ExternalFile {
   name: string;
 }
 
+export interface ZipOpOptions {
+  progressBase?: number;
+  cancelSignal?: AbortSignal;
+}
+
 /**
  * Shared chassis for sync-endpoint implementations (cloud / FS /
- * backup). Provides the ZIP-on-the-wire framing, file-name parsing,
- * progress reporting, and other generic plumbing every endpoint
- * needs. NOT extended by LocalReplicationEndpoint — see
- * src/lib/data/storage/handler/local-replication-endpoint.ts.
+ * backup). Owns the long-lived state for a given storage source —
+ * source name, fetched-listing caches, network clients — plus the
+ * static ZIP / file-name helpers every endpoint needs.
+ *
+ * Per-call state (which book, which save-behavior, which cancel
+ * signal) lives on the matching `ScopedBookOperations` class returned
+ * by `scoped()` — typically `Scoped<X>Handler extends
+ * BaseScopedHandler<X>`. NOT extended by `LocalReplicationEndpoint`,
+ * which has its own (Local + ScopedLocal) pair.
  */
 export abstract class BaseStorageHandler implements SyncEndpoint {
   readonly kind = 'sync-endpoint' as const;
-
-  abstract updateSettings(
-    window: Window,
-    saveBehavior: string,
-    statisticsMergeMode: MergeMode,
-    readingGoalsMergeMode: MergeMode,
-    cacheStorageData: boolean,
-    /**
-     * Only the filesystem handler reads this — gates whether
-     * ensureRoot() opens the recovery dialog when its saved directory
-     * handle was revoked. Cloud / backup / browser handlers ignore it.
-     */
-    askForStorageUnlock: boolean,
-    storageSourceName: string
-  ): void;
 
   /**
    * Enumerate the titles this source holds, for placeholder seeding
@@ -76,52 +69,23 @@ export abstract class BaseStorageHandler implements SyncEndpoint {
 
   abstract clearData(clearAll?: boolean): void;
 
-  abstract getFilenameForRecentCheck(fileIdentifier: string): Promise<string | undefined>;
-
-  abstract isBookPresentAndUpToDate(referenceFilename: string | undefined): Promise<boolean>;
-
-  abstract isProgressPresentAndUpToDate(referenceFilename: string | undefined): Promise<boolean>;
-
-  abstract areStatisticsPresentAndUpToDate(referenceFilename: string | undefined): Promise<boolean>;
-
-  abstract areReadingGoalsPresentAndUpToDate(
-    referenceFilename: string | undefined
-  ): Promise<boolean>;
-
-  abstract getBook(): Promise<Omit<BooksDbBookData, 'id'> | undefined>;
-
-  abstract getProgress(): Promise<BooksDbBookmarkData | undefined>;
-
-  abstract getStatistics(): Promise<{
-    statistics: BooksDbStatistic[] | undefined;
-    lastStatisticModified: number;
-  }>;
-
-  abstract getCover(): Promise<Blob | undefined>;
-
-  abstract getReadingGoals(): Promise<{
-    readingGoals: BooksDbReadingGoal[] | undefined;
-    lastGoalModified: number;
-  }>;
-
-  abstract saveBook(
-    data: Omit<BooksDbBookData, 'id'>,
-    skipTimestampFallback?: boolean
-  ): Promise<number>;
-
-  abstract saveProgress(data: BooksDbBookmarkData): Promise<void>;
-
-  abstract saveStatistics(data: BooksDbStatistic[], lastStatisticModified: number): Promise<void>;
-
-  abstract saveCover(data: Blob | undefined): Promise<void>;
-
-  abstract saveReadingGoals(data: BooksDbReadingGoal[], lastGoalModified: number): Promise<void>;
-
   abstract deleteBookData(
     booksToDelete: string[],
     cancelSignal: AbortSignal,
     keepLocalStatistics: boolean
   ): Promise<ReplicationDeleteResult>;
+
+  /**
+   * Bind a (context, settings) pair to this handler for a sequence of
+   * per-book operations. Each call returns a fresh scoped object that
+   * owns its own per-call state — handlers themselves are scope-free,
+   * so concurrent scopes don't trample each other.
+   */
+  abstract scoped(
+    context: ReplicationContext,
+    settings: ScopedSettings,
+    cancelSignal?: AbortSignal
+  ): ScopedBookOperations;
 
   static rootName = storageRootName;
 
@@ -135,35 +99,60 @@ export abstract class BaseStorageHandler implements SyncEndpoint {
 
   protected cacheStorageData = false;
 
-  protected saveBehavior = ReplicationSaveBehavior.NewOnly;
+  /** @internal Read/written by `BaseScopedHandler` subclasses and the handler. */
+  dataListFetched = false;
 
-  protected statisticsMergeMode: MergeMode = 'merge';
+  /** @internal Read/written by `BaseScopedHandler` subclasses and the handler. */
+  rootFileListFetched = false;
 
-  protected readingGoalsMergeMode: MergeMode = 'merge';
+  /** @internal Used by `BaseScopedHandler` subclasses; not for outside callers. */
+  titleToBookCard = new Map<string, BookCardProps>();
 
-  protected currentContext: ReplicationContext = { title: '' };
+  /** @internal Used by `BaseScopedHandler` subclasses; not for outside callers. */
+  rootFiles = new Map<string, ExternalFile>();
 
-  protected cancelSignal: AbortSignal | undefined;
-
-  protected currentLastProgressValue = 0;
-
-  protected currentProgressBase = 0;
-
-  protected sanitizedTitle = '';
-
-  protected dataListFetched = false;
-
-  protected rootFileListFetched = false;
-
-  protected titleToBookCard = new Map<string, BookCardProps>();
-
-  protected rootFiles = new Map<string, ExternalFile>();
-
-  protected validRootFiles = [BaseStorageHandler.readingGoalsFilePrefix];
+  /** @internal Used by `BaseScopedHandler` subclasses; not for outside callers. */
+  validRootFiles = [BaseStorageHandler.readingGoalsFilePrefix];
 
   constructor(window: Window, storageType: SyncEndpointType) {
     this.window = window;
     this.storageType = storageType;
+  }
+
+  isCacheDisabled() {
+    return !this.cacheStorageData;
+  }
+
+  /** @internal Used by `BaseScopedHandler` subclasses. */
+  addBookCard(title: string, dataToAdd: Record<string, any>) {
+    const bookCard: BookCardProps = {
+      ...(this.titleToBookCard.get(title) || {
+        id: BaseStorageHandler.getDummyId(),
+        title,
+        imagePath: '',
+        characters: 0,
+        lastBookModified: 0,
+        lastBookOpen: 0,
+        progress: 0,
+        completed: false,
+        lastBookmarkModified: 0,
+        isPlaceholder: false
+      }),
+      ...dataToAdd
+    };
+
+    this.titleToBookCard.set(title, bookCard);
+  }
+
+  /** @internal Used by `BaseScopedHandler` subclasses. */
+  setRootFile(filename: string, file: ExternalFile) {
+    for (let index = 0, { length } = this.validRootFiles; index < length; index += 1) {
+      const validRootFile = this.validRootFiles[index];
+
+      if (filename.startsWith(validRootFile)) {
+        this.rootFiles.set(validRootFile, file);
+      }
+    }
   }
 
   static getBookCharacters(characterAmount: number, sections: Section[]) {
@@ -190,55 +179,6 @@ export abstract class BaseStorageHandler implements SyncEndpoint {
 
   static completeStep() {
     replicationProgress$.next({ completeStep: true });
-  }
-
-  isCacheDisabled() {
-    return !this.cacheStorageData;
-  }
-
-  /**
-   * Bind a (context, settings) pair to this handler for a short
-   * sequence of operations. Returns a proxy whose per-operation
-   * methods delegate to the handler with the captured context. Phase
-   * A — the handler is still stateful internally; the proxy just
-   * sets that state and exposes a cleaner call surface to the
-   * replicator. Future work can refactor the underlying methods to
-   * read context directly from args, making the proxy genuinely
-   * stateless.
-   */
-  scoped(
-    context: ReplicationContext,
-    settings: ScopedSettings,
-    cancelSignal?: AbortSignal
-  ): ScopedBookOperations {
-    this.currentContext = context;
-    this.cancelSignal = cancelSignal;
-    this.currentLastProgressValue = 0;
-    this.currentProgressBase = 0;
-    this.sanitizedTitle = BaseStorageHandler.sanitizeForFilename(context.title);
-    this.saveBehavior = settings.saveBehavior;
-    this.statisticsMergeMode = settings.statisticsMergeMode;
-    this.readingGoalsMergeMode = settings.readingGoalsMergeMode;
-
-    return {
-      getFilenameForRecentCheck: (prefix) => this.getFilenameForRecentCheck(prefix),
-      isBookPresentAndUpToDate: (filename) => this.isBookPresentAndUpToDate(filename),
-      isProgressPresentAndUpToDate: (filename) => this.isProgressPresentAndUpToDate(filename),
-      areStatisticsPresentAndUpToDate: (filename) => this.areStatisticsPresentAndUpToDate(filename),
-      areReadingGoalsPresentAndUpToDate: (filename) =>
-        this.areReadingGoalsPresentAndUpToDate(filename),
-      getBook: () => this.getBook(),
-      getProgress: () => this.getProgress(),
-      getStatistics: () => this.getStatistics(),
-      getCover: () => this.getCover(),
-      getReadingGoals: () => this.getReadingGoals(),
-      saveBook: (data, skipTimestampFallback) => this.saveBook(data, skipTimestampFallback),
-      saveProgress: (data) => this.saveProgress(data),
-      saveStatistics: (data, lastStatisticModified) =>
-        this.saveStatistics(data, lastStatisticModified),
-      saveCover: (data) => this.saveCover(data),
-      saveReadingGoals: (data, lastGoalModified) => this.saveReadingGoals(data, lastGoalModified)
-    };
   }
 
   static getStatisticsMetadata(filename: string) {
@@ -365,27 +305,11 @@ export abstract class BaseStorageHandler implements SyncEndpoint {
     return isPresentAndUpToDate;
   }
 
-  protected addBookCard(title: string, dataToAdd: Record<string, any>) {
-    const bookCard: BookCardProps = {
-      ...(this.titleToBookCard.get(title) || {
-        id: BaseStorageHandler.getDummyId(),
-        title,
-        imagePath: '',
-        characters: 0,
-        lastBookModified: 0,
-        lastBookOpen: 0,
-        progress: 0,
-        completed: false,
-        lastBookmarkModified: 0,
-        isPlaceholder: false
-      }),
-      ...dataToAdd
-    };
-
-    this.titleToBookCard.set(title, bookCard);
-  }
-
-  protected async zipBookData(bookdata: Omit<BooksDbBookData, 'id'>, progressBase = 1) {
+  static async zipBookData(
+    bookdata: Omit<BooksDbBookData, 'id'>,
+    options: ZipOpOptions = {}
+  ): Promise<Blob> {
+    const { progressBase = 1, cancelSignal } = options;
     const zipWriter = new ZipWriter(new BlobWriter('application/zip'));
     const blobsToZip = [];
     const blobEntries = [...Object.entries(bookdata.blobs)];
@@ -407,12 +331,13 @@ export abstract class BaseStorageHandler implements SyncEndpoint {
         limiter(async () => {
           const [name, blob] = blobEntries[index];
 
-          await this.addDataToZip(`blobs/${name}`, blob, zipWriter, progressPerStep).catch(
-            (error) => {
-              limiter.clearQueue();
-              throw error;
-            }
-          );
+          await BaseStorageHandler.addDataToZip(`blobs/${name}`, blob, zipWriter, {
+            progressBase: progressPerStep,
+            cancelSignal
+          }).catch((error) => {
+            limiter.clearQueue();
+            throw error;
+          });
         })
       );
     }
@@ -420,16 +345,16 @@ export abstract class BaseStorageHandler implements SyncEndpoint {
     await Promise.all(blobsToZip);
 
     if (isBlobCover) {
-      await this.addDataToZip(
+      await BaseStorageHandler.addDataToZip(
         `cover.${await BaseStorageHandler.determineImageExtension(cover)}`,
         cover,
         zipWriter,
-        progressPerStep
+        { progressBase: progressPerStep, cancelSignal }
       );
     }
 
     for (let index = 0, { length } = staticDataToZip; index < length; index += 1) {
-      throwIfAborted(this.cancelSignal);
+      throwIfAborted(cancelSignal);
 
       const dataProperty = staticDataToZip[index];
 
@@ -437,90 +362,81 @@ export abstract class BaseStorageHandler implements SyncEndpoint {
     }
 
     if (Object.keys(staticData).length) {
-      await this.addDataToZip(
+      await BaseStorageHandler.addDataToZip(
         'staticdata.json',
         JSON.stringify(staticData),
         zipWriter,
-        progressPerStep
+        {
+          progressBase: progressPerStep,
+          cancelSignal
+        }
       );
     }
 
-    const finalZip = await zipWriter.close();
-
-    return finalZip;
+    return zipWriter.close();
   }
 
-  protected async addDataToZip(
+  static async addDataToZip(
     name: string,
     data: string | Blob,
     writer: ZipWriter<Blob> | undefined,
-    progressBase = 1
-  ) {
-    throwIfAborted(this.cancelSignal);
+    options: ZipOpOptions = {}
+  ): Promise<ZipWriter<Blob>> {
+    const { progressBase = 1, cancelSignal } = options;
+    throwIfAborted(cancelSignal);
 
     const zipWriter = writer || new ZipWriter(new BlobWriter('application/zip'));
 
-    this.currentLastProgressValue = 0;
-    this.currentProgressBase = progressBase;
+    let last = 0;
+    const onprogress = async (progress: number, total: number) => {
+      if (!progressBase || !total) return;
+      const next = progress / total;
+      const delta = next - last;
+      last = next;
+      BaseStorageHandler.reportProgress(delta * progressBase);
+    };
 
     if (data instanceof Blob) {
-      await zipWriter.add(name, new BlobReader(data), {
-        onprogress: async (progress, total) => {
-          this.reportFunction(progress, total);
-        }
-      });
+      await zipWriter.add(name, new BlobReader(data), { onprogress });
     } else if (data) {
-      await zipWriter.add(name, new TextReader(data), {
-        onprogress: async (progress, total) => {
-          this.reportFunction(progress, total);
-        }
-      });
+      await zipWriter.add(name, new TextReader(data), { onprogress });
     }
 
     return zipWriter;
   }
 
-  protected reportFunction(progress: number, total: number) {
-    if (this.currentProgressBase) {
-      const newProgress = progress / total;
-      const progressDelta = newProgress - this.currentLastProgressValue;
-
-      this.currentLastProgressValue = newProgress;
-
-      BaseStorageHandler.reportProgress(progressDelta * this.currentProgressBase);
-    }
-  }
-
-  protected async readFromZip(
+  static async readFromZip(
     writer: BlobWriter,
     errorForNoRead: string,
     retrievedData: Entry,
-    progressBase: number
+    progressBase?: number
   ): Promise<Blob>;
-  protected async readFromZip(
+  static async readFromZip(
     writer: TextWriter,
     errorForNoRead: string,
     retrievedData: Entry,
-    progressBase: number
+    progressBase?: number
   ): Promise<string>;
-  protected async readFromZip(
+  static async readFromZip(
     writer: BlobWriter | TextWriter,
     errorForNoRead: string,
     retrievedData: Entry,
     progressBase = 1
   ): Promise<Blob | string> {
-    this.currentLastProgressValue = 0;
-    this.currentProgressBase = progressBase;
-
     if (retrievedData.directory) {
       throw new Error(errorForNoRead);
     }
 
-    const zipData = await retrievedData.getData(writer, {
-      onprogress: async (progress, total) => {
-        this.reportFunction(progress, total);
-      }
-    });
+    let last = 0;
+    const onprogress = async (progress: number, total: number) => {
+      if (!progressBase || !total) return;
+      const next = progress / total;
+      const delta = next - last;
+      last = next;
+      BaseStorageHandler.reportProgress(delta * progressBase);
+    };
+
+    const zipData = await retrievedData.getData(writer, { onprogress });
 
     if (!zipData) {
       throw new Error(errorForNoRead);
@@ -529,7 +445,8 @@ export abstract class BaseStorageHandler implements SyncEndpoint {
     return zipData;
   }
 
-  protected async extractBookData(book: Blob, filename: string, progressBase = 1) {
+  static async extractBookData(book: Blob, filename: string, options: ZipOpOptions = {}) {
+    const { progressBase = 1, cancelSignal } = options;
     const bookreader = new ZipReader(new BlobReader(book));
     const bookDataEntries = await bookreader.getEntries();
 
@@ -560,13 +477,13 @@ export abstract class BaseStorageHandler implements SyncEndpoint {
       bookObjectTransforms.push(
         limiter(async () => {
           try {
-            throwIfAborted(this.cancelSignal);
+            throwIfAborted(cancelSignal);
 
             const entry = bookDataEntries[index];
 
             if (entry.filename === 'staticdata.json') {
               const staticData = JSON.parse(
-                await this.readFromZip(
+                await BaseStorageHandler.readFromZip(
                   new TextWriter(),
                   'Unable to read Static Data',
                   entry,
@@ -602,7 +519,7 @@ export abstract class BaseStorageHandler implements SyncEndpoint {
               const imagePath = entry.filename.replace('blobs/', '');
               const existingBlobEntries = bookObject.blobs || {};
 
-              existingBlobEntries[imagePath] = await this.readFromZip(
+              existingBlobEntries[imagePath] = await BaseStorageHandler.readFromZip(
                 new BlobWriter(BaseStorageHandler.getImageMimeTypeFromExtension(imagePath)),
                 'Unable to read blob data',
                 entry,
@@ -610,7 +527,7 @@ export abstract class BaseStorageHandler implements SyncEndpoint {
               );
               bookObject.blobs = existingBlobEntries;
             } else if (entry.filename.startsWith('cover.')) {
-              bookObject.coverImage = await this.readFromZip(
+              bookObject.coverImage = await BaseStorageHandler.readFromZip(
                 new BlobWriter(BaseStorageHandler.getImageMimeTypeFromExtension(entry.filename)),
                 'Unable to read cover data',
                 entry,
@@ -630,26 +547,16 @@ export abstract class BaseStorageHandler implements SyncEndpoint {
     return bookObject;
   }
 
-  protected async extractAsJSON(entry: Entry, errorMessage: string, progressBase = 0.9) {
+  static async extractAsJSON(entry: Entry, errorMessage: string, progressBase = 0.9) {
     if (!entry || entry.directory) {
       return undefined;
     }
 
     const jsonData = JSON.parse(
-      await this.readFromZip(new TextWriter(), errorMessage, entry, progressBase)
+      await BaseStorageHandler.readFromZip(new TextWriter(), errorMessage, entry, progressBase)
     );
 
     return jsonData;
-  }
-
-  protected setRootFile(filename: string, file: ExternalFile) {
-    for (let index = 0, { length } = this.validRootFiles; index < length; index += 1) {
-      const validRootFile = this.validRootFiles[index];
-
-      if (filename.startsWith(validRootFile)) {
-        this.rootFiles.set(validRootFile, file);
-      }
-    }
   }
 
   static getDummyId() {
@@ -799,5 +706,57 @@ export abstract class BaseStorageHandler implements SyncEndpoint {
 
       reader.readAsArrayBuffer(blob);
     });
+  }
+}
+
+/**
+ * Per-scope chassis. Each call to a handler's `scoped(ctx, settings,
+ * cancelSignal)` returns one of these — short-lived, immutable after
+ * construction, no aliasing with concurrent scopes. The handler owns
+ * the caches; the scoped instance owns the "which book / how to save
+ * / when to bail" half of the operation.
+ *
+ * Subclasses provide the per-endpoint implementation of
+ * `ScopedBookOperations` and reach into `this.handler` for shared
+ * infrastructure (network clients, file caches).
+ */
+export abstract class BaseScopedHandler<H> {
+  protected readonly handler: H;
+
+  protected readonly context: ReplicationContext;
+
+  protected readonly settings: ScopedSettings;
+
+  protected readonly cancelSignal: AbortSignal | undefined;
+
+  protected readonly sanitizedTitle: string;
+
+  constructor(
+    handler: H,
+    context: ReplicationContext,
+    settings: ScopedSettings,
+    cancelSignal?: AbortSignal
+  ) {
+    this.handler = handler;
+    this.context = context;
+    this.settings = settings;
+    this.cancelSignal = cancelSignal;
+    this.sanitizedTitle = BaseStorageHandler.sanitizeForFilename(context.title);
+  }
+
+  protected get title() {
+    return this.context.title;
+  }
+
+  protected get saveBehavior() {
+    return this.settings.saveBehavior;
+  }
+
+  protected get isNewOnly() {
+    return this.settings.saveBehavior === ReplicationSaveBehavior.NewOnly;
+  }
+
+  protected get isOverwrite() {
+    return this.settings.saveBehavior === ReplicationSaveBehavior.Overwrite;
   }
 }

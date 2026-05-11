@@ -8,26 +8,31 @@ import { database } from '$lib/data/store';
 import { mergeReadingGoals, readingGoalSortFunction } from '$lib/data/reading-goal';
 import { mergeStatistics, updateStatisticToStore } from '$lib/functions/statistic-util';
 
-import { BaseStorageHandler } from '$lib/data/storage/handler/base-handler';
+import { BaseScopedHandler, BaseStorageHandler } from '$lib/data/storage/handler/base-handler';
+import type { ScopedBookOperations, ScopedSettings } from '$lib/data/storage/handler/handler-roles';
 import type { BookCardProps } from '$lib/components/book-card/book-card-props';
-import type { MergeMode } from '$lib/data/merge-mode';
-import { ReplicationSaveBehavior } from '$lib/functions/replication/replication-options';
 import { isRemoteContext } from '$lib/data/storage/storage-source-types';
 import { NeedsPermissionGrantError } from '$lib/data/storage/errors';
 import { confirmDialog } from '$lib/data/simple-dialogs';
 import { handleErrorDuringReplication } from '$lib/functions/replication/error-handler';
 import pLimit from 'p-limit';
-import { replicationProgress$ } from '$lib/functions/replication/replication-progress';
+import {
+  replicationProgress$,
+  type ReplicationContext
+} from '$lib/functions/replication/replication-progress';
 import { throwIfAborted } from '$lib/functions/replication/replication-error';
 
 export class FilesystemStorageHandler extends BaseStorageHandler {
   private rootDirectory: FileSystemDirectoryHandle | undefined;
 
-  private titleToDirectory = new Map<string, FileSystemDirectoryHandle>();
+  /** @internal Used by `ScopedFilesystemHandler`. */
+  titleToDirectory = new Map<string, FileSystemDirectoryHandle>();
 
-  private titleToFiles = new Map<string, FileSystemFileHandle[]>();
+  /** @internal Used by `ScopedFilesystemHandler`. */
+  titleToFiles = new Map<string, FileSystemFileHandle[]>();
 
-  private rootFileHandles = new Map<string, FileSystemFileHandle>();
+  /** @internal Used by `ScopedFilesystemHandler`. */
+  rootFileHandles = new Map<string, FileSystemFileHandle>();
 
   /**
    * When true, ensureRoot() opens a "grant permission" dialog if the
@@ -40,17 +45,11 @@ export class FilesystemStorageHandler extends BaseStorageHandler {
 
   updateSettings(
     window: Window,
-    saveBehavior: ReplicationSaveBehavior,
-    statisticsMergeMode: MergeMode,
-    readingGoalsMergeMode: MergeMode,
     cacheStorageData: boolean,
     askForStorageUnlock: boolean,
     storageSourceName: string
   ) {
     this.window = window;
-    this.saveBehavior = saveBehavior;
-    this.statisticsMergeMode = statisticsMergeMode;
-    this.readingGoalsMergeMode = readingGoalsMergeMode;
     this.cacheStorageData = cacheStorageData;
     this.askForStorageUnlock = askForStorageUnlock;
 
@@ -109,13 +108,297 @@ export class FilesystemStorageHandler extends BaseStorageHandler {
     }
   }
 
+  scoped(
+    context: ReplicationContext,
+    settings: ScopedSettings,
+    cancelSignal?: AbortSignal
+  ): ScopedBookOperations {
+    return new ScopedFilesystemHandler(this, context, settings, cancelSignal);
+  }
+
+  async deleteBookData(booksToDelete: string[], cancelSignal: AbortSignal) {
+    const rootDirectory = await this.ensureRoot();
+    const deleted: number[] = [];
+    const deletionLimiter = pLimit(1);
+    const deleteTasks: Promise<void>[] = [];
+
+    let error = '';
+
+    replicationProgress$.next({ progressBase: 1, maxProgress: booksToDelete.length });
+
+    booksToDelete.forEach((bookToDelete) =>
+      deleteTasks.push(
+        deletionLimiter(async () => {
+          try {
+            throwIfAborted(cancelSignal);
+
+            await rootDirectory.removeEntry(BaseStorageHandler.sanitizeForFilename(bookToDelete), {
+              recursive: true
+            });
+
+            const deletedId = this.titleToBookCard.get(bookToDelete)?.id;
+
+            if (deletedId) {
+              deleted.push(deletedId);
+            }
+
+            this.titleToDirectory.delete(bookToDelete);
+            this.titleToFiles.delete(bookToDelete);
+            this.titleToBookCard.delete(bookToDelete);
+
+            // FS-side deletes don't affect /manage's view (which reads
+            // local IDB), but a future caller might want a refresh
+            // signal anyway. Emit the void event for symmetry with
+            // browser-handler's delete path.
+            database.dataListChanged$.next();
+
+            BaseStorageHandler.reportProgress();
+          } catch (err) {
+            error = handleErrorDuringReplication(err, `Error deleting ${bookToDelete}: `, [
+              deletionLimiter
+            ]);
+          }
+        })
+      )
+    );
+
+    await Promise.all(deleteTasks).catch(() => {});
+
+    return { error, deleted };
+  }
+
+  /** @internal Used by `ScopedFilesystemHandler` and handler-level methods. */
+  async ensureRoot(
+    askForStorageUnlock = this.askForStorageUnlock
+  ): Promise<FileSystemDirectoryHandle> {
+    try {
+      if (this.rootDirectory) {
+        await FilesystemStorageHandler.verifyPermission(this.rootDirectory);
+
+        return this.rootDirectory;
+      }
+
+      const db = await database.db;
+      const storageSource = await db.get('storageSource', this.storageSourceName);
+
+      if (!storageSource) {
+        throw new Error(`No storage source with name ${this.storageSourceName} found`);
+      }
+
+      const handleData = storageSource.data;
+
+      if (isRemoteContext(handleData)) {
+        throw new Error('Wrong filesystem handle type');
+      }
+
+      if (!handleData.directoryHandle) {
+        throw new Error('Filesystem handle not found');
+      }
+
+      await FilesystemStorageHandler.verifyPermission(handleData.directoryHandle);
+
+      this.rootDirectory = handleData.directoryHandle;
+    } catch (error: any) {
+      const isPermissionError =
+        error.message.includes('activation is required') ||
+        error.message.includes('No permissions granted');
+
+      if (isPermissionError) {
+        if (askForStorageUnlock) {
+          const wasCanceled = await confirmDialog({
+            title: 'Filesystem access required',
+            message:
+              'You are trying to access data on your filesystem. Please grant permissions in the next dialog.'
+          });
+
+          if (wasCanceled) {
+            throw new NeedsPermissionGrantError(this.storageSourceName);
+          }
+
+          return this.ensureRoot(false);
+        }
+
+        // Silent path: surface as a typed error so the sync engine
+        // can flip fsHealth to permission-required and let the
+        // settings UI offer "Grant access" with a real user gesture
+        // behind it.
+        throw new NeedsPermissionGrantError(this.storageSourceName);
+      }
+
+      throw error;
+    }
+
+    return this.rootDirectory;
+  }
+
+  /** @internal Used by `ScopedFilesystemHandler` after a fresh per-book listing. */
+  async setTitleData(directories: FileSystemDirectoryHandle[], clearDataOnError = true) {
+    const listLimiter = pLimit(1);
+    const listTasks: Promise<void>[] = [];
+
+    directories.forEach((directory) =>
+      listTasks.push(
+        listLimiter(async () => {
+          try {
+            const files = (await FilesystemStorageHandler.list(
+              directory
+            )) as FileSystemFileHandle[];
+
+            if (!files.length) {
+              return;
+            }
+
+            const bookCard: BookCardProps = {
+              id: BaseStorageHandler.getDummyId(),
+              title: BaseStorageHandler.desanitizeFilename(directory.name),
+              imagePath: '',
+              characters: 0,
+              lastBookModified: 0,
+              lastBookOpen: 0,
+              progress: 0,
+              completed: false,
+              lastBookmarkModified: 0,
+              isPlaceholder: false
+            };
+            const fileLimiter = pLimit(1);
+            const fileTasks: Promise<void>[] = [];
+
+            files.forEach((file) =>
+              fileTasks.push(
+                fileLimiter(async () => {
+                  try {
+                    if (file.name.startsWith('bookdata_')) {
+                      const metadata = BaseStorageHandler.getBookMetadata(file.name);
+
+                      bookCard.characters = metadata.characters;
+                      bookCard.lastBookModified = metadata.lastBookModified;
+                      bookCard.lastBookOpen = metadata.lastBookOpen;
+                    } else if (file.name.startsWith('progress_')) {
+                      const metadata = BaseStorageHandler.getProgressMetadata(file.name);
+
+                      bookCard.lastBookmarkModified = metadata.lastBookmarkModified;
+                      bookCard.progress = metadata.progress;
+                      bookCard.completed = metadata.completed;
+                    } else if (file.name.startsWith('cover_')) {
+                      bookCard.imagePath = await file.getFile();
+                    }
+                  } catch (error) {
+                    fileLimiter.clearQueue();
+                    throw error;
+                  }
+                })
+              )
+            );
+
+            await Promise.all(fileTasks);
+
+            this.titleToDirectory.set(bookCard.title, directory);
+            this.titleToFiles.set(bookCard.title, files);
+            this.titleToBookCard.set(bookCard.title, bookCard);
+          } catch (error) {
+            listLimiter.clearQueue();
+            throw error;
+          }
+        })
+      )
+    );
+
+    await Promise.all(listTasks).catch((error) => {
+      if (clearDataOnError) {
+        this.clearData();
+      }
+
+      throw error;
+    });
+  }
+
+  /** @internal Used by `ScopedFilesystemHandler.getRootFile`. */
+  async setRootFiles(rootHandle: FileSystemDirectoryHandle) {
+    if ((!this.cacheStorageData || !this.rootFileListFetched) && !this.rootFiles.size) {
+      const files = (await FilesystemStorageHandler.list(rootHandle)) as FileSystemFileHandle[];
+
+      for (let index = 0, { length } = files; index < length; index += 1) {
+        const file = files[index];
+
+        for (
+          let index2 = 0, { length: length2 } = this.validRootFiles;
+          index2 < length2;
+          index2 += 1
+        ) {
+          const validRootFile = this.validRootFiles[index2];
+
+          if (file.name.startsWith(validRootFile)) {
+            this.rootFileHandles.set(validRootFile, file);
+          }
+        }
+      }
+
+      this.rootFileListFetched = true;
+    }
+  }
+
+  static readFileObject(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+
+      reader.addEventListener('load', () => {
+        resolve(reader.result as string);
+      });
+
+      reader.addEventListener('error', () => {
+        reject(new Error(`Error reading file ${file.name}`));
+      });
+
+      reader.readAsText(file);
+    });
+  }
+
+  private static async verifyPermission(handle: FileSystemDirectoryHandle) {
+    const options: FileSystemHandlePermissionDescriptor = { mode: 'readwrite' };
+
+    if ((await handle.queryPermission(options)) === 'granted') {
+      return true;
+    }
+
+    if ((await handle.requestPermission(options)) === 'granted') {
+      return true;
+    }
+
+    throw new Error('No permissions granted to access filesystem');
+  }
+
+  /** @internal Used by `ScopedFilesystemHandler` to enumerate per-book / root entries. */
+  static async list(directory: FileSystemDirectoryHandle, listDirectories = false) {
+    const entries: (FileSystemDirectoryHandle | FileSystemFileHandle)[] = [];
+    const listIterator = directory.values();
+
+    let entry = await listIterator.next();
+
+    while (!entry.done) {
+      if (entry.value.kind === 'directory' && listDirectories) {
+        entries.push(entry.value);
+      } else if (entry.value.kind === 'file' && !listDirectories) {
+        entries.push(entry.value);
+      }
+
+      entry = await listIterator.next();
+    }
+
+    return entries;
+  }
+}
+
+class ScopedFilesystemHandler
+  extends BaseScopedHandler<FilesystemStorageHandler>
+  implements ScopedBookOperations
+{
   async getFilenameForRecentCheck(fileIdentifier: string) {
-    if (this.saveBehavior === ReplicationSaveBehavior.Overwrite) {
+    if (this.isOverwrite) {
       BaseStorageHandler.reportProgress();
       return undefined;
     }
 
-    const { file } = this.validRootFiles.includes(fileIdentifier)
+    const { file } = this.handler.validRootFiles.includes(fileIdentifier)
       ? await this.getRootFile(fileIdentifier)
       : await this.getExternalFile(fileIdentifier, 1);
 
@@ -206,7 +489,10 @@ export class FilesystemStorageHandler extends BaseStorageHandler {
 
     const bookFile = await file.getFile();
 
-    return this.extractBookData(bookFile, bookFile.name, 0.6);
+    return BaseStorageHandler.extractBookData(bookFile, bookFile.name, {
+      progressBase: 0.6,
+      cancelSignal: this.cancelSignal
+    });
   }
 
   async getProgress() {
@@ -244,10 +530,10 @@ export class FilesystemStorageHandler extends BaseStorageHandler {
   }
 
   async getCover() {
-    if (this.currentContext.imagePath instanceof Blob) {
+    if (this.context.imagePath instanceof Blob) {
       BaseStorageHandler.reportProgress();
 
-      return this.currentContext.imagePath;
+      return this.context.imagePath;
     }
 
     const { file } = await this.getExternalFile('cover_', 0.8);
@@ -289,7 +575,7 @@ export class FilesystemStorageHandler extends BaseStorageHandler {
     const { characters, lastBookModified, lastBookOpen } =
       BaseStorageHandler.getBookMetadata(filename);
 
-    if (file && this.saveBehavior === ReplicationSaveBehavior.NewOnly) {
+    if (file && this.isNewOnly) {
       const { lastBookModified: existingBookModified, lastBookOpen: existingBookOpen } =
         BaseStorageHandler.getBookMetadata(file.name);
 
@@ -303,11 +589,14 @@ export class FilesystemStorageHandler extends BaseStorageHandler {
       }
     }
 
-    const bookData = await this.zipBookData(data, 0.4);
+    const bookData = await BaseStorageHandler.zipBookData(data, {
+      progressBase: 0.4,
+      cancelSignal: this.cancelSignal
+    });
 
     await this.writeFile(rootDirectory, filename, bookData, files, file, 0.4);
 
-    this.addBookCard(this.currentContext.title, { characters, lastBookModified, lastBookOpen });
+    this.handler.addBookCard(this.title, { characters, lastBookModified, lastBookOpen });
 
     return 0;
   }
@@ -320,11 +609,11 @@ export class FilesystemStorageHandler extends BaseStorageHandler {
 
     await this.writeFile(rootDirectory, filename, JSON.stringify(data), files, file, 0.6);
 
-    this.addBookCard(this.currentContext.title, { lastBookmarkModified, progress, completed });
+    this.handler.addBookCard(this.title, { lastBookmarkModified, progress, completed });
   }
 
   async saveStatistics(statistics: BooksDbStatistic[], lastStatisticModified: number) {
-    const isMerge = this.statisticsMergeMode === 'merge';
+    const isMerge = this.settings.statisticsMergeMode === 'merge';
     const { file, files, rootDirectory } = await this.getExternalFile('statistics_');
 
     let statisticsToStore: BooksDbStatistic[] = statistics;
@@ -339,11 +628,7 @@ export class FilesystemStorageHandler extends BaseStorageHandler {
         existingData = JSON.parse(await FilesystemStorageHandler.readFileObject(existingDataFile));
       }
 
-      statisticsToStore = mergeStatistics(
-        statistics,
-        existingData,
-        this.saveBehavior === ReplicationSaveBehavior.NewOnly
-      );
+      statisticsToStore = mergeStatistics(statistics, existingData, this.isNewOnly);
     }
 
     ({ statisticsToStore, newStatisticModified } = updateStatisticToStore(
@@ -365,7 +650,7 @@ export class FilesystemStorageHandler extends BaseStorageHandler {
       0.6
     );
 
-    this.addBookCard(this.currentContext.title, {});
+    this.handler.addBookCard(this.title, {});
   }
 
   async saveCover(data: Blob | undefined) {
@@ -382,13 +667,13 @@ export class FilesystemStorageHandler extends BaseStorageHandler {
       await this.writeFile(rootDirectory, filename, data, files, undefined, 0.6);
     }
 
-    if (this.titleToBookCard.has(this.currentContext.title)) {
-      this.addBookCard(this.currentContext.title, { imagePath: data });
+    if (this.handler.titleToBookCard.has(this.title)) {
+      this.handler.addBookCard(this.title, { imagePath: data });
     }
   }
 
   async saveReadingGoals(readingGoals: BooksDbReadingGoal[], lastGoalModified: number) {
-    const isMerge = this.readingGoalsMergeMode === 'merge';
+    const isMerge = this.settings.readingGoalsMergeMode === 'merge';
     const { file, rootDirectory } = await this.getRootFile(
       BaseStorageHandler.readingGoalsFilePrefix,
       0.4
@@ -409,7 +694,7 @@ export class FilesystemStorageHandler extends BaseStorageHandler {
       ({ readingGoalsToStore, newReadingGoalModified } = mergeReadingGoals(
         readingGoals,
         existingData,
-        this.saveBehavior === ReplicationSaveBehavior.NewOnly,
+        this.isNewOnly,
         lastGoalModified
       ));
     }
@@ -429,203 +714,9 @@ export class FilesystemStorageHandler extends BaseStorageHandler {
     );
   }
 
-  async deleteBookData(booksToDelete: string[], cancelSignal: AbortSignal) {
-    const rootDirectory = await this.ensureRoot();
-    const deleted: number[] = [];
-    const deletionLimiter = pLimit(1);
-    const deleteTasks: Promise<void>[] = [];
-
-    let error = '';
-
-    replicationProgress$.next({ progressBase: 1, maxProgress: booksToDelete.length });
-
-    booksToDelete.forEach((bookToDelete) =>
-      deleteTasks.push(
-        deletionLimiter(async () => {
-          try {
-            throwIfAborted(cancelSignal);
-
-            await rootDirectory.removeEntry(BaseStorageHandler.sanitizeForFilename(bookToDelete), {
-              recursive: true
-            });
-
-            const deletedId = this.titleToBookCard.get(bookToDelete)?.id;
-
-            if (deletedId) {
-              deleted.push(deletedId);
-            }
-
-            this.titleToDirectory.delete(bookToDelete);
-            this.titleToFiles.delete(bookToDelete);
-            this.titleToBookCard.delete(bookToDelete);
-
-            // FS-side deletes don't affect /manage's view (which reads
-            // local IDB), but a future caller might want a refresh
-            // signal anyway. Emit the void event for symmetry with
-            // browser-handler's delete path.
-            database.dataListChanged$.next();
-
-            BaseStorageHandler.reportProgress();
-          } catch (err) {
-            error = handleErrorDuringReplication(err, `Error deleting ${bookToDelete}: `, [
-              deletionLimiter
-            ]);
-          }
-        })
-      )
-    );
-
-    await Promise.all(deleteTasks).catch(() => {});
-
-    return { error, deleted };
-  }
-
-  private async ensureRoot(
-    askForStorageUnlock = this.askForStorageUnlock
-  ): Promise<FileSystemDirectoryHandle> {
-    try {
-      if (this.rootDirectory) {
-        await FilesystemStorageHandler.verifyPermission(this.rootDirectory);
-
-        return this.rootDirectory;
-      }
-
-      const db = await database.db;
-      const storageSource = await db.get('storageSource', this.storageSourceName);
-
-      if (!storageSource) {
-        throw new Error(`No storage source with name ${this.storageSourceName} found`);
-      }
-
-      const handleData = storageSource.data;
-
-      if (isRemoteContext(handleData)) {
-        throw new Error('Wrong filesystem handle type');
-      }
-
-      if (!handleData.directoryHandle) {
-        throw new Error('Filesystem handle not found');
-      }
-
-      await FilesystemStorageHandler.verifyPermission(handleData.directoryHandle);
-
-      this.rootDirectory = handleData.directoryHandle;
-    } catch (error: any) {
-      const isPermissionError =
-        error.message.includes('activation is required') ||
-        error.message.includes('No permissions granted');
-
-      if (isPermissionError) {
-        if (askForStorageUnlock) {
-          const wasCanceled = await confirmDialog({
-            title: 'Filesystem access required',
-            message:
-              'You are trying to access data on your filesystem. Please grant permissions in the next dialog.'
-          });
-
-          if (wasCanceled) {
-            throw new NeedsPermissionGrantError(this.storageSourceName);
-          }
-
-          return this.ensureRoot(false);
-        }
-
-        // Silent path: surface as a typed error so the sync engine
-        // can flip fsHealth to permission-required and let the
-        // settings UI offer "Grant access" with a real user gesture
-        // behind it.
-        throw new NeedsPermissionGrantError(this.storageSourceName);
-      }
-
-      throw error;
-    }
-
-    return this.rootDirectory;
-  }
-
-  private async setTitleData(directories: FileSystemDirectoryHandle[], clearDataOnError = true) {
-    const listLimiter = pLimit(1);
-    const listTasks: Promise<void>[] = [];
-
-    directories.forEach((directory) =>
-      listTasks.push(
-        listLimiter(async () => {
-          try {
-            const files = (await FilesystemStorageHandler.list(
-              directory
-            )) as FileSystemFileHandle[];
-
-            if (!files.length) {
-              return;
-            }
-
-            const bookCard: BookCardProps = {
-              id: BaseStorageHandler.getDummyId(),
-              title: BaseStorageHandler.desanitizeFilename(directory.name),
-              imagePath: '',
-              characters: 0,
-              lastBookModified: 0,
-              lastBookOpen: 0,
-              progress: 0,
-              completed: false,
-              lastBookmarkModified: 0,
-              isPlaceholder: false
-            };
-            const fileLimiter = pLimit(1);
-            const fileTasks: Promise<void>[] = [];
-
-            files.forEach((file) =>
-              fileTasks.push(
-                fileLimiter(async () => {
-                  try {
-                    if (file.name.startsWith('bookdata_')) {
-                      const metadata = BaseStorageHandler.getBookMetadata(file.name);
-
-                      bookCard.characters = metadata.characters;
-                      bookCard.lastBookModified = metadata.lastBookModified;
-                      bookCard.lastBookOpen = metadata.lastBookOpen;
-                    } else if (file.name.startsWith('progress_')) {
-                      const metadata = BaseStorageHandler.getProgressMetadata(file.name);
-
-                      bookCard.lastBookmarkModified = metadata.lastBookmarkModified;
-                      bookCard.progress = metadata.progress;
-                      bookCard.completed = metadata.completed;
-                    } else if (file.name.startsWith('cover_')) {
-                      bookCard.imagePath = await file.getFile();
-                    }
-                  } catch (error) {
-                    fileLimiter.clearQueue();
-                    throw error;
-                  }
-                })
-              )
-            );
-
-            await Promise.all(fileTasks);
-
-            this.titleToDirectory.set(bookCard.title, directory);
-            this.titleToFiles.set(bookCard.title, files);
-            this.titleToBookCard.set(bookCard.title, bookCard);
-          } catch (error) {
-            listLimiter.clearQueue();
-            throw error;
-          }
-        })
-      )
-    );
-
-    await Promise.all(listTasks).catch((error) => {
-      if (clearDataOnError) {
-        this.clearData();
-      }
-
-      throw error;
-    });
-  }
-
   private async getExternalFile(fileIdentifier: string, progressBase = 0.4) {
     const progressPerStep = progressBase / 2;
-    const rootDirectory = await this.ensureRoot();
+    const rootDirectory = await this.handler.ensureRoot();
 
     BaseStorageHandler.reportProgress(progressPerStep);
 
@@ -639,21 +730,21 @@ export class FilesystemStorageHandler extends BaseStorageHandler {
 
   private async getRootFile(fileIdentifier: string, progressBase = 1) {
     const progressPerStep = progressBase / 2;
-    const rootDirectory = await this.ensureRoot();
+    const rootDirectory = await this.handler.ensureRoot();
 
     BaseStorageHandler.reportProgress(progressPerStep);
 
-    await this.setRootFiles(rootDirectory);
+    await this.handler.setRootFiles(rootDirectory);
 
-    return { file: this.rootFileHandles.get(fileIdentifier), rootDirectory };
+    return { file: this.handler.rootFileHandles.get(fileIdentifier), rootDirectory };
   }
 
   private async getExternalFiles(
     rootHandle: FileSystemDirectoryHandle
   ): Promise<FileSystemFileHandle[]> {
     if (
-      (!this.cacheStorageData || !this.dataListFetched) &&
-      !this.titleToFiles.has(this.currentContext.title)
+      (this.handler.isCacheDisabled() || !this.handler.dataListFetched) &&
+      !this.handler.titleToFiles.has(this.title)
     ) {
       const directory = await rootHandle
         .getDirectoryHandle(this.sanitizedTitle, { create: false })
@@ -662,35 +753,11 @@ export class FilesystemStorageHandler extends BaseStorageHandler {
         });
 
       if (directory) {
-        await this.setTitleData([directory], false);
+        await this.handler.setTitleData([directory], false);
       }
     }
 
-    return this.titleToFiles.get(this.currentContext.title) || [];
-  }
-
-  private async setRootFiles(rootHandle: FileSystemDirectoryHandle) {
-    if ((!this.cacheStorageData || !this.rootFileListFetched) && !this.rootFiles.size) {
-      const files = (await FilesystemStorageHandler.list(rootHandle)) as FileSystemFileHandle[];
-
-      for (let index = 0, { length } = files; index < length; index += 1) {
-        const file = files[index];
-
-        for (
-          let index2 = 0, { length: length2 } = this.validRootFiles;
-          index2 < length2;
-          index2 += 1
-        ) {
-          const validRootFile = this.validRootFiles[index2];
-
-          if (file.name.startsWith(validRootFile)) {
-            this.rootFileHandles.set(validRootFile, file);
-          }
-        }
-      }
-
-      this.rootFileListFetched = true;
-    }
+    return this.handler.titleToFiles.get(this.title) || [];
   }
 
   private async writeFile(
@@ -705,7 +772,7 @@ export class FilesystemStorageHandler extends BaseStorageHandler {
     const progressPerStep = progressBase / 2;
     const directory = rootFilePrefix
       ? rootDirectory
-      : this.titleToDirectory.get(this.currentContext.title) ||
+      : this.handler.titleToDirectory.get(this.title) ||
         (await rootDirectory.getDirectoryHandle(this.sanitizedTitle, { create: true }));
     const savedFile = await directory.getFileHandle(filename, { create: true });
     const writer = await savedFile.createWritable();
@@ -724,69 +791,20 @@ export class FilesystemStorageHandler extends BaseStorageHandler {
         const titleFiles = files.filter((entry) => entry.name !== file.name);
         titleFiles.push(savedFile);
 
-        this.titleToFiles.set(this.currentContext.title, titleFiles);
+        this.handler.titleToFiles.set(this.title, titleFiles);
       }
     } else if (!rootFilePrefix) {
       files.push(savedFile);
 
-      this.titleToFiles.set(this.currentContext.title, files);
+      this.handler.titleToFiles.set(this.title, files);
     }
 
     if (rootFilePrefix) {
-      this.rootFileHandles.set(rootFilePrefix, savedFile);
+      this.handler.rootFileHandles.set(rootFilePrefix, savedFile);
     } else {
-      this.titleToDirectory.set(this.currentContext.title, directory);
+      this.handler.titleToDirectory.set(this.title, directory);
     }
 
     BaseStorageHandler.reportProgress(progressPerStep);
-  }
-
-  static readFileObject(file: File): Promise<string> {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-
-      reader.addEventListener('load', () => {
-        resolve(reader.result as string);
-      });
-
-      reader.addEventListener('error', () => {
-        reject(new Error(`Error reading file ${file.name}`));
-      });
-
-      reader.readAsText(file);
-    });
-  }
-
-  private static async verifyPermission(handle: FileSystemDirectoryHandle) {
-    const options: FileSystemHandlePermissionDescriptor = { mode: 'readwrite' };
-
-    if ((await handle.queryPermission(options)) === 'granted') {
-      return true;
-    }
-
-    if ((await handle.requestPermission(options)) === 'granted') {
-      return true;
-    }
-
-    throw new Error('No permissions granted to access filesystem');
-  }
-
-  private static async list(directory: FileSystemDirectoryHandle, listDirectories = false) {
-    const entries: (FileSystemDirectoryHandle | FileSystemFileHandle)[] = [];
-    const listIterator = directory.values();
-
-    let entry = await listIterator.next();
-
-    while (!entry.done) {
-      if (entry.value.kind === 'directory' && listDirectories) {
-        entries.push(entry.value);
-      } else if (entry.value.kind === 'file' && !listDirectories) {
-        entries.push(entry.value);
-      }
-
-      entry = await listIterator.next();
-    }
-
-    return entries;
   }
 }

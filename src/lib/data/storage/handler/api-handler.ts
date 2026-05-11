@@ -5,9 +5,13 @@ import type {
   BooksDbStatistic
 } from '$lib/data/database/books-db/versions/books-db';
 import { logger } from '$lib/data/logger';
-import type { MergeMode } from '$lib/data/merge-mode';
 import { mergeReadingGoals, readingGoalSortFunction } from '$lib/data/reading-goal';
-import { BaseStorageHandler, type ExternalFile } from '$lib/data/storage/handler/base-handler';
+import {
+  BaseScopedHandler,
+  BaseStorageHandler,
+  type ExternalFile
+} from '$lib/data/storage/handler/base-handler';
+import type { ScopedBookOperations, ScopedSettings } from '$lib/data/storage/handler/handler-roles';
 import { StorageOAuthManager } from '$lib/data/storage/storage-oauth-manager';
 import { SyncEndpointType } from '$lib/data/storage/storage-types';
 import { database } from '$lib/data/store';
@@ -16,12 +20,14 @@ import {
   handleErrorDuringReplication
 } from '$lib/functions/replication/error-handler';
 import { AbortError, throwIfAborted } from '$lib/functions/replication/replication-error';
-import { ReplicationSaveBehavior } from '$lib/functions/replication/replication-options';
-import { replicationProgress$ } from '$lib/functions/replication/replication-progress';
+import {
+  replicationProgress$,
+  type ReplicationContext
+} from '$lib/functions/replication/replication-progress';
 import { mergeStatistics, updateStatisticToStore } from '$lib/functions/statistic-util';
 import pLimit from 'p-limit';
 
-interface RequestOptions {
+export interface RequestOptions {
   method?: string;
   headers?: Record<string, string>;
   body?: XMLHttpRequestBodyInit | null | undefined;
@@ -31,43 +37,55 @@ interface RequestOptions {
 }
 
 export abstract class ApiStorageHandler extends BaseStorageHandler {
-  protected abstract setInternalSettings(storageSourceName: string): void;
+  /** @internal Subclass hook: react to a storageSourceName change. */
+  abstract setInternalSettings(storageSourceName: string): void;
 
-  protected abstract ensureTitle(
-    name?: string,
-    parent?: string,
-    readOnly?: boolean
-  ): Promise<string>;
+  /** @internal Used by `ScopedApiHandler` to locate the per-book folder. */
+  abstract ensureTitle(name?: string, parent?: string, readOnly?: boolean): Promise<string>;
 
-  protected abstract getExternalFiles(remoteTitleId: string): Promise<ExternalFile[]>;
+  /** @internal Used by `ScopedApiHandler` to populate / read the per-title file cache. */
+  abstract getExternalFiles(remoteTitleId: string, title: string): Promise<ExternalFile[]>;
 
-  protected abstract setRootFiles(): Promise<void>;
+  /** @internal Used by `ScopedApiHandler` to populate / read the root file cache. */
+  abstract setRootFiles(): Promise<void>;
 
-  protected abstract retrieve(
+  /** @internal Used by `ScopedApiHandler` to download a single file. */
+  abstract retrieve(
     file: ExternalFile,
     typeToRetrieve: XMLHttpRequestResponseType,
-    progressBase?: number
+    progressBase?: number,
+    cancelSignal?: AbortSignal
   ): Promise<any>;
 
-  protected abstract upload(
+  /**
+   * @internal Used by `ScopedApiHandler` to upload a single file.
+   * `title` is for the per-book file cache; ignored when
+   * `rootFilePrefix` is set (root files don't belong to any title).
+   */
+  abstract upload(
     folderId: string,
     name: string,
     files: ExternalFile[],
     externalFile: ExternalFile | undefined,
     data: Blob | string | undefined,
-    rootFilePrefix?: string,
-    progressBase?: number
+    rootFilePrefix: string | undefined,
+    progressBase: number | undefined,
+    cancelSignal: AbortSignal | undefined,
+    title: string
   ): Promise<ExternalFile>;
 
-  protected abstract executeDelete(id: string): Promise<void>;
+  protected abstract executeDelete(id: string, cancelSignal?: AbortSignal): Promise<void>;
 
   protected authManager: StorageOAuthManager;
 
-  protected rootId = '';
+  /** @internal Used by `ScopedApiHandler` and subclass impls. */
+  rootId = '';
 
-  protected titleToId = new Map<string, string>();
+  /** @internal Used by `ScopedApiHandler` and subclass impls. */
+  titleToId = new Map<string, string>();
 
-  protected titleToFiles = new Map<string, ExternalFile[]>();
+  /** @internal Used by `ScopedApiHandler` and subclass impls. */
+  titleToFiles = new Map<string, ExternalFile[]>();
 
   constructor(storageType: SyncEndpointType, window: Window, refreshEndpoint: string) {
     super(window, storageType);
@@ -76,18 +94,12 @@ export abstract class ApiStorageHandler extends BaseStorageHandler {
 
   updateSettings(
     window: Window,
-    saveBehavior: ReplicationSaveBehavior,
-    statisticsMergeMode: MergeMode,
-    readingGoalsMergeMode: MergeMode,
     cacheStorageData: boolean,
     _askForStorageUnlock: boolean,
     storageSourceName: string
   ) {
     this.window = window;
-    this.saveBehavior = saveBehavior;
     this.cacheStorageData = cacheStorageData;
-    this.statisticsMergeMode = statisticsMergeMode;
-    this.readingGoalsMergeMode = readingGoalsMergeMode;
     this.setInternalSettings(storageSourceName);
   }
 
@@ -120,13 +132,191 @@ export abstract class ApiStorageHandler extends BaseStorageHandler {
     }
   }
 
+  scoped(
+    context: ReplicationContext,
+    settings: ScopedSettings,
+    cancelSignal?: AbortSignal
+  ): ScopedBookOperations {
+    return new ScopedApiHandler(this, context, settings, cancelSignal);
+  }
+
+  async deleteBookData(booksToDelete: string[], cancelSignal: AbortSignal) {
+    await this.ensureTitle();
+
+    let error = '';
+
+    const deleted: number[] = [];
+    const deletionLimiter = pLimit(1);
+    const deleteTasks: Promise<void>[] = [];
+
+    replicationProgress$.next({ progressBase: 1, maxProgress: booksToDelete.length });
+
+    booksToDelete.forEach((bookToDelete) =>
+      deleteTasks.push(
+        deletionLimiter(async () => {
+          try {
+            throwIfAborted(cancelSignal);
+
+            const externalId = this.titleToId.get(bookToDelete);
+
+            if (externalId) {
+              await this.executeDelete(externalId, cancelSignal);
+            }
+
+            this.titleToFiles.delete(bookToDelete);
+
+            const deletedBookCard = this.titleToBookCard.get(bookToDelete);
+
+            if (deletedBookCard) {
+              deleted.push(deletedBookCard.id);
+            }
+
+            this.titleToId.delete(bookToDelete);
+            this.titleToBookCard.delete(bookToDelete);
+
+            database.dataListChanged$.next();
+
+            BaseStorageHandler.reportProgress();
+          } catch (err) {
+            error = handleErrorDuringReplication(err, `Error deleting ${bookToDelete}: `, [
+              deletionLimiter
+            ]);
+          }
+        })
+      )
+    );
+
+    await Promise.all(deleteTasks).catch(() => {});
+
+    return { error, deleted };
+  }
+
+  /** @internal Shared XHR plumbing for subclass `retrieve`/`upload`/etc. */
+  async request(
+    url: string,
+    options: RequestOptions = {},
+    type: XMLHttpRequestResponseType = 'json',
+    progressBase = 1,
+    cancelSignal?: AbortSignal
+  ): Promise<any> {
+    const token = await (options.skipAuth
+      ? Promise.resolve('')
+      : this.authManager.getToken(this.window, this.storageSourceName));
+
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+
+      xhr.responseType = type;
+
+      xhr.addEventListener('abort', () => {
+        reject(new AbortError());
+      });
+
+      const trackProgress = (event: ProgressEvent, state: { last: number }) => {
+        if (cancelSignal?.aborted) {
+          xhr.abort();
+          return;
+        }
+        if (!event.lengthComputable || !progressBase || !event.total) return;
+        const next = event.loaded / event.total;
+        const delta = next - state.last;
+        state.last = next;
+        BaseStorageHandler.reportProgress(delta * progressBase);
+      };
+
+      if (options.trackDownload) {
+        const state = { last: 0 };
+        xhr.onprogress = (event) => trackProgress(event, state);
+      }
+
+      if (options.trackUpload) {
+        const state = { last: 0 };
+        xhr.upload.onprogress = (event) => trackProgress(event, state);
+      }
+
+      xhr.addEventListener(
+        'readystatechange',
+        async function stateHandler() {
+          if (this.readyState === 4) {
+            if (this.status >= 200 && this.status < 400) {
+              resolve(this.response);
+            } else {
+              const errorMessage = await convertAuthErrorResponse(this);
+
+              if (this.status === 404) {
+                logger.error(errorMessage);
+                reject(new Error('Resource not found. Refresh your current tab and try again'));
+              } else {
+                reject(new Error(errorMessage));
+              }
+            }
+          }
+        },
+        false
+      );
+
+      xhr.open(options.method || 'GET', url, true);
+
+      if (options.headers) {
+        const entries = Object.entries(options.headers);
+
+        for (let index = 0, { length } = entries; index < length; index += 1) {
+          const [headerName, headerValue] = entries[index];
+
+          xhr.setRequestHeader(headerName, headerValue);
+        }
+      }
+
+      if (token) {
+        xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+      }
+
+      xhr.send(options.body || null);
+    });
+  }
+
+  /** @internal Subclass hook: record the result of a successful upload. */
+  updateAfterUpload(
+    title: string,
+    id: string,
+    name: string,
+    files: ExternalFile[],
+    remoteFile: ExternalFile | undefined,
+    extraData = {},
+    rootFilePrefix?: string
+  ) {
+    if (rootFilePrefix) {
+      this.rootFiles.set(rootFilePrefix, { id, name });
+    } else if (remoteFile) {
+      const titleFiles = files.map((file) => {
+        const updatedFile = file;
+        if (file.name === remoteFile.name) {
+          updatedFile.name = name;
+        }
+
+        return updatedFile;
+      });
+
+      this.titleToFiles.set(title, titleFiles);
+    } else {
+      files.push({ id, name, ...extraData });
+
+      this.titleToFiles.set(title, files);
+    }
+  }
+}
+
+export class ScopedApiHandler
+  extends BaseScopedHandler<ApiStorageHandler>
+  implements ScopedBookOperations
+{
   async getFilenameForRecentCheck(fileIdentifier: string) {
-    if (this.saveBehavior === ReplicationSaveBehavior.Overwrite) {
+    if (this.isOverwrite) {
       BaseStorageHandler.reportProgress();
       return undefined;
     }
 
-    const { file } = this.validRootFiles.includes(fileIdentifier)
+    const { file } = this.handler.validRootFiles.includes(fileIdentifier)
       ? await this.getRootFile(fileIdentifier)
       : await this.getExternalFile(fileIdentifier);
 
@@ -219,7 +409,10 @@ export abstract class ApiStorageHandler extends BaseStorageHandler {
       return undefined;
     }
 
-    return this.extractBookData(data, file.name, 0.3);
+    return BaseStorageHandler.extractBookData(data, file.name, {
+      progressBase: 0.3,
+      cancelSignal: this.cancelSignal
+    });
   }
 
   async getProgress() {
@@ -247,10 +440,10 @@ export abstract class ApiStorageHandler extends BaseStorageHandler {
   }
 
   async getCover() {
-    if (this.currentContext.imagePath instanceof Blob) {
+    if (this.context.imagePath instanceof Blob) {
       BaseStorageHandler.reportProgress();
 
-      return this.currentContext.imagePath;
+      return this.context.imagePath;
     }
 
     const { data } = await this.getExternalFile('cover_', 'blob');
@@ -283,7 +476,7 @@ export abstract class ApiStorageHandler extends BaseStorageHandler {
     const { characters, lastBookModified, lastBookOpen } =
       BaseStorageHandler.getBookMetadata(filename);
 
-    if (file && this.saveBehavior === ReplicationSaveBehavior.NewOnly) {
+    if (file && this.isNewOnly) {
       const { lastBookModified: existingBookModified, lastBookOpen: existingBookOpen } =
         BaseStorageHandler.getBookMetadata(file.name);
 
@@ -297,9 +490,24 @@ export abstract class ApiStorageHandler extends BaseStorageHandler {
       }
     }
 
-    await this.upload(titleId, filename, files, file, await this.zipBookData(data, 0.2), '', 0.6);
+    const zipped = await BaseStorageHandler.zipBookData(data, {
+      progressBase: 0.2,
+      cancelSignal: this.cancelSignal
+    });
 
-    this.addBookCard(this.currentContext.title, { characters, lastBookModified, lastBookOpen });
+    await this.handler.upload(
+      titleId,
+      filename,
+      files,
+      file,
+      zipped,
+      '',
+      0.6,
+      this.cancelSignal,
+      this.title
+    );
+
+    this.handler.addBookCard(this.title, { characters, lastBookModified, lastBookOpen });
 
     return 0;
   }
@@ -310,13 +518,23 @@ export abstract class ApiStorageHandler extends BaseStorageHandler {
     const { lastBookmarkModified, progress, completed } =
       BaseStorageHandler.getProgressMetadata(filename);
 
-    await this.upload(titleId, filename, files, file, JSON.stringify(data));
+    await this.handler.upload(
+      titleId,
+      filename,
+      files,
+      file,
+      JSON.stringify(data),
+      undefined,
+      undefined,
+      this.cancelSignal,
+      this.title
+    );
 
-    this.addBookCard(this.currentContext.title, { lastBookmarkModified, progress, completed });
+    this.handler.addBookCard(this.title, { lastBookmarkModified, progress, completed });
   }
 
   async saveStatistics(statistics: BooksDbStatistic[], lastStatisticModified: number) {
-    const isMerge = this.statisticsMergeMode === 'merge';
+    const isMerge = this.settings.statisticsMergeMode === 'merge';
     const {
       titleId,
       files,
@@ -328,11 +546,7 @@ export abstract class ApiStorageHandler extends BaseStorageHandler {
     let newStatisticModified = lastStatisticModified;
 
     if (isMerge) {
-      statisticsToStore = mergeStatistics(
-        statistics,
-        existingData,
-        this.saveBehavior === ReplicationSaveBehavior.NewOnly
-      );
+      statisticsToStore = mergeStatistics(statistics, existingData, this.isNewOnly);
     }
 
     ({ statisticsToStore, newStatisticModified } = updateStatisticToStore(
@@ -345,9 +559,19 @@ export abstract class ApiStorageHandler extends BaseStorageHandler {
       newStatisticModified
     );
 
-    await this.upload(titleId, filename, files, file, JSON.stringify(statisticsToStore));
+    await this.handler.upload(
+      titleId,
+      filename,
+      files,
+      file,
+      JSON.stringify(statisticsToStore),
+      undefined,
+      undefined,
+      this.cancelSignal,
+      this.title
+    );
 
-    this.addBookCard(this.currentContext.title, {});
+    this.handler.addBookCard(this.title, {});
   }
 
   async saveCover(data: Blob | undefined) {
@@ -361,16 +585,26 @@ export abstract class ApiStorageHandler extends BaseStorageHandler {
     if (!file?.id) {
       const filename = await BaseStorageHandler.getCoverFileName(data);
 
-      await this.upload(titleId, filename, files, undefined, data);
+      await this.handler.upload(
+        titleId,
+        filename,
+        files,
+        undefined,
+        data,
+        undefined,
+        undefined,
+        this.cancelSignal,
+        this.title
+      );
     }
 
-    if (this.titleToBookCard.has(this.currentContext.title)) {
-      this.addBookCard(this.currentContext.title, { imagePath: data });
+    if (this.handler.titleToBookCard.has(this.title)) {
+      this.handler.addBookCard(this.title, { imagePath: data });
     }
   }
 
   async saveReadingGoals(readingGoals: BooksDbReadingGoal[], lastGoalModified: number) {
-    const isMerge = this.readingGoalsMergeMode === 'merge';
+    const isMerge = this.settings.readingGoalsMergeMode === 'merge';
     const { file, data: existingData } = await this.getRootFile(
       BaseStorageHandler.readingGoalsFilePrefix,
       isMerge ? 'json' : '',
@@ -384,7 +618,7 @@ export abstract class ApiStorageHandler extends BaseStorageHandler {
       ({ readingGoalsToStore, newReadingGoalModified } = mergeReadingGoals(
         readingGoals,
         existingData,
-        this.saveBehavior === ReplicationSaveBehavior.NewOnly,
+        this.isNewOnly,
         lastGoalModified
       ));
     }
@@ -393,162 +627,20 @@ export abstract class ApiStorageHandler extends BaseStorageHandler {
 
     readingGoalsToStore.sort(readingGoalSortFunction);
 
-    await this.upload(
-      this.rootId,
+    await this.handler.upload(
+      this.handler.rootId,
       filename,
       [],
       file,
       JSON.stringify(readingGoalsToStore),
-      BaseStorageHandler.readingGoalsFilePrefix
+      BaseStorageHandler.readingGoalsFilePrefix,
+      undefined,
+      this.cancelSignal,
+      ''
     );
   }
 
-  async deleteBookData(booksToDelete: string[], cancelSignal: AbortSignal) {
-    await this.ensureTitle();
-
-    let error = '';
-
-    const deleted: number[] = [];
-    const deletionLimiter = pLimit(1);
-    const deleteTasks: Promise<void>[] = [];
-
-    replicationProgress$.next({ progressBase: 1, maxProgress: booksToDelete.length });
-
-    booksToDelete.forEach((bookToDelete) =>
-      deleteTasks.push(
-        deletionLimiter(async () => {
-          try {
-            throwIfAborted(cancelSignal);
-
-            const externalId = this.titleToId.get(bookToDelete);
-
-            if (externalId) {
-              await this.executeDelete(externalId);
-            }
-
-            this.titleToFiles.delete(bookToDelete);
-
-            const deletedBookCard = this.titleToBookCard.get(bookToDelete);
-
-            if (deletedBookCard) {
-              deleted.push(deletedBookCard.id);
-            }
-
-            this.titleToId.delete(bookToDelete);
-            this.titleToBookCard.delete(bookToDelete);
-
-            database.dataListChanged$.next();
-
-            BaseStorageHandler.reportProgress();
-          } catch (err) {
-            error = handleErrorDuringReplication(err, `Error deleting ${bookToDelete}: `, [
-              deletionLimiter
-            ]);
-          }
-        })
-      )
-    );
-
-    await Promise.all(deleteTasks).catch(() => {});
-
-    return { error, deleted };
-  }
-
-  protected async request(
-    url: string,
-    options: RequestOptions = {},
-    type: XMLHttpRequestResponseType = 'json',
-    progressBase = 1
-  ): Promise<any> {
-    const token = await (options.skipAuth
-      ? Promise.resolve('')
-      : this.authManager.getToken(this.window, this.storageSourceName));
-    // eslint-disable-next-line @typescript-eslint/no-this-alias
-    const self = this;
-
-    return new Promise((resolve, reject) => {
-      const xhr = new XMLHttpRequest();
-
-      xhr.responseType = type;
-
-      xhr.addEventListener('abort', () => {
-        reject(new AbortError());
-      });
-
-      if (options.trackDownload) {
-        this.currentLastProgressValue = 0;
-        this.currentProgressBase = progressBase;
-
-        xhr.onprogress = (event: ProgressEvent) => {
-          if (self.cancelSignal?.aborted) {
-            xhr.abort();
-            return;
-          }
-
-          if (event.lengthComputable) {
-            self.reportFunction(event.loaded, event.total);
-          }
-        };
-      }
-
-      if (options.trackUpload) {
-        this.currentLastProgressValue = 0;
-        this.currentProgressBase = progressBase;
-
-        xhr.upload.onprogress = (event: ProgressEvent) => {
-          if (self.cancelSignal?.aborted) {
-            xhr.abort();
-            return;
-          }
-
-          if (event.lengthComputable) {
-            self.reportFunction(event.loaded, event.total);
-          }
-        };
-      }
-
-      xhr.addEventListener(
-        'readystatechange',
-        async function stateHandler() {
-          if (this.readyState === 4) {
-            if (this.status >= 200 && this.status < 400) {
-              resolve(this.response);
-            } else {
-              const errorMessage = await convertAuthErrorResponse(this);
-
-              if (this.status === 404) {
-                logger.error(errorMessage);
-                reject(new Error('Resource not found. Refresh your current tab and try again'));
-              } else {
-                reject(new Error(errorMessage));
-              }
-            }
-          }
-        },
-        false
-      );
-
-      xhr.open(options.method || 'GET', url, true);
-
-      if (options.headers) {
-        const entries = Object.entries(options.headers);
-
-        for (let index = 0, { length } = entries; index < length; index += 1) {
-          const [headerName, headerValue] = entries[index];
-
-          xhr.setRequestHeader(headerName, headerValue);
-        }
-      }
-
-      if (token) {
-        xhr.setRequestHeader('Authorization', `Bearer ${token}`);
-      }
-
-      xhr.send(options.body || null);
-    });
-  }
-
-  protected async getExternalFile(
+  private async getExternalFile(
     fileIdentifier: string,
     typeToRetrieve: XMLHttpRequestResponseType = '',
     progressBase = 1,
@@ -556,11 +648,11 @@ export abstract class ApiStorageHandler extends BaseStorageHandler {
   ) {
     const progressPerStep = progressBase / 5;
 
-    await this.ensureTitle();
+    await this.handler.ensureTitle();
 
     BaseStorageHandler.reportProgress(progressPerStep);
 
-    const titleId = await this.ensureTitle(this.currentContext.title, this.rootId, readOnly);
+    const titleId = await this.handler.ensureTitle(this.title, this.handler.rootId, readOnly);
 
     BaseStorageHandler.reportProgress(progressPerStep);
 
@@ -568,7 +660,7 @@ export abstract class ApiStorageHandler extends BaseStorageHandler {
       return { titleId: '', file: undefined, files: [], data: undefined };
     }
 
-    const files = await this.getExternalFiles(titleId);
+    const files = await this.handler.getExternalFiles(titleId, this.title);
     const file = files.find((entry) => entry.name.startsWith(fileIdentifier));
 
     BaseStorageHandler.reportProgress(progressPerStep);
@@ -580,26 +672,31 @@ export abstract class ApiStorageHandler extends BaseStorageHandler {
     let data;
 
     if (typeToRetrieve) {
-      data = await this.retrieve(file, typeToRetrieve, progressPerStep * 2);
+      data = await this.handler.retrieve(
+        file,
+        typeToRetrieve,
+        progressPerStep * 2,
+        this.cancelSignal
+      );
     }
 
     return { titleId, file, files, data };
   }
 
-  protected async getRootFile(
+  private async getRootFile(
     fileIdentifier: string,
     typeToRetrieve: XMLHttpRequestResponseType = '',
     progressBase = 1
   ) {
     const progressPerStep = progressBase / 3;
 
-    await this.ensureTitle();
+    await this.handler.ensureTitle();
 
     BaseStorageHandler.reportProgress(progressPerStep);
 
-    await this.setRootFiles();
+    await this.handler.setRootFiles();
 
-    const file = this.rootFiles.get(fileIdentifier);
+    const file = this.handler.rootFiles.get(fileIdentifier);
 
     BaseStorageHandler.reportProgress(progressPerStep);
 
@@ -610,37 +707,9 @@ export abstract class ApiStorageHandler extends BaseStorageHandler {
     let data;
 
     if (typeToRetrieve) {
-      data = await this.retrieve(file, typeToRetrieve, progressPerStep);
+      data = await this.handler.retrieve(file, typeToRetrieve, progressPerStep, this.cancelSignal);
     }
 
     return { file, data };
-  }
-
-  protected updateAfterUpload(
-    id: string,
-    name: string,
-    files: ExternalFile[],
-    remoteFile: ExternalFile | undefined,
-    extraData = {},
-    rootFilePrefix?: string
-  ) {
-    if (rootFilePrefix) {
-      this.rootFiles.set(rootFilePrefix, { id, name });
-    } else if (remoteFile) {
-      const titleFiles = files.map((file) => {
-        const updatedFile = file;
-        if (file.name === remoteFile.name) {
-          updatedFile.name = name;
-        }
-
-        return updatedFile;
-      });
-
-      this.titleToFiles.set(this.currentContext.title, titleFiles);
-    } else {
-      files.push({ id, name, ...extraData });
-
-      this.titleToFiles.set(this.currentContext.title, files);
-    }
   }
 }

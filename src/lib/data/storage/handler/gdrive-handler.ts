@@ -97,11 +97,7 @@ export class GDriveStorageHandler extends ApiStorageHandler {
     }));
   }
 
-  protected async ensureTitle(
-    name = BaseStorageHandler.rootName,
-    parent = 'root',
-    readOnly = false
-  ) {
+  async ensureTitle(name = BaseStorageHandler.rootName, parent = 'root', readOnly = false) {
     if (name === BaseStorageHandler.rootName && this.rootId) {
       return this.rootId;
     }
@@ -157,11 +153,8 @@ export class GDriveStorageHandler extends ApiStorageHandler {
     return titleId;
   }
 
-  protected async getExternalFiles(remoteTitleId: string) {
-    if (
-      (!this.cacheStorageData || !this.dataListFetched) &&
-      !this.titleToFiles.has(this.currentContext.title)
-    ) {
+  async getExternalFiles(remoteTitleId: string, title: string) {
+    if ((!this.cacheStorageData || !this.dataListFetched) && !this.titleToFiles.has(title)) {
       const externalFiles = await this.list(
         `trashed=false and '${remoteTitleId}' in parents`,
         'files(id,name,thumbnailLink,parents)'
@@ -170,15 +163,15 @@ export class GDriveStorageHandler extends ApiStorageHandler {
       if (externalFiles.length) {
         const groupedExternalFiles = new Map<string, GDriveFile[]>();
 
-        groupedExternalFiles.set(this.currentContext.title, externalFiles);
+        groupedExternalFiles.set(title, externalFiles);
         this.setTitleData(groupedExternalFiles);
       }
     }
 
-    return this.titleToFiles.get(this.currentContext.title) || [];
+    return this.titleToFiles.get(title) || [];
   }
 
-  protected async setRootFiles() {
+  async setRootFiles() {
     if ((!this.cacheStorageData || !this.rootFileListFetched) && !this.rootFiles.size) {
       const rootFiles = await this.list(
         `trashed=false and mimeType!='application/vnd.google-apps.folder' and '${this.rootId}' in parents`,
@@ -195,10 +188,11 @@ export class GDriveStorageHandler extends ApiStorageHandler {
     }
   }
 
-  protected retrieve(
+  async retrieve(
     file: GDriveFile,
     typeToRetrieve: XMLHttpRequestResponseType,
-    progressBase = 1
+    progressBase = 1,
+    cancelSignal?: AbortSignal
   ) {
     const params = new URLSearchParams();
     params.append('fields', 'files(name)');
@@ -208,18 +202,21 @@ export class GDriveStorageHandler extends ApiStorageHandler {
       `${this.baseFileApiUrl}/${file.id}?${params.toString()}`,
       { trackDownload: true },
       typeToRetrieve,
-      progressBase
+      progressBase,
+      cancelSignal
     );
   }
 
-  protected async upload(
+  async upload(
     folderId: string,
     name: string,
     files: GDriveFile[],
     externalFile: GDriveFile | undefined,
     data: Blob | string | undefined,
-    rootFilePrefix?: string,
-    progressBase = 0.8
+    rootFilePrefix: string | undefined = undefined,
+    progressBase = 0.8,
+    cancelSignal: AbortSignal | undefined = undefined,
+    title = ''
   ): Promise<GDriveFile> {
     const form = new FormData();
     const params = new URLSearchParams();
@@ -253,10 +250,12 @@ export class GDriveStorageHandler extends ApiStorageHandler {
       `${this.baseUploadApiUrl}${externalFile ? `/${externalFile.id}` : ''}?${params.toString()}`,
       { method: externalFile ? 'PATCH' : 'POST', body: form, trackUpload: true },
       'json',
-      progressBase
+      progressBase,
+      cancelSignal
     );
 
     this.updateAfterUpload(
+      title,
       response.id,
       response.name,
       files,
@@ -270,8 +269,14 @@ export class GDriveStorageHandler extends ApiStorageHandler {
     return response;
   }
 
-  protected executeDelete(id: string) {
-    return this.request(`${this.baseFileApiUrl}/${id}`, { method: 'DELETE' });
+  protected executeDelete(id: string, cancelSignal?: AbortSignal) {
+    return this.request(
+      `${this.baseFileApiUrl}/${id}`,
+      { method: 'DELETE' },
+      'json',
+      1,
+      cancelSignal
+    );
   }
 
   private async list(

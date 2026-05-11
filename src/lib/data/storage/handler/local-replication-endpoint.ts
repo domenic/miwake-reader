@@ -5,11 +5,9 @@ import type {
   BooksDbStatistic
 } from '$lib/data/database/books-db/versions/books-db';
 import { database, lastReadingGoalsModified$ } from '$lib/data/store';
-import type { MergeMode } from '$lib/data/merge-mode';
-import { ReplicationSaveBehavior } from '$lib/functions/replication/replication-options';
 import { StorageDataType } from '$lib/data/storage/storage-types';
 import type { ReplicationContext } from '$lib/functions/replication/replication-progress';
-import { BaseStorageHandler } from '$lib/data/storage/handler/base-handler';
+import { BaseScopedHandler, BaseStorageHandler } from '$lib/data/storage/handler/base-handler';
 import type {
   LocalReplicationEndpoint as LocalReplicationEndpointRole,
   LocalScopedBookOperations,
@@ -39,27 +37,9 @@ import type {
 export class LocalReplicationEndpoint implements LocalReplicationEndpointRole {
   readonly kind = 'local' as const;
 
-  private currentContext: ReplicationContext = { id: 0, title: '', imagePath: '' };
-
-  private cancelSignal: AbortSignal | undefined;
-
-  private saveBehavior = ReplicationSaveBehavior.NewOnly;
-
-  private statisticsMergeMode: MergeMode | undefined;
-
-  private readingGoalsMergeMode: MergeMode | undefined;
-
   private cacheStorageData = false;
 
-  updateSettings(
-    saveBehavior: ReplicationSaveBehavior,
-    statisticsMergeMode: MergeMode,
-    readingGoalsMergeMode: MergeMode,
-    cacheStorageData: boolean
-  ) {
-    this.saveBehavior = saveBehavior;
-    this.statisticsMergeMode = statisticsMergeMode;
-    this.readingGoalsMergeMode = readingGoalsMergeMode;
+  updateSettings(cacheStorageData: boolean) {
     this.cacheStorageData = cacheStorageData;
   }
 
@@ -78,35 +58,43 @@ export class LocalReplicationEndpoint implements LocalReplicationEndpointRole {
     settings: ScopedSettings,
     cancelSignal?: AbortSignal
   ): LocalScopedBookOperations {
-    this.currentContext = context;
-    this.cancelSignal = cancelSignal;
-    this.saveBehavior = settings.saveBehavior;
-    this.statisticsMergeMode = settings.statisticsMergeMode;
-    this.readingGoalsMergeMode = settings.readingGoalsMergeMode;
-    return {
-      getFilenameForRecentCheck: (prefix) => this.getFilenameForRecentCheck(prefix),
-      isBookPresentAndUpToDate: (filename) => this.isBookPresentAndUpToDate(filename),
-      isProgressPresentAndUpToDate: (filename) => this.isProgressPresentAndUpToDate(filename),
-      areStatisticsPresentAndUpToDate: (filename) => this.areStatisticsPresentAndUpToDate(filename),
-      areReadingGoalsPresentAndUpToDate: (filename) =>
-        this.areReadingGoalsPresentAndUpToDate(filename),
-      getBook: () => this.getBook(),
-      getProgress: () => this.getProgress(),
-      getStatistics: () => this.getStatistics(),
-      getCover: () => this.getCover(),
-      getReadingGoals: () => this.getReadingGoals(),
-      saveBook: (data, skipTimestampFallback) => this.saveBook(data, skipTimestampFallback),
-      saveProgress: (data) => this.saveProgress(data),
-      saveStatistics: (data, lastStatisticModified) =>
-        this.saveStatistics(data, lastStatisticModified),
-      saveCover: (data) => this.saveCover(data),
-      saveReadingGoals: (data, lastGoalModified) => this.saveReadingGoals(data, lastGoalModified),
-      updateLastRead: (book) => this.updateLastRead(book)
-    };
+    return new ScopedLocalReplicationEndpoint(this, context, settings, cancelSignal);
   }
 
+  async deleteBookData(
+    booksToDelete: string[],
+    cancelSignal: AbortSignal,
+    keepLocalStatistics: boolean
+  ) {
+    const ids: number[] = [];
+    const idToTitle = new Map<number, string>();
+
+    for (const title of booksToDelete) {
+      const book = await database.getDataByTitle(title);
+      if (book) {
+        ids.push(book.id);
+        idToTitle.set(book.id, title);
+      }
+    }
+
+    const { error, deleted } = await database
+      .deleteData(ids, idToTitle, cancelSignal, keepLocalStatistics)
+      .catch((catchedError) => ({ error: catchedError.message, deleted: [] }));
+
+    if (deleted.length) {
+      database.dataListChanged$.next();
+    }
+
+    return { error, deleted };
+  }
+}
+
+class ScopedLocalReplicationEndpoint
+  extends BaseScopedHandler<LocalReplicationEndpoint>
+  implements LocalScopedBookOperations
+{
   async getFilenameForRecentCheck(fileIdentifier: string) {
-    if (this.saveBehavior === ReplicationSaveBehavior.Overwrite) {
+    if (this.isOverwrite) {
       BaseStorageHandler.reportProgress();
       return undefined;
     }
@@ -114,14 +102,14 @@ export class LocalReplicationEndpoint implements LocalReplicationEndpointRole {
     let fileName: string | undefined;
 
     if (fileIdentifier === 'bookdata_') {
-      const book = await database.getDataByTitle(this.currentContext.title);
+      const book = await database.getDataByTitle(this.title);
       fileName = book ? BaseStorageHandler.getBookFileName(book) : undefined;
     } else if (fileIdentifier === 'progress_') {
       const progress = await this.getProgress();
       fileName = progress ? BaseStorageHandler.getProgressFileName(progress) : undefined;
     } else if (fileIdentifier === 'statistics_') {
       const lastStatisticModified = await database.getLastModifiedForType(
-        this.currentContext.title,
+        this.title,
         StorageDataType.STATISTICS
       );
       fileName = lastStatisticModified
@@ -145,7 +133,7 @@ export class LocalReplicationEndpoint implements LocalReplicationEndpointRole {
       return false;
     }
 
-    const book = await database.getDataByTitle(this.currentContext.title);
+    const book = await database.getDataByTitle(this.title);
     BaseStorageHandler.reportProgress(0.5);
 
     let isPresentAndUpToDate = false;
@@ -195,7 +183,7 @@ export class LocalReplicationEndpoint implements LocalReplicationEndpointRole {
     }
 
     const existingLastModified = await database.getLastModifiedForType(
-      this.currentContext.title,
+      this.title,
       StorageDataType.STATISTICS
     );
     const fileName = existingLastModified
@@ -236,17 +224,16 @@ export class LocalReplicationEndpoint implements LocalReplicationEndpointRole {
   }
 
   async getBook(): Promise<BooksDbBookData | undefined> {
-    const book = this.currentContext.id
-      ? await database.getData(this.currentContext.id)
-      : await database.getDataByTitle(this.currentContext.title);
+    const book = this.context.id
+      ? await database.getData(this.context.id)
+      : await database.getDataByTitle(this.title);
 
     BaseStorageHandler.reportProgress();
     return book;
   }
 
   async getProgress() {
-    const dataId =
-      this.currentContext.id || (await database.getDataByTitle(this.currentContext.title))?.id;
+    const dataId = this.context.id || (await database.getDataByTitle(this.title))?.id;
     BaseStorageHandler.reportProgress(0.5);
     if (!dataId) return undefined;
 
@@ -259,11 +246,11 @@ export class LocalReplicationEndpoint implements LocalReplicationEndpointRole {
   }
 
   async getStatistics() {
-    const statistics = await database.getStatisticsForBook(this.currentContext.title);
+    const statistics = await database.getStatisticsForBook(this.title);
     BaseStorageHandler.reportProgress(0.5);
 
     const lastStatisticModified = await database.getLastModifiedForType(
-      this.currentContext.title,
+      this.title,
       StorageDataType.STATISTICS
     );
 
@@ -274,8 +261,7 @@ export class LocalReplicationEndpoint implements LocalReplicationEndpointRole {
   }
 
   async getCover() {
-    const cover =
-      this.currentContext.imagePath instanceof Blob ? this.currentContext.imagePath : undefined;
+    const cover = this.context.imagePath instanceof Blob ? this.context.imagePath : undefined;
     BaseStorageHandler.reportProgress();
     return cover;
   }
@@ -297,8 +283,7 @@ export class LocalReplicationEndpoint implements LocalReplicationEndpointRole {
   }
 
   async saveProgress(data: BooksDbBookmarkData) {
-    const dataId =
-      this.currentContext.id || (await database.getDataByTitle(this.currentContext.title))?.id;
+    const dataId = this.context.id || (await database.getDataByTitle(this.title))?.id;
     BaseStorageHandler.reportProgress(0.5);
     if (dataId) {
       data.dataId = dataId;
@@ -307,14 +292,11 @@ export class LocalReplicationEndpoint implements LocalReplicationEndpointRole {
   }
 
   async saveStatistics(data: BooksDbStatistic[], lastStatisticModified: number) {
-    if (!this.statisticsMergeMode) {
-      throw new Error('LocalReplicationEndpoint.saveStatistics called before updateSettings');
-    }
     await database.storeStatistics(
-      this.currentContext.title,
+      this.title,
       data,
       this.saveBehavior,
-      this.statisticsMergeMode,
+      this.settings.statisticsMergeMode,
       lastStatisticModified
     );
     BaseStorageHandler.reportProgress();
@@ -327,13 +309,10 @@ export class LocalReplicationEndpoint implements LocalReplicationEndpointRole {
   }
 
   async saveReadingGoals(data: BooksDbReadingGoal[], lastGoalModified: number) {
-    if (!this.readingGoalsMergeMode) {
-      throw new Error('LocalReplicationEndpoint.saveReadingGoals called before updateSettings');
-    }
     await database.storeReadingGoals(
       data,
       this.saveBehavior,
-      this.readingGoalsMergeMode,
+      this.settings.readingGoalsMergeMode,
       lastGoalModified
     );
     BaseStorageHandler.reportProgress();
@@ -342,32 +321,5 @@ export class LocalReplicationEndpoint implements LocalReplicationEndpointRole {
   async updateLastRead(book: BooksDbBookData) {
     const db = await database.db;
     await db.put('data', book);
-  }
-
-  async deleteBookData(
-    booksToDelete: string[],
-    cancelSignal: AbortSignal,
-    keepLocalStatistics: boolean
-  ) {
-    const ids: number[] = [];
-    const idToTitle = new Map<number, string>();
-
-    for (const title of booksToDelete) {
-      const book = await database.getDataByTitle(title);
-      if (book) {
-        ids.push(book.id);
-        idToTitle.set(book.id, title);
-      }
-    }
-
-    const { error, deleted } = await database
-      .deleteData(ids, idToTitle, cancelSignal, keepLocalStatistics)
-      .catch((catchedError) => ({ error: catchedError.message, deleted: [] }));
-
-    if (deleted.length) {
-      database.dataListChanged$.next();
-    }
-
-    return { error, deleted };
   }
 }

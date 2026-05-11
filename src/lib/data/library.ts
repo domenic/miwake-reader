@@ -60,14 +60,8 @@ import pLimit from 'p-limit';
 // a stable, recognizable title for deduplication.
 const READING_GOALS_CTX: ReplicationContext = { title: '<reading-goals>' };
 
-interface EndpointSettings {
-  saveBehavior?: ReplicationSaveBehavior;
-  statisticsMergeMode?: MergeMode;
-  readingGoalsMergeMode?: MergeMode;
-  cacheStorageData?: boolean;
-}
-
-function endpointForCurrentLocation(location: SyncLocation, settings?: EndpointSettings) {
+function endpointForCurrentLocation(location: SyncLocation) {
+  const settings = { cacheStorageData: cacheStorageData$.getValue() };
   if (location.kind === 'cloud') {
     const name = cloudSourceName(location.provider, location.usesCustomCredentials);
     return location.provider === SyncEndpointType.GDRIVE
@@ -98,12 +92,7 @@ export async function userImportBooks(
   cancelSignal: AbortSignal,
   fileCountData?: Record<string, number>
 ): Promise<string> {
-  const local = getLocalEndpoint({
-    cacheStorageData: cacheStorageData$.getValue(),
-    saveBehavior: replicationSaveBehavior$.getValue(),
-    statisticsMergeMode: statisticsMergeMode$.getValue(),
-    readingGoalsMergeMode: readingGoalsMergeMode$.getValue()
-  });
+  const local = getLocalEndpoint({ cacheStorageData: cacheStorageData$.getValue() });
   const importScopedSettings = {
     saveBehavior: replicationSaveBehavior$.getValue(),
     statisticsMergeMode: statisticsMergeMode$.getValue(),
@@ -286,17 +275,13 @@ export async function userDeleteStatisticEntries(
   const location = syncState.location;
   if (!location || !bookTitles.length) return;
 
+  const local = getLocalEndpoint({ cacheStorageData: cacheStorageData$.getValue() });
+  const handler = endpointForCurrentLocation(location);
+  const contexts: ReplicationContext[] = bookTitles.map((title) => ({ title }));
   // Force-replace semantics: source.getFilenameForRecentCheck returns
   // undefined under Overwrite, so the up-to-date check short-circuits;
   // 'replace' on the target keeps the cloud handler from
   // merging the empty array back into its existing populated file.
-  const overrides: EndpointSettings = {
-    saveBehavior: ReplicationSaveBehavior.Overwrite,
-    statisticsMergeMode: 'replace'
-  };
-  const local = getLocalEndpoint(overrides);
-  const handler = endpointForCurrentLocation(location, overrides);
-  const contexts: ReplicationContext[] = bookTitles.map((title) => ({ title }));
   const deletePushSettings = {
     saveBehavior: ReplicationSaveBehavior.Overwrite,
     statisticsMergeMode: 'replace' as const,

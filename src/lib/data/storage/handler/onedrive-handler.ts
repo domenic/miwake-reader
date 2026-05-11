@@ -171,11 +171,7 @@ export class OneDriveStorageHandler extends ApiStorageHandler {
     }));
   }
 
-  protected async ensureTitle(
-    name = BaseStorageHandler.rootName,
-    _parent = 'root',
-    readOnly = false
-  ) {
+  async ensureTitle(name = BaseStorageHandler.rootName, _parent = 'root', readOnly = false) {
     if (name === BaseStorageHandler.rootName) {
       if (!this.rootId) {
         // AppFolder is auto-created by Microsoft on first access
@@ -238,22 +234,19 @@ export class OneDriveStorageHandler extends ApiStorageHandler {
     return titleId;
   }
 
-  protected async getExternalFiles(remoteTitleId: string) {
-    if (
-      (!this.cacheStorageData || !this.dataListFetched) &&
-      !this.titleToFiles.has(this.currentContext.title)
-    ) {
+  async getExternalFiles(remoteTitleId: string, title: string) {
+    if ((!this.cacheStorageData || !this.dataListFetched) && !this.titleToFiles.has(title)) {
       const externalFiles = await this.list(remoteTitleId, true, true);
 
       if (externalFiles.length) {
-        this.setTitleData(this.currentContext.title, externalFiles);
+        this.setTitleData(title, externalFiles);
       }
     }
 
-    return this.titleToFiles.get(this.currentContext.title) || [];
+    return this.titleToFiles.get(title) || [];
   }
 
-  protected async setRootFiles() {
+  async setRootFiles() {
     if ((!this.cacheStorageData || !this.rootFileListFetched) && !this.rootFiles.size) {
       const rootFiles = await this.list(this.rootId, false, true);
 
@@ -267,27 +260,31 @@ export class OneDriveStorageHandler extends ApiStorageHandler {
     }
   }
 
-  protected retrieve(
+  async retrieve(
     file: OneDriveFile,
     typeToRetrieve: XMLHttpRequestResponseType,
-    progressBase = 1
+    progressBase = 1,
+    cancelSignal?: AbortSignal
   ) {
     return this.request(
       `${this.baseEndpoint}/${file.id}/content`,
       { trackDownload: true },
       typeToRetrieve,
-      progressBase
+      progressBase,
+      cancelSignal
     );
   }
 
-  protected async upload(
+  async upload(
     folderId: string,
     name: string,
     files: OneDriveFile[],
-    remoteFile?: OneDriveFile,
-    body?: Blob | string,
-    rootFilePrefix?: string,
-    progressBase = 0.8
+    remoteFile: OneDriveFile | undefined = undefined,
+    body: Blob | string | undefined = undefined,
+    rootFilePrefix: string | undefined = undefined,
+    progressBase = 0.8,
+    cancelSignal: AbortSignal | undefined = undefined,
+    title = ''
   ) {
     const params = new URLSearchParams();
     params.append('select', `id,name`);
@@ -305,7 +302,10 @@ export class OneDriveStorageHandler extends ApiStorageHandler {
               name: remoteFile?.name || name
             }
           })
-        }
+        },
+        'json',
+        1,
+        cancelSignal
       );
 
       const url = new URL(uploadUrlResponse);
@@ -338,16 +338,26 @@ export class OneDriveStorageHandler extends ApiStorageHandler {
             skipAuth: true
           },
           'json',
-          progressBase
+          progressBase,
+          cancelSignal
         );
 
         if (remoteFile && name !== remoteFile.name) {
-          const renameResponse = await this.rename(name, files, remoteFile, params, rootFilePrefix);
+          const renameResponse = await this.rename(
+            name,
+            files,
+            remoteFile,
+            params,
+            rootFilePrefix,
+            cancelSignal,
+            title
+          );
 
           return renameResponse;
         }
 
         this.updateAfterUpload(
+          title,
           response.id,
           response.name,
           files,
@@ -360,7 +370,7 @@ export class OneDriveStorageHandler extends ApiStorageHandler {
 
         return response;
       } catch (error) {
-        await this.request(uploadUrl, { method: 'DELETE' }).catch(() => {
+        await this.request(uploadUrl, { method: 'DELETE' }, 'json', 1, cancelSignal).catch(() => {
           // no-op
         });
         throw error;
@@ -371,13 +381,27 @@ export class OneDriveStorageHandler extends ApiStorageHandler {
       throw new Error('Renaming requires a remote id');
     }
 
-    const renameResponse = await this.rename(name, files, remoteFile, params, rootFilePrefix);
+    const renameResponse = await this.rename(
+      name,
+      files,
+      remoteFile,
+      params,
+      rootFilePrefix,
+      cancelSignal,
+      title
+    );
 
     return renameResponse;
   }
 
-  protected executeDelete(id: string) {
-    return this.request(`${this.baseEndpoint}/${id}`, { method: 'DELETE' });
+  protected executeDelete(id: string, cancelSignal?: AbortSignal) {
+    return this.request(
+      `${this.baseEndpoint}/${id}`,
+      { method: 'DELETE' },
+      'json',
+      1,
+      cancelSignal
+    );
   }
 
   private async list(
@@ -472,7 +496,9 @@ export class OneDriveStorageHandler extends ApiStorageHandler {
     files: OneDriveFile[],
     remoteFile: OneDriveFile,
     params: URLSearchParams,
-    rootFilePrefix?: string
+    rootFilePrefix: string | undefined,
+    cancelSignal: AbortSignal | undefined,
+    title: string
   ) {
     const renameResponse = await this.request(
       `${this.baseEndpoint}/${remoteFile.id}?${params.toString()}`,
@@ -480,10 +506,14 @@ export class OneDriveStorageHandler extends ApiStorageHandler {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name })
-      }
+      },
+      'json',
+      1,
+      cancelSignal
     );
 
     this.updateAfterUpload(
+      title,
       renameResponse.id,
       renameResponse.name,
       files,

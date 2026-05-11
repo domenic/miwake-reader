@@ -231,18 +231,8 @@ export async function importBackup(
   const sourceBehavior =
     direction === 'zip-wins' ? ReplicationSaveBehavior.Overwrite : ReplicationSaveBehavior.NewOnly;
 
-  const backupHandler = getSyncEndpoint(window, SyncEndpointType.BACKUP, '', {
-    cacheStorageData: cacheStorageData$.getValue(),
-    saveBehavior: sourceBehavior,
-    statisticsMergeMode: statisticsMergeMode$.getValue(),
-    readingGoalsMergeMode: readingGoalsMergeMode$.getValue()
-  });
-  const browserHandler = getLocalEndpoint({
-    cacheStorageData: cacheStorageData$.getValue(),
-    saveBehavior: ReplicationSaveBehavior.NewOnly,
-    statisticsMergeMode: statisticsMergeMode$.getValue(),
-    readingGoalsMergeMode: readingGoalsMergeMode$.getValue()
-  });
+  const backupHandler = getSyncEndpoint(window, SyncEndpointType.BACKUP);
+  const browserHandler = getLocalEndpoint({ cacheStorageData: cacheStorageData$.getValue() });
 
   const allContexts = await backupHandler.setBackupZip(file);
   const contextsByTitle = new Map(allContexts.map((c) => [c.title, c]));

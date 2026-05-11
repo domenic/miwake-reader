@@ -235,12 +235,7 @@
       logger.debug(`reader/rawBookData$: start id=${id}`);
 
       try {
-        localStorageHandler = getLocalEndpoint({
-          cacheStorageData: $cacheStorageData$,
-          saveBehavior: $replicationSaveBehavior$,
-          statisticsMergeMode: $statisticsMergeMode$,
-          readingGoalsMergeMode: $readingGoalsMergeMode$
-        });
+        localStorageHandler = getLocalEndpoint({ cacheStorageData: $cacheStorageData$ });
 
         const scopedSettings = {
           saveBehavior: $replicationSaveBehavior$,

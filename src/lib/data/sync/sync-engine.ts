@@ -31,23 +31,25 @@ import { logger } from '$lib/data/logger';
 // ---------------------------------------------------------------------
 
 /**
- * `saveBehaviorOverride` is how force-resync breaks the replicator's
- * "skip if up-to-date" check. Set on the *source* of a given leg
- * (library for push, endpoint for pull): when saveBehavior ===
- * Overwrite, getFilenameForRecentCheck returns undefined, the
- * target's isPresentAndUpToDate returns false, and the pull/push
- * always runs.
+ * Handler-level settings, applied per `getSyncEndpoint` /
+ * `getLocalEndpoint` call. Per-scope concerns (save-behavior,
+ * merge-modes) come from `scopedSettings` and pass straight through
+ * to `handler.scoped(...)`.
  */
-function commonSettings(saveBehaviorOverride?: ReplicationSaveBehavior) {
+function handlerSettings() {
   return {
-    saveBehavior: saveBehaviorOverride ?? replicationSaveBehavior$.getValue(),
-    statisticsMergeMode: statisticsMergeMode$.getValue(),
-    readingGoalsMergeMode: readingGoalsMergeMode$.getValue(),
     cacheStorageData: cacheStorageData$.getValue(),
     askForStorageUnlock: false
   };
 }
 
+/**
+ * `saveBehaviorOverride` is how force-resync breaks the replicator's
+ * "skip if up-to-date" check. Set on the *source* of a given leg:
+ * when saveBehavior === Overwrite, getFilenameForRecentCheck returns
+ * undefined, the target's isPresentAndUpToDate returns false, and the
+ * pull/push always runs.
+ */
 function scopedSettings(saveBehaviorOverride?: ReplicationSaveBehavior): ScopedSettings {
   return {
     saveBehavior: saveBehaviorOverride ?? replicationSaveBehavior$.getValue(),
@@ -58,11 +60,8 @@ function scopedSettings(saveBehaviorOverride?: ReplicationSaveBehavior): ScopedS
 
 /** Build the SyncEndpoint for whatever location is currently
  *  configured. Returns null if no location is connected. */
-function endpointFor(
-  location: SyncLocation,
-  saveBehaviorOverride?: ReplicationSaveBehavior
-): SyncEndpoint {
-  const settings = commonSettings(saveBehaviorOverride);
+function endpointFor(location: SyncLocation): SyncEndpoint {
+  const settings = handlerSettings();
   if (location.kind === 'cloud') {
     const name = cloudSourceName(location.provider, location.usesCustomCredentials);
     return location.provider === SyncEndpointType.GDRIVE
@@ -72,8 +71,8 @@ function endpointFor(
   return getSyncEndpoint(window, SyncEndpointType.FS, FS_SOURCE_NAME, settings);
 }
 
-function localEndpoint(saveBehaviorOverride?: ReplicationSaveBehavior): LocalReplicationEndpoint {
-  return getLocalEndpoint(commonSettings(saveBehaviorOverride));
+function localEndpoint(): LocalReplicationEndpoint {
+  return getLocalEndpoint(handlerSettings());
 }
 
 // ---------------------------------------------------------------------
@@ -505,7 +504,7 @@ export async function forceFullResync(direction: ForceResyncDirection): Promise<
 
     try {
       if (direction === 'newest' || direction === 'remote-wins') {
-        const remote = endpointFor(location, pullSourceOverride);
+        const remote = endpointFor(location);
         logger.debug(`forceFullResync: pull ${location.kind} → local`);
         // Source (remote) gets the override; target (local) stays default.
         const error = await replicateData(
@@ -521,12 +520,10 @@ export async function forceFullResync(direction: ForceResyncDirection): Promise<
         if (error) throw new Error(error);
       }
       if (direction === 'newest' || direction === 'local-wins') {
-        // Push: library is source, saveBehavior override applies to it.
-        const localSource = localEndpoint(pushSourceOverride);
         const remote = endpointFor(location);
         logger.debug(`forceFullResync: push local → ${location.kind}`);
         const error = await replicateData(
-          localSource,
+          localEndpoint(),
           remote,
           'push',
           true,
