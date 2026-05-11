@@ -721,11 +721,7 @@
 
     try {
       if (diffToComplete) {
-        const [hadError] = await trackerElm.processStatistics(diffToComplete);
-
-        if (hadError) {
-          throw new Error('Character Update failed');
-        }
+        await trackerElm.processStatistics(diffToComplete);
       }
 
       const finishedStatistic = await database.getStatisticForCompletedBook($rawBookData$.title);
@@ -1081,14 +1077,14 @@
       }
 
       if ($statisticsEnabled$ && trackerElm) {
-        const [hadError] = await trackerElm.flushUpdates();
-
-        if (hadError) {
-          throw new Error('Error updating Statistics');
-        }
         // Sync trigger fires via the tracker's onstatisticssaved
         // callback (and from the auto-flush when isTrackerPaused$
         // flipped above), so no explicit scheduleReplication here.
+        // If flushUpdates rejects (persistent IDB error after the
+        // tracker's own recovery), the outer try/catch surfaces it
+        // as the "Error" dialog — same as before, just routed
+        // through standard exception flow.
+        await trackerElm.flushUpdates();
       }
 
       dialogManager.dialogs$.next([]);

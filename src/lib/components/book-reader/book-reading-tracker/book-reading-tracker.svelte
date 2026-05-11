@@ -84,12 +84,12 @@
     onfreezecurrentlocation
   }: Props = $props();
 
-  export function processStatistics(
+  export async function processStatistics(
     characterDiff: number,
     timeDiff = 1,
     referenceTick = Date.now(),
     flushData = true
-  ) {
+  ): Promise<void> {
     const todayDate = new Date();
     const absoluteTimeDiff = Math.abs(timeDiff);
     const isNegativeTimeDiff = timeDiff < 0;
@@ -185,13 +185,11 @@
 
     updateTimeToFinishBook();
 
-    return flushData ? flushUpdates() : Promise.resolve([false, 0]);
+    if (flushData) await flushUpdates();
   }
 
-  export async function flushUpdates() {
-    if (!statisticsToStore.size) {
-      return [false, 0];
-    }
+  export async function flushUpdates(): Promise<void> {
+    if (!statisticsToStore.size) return;
 
     actionInProgress = true;
     hadError = false;
@@ -224,9 +222,16 @@
 
       onstatisticssaved?.();
     } catch (error: any) {
+      // Local recovery: re-queue the items for the next flush attempt,
+      // set the tracker-menu error indicator, and log. Then let the
+      // caller decide whether to surface a user-visible message —
+      // fire-and-forget callers (auto-flush on pause, undo, manual
+      // save) suppress; operational callers (reader teardown,
+      // mark-complete) let it propagate to their outer try/catch.
       hadError = true;
       statisticsToStore = new Set([...statisticsToStore, ...toUpdate]);
       logger.error(`Error updating statistics: ${error.message}`);
+      throw error;
     } finally {
       actionInProgress = false;
       lastTrackerFlushTime = Date.now();
@@ -235,8 +240,6 @@
         updateReadingGoalWindow();
       }
     }
-
-    return [hadError, toUpdate.length];
   }
 
   export function updateCompletedBook(
@@ -314,7 +317,10 @@
       if (isPaused) {
         trackerIdleTime = 0;
 
-        flushUpdates();
+        // Fire-and-forget: flushUpdates handles its own logging + UI
+        // (hadError indicator); we just need to keep the promise from
+        // surfacing as an unhandled rejection.
+        flushUpdates().catch(() => {});
 
         return NEVER;
       }
@@ -546,7 +552,7 @@
     sessionStatistics = { ...sessionStatistics };
 
     updateTimeToFinishBook();
-    flushUpdates();
+    flushUpdates().catch(() => {});
   }
 
   function handleVisibilityChange(state: DocumentVisibilityState) {
@@ -686,9 +692,9 @@
 
       if (frozenPosition === -1) {
         if ($adjustStatisticsAfterIdleTime$) {
-          processStatistics(0, elapsed - $trackerIdleTime$, lastTrackerTick, true);
+          processStatistics(0, elapsed - $trackerIdleTime$, lastTrackerTick, true).catch(() => {});
         } else if (elapsed) {
-          processStatistics(0, elapsed, lastTrackerTick, true);
+          processStatistics(0, elapsed, lastTrackerTick, true).catch(() => {});
         }
       }
 
@@ -726,7 +732,7 @@
         elapsed,
         lastTrackerTick,
         now - lastTrackerFlushTime > 10000
-      );
+      ).catch(() => {});
     }
   }
 
@@ -835,7 +841,7 @@
     bind:wasTrackerPaused
     {onfreezecurrentlocation}
     onupdatecurrentlocation={updateLastExploredCharCount}
-    onsavestatistics={() => flushUpdates()}
+    onsavestatistics={() => flushUpdates().catch(() => {})}
     onrevertstatistic={revertTrackerHistory}
   />
 </SidebarOverlay>
