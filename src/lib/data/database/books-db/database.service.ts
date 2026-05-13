@@ -584,7 +584,23 @@ export class DatabaseService {
       lastStatisticModified: newStatistic.lastStatisticModified
     };
 
-    await db.put('statistic', existingStatistic);
+    // Same transaction as storeStatistics/setFirstBookRead: bump the
+    // per-title lastModified row so the sync engine's source-side
+    // up-to-date check (getFilenameForRecentCheck → getLastModifiedForType)
+    // sees the edit and lets the ambient push run.
+    const tx = db.transaction(['statistic', 'lastModified'], 'readwrite');
+    try {
+      await tx.objectStore('statistic').put(existingStatistic);
+      await tx.objectStore('lastModified').put({
+        title: newStatistic.title,
+        dataType: StorageDataType.STATISTICS,
+        lastModifiedValue: newStatistic.lastStatisticModified
+      });
+      await tx.done;
+    } catch (err) {
+      tx.abort();
+      throw err;
+    }
   }
 
   async clearZombieStatistics() {
