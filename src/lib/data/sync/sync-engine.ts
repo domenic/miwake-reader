@@ -30,13 +30,6 @@ import { logger } from '$lib/data/logger';
 // Handler factories
 // ---------------------------------------------------------------------
 
-function handlerSettings() {
-  return {
-    cacheStorageData: cacheStorageData$.getValue(),
-    askForStorageUnlock: false
-  };
-}
-
 /**
  * `saveBehaviorOverride` is how force-resync breaks the replicator's
  * "skip if up-to-date" check. Set on the *source* of a given leg:
@@ -52,10 +45,13 @@ function scopedSettings(saveBehaviorOverride?: ReplicationSaveBehavior): ScopedS
   };
 }
 
-/** Build the SyncEndpoint for whatever location is currently
- *  configured. Returns null if no location is connected. */
+/**
+ * Build the SyncEndpoint for whatever location is currently
+ * configured. `askForStorageUnlock: false` keeps the FS endpoint
+ * silent — sync engine runs without user gestures.
+ */
 function endpointFor(location: SyncLocation): SyncEndpoint {
-  const settings = handlerSettings();
+  const settings = { cacheStorageData: cacheStorageData$.getValue(), askForStorageUnlock: false };
   if (location.kind === 'cloud') {
     const name = cloudSourceName(location.provider, location.usesCustomCredentials);
     return location.provider === SyncEndpointType.GDRIVE
@@ -66,7 +62,7 @@ function endpointFor(location: SyncLocation): SyncEndpoint {
 }
 
 function localEndpoint(): LocalReplicationEndpoint {
-  return getLocalEndpoint(handlerSettings());
+  return getLocalEndpoint({ cacheStorageData: cacheStorageData$.getValue() });
 }
 
 // ---------------------------------------------------------------------
@@ -316,16 +312,16 @@ async function pushOne(context: ReplicationContext, types: StorageDataType[]): P
       await handler.authenticate(null, true);
     }
     const settings = scopedSettings();
-    const error = await replicateData(
-      local,
-      handler,
-      'push',
-      false,
-      [context],
-      types,
-      settings,
-      settings
-    );
+    const error = await replicateData({
+      library: local,
+      endpoint: handler,
+      direction: 'push',
+      refreshDataList: false,
+      contexts: [context],
+      dataToReplicate: types,
+      sourceSettings: settings,
+      targetSettings: settings
+    });
     if (error) throw new Error(error);
     markSynced();
   } catch (err) {
@@ -401,16 +397,16 @@ export async function reconcileForBookOpen(context: ReplicationContext): Promise
       await handler.authenticate(null, true);
     }
     const settings = scopedSettings();
-    const error = await replicateData(
-      local,
-      handler,
-      'pull',
-      false,
-      [context],
-      types,
-      settings,
-      settings
-    );
+    const error = await replicateData({
+      library: local,
+      endpoint: handler,
+      direction: 'pull',
+      refreshDataList: false,
+      contexts: [context],
+      dataToReplicate: types,
+      sourceSettings: settings,
+      targetSettings: settings
+    });
     if (error) throw new Error(error);
     markSynced();
   } catch (err) {
@@ -498,34 +494,32 @@ export async function forceFullResync(direction: ForceResyncDirection): Promise<
 
     try {
       if (direction === 'newest' || direction === 'remote-wins') {
-        const remote = endpointFor(location);
         logger.debug(`forceFullResync: pull ${location.kind} → local`);
         // Source (remote) gets the override; target (local) stays default.
-        const error = await replicateData(
-          localEndpoint(),
-          remote,
-          'pull',
-          true,
-          pullContexts,
-          types,
-          scopedSettings(pullSourceOverride),
-          scopedSettings()
-        );
+        const error = await replicateData({
+          library: localEndpoint(),
+          endpoint: endpointFor(location),
+          direction: 'pull',
+          refreshDataList: true,
+          contexts: pullContexts,
+          dataToReplicate: types,
+          sourceSettings: scopedSettings(pullSourceOverride),
+          targetSettings: scopedSettings()
+        });
         if (error) throw new Error(error);
       }
       if (direction === 'newest' || direction === 'local-wins') {
-        const remote = endpointFor(location);
         logger.debug(`forceFullResync: push local → ${location.kind}`);
-        const error = await replicateData(
-          localEndpoint(),
-          remote,
-          'push',
-          true,
-          pushContexts,
-          types,
-          scopedSettings(pushSourceOverride),
-          scopedSettings()
-        );
+        const error = await replicateData({
+          library: localEndpoint(),
+          endpoint: endpointFor(location),
+          direction: 'push',
+          refreshDataList: true,
+          contexts: pushContexts,
+          dataToReplicate: types,
+          sourceSettings: scopedSettings(pushSourceOverride),
+          targetSettings: scopedSettings()
+        });
         if (error) throw new Error(error);
       }
       markSynced();

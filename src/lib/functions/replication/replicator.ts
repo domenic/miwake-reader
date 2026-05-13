@@ -26,6 +26,32 @@ const READING_GOALS_SCOPE_CONTEXT: ReplicationContext = { title: '<reading-goals
  */
 export type ReplicationDirection = 'push' | 'pull';
 
+/**
+ * `library` and `endpoint` are typed asymmetrically so the type
+ * system rejects `replicateData({ library: A, endpoint: B })` where
+ * both are sync endpoints — we never replicate between two remotes.
+ * Direction picks which side is the source.
+ *
+ * `sourceSettings` / `targetSettings` are separate because some flows
+ * are asymmetric: force-resync's source gets `Overwrite` to break the
+ * up-to-date check while the target stays default; backup-import is
+ * zip-wins on the source / browser-default on the target. Symmetric
+ * callers (ambient push, newest-resync) pass the same object twice.
+ */
+export interface ReplicateDataOptions {
+  library: LocalReplicationEndpoint;
+  endpoint: SyncEndpoint;
+  direction: ReplicationDirection;
+  /** Whether to fire dataListChanged$ after writes; true for flows
+   *  that affect /manage's view (force-resync, backup-import). */
+  refreshDataList: boolean;
+  contexts: ReplicationContext[];
+  dataToReplicate: StorageDataType[];
+  sourceSettings: ScopedSettings;
+  targetSettings: ScopedSettings;
+  cancelSignal?: AbortSignal;
+}
+
 export async function importBackup(
   source: BackupStorageHandler,
   library: LocalReplicationEndpoint,
@@ -34,13 +60,13 @@ export async function importBackup(
   targetSettings: ScopedSettings,
   cancelSignal: AbortSignal
 ) {
-  return replicateData(
+  return replicateData({
     library,
-    source,
-    'pull',
-    true,
-    await source.setBackupZip(file),
-    [
+    endpoint: source,
+    direction: 'pull',
+    refreshDataList: true,
+    contexts: await source.setBackupZip(file),
+    dataToReplicate: [
       StorageDataType.DATA,
       StorageDataType.PROGRESS,
       StorageDataType.STATISTICS,
@@ -49,36 +75,21 @@ export async function importBackup(
     sourceSettings,
     targetSettings,
     cancelSignal
-  );
+  });
 }
 
-/**
- * Move books between the library and a sync endpoint. The asymmetric
- * shape — `(library, endpoint, direction)` rather than `(from, to)` —
- * encodes the invariant that we never replicate between two endpoints
- * directly. The library always drives /manage's view, so post-write
- * notifications fire only on `'pull'`.
- */
-/**
- * `sourceSettings` and `targetSettings` are separate so the
- * asymmetric force-resync flows (source's saveBehavior overridden to
- * Overwrite while target stays default) and backup-import (zip-wins
- * source vs browser-default target) can express their per-side
- * settings without leaking back into mutable handler state. The
- * symmetric callers (ambient push, force-resync newest leg)
- * typically pass the same object for both.
- */
-export async function replicateData(
-  library: LocalReplicationEndpoint,
-  endpoint: SyncEndpoint,
-  direction: ReplicationDirection,
-  refreshDataList: boolean,
-  contexts: ReplicationContext[],
-  dataToReplicate: StorageDataType[],
-  sourceSettings: ScopedSettings,
-  targetSettings: ScopedSettings,
-  cancelSignal?: AbortSignal
-) {
+export async function replicateData(opts: ReplicateDataOptions) {
+  const {
+    library,
+    endpoint,
+    direction,
+    refreshDataList,
+    contexts,
+    dataToReplicate,
+    sourceSettings,
+    targetSettings,
+    cancelSignal
+  } = opts;
   const source: BookOperations = direction === 'push' ? library : endpoint;
   const target: BookOperations = direction === 'push' ? endpoint : library;
 

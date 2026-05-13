@@ -258,16 +258,16 @@ export async function importBackup(
     if (choices.bookmarks) types.push(StorageDataType.PROGRESS);
     if (choices.statistics) types.push(StorageDataType.STATISTICS);
 
-    const error = await replicateData(
-      browserHandler,
-      backupHandler,
-      'pull',
-      true,
-      [ctx],
-      types,
-      importSettings,
-      browserImportSettings
-    );
+    const error = await replicateData({
+      library: browserHandler,
+      endpoint: backupHandler,
+      direction: 'pull',
+      refreshDataList: true,
+      contexts: [ctx],
+      dataToReplicate: types,
+      sourceSettings: importSettings,
+      targetSettings: browserImportSettings
+    });
     if (error) throw new Error(error);
 
     booksImported += 1;
@@ -277,16 +277,16 @@ export async function importBackup(
 
   let readingGoalsImported = false;
   if (selection.readingGoals && catalog.hasReadingGoals) {
-    const error = await replicateData(
-      browserHandler,
-      backupHandler,
-      'pull',
-      false,
-      [],
-      [StorageDataType.READING_GOALS],
-      importSettings,
-      browserImportSettings
-    );
+    const error = await replicateData({
+      library: browserHandler,
+      endpoint: backupHandler,
+      direction: 'pull',
+      refreshDataList: false,
+      contexts: [],
+      dataToReplicate: [StorageDataType.READING_GOALS],
+      sourceSettings: importSettings,
+      targetSettings: browserImportSettings
+    });
     if (error) throw new Error(error);
 
     // Restore the localStorage current goal alongside the IDB archive

@@ -308,16 +308,16 @@ export async function userDeleteStatisticEntries(
     readingGoalsMergeMode: readingGoalsMergeMode$.getValue()
   };
   try {
-    const error = await replicateData(
-      local,
-      handler,
-      'push',
-      false,
+    const error = await replicateData({
+      library: local,
+      endpoint: handler,
+      direction: 'push',
+      refreshDataList: false,
       contexts,
-      [StorageDataType.STATISTICS],
-      deletePushSettings,
-      deletePushSettings
-    );
+      dataToReplicate: [StorageDataType.STATISTICS],
+      sourceSettings: deletePushSettings,
+      targetSettings: deletePushSettings
+    });
     if (error) {
       logger.warn(`userDeleteStatisticEntries: remote push reported "${error}"`);
     }
