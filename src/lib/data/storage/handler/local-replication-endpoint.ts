@@ -28,22 +28,6 @@ import type {
 export class LocalReplicationEndpoint implements LocalReplicationEndpointRole {
   readonly kind = 'local' as const;
 
-  private cacheStorageData = false;
-
-  updateSettings(cacheStorageData: boolean) {
-    this.cacheStorageData = cacheStorageData;
-  }
-
-  isCacheDisabled() {
-    return !this.cacheStorageData;
-  }
-
-  clearData() {
-    // The local endpoint's only state is IndexedDB itself; there's no
-    // in-memory cache to invalidate. Sync endpoints use this hook to
-    // drop fetched-listing caches.
-  }
-
   scoped(
     context: ReplicationContext,
     settings: ScopedSettings,

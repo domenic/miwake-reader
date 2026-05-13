@@ -15,15 +15,14 @@ export class GDriveStorageHandler extends ApiStorageHandler {
 
   private baseUploadApiUrl = 'https://www.googleapis.com/upload/drive/v3/files';
 
-  constructor(window: Window) {
-    super(SyncEndpointType.GDRIVE, window, gDriveRefreshEndpoint);
-  }
-
-  setInternalSettings(storageSourceName: string) {
-    if (storageSourceName !== this.storageSourceName) {
-      this.clearData();
-    }
-    this.storageSourceName = storageSourceName;
+  constructor(window: Window, storageSourceName: string, cacheStorageData: boolean) {
+    super(
+      SyncEndpointType.GDRIVE,
+      window,
+      storageSourceName,
+      cacheStorageData,
+      gDriveRefreshEndpoint
+    );
   }
 
   async listSyncTitles({ refresh = false } = {}) {
@@ -154,15 +153,22 @@ export class GDriveStorageHandler extends ApiStorageHandler {
   }
 
   async getExternalFiles(remoteTitleId: string, title: string) {
-    if ((!this.cacheStorageData || !this.dataListFetched) && !this.titleToFiles.has(title)) {
+    // With cacheStorageData=false the cache is never consulted —
+    // fetch every time. With cacheStorageData=true: hit the cache
+    // if either a bulk `listSyncTitles` filled `dataListFetched` (so
+    // missing-from-cache means "really not on the remote") or a
+    // previous fetch cached this title.
+    if (!this.cacheStorageData || (!this.dataListFetched && !this.titleToFiles.has(title))) {
       const externalFiles = await this.list(
         `trashed=false and '${remoteTitleId}' in parents`,
         'files(id,name,thumbnailLink,parents)'
       );
-
+      // Drop any stale entry up front; setTitleData repopulates on
+      // non-empty, and an empty result is now correctly an empty
+      // return rather than a stale-cached one.
+      this.titleToFiles.delete(title);
       if (externalFiles.length) {
         const groupedExternalFiles = new Map<string, GDriveFile[]>();
-
         groupedExternalFiles.set(title, externalFiles);
         this.setTitleData(groupedExternalFiles);
       }
@@ -172,7 +178,8 @@ export class GDriveStorageHandler extends ApiStorageHandler {
   }
 
   async setRootFiles() {
-    if ((!this.cacheStorageData || !this.rootFileListFetched) && !this.rootFiles.size) {
+    if (!this.cacheStorageData || !this.rootFileListFetched) {
+      this.rootFiles.clear();
       const rootFiles = await this.list(
         `trashed=false and mimeType!='application/vnd.google-apps.folder' and '${this.rootId}' in parents`,
         'files(id,name)'

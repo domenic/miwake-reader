@@ -112,7 +112,7 @@ export async function userImportBooks(
   cancelSignal: AbortSignal,
   fileCountData?: Record<string, number>
 ): Promise<void> {
-  const local = getLocalEndpoint({ cacheStorageData: cacheStorageData$.getValue() });
+  const local = getLocalEndpoint();
   const importScopedSettings = {
     saveBehavior: replicationSaveBehavior$.getValue(),
     statisticsMergeMode: statisticsMergeMode$.getValue(),
@@ -129,10 +129,6 @@ export async function userImportBooks(
 
   replicationProgress$.next({ progressBase, maxProgress });
   await persistLibraryStorage();
-
-  if (local.isCacheDisabled()) {
-    local.clearData();
-  }
 
   let newFileData = 0;
 
@@ -300,7 +296,7 @@ export async function userDeleteStatisticEntries(
   const location = syncState.location;
   if (!location || !bookTitles.length) return;
 
-  const local = getLocalEndpoint({ cacheStorageData: cacheStorageData$.getValue() });
+  const local = getLocalEndpoint();
   const handler = endpointForCurrentLocation(location);
   const contexts: ReplicationContext[] = bookTitles.map((title) => ({ title }));
   // Force-replace semantics: source.getFilenameForRecentCheck returns
@@ -357,7 +353,7 @@ export async function userDeleteReadingGoal(date: string | undefined): Promise<v
   const location = syncState.location;
   if (!location) return;
 
-  const local = getLocalEndpoint({ cacheStorageData: cacheStorageData$.getValue() });
+  const local = getLocalEndpoint();
   const handler = endpointForCurrentLocation(location);
   const deletePushSettings = {
     saveBehavior: ReplicationSaveBehavior.Overwrite,

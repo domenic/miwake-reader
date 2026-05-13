@@ -60,7 +60,7 @@ export abstract class BaseStorageHandler implements SyncEndpoint {
    * data; BROWSER and backup return [] (the unified library view
    * doesn't go through this method — it reads IndexedDB directly).
    */
-  abstract listSyncTitles(opts?: { refresh?: boolean }): Promise<SyncTitle[]>;
+  abstract listSyncTitles(opts?: { refresh?: boolean; silentOnly?: boolean }): Promise<SyncTitle[]>;
 
   abstract authenticate(authWindow: Window | null, silentOnly?: boolean): Promise<void>;
 
@@ -129,9 +129,16 @@ export abstract class BaseStorageHandler implements SyncEndpoint {
   /** @internal Used by `BaseScopedHandler` subclasses; not for outside callers. */
   validRootFiles = [BaseStorageHandler.readingGoalsFilePrefix];
 
-  constructor(window: Window, storageType: SyncEndpointType) {
+  constructor(
+    window: Window,
+    storageType: SyncEndpointType,
+    storageSourceName: string,
+    cacheStorageData: boolean
+  ) {
     this.window = window;
     this.storageType = storageType;
+    this.storageSourceName = storageSourceName;
+    this.cacheStorageData = cacheStorageData;
   }
 
   isCacheDisabled() {

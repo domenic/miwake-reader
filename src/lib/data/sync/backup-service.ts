@@ -6,7 +6,6 @@ import type {
 } from '$lib/components/backup/backup-types';
 import { BlobReader, ZipReader } from '@zip.js/zip.js';
 import {
-  cacheStorageData$,
   database,
   lastReadingGoalsModified$,
   readingGoalsMergeMode$,
@@ -235,7 +234,7 @@ export async function importBackup(
     direction === 'zip-wins' ? ReplicationSaveBehavior.Overwrite : ReplicationSaveBehavior.NewOnly;
 
   const backupHandler = getSyncEndpoint(window, SyncEndpointType.BACKUP);
-  const browserHandler = getLocalEndpoint({ cacheStorageData: cacheStorageData$.getValue() });
+  const browserHandler = getLocalEndpoint();
 
   const allContexts = await backupHandler.setBackupZip(file);
   const contextsByTitle = new Map(allContexts.map((c) => [c.title, c]));

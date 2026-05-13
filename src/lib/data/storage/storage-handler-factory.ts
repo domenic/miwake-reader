@@ -6,38 +6,55 @@ import { GDriveStorageHandler } from '$lib/data/storage/handler/gdrive-handler';
 import { LocalReplicationEndpoint } from '$lib/data/storage/handler/local-replication-endpoint';
 import { OneDriveStorageHandler } from '$lib/data/storage/handler/onedrive-handler';
 
-let localEndpoint: LocalReplicationEndpoint;
-let backupHandler: BackupStorageHandler;
-let gDriveHandler: GDriveStorageHandler;
-let oneDriveHandler: OneDriveStorageHandler;
-let fsHandler: FilesystemStorageHandler;
-
+/**
+ * Per-handler settings — fixed at construction. Per-scope settings
+ * (save-behavior, merge-modes) live on `ScopedSettings`. The
+ * silent-vs-interactive permission flag lives on the method calls
+ * that can trigger a permission dialog (`listSyncTitles({silentOnly}),
+ * `FilesystemStorageHandler.ensureRoot(askForStorageUnlock)`).
+ */
 interface SyncSettings {
   cacheStorageData?: boolean;
-  askForStorageUnlock?: boolean;
 }
 
 const defaults: Required<SyncSettings> = {
-  cacheStorageData: false,
-  askForStorageUnlock: true
+  cacheStorageData: false
 };
 
+// Memoize by the full configuration key. Two callers with the same
+// (type, storageSourceName, cacheStorageData) share an instance —
+// and therefore its warm listing caches. Two callers with different
+// settings get distinct instances, each with its own cache, so
+// neither trampling nor cache-cold-on-every-call.
+const cache = new Map<
+  string,
+  BackupStorageHandler | GDriveStorageHandler | OneDriveStorageHandler | FilesystemStorageHandler
+>();
+let localEndpoint: LocalReplicationEndpoint | undefined;
+
+function keyFor(
+  type: SyncEndpointType,
+  storageSourceName: string,
+  cacheStorageData: boolean
+): string {
+  return `${type}|${storageSourceName}|${cacheStorageData ? 1 : 0}`;
+}
+
 /**
- * Get the singleton local replication endpoint — the BookOperations
- * adapter the replicator uses for its local side. Not user-facing:
- * UI code should reach through `$lib/data/library` instead, which
- * pairs each edit with the appropriate triggerSync call.
+ * Get the singleton local replication endpoint. It holds no settings
+ * (its only storage is IDB itself), so there's nothing to key on.
  */
-export function getLocalEndpoint(settings: SyncSettings = {}): LocalReplicationEndpoint {
-  const merged = { ...defaults, ...settings };
-  localEndpoint = localEndpoint ?? new LocalReplicationEndpoint();
-  localEndpoint.updateSettings(merged.cacheStorageData);
+export function getLocalEndpoint(): LocalReplicationEndpoint {
+  localEndpoint ??= new LocalReplicationEndpoint();
   return localEndpoint;
 }
 
 /**
- * Get a sync endpoint for the given external location. The local
- * endpoint is fetched via getLocalEndpoint() — it's not a sync endpoint.
+ * Get a sync endpoint for the given external location. Same
+ * configuration → same instance (warm cache); changing the source
+ * name or any setting hands you a freshly-constructed handler with a
+ * cold cache (which is exactly what you want — the cache was tied to
+ * the previous configuration).
  */
 export function getSyncEndpoint(
   window: Window,
@@ -69,40 +86,32 @@ export function getSyncEndpoint(
   storageSourceName = '',
   settings: SyncSettings = {}
 ) {
-  const merged = { ...defaults, ...settings };
+  const { cacheStorageData } = { ...defaults, ...settings };
+  const key = keyFor(storageType, storageSourceName, cacheStorageData);
+  const cached = cache.get(key);
+  if (cached) return cached;
+
+  let handler:
+    | BackupStorageHandler
+    | GDriveStorageHandler
+    | OneDriveStorageHandler
+    | FilesystemStorageHandler;
   switch (storageType) {
     case SyncEndpointType.BACKUP:
-      backupHandler = backupHandler ?? new BackupStorageHandler(window, SyncEndpointType.BACKUP);
-      backupHandler.updateSettings(window);
-      return backupHandler;
+      handler = new BackupStorageHandler(window);
+      break;
     case SyncEndpointType.GDRIVE:
-      gDriveHandler = gDriveHandler ?? new GDriveStorageHandler(window);
-      gDriveHandler.updateSettings(
-        window,
-        merged.cacheStorageData,
-        merged.askForStorageUnlock,
-        storageSourceName
-      );
-      return gDriveHandler;
+      handler = new GDriveStorageHandler(window, storageSourceName, cacheStorageData);
+      break;
     case SyncEndpointType.ONEDRIVE:
-      oneDriveHandler = oneDriveHandler ?? new OneDriveStorageHandler(window);
-      oneDriveHandler.updateSettings(
-        window,
-        merged.cacheStorageData,
-        merged.askForStorageUnlock,
-        storageSourceName
-      );
-      return oneDriveHandler;
+      handler = new OneDriveStorageHandler(window, storageSourceName, cacheStorageData);
+      break;
     case SyncEndpointType.FS:
-      fsHandler = fsHandler ?? new FilesystemStorageHandler(window, SyncEndpointType.FS);
-      fsHandler.updateSettings(
-        window,
-        merged.cacheStorageData,
-        merged.askForStorageUnlock,
-        storageSourceName
-      );
-      return fsHandler;
+      handler = new FilesystemStorageHandler(window, storageSourceName, cacheStorageData);
+      break;
     default:
       throw new Error(`No sync endpoint implementation for ${storageType}`);
   }
+  cache.set(key, handler);
+  return handler;
 }

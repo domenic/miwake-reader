@@ -13,6 +13,7 @@ import type { ScopedBookOperations, ScopedSettings } from '$lib/data/storage/han
 import type { BookCardProps } from '$lib/components/book-card/book-card-props';
 import { isRemoteContext } from '$lib/data/storage/storage-source-types';
 import { NeedsPermissionGrantError } from '$lib/data/storage/errors';
+import { SyncEndpointType } from '$lib/data/storage/storage-types';
 import { confirmDialog } from '$lib/data/simple-dialogs';
 import pLimit from 'p-limit';
 import type { ReplicationContext } from '$lib/functions/replication/replication-progress';
@@ -29,36 +30,14 @@ export class FilesystemStorageHandler extends BaseStorageHandler {
   /** @internal Used by `ScopedFilesystemHandler`. */
   rootFileHandles = new Map<string, FileSystemFileHandle>();
 
-  /**
-   * When true, ensureRoot() opens a "grant permission" dialog if the
-   * saved directory handle has been revoked. Set to false by the
-   * sync engine on its silent ambient paths so a denied permission
-   * surfaces as a sync-health error instead of a dialog popping up
-   * mid-read.
-   */
-  private askForStorageUnlock = true;
-
-  updateSettings(
-    window: Window,
-    cacheStorageData: boolean,
-    askForStorageUnlock: boolean,
-    storageSourceName: string
-  ) {
-    this.window = window;
-    this.cacheStorageData = cacheStorageData;
-    this.askForStorageUnlock = askForStorageUnlock;
-
-    if (storageSourceName !== this.storageSourceName) {
-      this.clearData();
-    }
-
-    this.storageSourceName = storageSourceName;
+  constructor(window: Window, storageSourceName: string, cacheStorageData: boolean) {
+    super(window, SyncEndpointType.FS, storageSourceName, cacheStorageData);
   }
 
-  async listSyncTitles({ refresh = false } = {}) {
+  async listSyncTitles({ refresh = false, silentOnly = false } = {}) {
     if (refresh) this.clearData();
     if (!this.dataListFetched) {
-      const rootDirectory = await this.ensureRoot();
+      const rootDirectory = await this.ensureRoot(!silentOnly);
       const directories = (await FilesystemStorageHandler.list(
         rootDirectory,
         true
@@ -200,17 +179,23 @@ export class FilesystemStorageHandler extends BaseStorageHandler {
 
   private async fetchRootFile(fileIdentifier: string, progressBase = 1) {
     const progressPerStep = progressBase / 2;
-    const rootDirectory = await this.ensureRoot();
+    // Silent: this fetch is part of an ambient or scoped sync
+    // operation, not a user-initiated connect / permission grant.
+    const rootDirectory = await this.ensureRoot(false);
     BaseStorageHandler.reportProgress(progressPerStep);
     await this.setRootFiles(rootDirectory);
     BaseStorageHandler.reportProgress(progressPerStep);
     return { file: this.rootFileHandles.get(fileIdentifier), rootDirectory };
   }
 
-  /** @internal Used by `ScopedFilesystemHandler` and handler-level methods. */
-  async ensureRoot(
-    askForStorageUnlock = this.askForStorageUnlock
-  ): Promise<FileSystemDirectoryHandle> {
+  /**
+   * @internal Used by `ScopedFilesystemHandler` and handler-level
+   * methods. `askForStorageUnlock` is the per-call decision about
+   * whether a permission failure should pop the grant dialog
+   * (`true`, the default for user-initiated paths) or throw silently
+   * for the sync engine to surface via syncHealth$ (`false`).
+   */
+  async ensureRoot(askForStorageUnlock = true): Promise<FileSystemDirectoryHandle> {
     try {
       if (this.rootDirectory) {
         await FilesystemStorageHandler.verifyPermission(this.rootDirectory);
@@ -354,7 +339,8 @@ export class FilesystemStorageHandler extends BaseStorageHandler {
 
   /** @internal Used by `ScopedFilesystemHandler.getRootFile`. */
   async setRootFiles(rootHandle: FileSystemDirectoryHandle) {
-    if ((!this.cacheStorageData || !this.rootFileListFetched) && !this.rootFiles.size) {
+    if (!this.cacheStorageData || !this.rootFileListFetched) {
+      this.rootFileHandles.clear();
       const files = (await FilesystemStorageHandler.list(rootHandle)) as FileSystemFileHandle[];
 
       for (let index = 0, { length } = files; index < length; index += 1) {
@@ -677,7 +663,8 @@ class ScopedFilesystemHandler
 
   private async getExternalFile(fileIdentifier: string, progressBase = 0.4) {
     const progressPerStep = progressBase / 2;
-    const rootDirectory = await this.handler.ensureRoot();
+    // Silent: scoped sync operation, not a user-initiated connect.
+    const rootDirectory = await this.handler.ensureRoot(false);
 
     BaseStorageHandler.reportProgress(progressPerStep);
 
@@ -693,8 +680,8 @@ class ScopedFilesystemHandler
     rootHandle: FileSystemDirectoryHandle
   ): Promise<FileSystemFileHandle[]> {
     if (
-      (this.handler.isCacheDisabled() || !this.handler.dataListFetched) &&
-      !this.handler.titleToFiles.has(this.title)
+      this.handler.isCacheDisabled() ||
+      (!this.handler.dataListFetched && !this.handler.titleToFiles.has(this.title))
     ) {
       const directory = await rootHandle
         .getDirectoryHandle(this.sanitizedTitle, { create: false })
@@ -702,6 +689,7 @@ class ScopedFilesystemHandler
           // no-op
         });
 
+      this.handler.titleToFiles.delete(this.title);
       if (directory) {
         await this.handler.setTitleData([directory], false);
       }

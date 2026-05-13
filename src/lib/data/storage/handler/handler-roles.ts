@@ -63,8 +63,6 @@ export interface ScopedBookOperations {
  * endpoints is rejected at the type level.
  */
 export interface BookOperations {
-  isCacheDisabled(): boolean;
-  clearData(clearAll?: boolean): void;
   scoped(
     context: ReplicationContext,
     settings: ScopedSettings,
@@ -122,7 +120,7 @@ export interface SyncEndpoint extends BookOperations {
    * remote may have changed since this handler-singleton was last
    * used (folder swap, force-resync, post-disconnect reconnect).
    */
-  listSyncTitles(opts?: { refresh?: boolean }): Promise<SyncTitle[]>;
+  listSyncTitles(opts?: { refresh?: boolean; silentOnly?: boolean }): Promise<SyncTitle[]>;
   /**
    * OAuth-flavored endpoints (GDrive, OneDrive) re-establish a token
    * here. FS/backup are no-ops. `silentOnly` skips popup-opening and

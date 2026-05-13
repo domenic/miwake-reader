@@ -48,15 +48,14 @@ export class OneDriveStorageHandler extends ApiStorageHandler {
 
   private appRootEndpoint = 'https://graph.microsoft.com/v1.0/me/drive/special/approot';
 
-  constructor(window: Window) {
-    super(SyncEndpointType.ONEDRIVE, window, oneDriveTokenEndpoint);
-  }
-
-  setInternalSettings(storageSourceName: string) {
-    if (storageSourceName !== this.storageSourceName) {
-      this.clearData();
-    }
-    this.storageSourceName = storageSourceName;
+  constructor(window: Window, storageSourceName: string, cacheStorageData: boolean) {
+    super(
+      SyncEndpointType.ONEDRIVE,
+      window,
+      storageSourceName,
+      cacheStorageData,
+      oneDriveTokenEndpoint
+    );
   }
 
   async listSyncTitles({ refresh = false } = {}) {
@@ -235,9 +234,9 @@ export class OneDriveStorageHandler extends ApiStorageHandler {
   }
 
   async getExternalFiles(remoteTitleId: string, title: string) {
-    if ((!this.cacheStorageData || !this.dataListFetched) && !this.titleToFiles.has(title)) {
+    if (!this.cacheStorageData || (!this.dataListFetched && !this.titleToFiles.has(title))) {
       const externalFiles = await this.list(remoteTitleId, true, true);
-
+      this.titleToFiles.delete(title);
       if (externalFiles.length) {
         this.setTitleData(title, externalFiles);
       }
@@ -247,7 +246,8 @@ export class OneDriveStorageHandler extends ApiStorageHandler {
   }
 
   async setRootFiles() {
-    if ((!this.cacheStorageData || !this.rootFileListFetched) && !this.rootFiles.size) {
+    if (!this.cacheStorageData || !this.rootFileListFetched) {
+      this.rootFiles.clear();
       const rootFiles = await this.list(this.rootId, false, true);
 
       for (let index = 0, { length } = rootFiles; index < length; index += 1) {

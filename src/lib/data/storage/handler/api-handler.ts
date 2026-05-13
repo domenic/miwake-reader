@@ -47,9 +47,6 @@ export interface UploadOptions {
 }
 
 export abstract class ApiStorageHandler extends BaseStorageHandler {
-  /** @internal Subclass hook: react to a storageSourceName change. */
-  abstract setInternalSettings(storageSourceName: string): void;
-
   /** @internal Used by `ScopedApiHandler` to locate the per-book folder. */
   abstract ensureTitle(name?: string, parent?: string, readOnly?: boolean): Promise<string>;
 
@@ -83,20 +80,15 @@ export abstract class ApiStorageHandler extends BaseStorageHandler {
   /** @internal Used by `ScopedApiHandler` and subclass impls. */
   titleToFiles = new Map<string, ExternalFile[]>();
 
-  constructor(storageType: SyncEndpointType, window: Window, refreshEndpoint: string) {
-    super(window, storageType);
-    this.authManager = new StorageOAuthManager(this.storageType, refreshEndpoint);
-  }
-
-  updateSettings(
+  constructor(
+    storageType: SyncEndpointType,
     window: Window,
+    storageSourceName: string,
     cacheStorageData: boolean,
-    _askForStorageUnlock: boolean,
-    storageSourceName: string
+    refreshEndpoint: string
   ) {
-    this.window = window;
-    this.cacheStorageData = cacheStorageData;
-    this.setInternalSettings(storageSourceName);
+    super(window, storageType, storageSourceName, cacheStorageData);
+    this.authManager = new StorageOAuthManager(this.storageType, refreshEndpoint);
   }
 
   /**

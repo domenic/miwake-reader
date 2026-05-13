@@ -47,11 +47,11 @@ function scopedSettings(saveBehaviorOverride?: ReplicationSaveBehavior): ScopedS
 
 /**
  * Build the SyncEndpoint for whatever location is currently
- * configured. `askForStorageUnlock: false` keeps the FS endpoint
- * silent — sync engine runs without user gestures.
+ * configured. Silent paths (sync engine) pass `silentOnly: true` to
+ * `listSyncTitles` / `ensureRoot` directly — not via the factory.
  */
 function endpointFor(location: SyncLocation): SyncEndpoint {
-  const settings = { cacheStorageData: cacheStorageData$.getValue(), askForStorageUnlock: false };
+  const settings = { cacheStorageData: cacheStorageData$.getValue() };
   if (location.kind === 'cloud') {
     const name = cloudSourceName(location.provider, location.usesCustomCredentials);
     return location.provider === SyncEndpointType.GDRIVE
@@ -62,7 +62,7 @@ function endpointFor(location: SyncLocation): SyncEndpoint {
 }
 
 function localEndpoint(): LocalReplicationEndpoint {
-  return getLocalEndpoint({ cacheStorageData: cacheStorageData$.getValue() });
+  return getLocalEndpoint();
 }
 
 // ---------------------------------------------------------------------
@@ -131,7 +131,7 @@ export async function reconcileBooksOnBoot(): Promise<void> {
       await handler.authenticate(null, true);
     }
 
-    const remoteBooks = await handler.listSyncTitles();
+    const remoteBooks = await handler.listSyncTitles({ silentOnly: true });
     logger.debug(
       `reconcileBooksOnBoot: ${location.kind} returned ${remoteBooks.length} book(s): ` +
         remoteBooks.map((b) => JSON.stringify(b.title)).join(', ')
@@ -473,7 +473,7 @@ export async function forceFullResync(direction: ForceResyncDirection): Promise<
     // and miss remote-only books or waste cycles on remote-deleted
     // ones.
     const handler = endpointFor(location);
-    const remoteBooks = await handler.listSyncTitles({ refresh: true });
+    const remoteBooks = await handler.listSyncTitles({ refresh: true, silentOnly: true });
     await reconcilePlaceholders(remoteBooks);
 
     const allBooks = await (await database.db).getAll('data');

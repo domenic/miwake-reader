@@ -125,12 +125,6 @@ export async function replicateData(opts: ReplicateDataOptions) {
     await persistLibraryStorage();
   }
 
-  [source, target].forEach((handler) => {
-    if (handler.isCacheDisabled()) {
-      handler.clearData(false);
-    }
-  });
-
   contexts.forEach((context) =>
     replicationTasks.push(
       replicationLimiter(async () => {

@@ -7,6 +7,7 @@ import type {
 import { readingGoalSortFunction } from '$lib/data/reading-goal';
 import { BaseScopedHandler, BaseStorageHandler } from '$lib/data/storage/handler/base-handler';
 import type { ScopedBookOperations, ScopedSettings } from '$lib/data/storage/handler/handler-roles';
+import { SyncEndpointType } from '$lib/data/storage/storage-types';
 import { ReplicationSaveBehavior } from '$lib/functions/replication/replication-options';
 import type { ReplicationContext } from '$lib/functions/replication/replication-progress';
 import { BlobReader, BlobWriter, ZipReader, type Entry, type ZipWriter } from '@zip.js/zip.js';
@@ -35,6 +36,12 @@ export class BackupStorageHandler extends BaseStorageHandler {
   /** @internal Used by `ScopedBackupHandler` to find per-book entries. */
   importEntries: Entry[] = [];
 
+  constructor(window: Window) {
+    // Backup doesn't bind to a sourceName or honor cacheStorageData;
+    // pass inert defaults so the BaseStorageHandler shape is satisfied.
+    super(window, SyncEndpointType.BACKUP, '', false);
+  }
+
   listSyncTitles(_opts?: { refresh?: boolean }) {
     // Backup ZIPs aren't a sync endpoint — placeholder reconciliation
     // is wired to cloud/fs only. The import-backup flow uses
@@ -48,10 +55,6 @@ export class BackupStorageHandler extends BaseStorageHandler {
 
   deleteBookData() {
     return Promise.resolve<number[]>([]);
-  }
-
-  updateSettings(window: Window) {
-    this.window = window;
   }
 
   clearData(clearAll = true) {
