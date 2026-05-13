@@ -3,6 +3,7 @@ import {
   currentDbVersion,
   type BooksDbBookData,
   type BooksDbBookmarkData,
+  type BooksDbReadingGoal,
   type BooksDbStatistic
 } from '$lib/data/database/books-db/versions/books-db';
 import type { Section } from '$lib/data/database/books-db/versions/v4/books-db-v4';
@@ -81,6 +82,25 @@ export abstract class BaseStorageHandler implements SyncEndpoint {
     settings: ScopedSettings,
     cancelSignal?: AbortSignal
   ): ScopedBookOperations;
+
+  /** Reading-goals operations are app-global; see `BookOperations`. */
+  abstract getReadingGoalsFilename(settings: ScopedSettings): Promise<string | undefined>;
+
+  abstract areReadingGoalsPresentAndUpToDate(
+    referenceFilename: string | undefined
+  ): Promise<boolean>;
+
+  abstract getReadingGoals(cancelSignal?: AbortSignal): Promise<{
+    readingGoals: BooksDbReadingGoal[] | undefined;
+    lastGoalModified: number;
+  }>;
+
+  abstract saveReadingGoals(
+    data: BooksDbReadingGoal[],
+    lastGoalModified: number,
+    settings: ScopedSettings,
+    cancelSignal?: AbortSignal
+  ): Promise<void>;
 
   static rootName = storageRootName;
 

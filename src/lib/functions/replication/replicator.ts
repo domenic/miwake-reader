@@ -17,8 +17,6 @@ import {
 } from '$lib/functions/replication/replication-progress';
 import pLimit from 'p-limit';
 
-const READING_GOALS_SCOPE_CONTEXT: ReplicationContext = { title: '<reading-goals>' };
-
 /**
  * Direction of a replication relative to the library:
  *   - `'pull'`: endpoint → library (the library is the target)
@@ -231,33 +229,23 @@ export async function replicateData(opts: ReplicateDataOptions) {
     replicationTasks.push(
       replicationLimiter(async () => {
         try {
-          // Reading goals are global; the context here is a sentinel
-          // that satisfies the scoped() signature without colliding
-          // with any real book title.
-          const sourceScoped = source.scoped(
-            READING_GOALS_SCOPE_CONTEXT,
-            sourceSettings,
-            cancelSignal
-          );
-          const targetScoped = target.scoped(
-            READING_GOALS_SCOPE_CONTEXT,
-            targetSettings,
-            cancelSignal
-          );
           if (
-            await targetScoped.areReadingGoalsPresentAndUpToDate(
-              await sourceScoped.getFilenameForRecentCheck(
-                BaseStorageHandler.readingGoalsFilePrefix
-              )
+            await target.areReadingGoalsPresentAndUpToDate(
+              await source.getReadingGoalsFilename(sourceSettings)
             )
           ) {
             checkCancelAndProgress(cancelSignal, true, true);
             checkCancelAndProgress(cancelSignal, true, true);
           } else {
-            const { readingGoals, lastGoalModified } = await sourceScoped.getReadingGoals();
+            const { readingGoals, lastGoalModified } = await source.getReadingGoals(cancelSignal);
             checkCancelAndProgress(cancelSignal);
             if (readingGoals) {
-              await targetScoped.saveReadingGoals(readingGoals, lastGoalModified);
+              await target.saveReadingGoals(
+                readingGoals,
+                lastGoalModified,
+                targetSettings,
+                cancelSignal
+              );
             }
             checkCancelAndProgress(cancelSignal, false, !readingGoals);
           }

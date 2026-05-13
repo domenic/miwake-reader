@@ -29,20 +29,19 @@ export interface ScopedSettings {
 }
 
 /**
- * The per-operation surface, bound to a specific (context, settings)
+ * Per-book operation surface, bound to a specific (context, settings)
  * pair by `BookOperations.scoped(...)`. Methods take only the data
- * args they need; ctx and settings are captured by the closure.
+ * args they need; ctx and settings are captured by the closure. One
+ * scope ≈ one book × one save-behavior × one merge-mode.
  *
- * One scope ≈ one book × one save-behavior × one merge-mode, used
- * for a short sequence of related operations (typically a single
- * iteration in the replicator's per-context loop).
+ * Reading goals are NOT here — they're global, not per-book. See
+ * the reading-goals methods on `BookOperations`.
  */
 export interface ScopedBookOperations {
   getFilenameForRecentCheck(fileIdentifier: string): Promise<string | undefined>;
   isBookPresentAndUpToDate(referenceFilename: string | undefined): Promise<boolean>;
   isProgressPresentAndUpToDate(referenceFilename: string | undefined): Promise<boolean>;
   areStatisticsPresentAndUpToDate(referenceFilename: string | undefined): Promise<boolean>;
-  areReadingGoalsPresentAndUpToDate(referenceFilename: string | undefined): Promise<boolean>;
 
   getBook(): Promise<Omit<BooksDbBookData, 'id'> | undefined>;
   getProgress(): Promise<BooksDbBookmarkData | undefined>;
@@ -51,25 +50,20 @@ export interface ScopedBookOperations {
     lastStatisticModified: number;
   }>;
   getCover(): Promise<Blob | undefined>;
-  getReadingGoals(): Promise<{
-    readingGoals: BooksDbReadingGoal[] | undefined;
-    lastGoalModified: number;
-  }>;
 
   saveBook(data: Omit<BooksDbBookData, 'id'>, skipTimestampFallback?: boolean): Promise<number>;
   saveProgress(data: BooksDbBookmarkData): Promise<void>;
   saveStatistics(data: BooksDbStatistic[], lastStatisticModified: number): Promise<void>;
   saveCover(data: Blob | undefined): Promise<void>;
-  saveReadingGoals(data: BooksDbReadingGoal[], lastGoalModified: number): Promise<void>;
 }
 
 /**
- * Handler-level operations that don't need a per-book context: cache
- * management, source-wide deletion, the scope factory. The replicator
- * codes against this shared surface, but its parameter types remain
- * the asymmetric (local, endpoint) pair so calls like
- * `replicateData(syncEndpointA, syncEndpointB)` are rejected at the
- * type level (we never replicate between two endpoints).
+ * Handler-level operations: cache management, source-wide deletion,
+ * the scope factory, and global (non-per-book) operations like
+ * reading goals. The replicator codes against this shared surface,
+ * but its parameter types stay asymmetric (`library`, `endpoint`) so
+ * `replicateData({ library: A, endpoint: B })` with two sync
+ * endpoints is rejected at the type level.
  */
 export interface BookOperations {
   isCacheDisabled(): boolean;
@@ -85,6 +79,25 @@ export interface BookOperations {
     cancelSignal: AbortSignal,
     keepLocalStatistics: boolean
   ): Promise<ReplicationDeleteResult>;
+
+  /**
+   * Reading goals are app-global (no per-book context). The settings
+   * argument carries the source's saveBehavior (for the
+   * up-to-date short-circuit) and the target's
+   * readingGoalsMergeMode (for save-side merge semantics).
+   */
+  getReadingGoalsFilename(settings: ScopedSettings): Promise<string | undefined>;
+  areReadingGoalsPresentAndUpToDate(referenceFilename: string | undefined): Promise<boolean>;
+  getReadingGoals(cancelSignal?: AbortSignal): Promise<{
+    readingGoals: BooksDbReadingGoal[] | undefined;
+    lastGoalModified: number;
+  }>;
+  saveReadingGoals(
+    data: BooksDbReadingGoal[],
+    lastGoalModified: number,
+    settings: ScopedSettings,
+    cancelSignal?: AbortSignal
+  ): Promise<void>;
 }
 
 /**

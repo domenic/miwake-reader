@@ -7,6 +7,7 @@ import type {
 import { database, lastReadingGoalsModified$ } from '$lib/data/store';
 import { StorageDataType } from '$lib/data/storage/storage-types';
 import type { ReplicationContext } from '$lib/functions/replication/replication-progress';
+import { ReplicationSaveBehavior } from '$lib/functions/replication/replication-options';
 import { BaseScopedHandler, BaseStorageHandler } from '$lib/data/storage/handler/base-handler';
 import type {
   LocalReplicationEndpoint as LocalReplicationEndpointRole,
@@ -77,6 +78,64 @@ export class LocalReplicationEndpoint implements LocalReplicationEndpointRole {
 
     return { error, deleted };
   }
+
+  async getReadingGoalsFilename(settings: ScopedSettings) {
+    if (settings.saveBehavior === ReplicationSaveBehavior.Overwrite) {
+      BaseStorageHandler.reportProgress();
+      return undefined;
+    }
+    const lastGoalModified = lastReadingGoalsModified$.getValue();
+    const fileName = lastGoalModified
+      ? BaseStorageHandler.getReadingGoalsFileName(lastGoalModified)
+      : undefined;
+    BaseStorageHandler.reportProgress(0.5);
+    BaseStorageHandler.completeStep();
+    return fileName;
+  }
+
+  areReadingGoalsPresentAndUpToDate(referenceFilename: string | undefined) {
+    if (!referenceFilename) {
+      BaseStorageHandler.reportProgress();
+      return Promise.resolve(false);
+    }
+    const existingLastModified = lastReadingGoalsModified$.getValue();
+    const fileName = existingLastModified
+      ? BaseStorageHandler.getReadingGoalsFileName(existingLastModified)
+      : undefined;
+    BaseStorageHandler.reportProgress();
+    return Promise.resolve(
+      BaseStorageHandler.checkIsPresentAndUpToDate(
+        BaseStorageHandler.getReadingGoalsMetadata,
+        'lastGoalModified',
+        referenceFilename,
+        fileName
+      )
+    );
+  }
+
+  async getReadingGoals() {
+    const readingGoals = await database.getReadingGoals();
+    const lastGoalModified = lastReadingGoalsModified$.getValue();
+    BaseStorageHandler.reportProgress();
+    if (!lastGoalModified) {
+      return { readingGoals: undefined, lastGoalModified: 0 };
+    }
+    return { readingGoals, lastGoalModified };
+  }
+
+  async saveReadingGoals(
+    data: BooksDbReadingGoal[],
+    lastGoalModified: number,
+    settings: ScopedSettings
+  ) {
+    await database.storeReadingGoals(
+      data,
+      settings.saveBehavior,
+      settings.readingGoalsMergeMode,
+      lastGoalModified
+    );
+    BaseStorageHandler.reportProgress();
+  }
 }
 
 class ScopedLocalReplicationEndpoint
@@ -104,11 +163,6 @@ class ScopedLocalReplicationEndpoint
       );
       fileName = lastStatisticModified
         ? BaseStorageHandler.getStatisticsFileName([], lastStatisticModified)
-        : undefined;
-    } else if (fileIdentifier === BaseStorageHandler.readingGoalsFilePrefix) {
-      const lastGoalModified = lastReadingGoalsModified$.getValue();
-      fileName = lastGoalModified
-        ? BaseStorageHandler.getReadingGoalsFileName(lastGoalModified)
         : undefined;
     }
 
@@ -190,29 +244,6 @@ class ScopedLocalReplicationEndpoint
     );
   }
 
-  areReadingGoalsPresentAndUpToDate(referenceFilename: string | undefined) {
-    if (!referenceFilename) {
-      BaseStorageHandler.reportProgress();
-      return Promise.resolve(false);
-    }
-
-    const existingLastModified = lastReadingGoalsModified$.getValue();
-    const fileName = existingLastModified
-      ? BaseStorageHandler.getReadingGoalsFileName(existingLastModified)
-      : undefined;
-
-    BaseStorageHandler.reportProgress();
-
-    return Promise.resolve(
-      BaseStorageHandler.checkIsPresentAndUpToDate(
-        BaseStorageHandler.getReadingGoalsMetadata,
-        'lastGoalModified',
-        referenceFilename,
-        fileName
-      )
-    );
-  }
-
   async getBook(): Promise<BooksDbBookData | undefined> {
     const book = this.context.id
       ? await database.getData(this.context.id)
@@ -256,16 +287,6 @@ class ScopedLocalReplicationEndpoint
     return cover;
   }
 
-  async getReadingGoals() {
-    const readingGoals = await database.getReadingGoals();
-    const lastGoalModified = lastReadingGoalsModified$.getValue();
-    BaseStorageHandler.reportProgress();
-    if (!lastGoalModified) {
-      return { readingGoals: undefined, lastGoalModified: 0 };
-    }
-    return { readingGoals, lastGoalModified };
-  }
-
   async saveBook(data: Omit<BooksDbBookData, 'id'>, skipTimestampFallback = true) {
     const stored = await database.upsertData(data, this.saveBehavior, skipTimestampFallback);
     BaseStorageHandler.reportProgress();
@@ -296,15 +317,5 @@ class ScopedLocalReplicationEndpoint
     // Covers live inside BookData; no separate write needed.
     BaseStorageHandler.reportProgress();
     return Promise.resolve();
-  }
-
-  async saveReadingGoals(data: BooksDbReadingGoal[], lastGoalModified: number) {
-    await database.storeReadingGoals(
-      data,
-      this.saveBehavior,
-      this.settings.readingGoalsMergeMode,
-      lastGoalModified
-    );
-    BaseStorageHandler.reportProgress();
   }
 }

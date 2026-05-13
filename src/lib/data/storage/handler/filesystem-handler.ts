@@ -6,6 +6,7 @@ import type {
 } from '$lib/data/database/books-db/versions/books-db';
 import { database } from '$lib/data/store';
 import { mergeReadingGoals, readingGoalSortFunction } from '$lib/data/reading-goal';
+import { ReplicationSaveBehavior } from '$lib/functions/replication/replication-options';
 import { mergeStatistics, updateStatisticToStore } from '$lib/functions/statistic-util';
 
 import { BaseScopedHandler, BaseStorageHandler } from '$lib/data/storage/handler/base-handler';
@@ -123,6 +124,99 @@ export class FilesystemStorageHandler extends BaseStorageHandler {
       this.titleToBookCard.delete(title);
       return deletedId;
     });
+  }
+
+  async getReadingGoalsFilename(settings: ScopedSettings) {
+    if (settings.saveBehavior === ReplicationSaveBehavior.Overwrite) {
+      BaseStorageHandler.reportProgress();
+      return undefined;
+    }
+    const { file } = await this.fetchRootFile(BaseStorageHandler.readingGoalsFilePrefix);
+    return file?.name;
+  }
+
+  async areReadingGoalsPresentAndUpToDate(referenceFilename: string | undefined) {
+    if (!referenceFilename) {
+      BaseStorageHandler.reportProgress();
+      return false;
+    }
+    const { file } = await this.fetchRootFile(BaseStorageHandler.readingGoalsFilePrefix);
+    return BaseStorageHandler.checkIsPresentAndUpToDate(
+      BaseStorageHandler.getReadingGoalsMetadata,
+      'lastGoalModified',
+      referenceFilename,
+      file?.name
+    );
+  }
+
+  async getReadingGoals() {
+    const { file } = await this.fetchRootFile(BaseStorageHandler.readingGoalsFilePrefix, 0.6);
+    if (!file) {
+      return { readingGoals: undefined, lastGoalModified: 0 };
+    }
+    const readingGoalsFile = await file.getFile();
+    const readingGoalsFileData = await FilesystemStorageHandler.readFileObject(readingGoalsFile);
+    const readingGoals = JSON.parse(readingGoalsFileData);
+    BaseStorageHandler.reportProgress(0.4);
+    return {
+      readingGoals,
+      lastGoalModified: BaseStorageHandler.getReadingGoalsMetadata(file.name).lastGoalModified
+    };
+  }
+
+  async saveReadingGoals(
+    readingGoals: BooksDbReadingGoal[],
+    lastGoalModified: number,
+    settings: ScopedSettings
+  ) {
+    const isMerge = settings.readingGoalsMergeMode === 'merge';
+    const { file, rootDirectory } = await this.fetchRootFile(
+      BaseStorageHandler.readingGoalsFilePrefix,
+      0.4
+    );
+
+    let readingGoalsToStore: BooksDbReadingGoal[] = readingGoals;
+    let newReadingGoalModified = lastGoalModified;
+
+    if (isMerge) {
+      let existingData = [];
+      if (file) {
+        const existingDataFile = await file.getFile();
+        existingData = JSON.parse(await FilesystemStorageHandler.readFileObject(existingDataFile));
+      }
+      ({ readingGoalsToStore, newReadingGoalModified } = mergeReadingGoals(
+        readingGoals,
+        existingData,
+        settings.saveBehavior === ReplicationSaveBehavior.NewOnly,
+        lastGoalModified
+      ));
+    }
+
+    readingGoalsToStore.sort(readingGoalSortFunction);
+
+    const filename = BaseStorageHandler.getReadingGoalsFileName(newReadingGoalModified);
+    const savedFile = await rootDirectory.getFileHandle(filename, { create: true });
+    const writer = await savedFile.createWritable();
+    await writer.write(JSON.stringify(readingGoalsToStore));
+    await writer.close();
+
+    BaseStorageHandler.reportProgress(0.3);
+
+    if (file && !(await savedFile.isSameEntry(file))) {
+      await rootDirectory.removeEntry(file.name);
+    }
+    this.rootFileHandles.set(BaseStorageHandler.readingGoalsFilePrefix, savedFile);
+
+    BaseStorageHandler.reportProgress(0.3);
+  }
+
+  private async fetchRootFile(fileIdentifier: string, progressBase = 1) {
+    const progressPerStep = progressBase / 2;
+    const rootDirectory = await this.ensureRoot();
+    BaseStorageHandler.reportProgress(progressPerStep);
+    await this.setRootFiles(rootDirectory);
+    BaseStorageHandler.reportProgress(progressPerStep);
+    return { file: this.rootFileHandles.get(fileIdentifier), rootDirectory };
   }
 
   /** @internal Used by `ScopedFilesystemHandler` and handler-level methods. */
@@ -356,9 +450,7 @@ class ScopedFilesystemHandler
       return undefined;
     }
 
-    const { file } = this.handler.validRootFiles.includes(fileIdentifier)
-      ? await this.getRootFile(fileIdentifier)
-      : await this.getExternalFile(fileIdentifier, 1);
+    const { file } = await this.getExternalFile(fileIdentifier, 1);
 
     return file?.name;
   }
@@ -417,22 +509,6 @@ class ScopedFilesystemHandler
     return BaseStorageHandler.checkIsPresentAndUpToDate(
       BaseStorageHandler.getStatisticsMetadata,
       'lastStatisticModified',
-      referenceFilename,
-      file?.name
-    );
-  }
-
-  async areReadingGoalsPresentAndUpToDate(referenceFilename: string | undefined) {
-    if (!referenceFilename) {
-      BaseStorageHandler.reportProgress();
-      return false;
-    }
-
-    const { file } = await this.getRootFile(BaseStorageHandler.readingGoalsFilePrefix);
-
-    return BaseStorageHandler.checkIsPresentAndUpToDate(
-      BaseStorageHandler.getReadingGoalsMetadata,
-      'lastGoalModified',
       referenceFilename,
       file?.name
     );
@@ -503,25 +579,6 @@ class ScopedFilesystemHandler
     const cover = await file.getFile();
 
     return cover;
-  }
-
-  async getReadingGoals() {
-    const { file } = await this.getRootFile(BaseStorageHandler.readingGoalsFilePrefix, 0.6);
-
-    if (!file) {
-      return { readingGoals: undefined, lastGoalModified: 0 };
-    }
-
-    const readingGoalsFile = await file.getFile();
-    const readingGoalsFileData = await FilesystemStorageHandler.readFileObject(readingGoalsFile);
-    const readingGoals = JSON.parse(readingGoalsFileData);
-
-    BaseStorageHandler.reportProgress(0.4);
-
-    return {
-      readingGoals,
-      lastGoalModified: BaseStorageHandler.getReadingGoalsMetadata(file.name).lastGoalModified
-    };
   }
 
   async saveBook(data: Omit<BooksDbBookData, 'id'>, skipTimestampFallback = true) {
@@ -630,48 +687,6 @@ class ScopedFilesystemHandler
     }
   }
 
-  async saveReadingGoals(readingGoals: BooksDbReadingGoal[], lastGoalModified: number) {
-    const isMerge = this.settings.readingGoalsMergeMode === 'merge';
-    const { file, rootDirectory } = await this.getRootFile(
-      BaseStorageHandler.readingGoalsFilePrefix,
-      0.4
-    );
-
-    let readingGoalsToStore: BooksDbReadingGoal[] = readingGoals;
-    let newReadingGoalModified = lastGoalModified;
-
-    if (isMerge) {
-      let existingData = [];
-
-      if (file) {
-        const existingDataFile = await file.getFile();
-
-        existingData = JSON.parse(await FilesystemStorageHandler.readFileObject(existingDataFile));
-      }
-
-      ({ readingGoalsToStore, newReadingGoalModified } = mergeReadingGoals(
-        readingGoals,
-        existingData,
-        this.isNewOnly,
-        lastGoalModified
-      ));
-    }
-
-    readingGoalsToStore.sort(readingGoalSortFunction);
-
-    const filename = BaseStorageHandler.getReadingGoalsFileName(newReadingGoalModified);
-
-    await this.writeFile(
-      rootDirectory,
-      filename,
-      JSON.stringify(readingGoalsToStore),
-      [],
-      file,
-      0.6,
-      BaseStorageHandler.readingGoalsFilePrefix
-    );
-  }
-
   private async getExternalFile(fileIdentifier: string, progressBase = 0.4) {
     const progressPerStep = progressBase / 2;
     const rootDirectory = await this.handler.ensureRoot();
@@ -684,17 +699,6 @@ class ScopedFilesystemHandler
     BaseStorageHandler.reportProgress(progressPerStep);
 
     return { file, files, rootDirectory };
-  }
-
-  private async getRootFile(fileIdentifier: string, progressBase = 1) {
-    const progressPerStep = progressBase / 2;
-    const rootDirectory = await this.handler.ensureRoot();
-
-    BaseStorageHandler.reportProgress(progressPerStep);
-
-    await this.handler.setRootFiles(rootDirectory);
-
-    return { file: this.handler.rootFileHandles.get(fileIdentifier), rootDirectory };
   }
 
   private async getExternalFiles(
@@ -724,14 +728,12 @@ class ScopedFilesystemHandler
     data: any,
     files: FileSystemFileHandle[],
     file: FileSystemFileHandle | undefined,
-    progressBase = 0.4,
-    rootFilePrefix?: string
+    progressBase = 0.4
   ) {
     const progressPerStep = progressBase / 2;
-    const directory = rootFilePrefix
-      ? rootDirectory
-      : this.handler.titleToDirectory.get(this.title) ||
-        (await rootDirectory.getDirectoryHandle(this.sanitizedTitle, { create: true }));
+    const directory =
+      this.handler.titleToDirectory.get(this.title) ||
+      (await rootDirectory.getDirectoryHandle(this.sanitizedTitle, { create: true }));
     const savedFile = await directory.getFileHandle(filename, { create: true });
     const writer = await savedFile.createWritable();
 
@@ -744,24 +746,15 @@ class ScopedFilesystemHandler
       if (!(await savedFile.isSameEntry(file))) {
         await directory.removeEntry(file.name);
       }
-
-      if (!rootFilePrefix) {
-        const titleFiles = files.filter((entry) => entry.name !== file.name);
-        titleFiles.push(savedFile);
-
-        this.handler.titleToFiles.set(this.title, titleFiles);
-      }
-    } else if (!rootFilePrefix) {
+      const titleFiles = files.filter((entry) => entry.name !== file.name);
+      titleFiles.push(savedFile);
+      this.handler.titleToFiles.set(this.title, titleFiles);
+    } else {
       files.push(savedFile);
-
       this.handler.titleToFiles.set(this.title, files);
     }
 
-    if (rootFilePrefix) {
-      this.handler.rootFileHandles.set(rootFilePrefix, savedFile);
-    } else {
-      this.handler.titleToDirectory.set(this.title, directory);
-    }
+    this.handler.titleToDirectory.set(this.title, directory);
 
     BaseStorageHandler.reportProgress(progressPerStep);
   }

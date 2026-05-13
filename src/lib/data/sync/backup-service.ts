@@ -122,8 +122,11 @@ export async function exportBackup(selection: BackupSelection): Promise<void> {
   if (selection.readingGoals) {
     const goals = await db.getAll('readingGoal');
     if (goals.length > 0) {
-      const scoped = backupHandler.scoped({ title: '<reading-goals>' }, exportSettings);
-      await scoped.saveReadingGoals(goals, lastReadingGoalsModified$.getValue());
+      await backupHandler.saveReadingGoals(
+        goals,
+        lastReadingGoalsModified$.getValue(),
+        exportSettings
+      );
     }
     // Current-goal-in-localStorage travels alongside, owned by the
     // Reading-goals checkbox.
