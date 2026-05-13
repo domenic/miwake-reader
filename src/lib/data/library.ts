@@ -20,6 +20,7 @@
 
 import type { BookStatistic } from '$lib/components/statistics/statistics-types';
 import type {
+  BooksDbBookData,
   BooksDbBookmarkData,
   BooksDbReadingGoal,
   BooksDbStatistic
@@ -59,6 +60,25 @@ import pLimit from 'p-limit';
 // Reading goals are global rather than per-book; pendingKey only needs
 // a stable, recognizable title for deduplication.
 const READING_GOALS_CTX: ReplicationContext = { title: '<reading-goals>' };
+
+/**
+ * Look up a book by its local IDB id. The reader uses this on book
+ * open; sync-engine reconciliation happens separately via
+ * `reconcileForBookOpen` so the open path can be local-fast.
+ */
+export function openBook(id: number): Promise<BooksDbBookData | undefined> {
+  return database.getData(id);
+}
+
+/**
+ * Stamp a book row's `lastBookOpen` and persist the whole row to IDB.
+ * Doesn't trigger a sync — `lastBookOpen` is treated as device-local
+ * (the next ambient push will pick it up alongside any real edit).
+ */
+export async function markBookOpened(book: BooksDbBookData): Promise<void> {
+  const db = await database.db;
+  await db.put('data', book);
+}
 
 function endpointForCurrentLocation(location: SyncLocation) {
   const settings = { cacheStorageData: cacheStorageData$.getValue() };

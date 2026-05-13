@@ -90,33 +90,12 @@ export interface BookOperations {
 /**
  * The local-side adapter the replicator pulls into and pushes from —
  * a BookOperations peer of GDriveStorageHandler /
- * OneDriveStorageHandler / FilesystemStorageHandler that happens to
- * be backed by the local IDB. Exactly one implementation:
- * LocalReplicationEndpoint.
- *
- * Distinct from `$lib/data/library` (the user-facing module). UI
- * handlers should reach through library, not this interface — writes
- * here are sync-naive by design (a triggerSync at this layer would
- * loop replicator pulls right back to the remote).
+ * OneDriveStorageHandler / FilesystemStorageHandler backed by the
+ * local IDB. UI code should reach through `$lib/data/library`
+ * instead; writes here are sync-naive by design.
  */
-/**
- * The local endpoint's scope. Narrows `getBook` to the full BookData
- * shape (with `id`) and adds `updateLastRead` — both rely on the
- * locally-known IDB id, which the SyncEndpoint side can't always
- * promise.
- */
-export interface LocalScopedBookOperations extends ScopedBookOperations {
-  getBook(): Promise<BooksDbBookData | undefined>;
-  updateLastRead(book: BooksDbBookData): Promise<void>;
-}
-
 export interface LocalReplicationEndpoint extends BookOperations {
   readonly kind: 'local';
-  scoped(
-    context: ReplicationContext,
-    settings: ScopedSettings,
-    cancelSignal?: AbortSignal
-  ): LocalScopedBookOperations;
 }
 
 /**

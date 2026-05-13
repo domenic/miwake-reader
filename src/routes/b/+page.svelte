@@ -65,8 +65,6 @@
     selectionToBookmarkEnabled$,
     lineHeight$,
     skipKeyDownListener$,
-    replicationSaveBehavior$,
-    cacheStorageData$,
     confirmClose$,
     verticalCustomReadingPosition$,
     horizontalCustomReadingPosition$,
@@ -74,12 +72,10 @@
     statisticsEnabled$,
     openTrackerOnCompletion$,
     addCharactersOnCompletion$,
-    statisticsMergeMode$,
     manualBookmark$,
     customThemes$,
     overwriteBookCompletion$,
     startDayHoursForTracker$,
-    readingGoalsMergeMode$,
     pauseTrackerOnCustomPointChange$,
     hideSpoilerImageMode$,
     showCharacterCounter$,
@@ -127,10 +123,13 @@
   import { fullscreenManager } from '$lib/data/fullscreen-manager';
   import { logger } from '$lib/data/logger';
   import { confirmDialog, messageDialog } from '$lib/data/simple-dialogs';
-  import { userSaveBookmark, userSaveStatistics } from '$lib/data/library';
-  import { getLocalEndpoint } from '$lib/data/storage/storage-handler-factory';
+  import {
+    markBookOpened,
+    openBook,
+    userSaveBookmark,
+    userSaveStatistics
+  } from '$lib/data/library';
   import { BaseStorageHandler } from '$lib/data/storage/handler/base-handler';
-  import type { LocalReplicationEndpoint } from '$lib/data/storage/handler/handler-roles';
   import { StorageDataType, SyncEndpointType } from '$lib/data/storage/storage-types';
   import { availableThemes } from '$lib/data/theme-option';
   import { ViewMode } from '$lib/data/view-mode';
@@ -189,7 +188,6 @@
   let lastSelectedRangeWasEmpty = $state(true);
   let isSelectingCustomReadingPoint = $state(false);
   let showCustomReadingPoint = $state(false);
-  let localStorageHandler: LocalReplicationEndpoint;
   let storedExploredCharacter = 0;
   let hasBookmarkData = $state(false);
   let trackerElm: BookReadingTracker = $state()!;
@@ -235,15 +233,7 @@
       logger.debug(`reader/rawBookData$: start id=${id}`);
 
       try {
-        localStorageHandler = getLocalEndpoint({ cacheStorageData: $cacheStorageData$ });
-
-        const scopedSettings = {
-          saveBehavior: $replicationSaveBehavior$,
-          statisticsMergeMode: $statisticsMergeMode$,
-          readingGoalsMergeMode: $readingGoalsMergeMode$
-        };
-        const idLookupScoped = localStorageHandler.scoped({ id, title: '' }, scopedSettings);
-        bookData = await idLookupScoped.getBook();
+        bookData = await openBook(id);
         logger.debug(
           `reader/rawBookData$: getBook → ${
             bookData
@@ -262,12 +252,10 @@
           imagePath: bookData.coverImage
         };
 
-        const localScoped = localStorageHandler.scoped(currentContext, scopedSettings);
-
         bookData.lastBookOpen = new Date().getTime();
 
-        logger.debug('reader/rawBookData$: updateLastRead (local)');
-        await localScoped.updateLastRead(bookData);
+        logger.debug('reader/rawBookData$: markBookOpened');
+        await markBookOpened(bookData);
         logger.debug('reader/rawBookData$: reconcileForBookOpen start');
         await reconcileForBookOpen(currentContext);
         logger.debug('reader/rawBookData$: reconcileForBookOpen done');
@@ -278,7 +266,7 @@
         // placeholder, syncing didn't (or couldn't) pull the content
         // and there's nothing to render.
         if (!bookData.elementHtml) {
-          const refreshed = await localScoped.getBook();
+          const refreshed = await openBook(id);
           if (refreshed) {
             bookData = refreshed;
           }

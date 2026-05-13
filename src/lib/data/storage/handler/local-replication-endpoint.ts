@@ -10,7 +10,7 @@ import type { ReplicationContext } from '$lib/functions/replication/replication-
 import { BaseScopedHandler, BaseStorageHandler } from '$lib/data/storage/handler/base-handler';
 import type {
   LocalReplicationEndpoint as LocalReplicationEndpointRole,
-  LocalScopedBookOperations,
+  ScopedBookOperations,
   ScopedSettings
 } from '$lib/data/storage/handler/handler-roles';
 
@@ -47,7 +47,7 @@ export class LocalReplicationEndpoint implements LocalReplicationEndpointRole {
     context: ReplicationContext,
     settings: ScopedSettings,
     cancelSignal?: AbortSignal
-  ): LocalScopedBookOperations {
+  ): ScopedBookOperations {
     return new ScopedLocalReplicationEndpoint(this, context, settings, cancelSignal);
   }
 
@@ -81,7 +81,7 @@ export class LocalReplicationEndpoint implements LocalReplicationEndpointRole {
 
 class ScopedLocalReplicationEndpoint
   extends BaseScopedHandler<LocalReplicationEndpoint>
-  implements LocalScopedBookOperations
+  implements ScopedBookOperations
 {
   async getFilenameForRecentCheck(fileIdentifier: string) {
     if (this.isOverwrite) {
@@ -306,10 +306,5 @@ class ScopedLocalReplicationEndpoint
       lastGoalModified
     );
     BaseStorageHandler.reportProgress();
-  }
-
-  async updateLastRead(book: BooksDbBookData) {
-    const db = await database.db;
-    await db.put('data', book);
   }
 }
