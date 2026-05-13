@@ -37,7 +37,7 @@ import { iffBrowser } from '$lib/functions/rxjs/iff-browser';
 import { logger } from '$lib/data/logger';
 import pLimit from 'p-limit';
 import { replicationProgress$ } from '$lib/functions/replication/replication-progress';
-import { throwIfAborted } from '$lib/functions/replication/replication-error';
+import { AbortError, throwIfAborted } from '$lib/functions/replication/replication-error';
 
 const LAST_ITEM_KEY = 0;
 
@@ -264,22 +264,28 @@ export class DatabaseService {
     return bookData;
   }
 
+  /**
+   * Delete books from local IDB. Returns the ids that were actually
+   * deleted. Throws AggregateError on any per-id failure (with the
+   * partial-success list attached via `.cause` if you need it; the
+   * caller's typical recovery is to re-derive UI state from a fresh
+   * `getAll('data')` rather than parse the error).
+   */
   async deleteData(
     dataIds: number[],
     idsToTitles: Map<number, string>,
     cancelSignal: AbortSignal,
     keepLocalStatistics: boolean
-  ) {
+  ): Promise<number[]> {
     const db = await this.db;
     const lastItemObj = await db.get('lastItem', LAST_ITEM_KEY);
     const bookmarkIdData = await db.getAllKeys('bookmark');
     const lastItem = lastItemObj?.dataId;
     const bookmarkIds = new Set(bookmarkIdData);
     const deleted: number[] = [];
+    const errors: Error[] = [];
     const limiter = pLimit(1);
     const tasks: Promise<void>[] = [];
-
-    let errorMessage = '';
 
     replicationProgress$.next({ progressBase: 1, maxProgress: dataIds.length });
 
@@ -288,7 +294,6 @@ export class DatabaseService {
         limiter(async () => {
           try {
             throwIfAborted(cancelSignal);
-
             deleted.push(
               await this.deleteSingleData(
                 db,
@@ -298,20 +303,22 @@ export class DatabaseService {
                 !keepLocalStatistics
               )
             );
-          } catch (error) {
-            errorMessage = handleErrorDuringReplication(
-              error,
-              `Error deleting Book with id ${id}: `,
-              [limiter]
-            );
+          } catch (error: any) {
+            handleErrorDuringReplication(error, `Error deleting Book with id ${id}: `, [limiter]);
+            errors.push(error);
           }
         })
       )
     );
 
-    await Promise.all(tasks).catch(() => {});
+    await Promise.all(tasks).catch((err) => {
+      if (err instanceof AbortError) throw err;
+    });
 
-    return { error: errorMessage, deleted };
+    if (errors.length) {
+      throw new AggregateError(errors, errors[0].message);
+    }
+    return deleted;
   }
 
   async getBookmark(dataId: number) {

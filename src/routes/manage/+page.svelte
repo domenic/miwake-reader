@@ -274,14 +274,12 @@
     cancelTooltip = 'Cancels the current import\nAlready imported data will not be deleted';
     initializeReplicationProgressData();
 
-    const error = await userImportBooks(document, files, cancelSignal, $fileCountData$).catch(
-      (catchedError) => catchedError.message
-    );
-
-    resetProgress();
-
-    if (error) {
-      showError(errorTitle, error, 'An error occurred during book import.');
+    try {
+      await userImportBooks(document, files, cancelSignal, $fileCountData$);
+    } catch (err: any) {
+      showError(errorTitle, err.message, 'An error occurred during book import.');
+    } finally {
+      resetProgress();
     }
   }
 
@@ -310,31 +308,30 @@
     cancelTooltip = 'Cancels the deletion\nAlready deleted data will not be restored';
     initializeReplicationProgressData();
 
-    const currentBookCount = $bookCards$.length;
     const titlesToDelete = $bookCards$.reduce((toDelete, card) => {
       if (bookIds.includes(card.id)) toDelete.push(card.title);
       return toDelete;
     }, [] as string[]);
-    const { error, deleted } = await userDeleteBooks(
-      titlesToDelete,
-      cancelSignal,
-      $keepLocalStatisticsOnDeletion$
-    );
 
-    resetProgress();
-
-    await tick();
-
-    if (deleted.length === currentBookCount) {
-      selectMode = false;
-    } else {
+    try {
+      await userDeleteBooks(titlesToDelete, cancelSignal, $keepLocalStatisticsOnDeletion$);
+    } catch (err: any) {
+      showError('Deletion Failed', err.message, 'An error occurred during book deletion.');
+    } finally {
+      resetProgress();
+      await tick();
+      // Reconcile selection state with whatever is actually in IDB
+      // now: ids that no longer exist on the cards list (i.e. were
+      // successfully deleted) drop out of the selection set; ids that
+      // still exist (failed deletes) stay selected so the user can
+      // retry. Works for both full success and partial failure.
+      const stillPresent = new Set($bookCards$.map((card) => card.id));
       selectedBookIds = cloneMutateSet(selectedBookIds, (set) => {
-        deleted.forEach((deletedBookId) => set.delete(deletedBookId));
+        set.forEach((id) => {
+          if (!stillPresent.has(id)) set.delete(id);
+        });
       });
-    }
-
-    if (error) {
-      showError('Deletion Failed', error, 'An error occurred during book deletion.');
+      if (selectedBookIds.size === 0) selectMode = false;
     }
   }
 

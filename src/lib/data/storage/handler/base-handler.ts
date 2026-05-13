@@ -21,8 +21,7 @@ import { AbortError, throwIfAborted } from '$lib/functions/replication/replicati
 import { ReplicationSaveBehavior } from '$lib/functions/replication/replication-options';
 import {
   replicationProgress$,
-  type ReplicationContext,
-  type ReplicationDeleteResult
+  type ReplicationContext
 } from '$lib/functions/replication/replication-progress';
 import pLimit from 'p-limit';
 import {
@@ -71,7 +70,7 @@ export abstract class BaseStorageHandler implements SyncEndpoint {
     booksToDelete: string[],
     cancelSignal: AbortSignal,
     keepLocalStatistics: boolean
-  ): Promise<ReplicationDeleteResult>;
+  ): Promise<number[]>;
 
   /**
    * Bind a (context, settings) pair for a sequence of per-book
@@ -165,15 +164,18 @@ export abstract class BaseStorageHandler implements SyncEndpoint {
    * loop with the standard progress/cancel/error reporting. The
    * subclass provides `deleteOne`, which returns the deleted book-card
    * id (or undefined if there was no matching card to surface).
+   * Throws AggregateError on any per-title failure (the partial
+   * `deleted` list is lost; callers should re-derive UI from a fresh
+   * listing rather than from the thrown error).
    */
   protected async deleteSequentially(
     booksToDelete: string[],
     cancelSignal: AbortSignal,
     deleteOne: (title: string) => Promise<number | undefined>
-  ): Promise<ReplicationDeleteResult> {
+  ): Promise<number[]> {
     const deleted: number[] = [];
+    const errors: Error[] = [];
     const limiter = pLimit(1);
-    let error = '';
 
     replicationProgress$.next({ progressBase: 1, maxProgress: booksToDelete.length });
 
@@ -184,8 +186,9 @@ export abstract class BaseStorageHandler implements SyncEndpoint {
           const id = await deleteOne(title);
           if (id !== undefined) deleted.push(id);
           BaseStorageHandler.reportProgress();
-        } catch (err) {
-          error = handleErrorDuringReplication(err, `Error deleting ${title}: `, [limiter]);
+        } catch (err: any) {
+          handleErrorDuringReplication(err, `Error deleting ${title}: `, [limiter]);
+          errors.push(err);
         }
       })
     );
@@ -193,7 +196,11 @@ export abstract class BaseStorageHandler implements SyncEndpoint {
     await Promise.all(tasks).catch((err) => {
       if (err instanceof AbortError) throw err;
     });
-    return { error, deleted };
+
+    if (errors.length) {
+      throw new AggregateError(errors, errors[0].message);
+    }
+    return deleted;
   }
 
   /** @internal Used by `BaseScopedHandler` subclasses. */

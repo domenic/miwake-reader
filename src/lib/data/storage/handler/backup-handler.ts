@@ -47,7 +47,7 @@ export class BackupStorageHandler extends BaseStorageHandler {
   }
 
   deleteBookData() {
-    return Promise.resolve({ error: '', deleted: [] });
+    return Promise.resolve<number[]>([]);
   }
 
   updateSettings(window: Window) {

@@ -111,7 +111,7 @@ export async function userImportBooks(
   files: File[],
   cancelSignal: AbortSignal,
   fileCountData?: Record<string, number>
-): Promise<string> {
+): Promise<void> {
   const local = getLocalEndpoint({ cacheStorageData: cacheStorageData$.getValue() });
   const importScopedSettings = {
     saveBehavior: replicationSaveBehavior$.getValue(),
@@ -119,14 +119,13 @@ export async function userImportBooks(
     readingGoalsMergeMode: readingGoalsMergeMode$.getValue()
   };
 
-  const dataIds: number[] = [];
   const tasks: Promise<void>[] = [];
   const lastBookModified = new Date().getTime();
   const progressBase = 3; // load -> save -> cover
   const maxProgress = progressBase * files.length;
   const limiter = pLimit(1);
 
-  let errorMessage = '';
+  const errors: Error[] = [];
 
   replicationProgress$.next({ progressBase, maxProgress });
   await persistLibraryStorage();
@@ -181,7 +180,6 @@ export async function userImportBooks(
           );
 
           const dataId = await scoped.saveBook(bookContent, false);
-          dataIds.push(dataId);
 
           checkCancelAndProgress(cancelSignal, false);
 
@@ -203,17 +201,17 @@ export async function userImportBooks(
 
           checkCancelAndProgress(cancelSignal, true, !bookContent.coverImage);
         } catch (error: any) {
-          errorMessage = handleErrorDuringReplication(error, `Error importing ${currentTitle}: `, [
-            limiter
-          ]);
+          handleErrorDuringReplication(error, `Error importing ${currentTitle}: `, [limiter]);
+          errors.push(new Error(`Error importing ${currentTitle}: ${error.message}`));
         }
       })
     )
   );
 
-  // Per-task errors are aggregated into errorMessage inside each
-  // task. Only AbortError needs to escape the outer await so a
-  // canceled import doesn't masquerade as a successful (partial) one.
+  // AbortError gets re-thrown from inside the per-task try (via
+  // handleErrorDuringReplication) and lands here as the rejection.
+  // Re-throw so a cancel isn't disguised as a successful (partial)
+  // import.
   await Promise.all(tasks).catch((err) => {
     if (err instanceof AbortError) throw err;
   });
@@ -235,7 +233,9 @@ export async function userImportBooks(
     });
   }
 
-  return errorMessage;
+  if (errors.length) {
+    throw new AggregateError(errors, errors[0].message);
+  }
 }
 
 /**
@@ -398,9 +398,13 @@ export async function userDeleteBooks(
   titles: string[],
   cancelSignal: AbortSignal,
   keepLocalStatistics: boolean
-): Promise<{ error: string; deleted: number[] }> {
+): Promise<void> {
   const local = getLocalEndpoint();
-  const result = await local.deleteBookData(titles, cancelSignal, keepLocalStatistics);
+  // Local delete throws on any per-id failure; the surviving deleted
+  // ids stay in IDB and `dataListChanged$` already fired, so the UI
+  // re-renders from the new book list without needing the partial set
+  // threaded through the return.
+  await local.deleteBookData(titles, cancelSignal, keepLocalStatistics);
 
   const location = syncState.location;
   if (location && titles.length) {
@@ -411,14 +415,12 @@ export async function userDeleteBooks(
       // the book row goes). Deleting the remote book folder removes
       // every file inside it regardless.
       await handler.deleteBookData(titles, cancelSignal);
-    } catch (err) {
+    } catch (err: any) {
       logger.warn(
-        `userDeleteBooks: remote-side delete failed (${err instanceof Error ? err.message : String(err)}); ` +
+        `userDeleteBooks: remote-side delete failed (${err.message}); ` +
           'local rows are gone but the next reconcile may recreate placeholders for them. ' +
           'Run Force re-sync · This device wins to push the deletion.'
       );
     }
   }
-
-  return result;
 }

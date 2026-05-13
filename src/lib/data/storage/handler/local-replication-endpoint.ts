@@ -56,7 +56,7 @@ export class LocalReplicationEndpoint implements LocalReplicationEndpointRole {
     booksToDelete: string[],
     cancelSignal: AbortSignal,
     keepLocalStatistics: boolean
-  ) {
+  ): Promise<number[]> {
     const ids: number[] = [];
     const idToTitle = new Map<number, string>();
 
@@ -68,21 +68,16 @@ export class LocalReplicationEndpoint implements LocalReplicationEndpointRole {
       }
     }
 
-    const { error, deleted } = await database
-      .deleteData(ids, idToTitle, cancelSignal, keepLocalStatistics)
-      .catch((err: Error) => {
-        // AbortError must not be stringified into the result —
-        // callers (library.userDeleteBooks) expect cancel to
-        // propagate, not look like a partial-success.
-        if (err.name === 'AbortError') throw err;
-        return { error: err.message, deleted: [] };
-      });
-
-    if (deleted.length) {
+    try {
+      return await database.deleteData(ids, idToTitle, cancelSignal, keepLocalStatistics);
+    } finally {
+      // On partial failure the AggregateError loses the per-id
+      // deleted list, but IDB still reflects whatever got through.
+      // Fire dataListChanged$ unconditionally so the UI re-renders
+      // off the actual book set rather than a stale snapshot. The
+      // redundant fire on 0-id success is one cheap no-op rerender.
       database.dataListChanged$.next();
     }
-
-    return { error, deleted };
   }
 
   async getReadingGoalsFilename(settings: ScopedSettings) {

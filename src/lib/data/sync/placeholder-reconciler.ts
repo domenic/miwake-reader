@@ -143,7 +143,7 @@ export async function pruneUnreachablePlaceholders(reachableTitles: Set<string>)
   // lastItem), statistic / lastModified (only present for hydrated
   // books, skipped via keepLocalStatistics here as a no-op safety
   // belt).
-  const { deleted } = await database.deleteData(
+  const deleted = await database.deleteData(
     ids,
     idsToTitles,
     new AbortController().signal,

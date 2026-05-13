@@ -6,10 +6,7 @@ import type {
 } from '$lib/data/database/books-db/versions/books-db';
 import type { MergeMode } from '$lib/data/merge-mode';
 import { ReplicationSaveBehavior } from '$lib/functions/replication/replication-options';
-import type {
-  ReplicationContext,
-  ReplicationDeleteResult
-} from '$lib/functions/replication/replication-progress';
+import type { ReplicationContext } from '$lib/functions/replication/replication-progress';
 import type { SyncEndpointType, SyncTitle } from '$lib/data/storage/storage-types';
 
 // Re-export so callers can import settings type alongside the
@@ -78,7 +75,7 @@ export interface BookOperations {
     booksToDelete: string[],
     cancelSignal: AbortSignal,
     keepLocalStatistics: boolean
-  ): Promise<ReplicationDeleteResult>;
+  ): Promise<number[]>;
 
   /**
    * Reading goals are app-global (no per-book context). The settings
