@@ -5,7 +5,6 @@ import type {
   BooksDbStatistic
 } from '$lib/data/database/books-db/versions/books-db';
 import { database } from '$lib/data/store';
-import { mergeReadingGoals, readingGoalSortFunction } from '$lib/data/reading-goal';
 import { ReplicationSaveBehavior } from '$lib/functions/replication/replication-options';
 import { mergeStatistics, updateStatisticToStore } from '$lib/functions/statistic-util';
 
@@ -169,35 +168,24 @@ export class FilesystemStorageHandler extends BaseStorageHandler {
     lastGoalModified: number,
     settings: ScopedSettings
   ) {
-    const isMerge = settings.readingGoalsMergeMode === 'merge';
     const { file, rootDirectory } = await this.fetchRootFile(
       BaseStorageHandler.readingGoalsFilePrefix,
       0.4
     );
+    const existingData =
+      settings.readingGoalsMergeMode === 'merge' && file
+        ? JSON.parse(await FilesystemStorageHandler.readFileObject(await file.getFile()))
+        : [];
+    const { readingGoals: toStore, filename } = BaseStorageHandler.prepareReadingGoalsForSave(
+      readingGoals,
+      existingData,
+      lastGoalModified,
+      settings
+    );
 
-    let readingGoalsToStore: BooksDbReadingGoal[] = readingGoals;
-    let newReadingGoalModified = lastGoalModified;
-
-    if (isMerge) {
-      let existingData = [];
-      if (file) {
-        const existingDataFile = await file.getFile();
-        existingData = JSON.parse(await FilesystemStorageHandler.readFileObject(existingDataFile));
-      }
-      ({ readingGoalsToStore, newReadingGoalModified } = mergeReadingGoals(
-        readingGoals,
-        existingData,
-        settings.saveBehavior === ReplicationSaveBehavior.NewOnly,
-        lastGoalModified
-      ));
-    }
-
-    readingGoalsToStore.sort(readingGoalSortFunction);
-
-    const filename = BaseStorageHandler.getReadingGoalsFileName(newReadingGoalModified);
     const savedFile = await rootDirectory.getFileHandle(filename, { create: true });
     const writer = await savedFile.createWritable();
-    await writer.write(JSON.stringify(readingGoalsToStore));
+    await writer.write(JSON.stringify(toStore));
     await writer.close();
 
     BaseStorageHandler.reportProgress(0.3);

@@ -244,31 +244,7 @@ export class StorageOAuthManager {
 
       if (token.refreshToken && token.refreshToken !== this.remoteData.refreshToken) {
         this.remoteData.refreshToken = token.refreshToken;
-
-        try {
-          const db = await database.db;
-          await db.put('storageSource', {
-            ...(storageSource ?? {}),
-            name: storageSourceName,
-            type: this.storageType,
-            // Spread remoteData so optional fields (notably the
-            // user-supplied tokenEndpoint for tenant-pinned OneDrive)
-            // survive the rewrite. A naive enumerate-and-list of
-            // {clientId, clientSecret, refreshToken} dropped them and
-            // forced silent refresh back onto the env-default endpoint
-            // on the next reload.
-            data: {
-              ...this.remoteData,
-              refreshToken: token.refreshToken
-            },
-            lastSourceModified: Date.now()
-          });
-          logger.debug(`refresh_token persisted for ${storageSourceName}`);
-        } catch (err: any) {
-          logger.error(
-            `Failed to persist refresh_token for ${storageSourceName} — silent reauth will fail on next reload: ${err.message}`
-          );
-        }
+        await this.persistRefreshToken(token.refreshToken, { bumpLastSourceModified: true });
       }
     } catch (error: any) {
       errorMessage = error.message;
@@ -368,7 +344,7 @@ export class StorageOAuthManager {
     // strict (re-auth required within hours), Google more lenient.
     if (rotatedRefreshToken && rotatedRefreshToken !== this.remoteData.refreshToken) {
       this.remoteData.refreshToken = rotatedRefreshToken;
-      await this.persistRotatedRefreshToken(rotatedRefreshToken);
+      await this.persistRefreshToken(rotatedRefreshToken);
     }
 
     const token: OAuthTokenData = {
@@ -383,7 +359,20 @@ export class StorageOAuthManager {
     return token;
   }
 
-  private async persistRotatedRefreshToken(rotatedRefreshToken: string) {
+  /**
+   * Write `refreshToken` to the storageSource record, preserving the
+   * rest of the data blob (especially per-source optional fields like
+   * the user-supplied `tokenEndpoint` for tenant-pinned OneDrive — a
+   * naive `{ clientId, clientSecret, refreshToken }` enumerate would
+   * drop them and force silent refresh back onto the env-default
+   * endpoint on the next reload).
+   *
+   * `bumpLastSourceModified` is true for interactive auth (the user
+   * just took an action; surface it as a fresh "connected at" in the
+   * UI) and false for silent refresh (a background token rotation
+   * isn't a connection event).
+   */
+  private async persistRefreshToken(refreshToken: string, { bumpLastSourceModified = false } = {}) {
     if (!this.remoteData) return;
     try {
       const db = await database.db;
@@ -392,13 +381,14 @@ export class StorageOAuthManager {
         ...(existing ?? {}),
         name: this.storageSourceName,
         type: this.storageType,
-        data: { ...this.remoteData, refreshToken: rotatedRefreshToken },
-        lastSourceModified: Date.now()
+        data: { ...this.remoteData, refreshToken },
+        lastSourceModified:
+          bumpLastSourceModified || !existing ? Date.now() : existing.lastSourceModified
       });
-      logger.debug(`rotated refresh_token persisted for ${this.storageSourceName}`);
+      logger.debug(`refresh_token persisted for ${this.storageSourceName}`);
     } catch (err: any) {
       logger.error(
-        `Failed to persist rotated refresh_token for ${this.storageSourceName} — silent reauth may fail on next reload: ${err.message}`
+        `Failed to persist refresh_token for ${this.storageSourceName} — silent reauth may fail on next reload: ${err.message}`
       );
     }
   }

@@ -5,7 +5,6 @@ import type {
   BooksDbStatistic
 } from '$lib/data/database/books-db/versions/books-db';
 import { logger } from '$lib/data/logger';
-import { mergeReadingGoals, readingGoalSortFunction } from '$lib/data/reading-goal';
 import {
   BaseScopedHandler,
   BaseStorageHandler,
@@ -206,28 +205,19 @@ export abstract class ApiStorageHandler extends BaseStorageHandler {
       0.2,
       cancelSignal
     );
-
-    let readingGoalsToStore: BooksDbReadingGoal[] = readingGoals;
-    let newReadingGoalModified = lastGoalModified;
-
-    if (isMerge) {
-      ({ readingGoalsToStore, newReadingGoalModified } = mergeReadingGoals(
-        readingGoals,
-        existingData,
-        settings.saveBehavior === ReplicationSaveBehavior.NewOnly,
-        lastGoalModified
-      ));
-    }
-
-    const filename = BaseStorageHandler.getReadingGoalsFileName(newReadingGoalModified);
-    readingGoalsToStore.sort(readingGoalSortFunction);
+    const { readingGoals: toStore, filename } = BaseStorageHandler.prepareReadingGoalsForSave(
+      readingGoals,
+      existingData ?? [],
+      lastGoalModified,
+      settings
+    );
 
     await this.upload({
       folderId: this.rootId,
       name: filename,
       files: [],
       externalFile: file,
-      data: JSON.stringify(readingGoalsToStore),
+      data: JSON.stringify(toStore),
       rootFilePrefix: BaseStorageHandler.readingGoalsFilePrefix,
       cancelSignal,
       title: ''
@@ -293,7 +283,9 @@ export abstract class ApiStorageHandler extends BaseStorageHandler {
         // cancellable mid-flight.
         if (cancelSignal) {
           if (cancelSignal.aborted) {
-            xhr.abort();
+            // xhr.abort() on an UNSENT request is a no-op (no 'abort'
+            // event fires), so reject directly or the Promise hangs.
+            reject(new AbortError());
             return;
           }
           abortHandler = () => xhr.abort();

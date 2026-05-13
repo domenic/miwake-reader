@@ -8,6 +8,7 @@ import {
 } from '$lib/data/database/books-db/versions/books-db';
 import type { Section } from '$lib/data/database/books-db/versions/v4/books-db-v4';
 import { storageRootName } from '$lib/data/env';
+import { mergeReadingGoals, readingGoalSortFunction } from '$lib/data/reading-goal';
 import type { SyncEndpointType, SyncTitle } from '$lib/data/storage/storage-types';
 import type {
   ScopedBookOperations,
@@ -325,6 +326,40 @@ export abstract class BaseStorageHandler implements SyncEndpoint {
       : 0;
 
     return `statistics_${exporterVersion}_${currentDbVersion}_${lastStatisticModified}_${charactersRead}_${readingTime}_${minReadingSpeed}_${altMinReadingSpeed}_${lastReadingSpeed}_${maxReadingSpeed}_${averageReadingTime}_${averageWeightedReadingTime}_${averageCharactersRead}_${averageWeightedCharactersRead}_${averageReadingSpeed}_${averageWeightedReadingSpeed}_${finishDate}.json`;
+  }
+
+  /**
+   * Run the merge-mode pipeline (merge with existing, sort, derive
+   * filename) for a reading-goals save. The api / fs handler scope-
+   * less save methods only differ in I/O — this collapses the shared
+   * transform into one place.
+   */
+  static prepareReadingGoalsForSave(
+    readingGoals: BooksDbReadingGoal[],
+    existingData: BooksDbReadingGoal[],
+    lastGoalModified: number,
+    settings: ScopedSettings
+  ): {
+    readingGoals: BooksDbReadingGoal[];
+    lastGoalModified: number;
+    filename: string;
+  } {
+    let goals = readingGoals;
+    let modified = lastGoalModified;
+    if (settings.readingGoalsMergeMode === 'merge') {
+      ({ readingGoalsToStore: goals, newReadingGoalModified: modified } = mergeReadingGoals(
+        readingGoals,
+        existingData,
+        settings.saveBehavior === ReplicationSaveBehavior.NewOnly,
+        lastGoalModified
+      ));
+    }
+    goals.sort(readingGoalSortFunction);
+    return {
+      readingGoals: goals,
+      lastGoalModified: modified,
+      filename: BaseStorageHandler.getReadingGoalsFileName(modified)
+    };
   }
 
   static getReadingGoalsFileName(lastGoalModified: number) {
