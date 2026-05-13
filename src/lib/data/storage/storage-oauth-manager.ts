@@ -346,7 +346,12 @@ export class StorageOAuthManager {
       return undefined;
     }
 
-    const { access_token: accessToken, expires_in: expiration, scope } = response;
+    const {
+      access_token: accessToken,
+      expires_in: expiration,
+      scope,
+      refresh_token: rotatedRefreshToken
+    } = response;
 
     if (!accessToken || !expiration || !scope) {
       this.remoteData.refreshToken = undefined;
@@ -354,6 +359,16 @@ export class StorageOAuthManager {
         `A required authentication property was not found\nhad token: ${!!accessToken}\nhad expiration: ${!!expiration}\nhad scope: ${!!scope}`
       );
       return undefined;
+    }
+
+    // Both Google and Microsoft rotate the refresh_token on every
+    // `grant_type=refresh_token` exchange and (eventually) invalidate
+    // the previous one. If we don't capture and persist the rotated
+    // RT, subsequent silent refreshes start failing — Microsoft is
+    // strict (re-auth required within hours), Google more lenient.
+    if (rotatedRefreshToken && rotatedRefreshToken !== this.remoteData.refreshToken) {
+      this.remoteData.refreshToken = rotatedRefreshToken;
+      await this.persistRotatedRefreshToken(rotatedRefreshToken);
     }
 
     const token: OAuthTokenData = {
@@ -366,6 +381,26 @@ export class StorageOAuthManager {
     storageOAuthTokens.set(this.storageSourceName, token);
 
     return token;
+  }
+
+  private async persistRotatedRefreshToken(rotatedRefreshToken: string) {
+    if (!this.remoteData) return;
+    try {
+      const db = await database.db;
+      const existing = await db.get('storageSource', this.storageSourceName);
+      await db.put('storageSource', {
+        ...(existing ?? {}),
+        name: this.storageSourceName,
+        type: this.storageType,
+        data: { ...this.remoteData, refreshToken: rotatedRefreshToken },
+        lastSourceModified: Date.now()
+      });
+      logger.debug(`rotated refresh_token persisted for ${this.storageSourceName}`);
+    } catch (err: any) {
+      logger.error(
+        `Failed to persist rotated refresh_token for ${this.storageSourceName} — silent reauth may fail on next reload: ${err.message}`
+      );
+    }
   }
 
   private static base64Url(buffer: Uint8Array) {
