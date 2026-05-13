@@ -17,7 +17,7 @@ import type {
 } from '$lib/data/storage/handler/handler-roles';
 import { handleErrorDuringReplication } from '$lib/functions/replication/error-handler';
 import { exporterVersion } from '$lib/functions/replication/exporter-version';
-import { throwIfAborted } from '$lib/functions/replication/replication-error';
+import { AbortError, throwIfAborted } from '$lib/functions/replication/replication-error';
 import { ReplicationSaveBehavior } from '$lib/functions/replication/replication-options';
 import {
   replicationProgress$,
@@ -190,7 +190,9 @@ export abstract class BaseStorageHandler implements SyncEndpoint {
       })
     );
 
-    await Promise.all(tasks).catch(() => {});
+    await Promise.all(tasks).catch((err) => {
+      if (err instanceof AbortError) throw err;
+    });
     return { error, deleted };
   }
 

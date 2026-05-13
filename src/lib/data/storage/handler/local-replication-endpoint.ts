@@ -70,7 +70,13 @@ export class LocalReplicationEndpoint implements LocalReplicationEndpointRole {
 
     const { error, deleted } = await database
       .deleteData(ids, idToTitle, cancelSignal, keepLocalStatistics)
-      .catch((catchedError) => ({ error: catchedError.message, deleted: [] }));
+      .catch((err: Error) => {
+        // AbortError must not be stringified into the result —
+        // callers (library.userDeleteBooks) expect cancel to
+        // propagate, not look like a partial-success.
+        if (err.name === 'AbortError') throw err;
+        return { error: err.message, deleted: [] };
+      });
 
     if (deleted.length) {
       database.dataListChanged$.next();

@@ -41,7 +41,7 @@ import {
   replicateData
 } from '$lib/functions/replication/replicator';
 import { handleErrorDuringReplication } from '$lib/functions/replication/error-handler';
-import { throwIfAborted } from '$lib/functions/replication/replication-error';
+import { AbortError, throwIfAborted } from '$lib/functions/replication/replication-error';
 import {
   replicationProgress$,
   type ReplicationContext
@@ -211,7 +211,12 @@ export async function userImportBooks(
     )
   );
 
-  await Promise.all(tasks).catch(() => {});
+  // Per-task errors are aggregated into errorMessage inside each
+  // task. Only AbortError needs to escape the outer await so a
+  // canceled import doesn't masquerade as a successful (partial) one.
+  await Promise.all(tasks).catch((err) => {
+    if (err instanceof AbortError) throw err;
+  });
 
   if (fileCountData && newFileData) {
     const a = document.createElement('a');
@@ -308,7 +313,7 @@ export async function userDeleteStatisticEntries(
     readingGoalsMergeMode: readingGoalsMergeMode$.getValue()
   };
   try {
-    const error = await replicateData({
+    await replicateData({
       library: local,
       endpoint: handler,
       direction: 'push',
@@ -318,12 +323,9 @@ export async function userDeleteStatisticEntries(
       sourceSettings: deletePushSettings,
       targetSettings: deletePushSettings
     });
-    if (error) {
-      logger.warn(`userDeleteStatisticEntries: remote push reported "${error}"`);
-    }
-  } catch (err) {
+  } catch (err: any) {
     logger.warn(
-      `userDeleteStatisticEntries: remote push failed (${err instanceof Error ? err.message : String(err)}); ` +
+      `userDeleteStatisticEntries: remote push failed: ${err.message}; ` +
         'local rows are gone but other devices may still see the deleted stats until next force-resync.'
     );
   }
@@ -343,13 +345,42 @@ export async function userSaveReadingGoals(
 }
 
 /**
- * Delete a reading goal (or, when given undefined, all stored goals)
- * and trigger READING_GOALS sync so the deletion replaces the
- * previous file on the remote.
+ * Delete a reading goal (or, when given undefined, all stored goals).
+ * Mirrors `userDeleteStatisticEntries`: force-push with Overwrite +
+ * replace so the empty / shrunken local set actually replaces the
+ * cloud's populated file, rather than getting merged back to its
+ * pre-delete state under the user's ambient merge mode.
  */
 export async function userDeleteReadingGoal(date: string | undefined): Promise<void> {
   await database.deleteReadingGoal(date);
-  triggerSync(StorageDataType.READING_GOALS, READING_GOALS_CTX);
+
+  const location = syncState.location;
+  if (!location) return;
+
+  const local = getLocalEndpoint({ cacheStorageData: cacheStorageData$.getValue() });
+  const handler = endpointForCurrentLocation(location);
+  const deletePushSettings = {
+    saveBehavior: ReplicationSaveBehavior.Overwrite,
+    statisticsMergeMode: statisticsMergeMode$.getValue(),
+    readingGoalsMergeMode: 'replace' as const
+  };
+  try {
+    await replicateData({
+      library: local,
+      endpoint: handler,
+      direction: 'push',
+      refreshDataList: false,
+      contexts: [],
+      dataToReplicate: [StorageDataType.READING_GOALS],
+      sourceSettings: deletePushSettings,
+      targetSettings: deletePushSettings
+    });
+  } catch (err: any) {
+    logger.warn(
+      `userDeleteReadingGoal: remote push failed: ${err.message}; ` +
+        'local goals are gone but other devices may still see the deleted goals until next force-resync.'
+    );
+  }
 }
 
 /**

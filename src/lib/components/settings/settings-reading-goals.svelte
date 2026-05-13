@@ -208,9 +208,6 @@
         : 'Your archived reading goal will be deleted.';
     }
 
-    dialogMessage +=
-      '\n\nExecute a one-time sync with an export behavior of "overwrite" and/or a reading goals merge mode of "replace" to apply deletions to other devices.';
-
     const wasCanceled = await confirmDialog({
       title: 'Data Deletion',
       message: dialogMessage

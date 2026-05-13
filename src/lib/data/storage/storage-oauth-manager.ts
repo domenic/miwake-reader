@@ -304,21 +304,27 @@ export class StorageOAuthManager {
       form.append('client_secret', this.remoteData.clientSecret);
     }
 
-    const response = await fetch(refreshUrl, { method: 'POST', body: form })
-      .then(async (httpResponse) => {
-        if (!httpResponse.ok) {
-          throw new Error(await convertAuthErrorResponse(httpResponse));
+    let response: any;
+    try {
+      const httpResponse = await fetch(refreshUrl, { method: 'POST', body: form });
+      if (!httpResponse.ok) {
+        const errorBody = await convertAuthErrorResponse(httpResponse);
+        logger.error(`Unable to refresh token for ${this.storageSourceName}: ${errorBody}`);
+        // 4xx: the RT itself is bad (rotated, revoked, invalid_grant).
+        // Clear it so the next caller hits the interactive auth path.
+        // 5xx / network errors are transient: keep the RT so the next
+        // ambient cycle can retry rather than forcing the user to
+        // re-sign-in over a single bad gateway.
+        if (httpResponse.status >= 400 && httpResponse.status < 500) {
+          this.remoteData.refreshToken = undefined;
         }
-
-        return httpResponse.json();
-      })
-      .catch((error) => {
-        logger.error(`Unable to refresh token for ${this.storageSourceName}: ${error.message}`);
         return undefined;
-      });
-
-    if (!response) {
-      this.remoteData.refreshToken = undefined;
+      }
+      response = await httpResponse.json();
+    } catch (err: any) {
+      // fetch() itself rejected (network down, DNS failure, TLS).
+      // Transient — keep the RT.
+      logger.error(`Unable to refresh token for ${this.storageSourceName}: ${err.message}`);
       return undefined;
     }
 

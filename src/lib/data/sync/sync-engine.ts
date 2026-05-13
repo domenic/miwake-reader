@@ -312,7 +312,7 @@ async function pushOne(context: ReplicationContext, types: StorageDataType[]): P
       await handler.authenticate(null, true);
     }
     const settings = scopedSettings();
-    const error = await replicateData({
+    await replicateData({
       library: local,
       endpoint: handler,
       direction: 'push',
@@ -322,7 +322,6 @@ async function pushOne(context: ReplicationContext, types: StorageDataType[]): P
       sourceSettings: settings,
       targetSettings: settings
     });
-    if (error) throw new Error(error);
     markSynced();
   } catch (err) {
     const recoverable = reportSyncError('push', err);
@@ -337,8 +336,13 @@ async function drainReplayQueue(): Promise<void> {
   for (const op of queue) {
     try {
       await op();
-    } catch (err) {
-      logger.warn(`replay failed: ${err instanceof Error ? err.message : String(err)}`);
+    } catch (err: any) {
+      // pushOne (the only enqueueReplay producer today) catches its
+      // own errors and self-re-enqueues if recoverable, so this catch
+      // is rarely hit. Re-enqueue anyway so a future op that *does*
+      // throw doesn't get silently dropped along with the user's edit.
+      logger.warn(`replay failed, re-enqueuing: ${err.message}`);
+      enqueueReplay(op);
     }
   }
 }
@@ -397,7 +401,7 @@ export async function reconcileForBookOpen(context: ReplicationContext): Promise
       await handler.authenticate(null, true);
     }
     const settings = scopedSettings();
-    const error = await replicateData({
+    await replicateData({
       library: local,
       endpoint: handler,
       direction: 'pull',
@@ -407,7 +411,6 @@ export async function reconcileForBookOpen(context: ReplicationContext): Promise
       sourceSettings: settings,
       targetSettings: settings
     });
-    if (error) throw new Error(error);
     markSynced();
   } catch (err) {
     reportSyncError('reconcileForBookOpen', err);
@@ -496,7 +499,7 @@ export async function forceFullResync(direction: ForceResyncDirection): Promise<
       if (direction === 'newest' || direction === 'remote-wins') {
         logger.debug(`forceFullResync: pull ${location.kind} → local`);
         // Source (remote) gets the override; target (local) stays default.
-        const error = await replicateData({
+        await replicateData({
           library: localEndpoint(),
           endpoint: endpointFor(location),
           direction: 'pull',
@@ -506,11 +509,10 @@ export async function forceFullResync(direction: ForceResyncDirection): Promise<
           sourceSettings: scopedSettings(pullSourceOverride),
           targetSettings: scopedSettings()
         });
-        if (error) throw new Error(error);
       }
       if (direction === 'newest' || direction === 'local-wins') {
         logger.debug(`forceFullResync: push local → ${location.kind}`);
-        const error = await replicateData({
+        await replicateData({
           library: localEndpoint(),
           endpoint: endpointFor(location),
           direction: 'push',
@@ -520,7 +522,6 @@ export async function forceFullResync(direction: ForceResyncDirection): Promise<
           sourceSettings: scopedSettings(pushSourceOverride),
           targetSettings: scopedSettings()
         });
-        if (error) throw new Error(error);
       }
       markSynced();
     } catch (err) {

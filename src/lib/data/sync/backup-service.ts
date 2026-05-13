@@ -261,7 +261,7 @@ export async function importBackup(
     if (choices.bookmarks) types.push(StorageDataType.PROGRESS);
     if (choices.statistics) types.push(StorageDataType.STATISTICS);
 
-    const error = await replicateData({
+    await replicateData({
       library: browserHandler,
       endpoint: backupHandler,
       direction: 'pull',
@@ -271,7 +271,6 @@ export async function importBackup(
       sourceSettings: importSettings,
       targetSettings: browserImportSettings
     });
-    if (error) throw new Error(error);
 
     booksImported += 1;
     if (choices.bookmarks) bookmarksImported += 1;
@@ -280,7 +279,7 @@ export async function importBackup(
 
   let readingGoalsImported = false;
   if (selection.readingGoals && catalog.hasReadingGoals) {
-    const error = await replicateData({
+    await replicateData({
       library: browserHandler,
       endpoint: backupHandler,
       direction: 'pull',
@@ -290,7 +289,6 @@ export async function importBackup(
       sourceSettings: importSettings,
       targetSettings: browserImportSettings
     });
-    if (error) throw new Error(error);
 
     // Restore the localStorage current goal alongside the IDB archive
     // (mirrors the export side). Older ZIPs without this side file

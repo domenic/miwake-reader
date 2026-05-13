@@ -10,7 +10,7 @@ import { storage } from '$lib/data/window/navigator/storage';
 import { StorageDataType } from '$lib/data/storage/storage-types';
 import { database } from '$lib/data/store';
 import { handleErrorDuringReplication } from '$lib/functions/replication/error-handler';
-import { throwIfAborted } from '$lib/functions/replication/replication-error';
+import { AbortError, throwIfAborted } from '$lib/functions/replication/replication-error';
 import {
   replicationProgress$,
   type ReplicationContext
@@ -35,6 +35,12 @@ export type ReplicationDirection = 'push' | 'pull';
  * up-to-date check while the target stays default; backup-import is
  * zip-wins on the source / browser-default on the target. Symmetric
  * callers (ambient push, newest-resync) pass the same object twice.
+ *
+ * Resolves on success. Throws on any failure (including AbortError on
+ * cancel). Per-book partial successes are observable via IDB side
+ * effects (dataListChanged$ / bookmarksChanged$); callers that care
+ * about which book worked should subscribe to those rather than parse
+ * the thrown error.
  */
 export interface ReplicateDataOptions {
   library: LocalReplicationEndpoint;
@@ -107,7 +113,7 @@ export async function replicateData(opts: ReplicateDataOptions) {
   const replicationLimiter = pLimit(1);
   const replicationTasks: Promise<void>[] = [];
 
-  let errorMessage = '';
+  const errors: Error[] = [];
   let processed = 0;
 
   replicationProgress$.next({ maxProgress });
@@ -214,12 +220,18 @@ export async function replicateData(opts: ReplicateDataOptions) {
 
           processed += 1;
         } catch (error: any) {
-          errorMessage = handleErrorDuringReplication(
+          // handleErrorDuringReplication re-throws AbortError and
+          // logs other errors as a side effect. Collect non-abort
+          // errors (with a per-context prefix so the sync-health
+          // banner can name the offending book) to throw at the end
+          // as an AggregateError.
+          handleErrorDuringReplication(
             error,
             `Error Processing ${context.title}: `,
             [replicationLimiter],
             progressBaseForBookOperations
           );
+          errors.push(new Error(`Error Processing ${context.title}: ${error.message}`));
         }
       })
     )
@@ -250,27 +262,35 @@ export async function replicateData(opts: ReplicateDataOptions) {
             checkCancelAndProgress(cancelSignal, false, !readingGoals);
           }
           processed += 1;
-        } catch (error) {
-          errorMessage = handleErrorDuringReplication(
+        } catch (error: any) {
+          handleErrorDuringReplication(
             error,
             `Error Processing Reading Goals: `,
             [replicationLimiter],
             progressBaseForOtherOperations
           );
+          errors.push(new Error(`Error Processing Reading Goals: ${error.message}`));
         }
       })
     );
   }
 
-  await Promise.all(replicationTasks).catch(() => {});
+  // AbortError gets re-thrown from inside the per-task try (via
+  // handleErrorDuringReplication) and lands here as the rejection.
+  // Re-throw so a cancel isn't disguised as a successful resolution.
+  await Promise.all(replicationTasks).catch((err) => {
+    if (err instanceof AbortError) throw err;
+  });
 
   if (target instanceof BackupStorageHandler) {
-    await target.createExportZip(document, cancelSignal?.aborted || !processed).catch((error) => {
-      errorMessage = error.message;
+    await target.createExportZip(document, cancelSignal?.aborted || !processed).catch((err) => {
+      errors.push(err);
     });
   }
 
-  return errorMessage;
+  if (errors.length) {
+    throw new AggregateError(errors, errors[0].message);
+  }
 }
 
 export async function persistLibraryStorage() {
