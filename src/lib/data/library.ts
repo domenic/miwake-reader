@@ -25,13 +25,7 @@ import type {
   BooksDbReadingGoal,
   BooksDbStatistic
 } from '$lib/data/database/books-db/versions/books-db';
-import {
-  cacheStorageData$,
-  database,
-  readingGoalsMergeMode$,
-  replicationSaveBehavior$,
-  statisticsMergeMode$
-} from '$lib/data/store';
+import { cacheStorageData$, database } from '$lib/data/store';
 import { logger } from '$lib/data/logger';
 import type { MergeMode } from '$lib/data/merge-mode';
 import { ReplicationSaveBehavior } from '$lib/functions/replication/replication-options';
@@ -53,7 +47,7 @@ import type { LoadData } from '$lib/functions/file-loaders/types';
 import { getLocalEndpoint, getSyncEndpoint } from '$lib/data/storage/storage-handler-factory';
 import { StorageDataType, SyncEndpointType } from '$lib/data/storage/storage-types';
 import { cloudSourceName, FS_SOURCE_NAME } from '$lib/data/sync/sync-helpers';
-import { triggerSync } from '$lib/data/sync/sync-engine';
+import { scopedSettings, triggerSync } from '$lib/data/sync/sync-engine';
 import { syncState, type SyncLocation } from '$lib/data/sync/sync-store.svelte';
 import pLimit from 'p-limit';
 
@@ -113,11 +107,7 @@ export async function userImportBooks(
   fileCountData?: Record<string, number>
 ): Promise<void> {
   const local = getLocalEndpoint();
-  const importScopedSettings = {
-    saveBehavior: replicationSaveBehavior$.getValue(),
-    statisticsMergeMode: statisticsMergeMode$.getValue(),
-    readingGoalsMergeMode: readingGoalsMergeMode$.getValue()
-  };
+  const importScopedSettings = scopedSettings();
 
   const tasks: Promise<void>[] = [];
   const lastBookModified = new Date().getTime();
@@ -299,15 +289,6 @@ export async function userDeleteStatisticEntries(
   const local = getLocalEndpoint();
   const handler = endpointForCurrentLocation(location);
   const contexts: ReplicationContext[] = bookTitles.map((title) => ({ title }));
-  // Force-replace semantics: source.getFilenameForRecentCheck returns
-  // undefined under Overwrite, so the up-to-date check short-circuits;
-  // 'replace' on the target keeps the cloud handler from
-  // merging the empty array back into its existing populated file.
-  const deletePushSettings = {
-    saveBehavior: ReplicationSaveBehavior.Overwrite,
-    statisticsMergeMode: 'replace' as const,
-    readingGoalsMergeMode: readingGoalsMergeMode$.getValue()
-  };
   try {
     await replicateData({
       library: local,
@@ -316,8 +297,9 @@ export async function userDeleteStatisticEntries(
       refreshDataList: false,
       contexts,
       dataToReplicate: [StorageDataType.STATISTICS],
-      sourceSettings: deletePushSettings,
-      targetSettings: deletePushSettings
+      // Force-replace: the shrunken/emptied local set is authoritative.
+      // Ambient merge-mode would otherwise merge the remote rows back.
+      settings: scopedSettings({ winnerTakesAll: true })
     });
   } catch (err: any) {
     logger.warn(
@@ -355,11 +337,6 @@ export async function userDeleteReadingGoal(date: string | undefined): Promise<v
 
   const local = getLocalEndpoint();
   const handler = endpointForCurrentLocation(location);
-  const deletePushSettings = {
-    saveBehavior: ReplicationSaveBehavior.Overwrite,
-    statisticsMergeMode: statisticsMergeMode$.getValue(),
-    readingGoalsMergeMode: 'replace' as const
-  };
   try {
     await replicateData({
       library: local,
@@ -368,8 +345,8 @@ export async function userDeleteReadingGoal(date: string | undefined): Promise<v
       refreshDataList: false,
       contexts: [],
       dataToReplicate: [StorageDataType.READING_GOALS],
-      sourceSettings: deletePushSettings,
-      targetSettings: deletePushSettings
+      // Force-replace: see comment in userDeleteStatisticEntries.
+      settings: scopedSettings({ winnerTakesAll: true })
     });
   } catch (err: any) {
     logger.warn(

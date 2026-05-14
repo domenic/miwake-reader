@@ -300,7 +300,12 @@ export class StorageOAuthManager {
     form.append('refresh_token', this.remoteData.refreshToken);
     form.append('grant_type', 'refresh_token');
 
-    if (this.storageType === SyncEndpointType.GDRIVE) {
+    // Send client_secret whenever we have one. GDrive's default app is
+    // confidential and always sets one. OneDrive's default app is public
+    // (no secret), but custom OneDrive credentials may be confidential
+    // — without the secret the refresh request is rejected and silent
+    // sync breaks until the user reconnects.
+    if (this.remoteData.clientSecret) {
       form.append('client_secret', this.remoteData.clientSecret);
     }
 

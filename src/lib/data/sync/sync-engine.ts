@@ -18,7 +18,6 @@ import {
   database,
   isOnline$,
   readingGoalsMergeMode$,
-  replicationSaveBehavior$,
   statisticsMergeMode$
 } from '$lib/data/store';
 import { syncState, type SyncLocation } from '$lib/data/sync/sync-store.svelte';
@@ -31,15 +30,37 @@ import { logger } from '$lib/data/logger';
 // ---------------------------------------------------------------------
 
 /**
- * `saveBehaviorOverride` is how force-resync breaks the replicator's
- * "skip if up-to-date" check. Set on the *source* of a given leg:
- * when saveBehavior === Overwrite, getFilenameForRecentCheck returns
- * undefined, the target's isPresentAndUpToDate returns false, and the
- * pull/push always runs.
+ * Build the per-replicateData settings bag.
+ *
+ * `winnerTakesAll: true` forces every knob the replicator's "this
+ * target row survives" decision touches into a "source replaces
+ * target" position at once:
+ *   - `saveBehavior=Overwrite` makes `getFilenameForRecentCheck`
+ *     return undefined (replicator-level up-to-date short-circuit
+ *     bypassed) AND makes the target's save method skip its own
+ *     NewOnly timestamp check.
+ *   - statistics / reading-goals merge modes go to `'replace'` so
+ *     `storeStatistics` / `storeReadingGoals` overwrite the existing
+ *     set instead of merging in target-only rows.
+ *
+ * Used by force-resync (`local-wins` / `remote-wins`), backup-import
+ * (`zip-wins`), and the single-type winner-takes-all pushes from
+ * `userDeleteStatisticEntries` / `userDeleteReadingGoal`. Default
+ * (winnerTakesAll=false) honors the user's ambient preferences.
  */
-function scopedSettings(saveBehaviorOverride?: ReplicationSaveBehavior): ScopedSettings {
+export function scopedSettings({ winnerTakesAll = false } = {}): ScopedSettings {
+  if (winnerTakesAll) {
+    return {
+      saveBehavior: ReplicationSaveBehavior.Overwrite,
+      statisticsMergeMode: 'replace',
+      readingGoalsMergeMode: 'replace'
+    };
+  }
+  // Ambient/newest semantics imply NewOnly: per-item timestamp
+  // protection is part of the contract, not a tunable. The merge
+  // modes ARE user-tunable (Advanced > merge mode).
   return {
-    saveBehavior: saveBehaviorOverride ?? replicationSaveBehavior$.getValue(),
+    saveBehavior: ReplicationSaveBehavior.NewOnly,
     statisticsMergeMode: statisticsMergeMode$.getValue(),
     readingGoalsMergeMode: readingGoalsMergeMode$.getValue()
   };
@@ -311,7 +332,6 @@ async function pushOne(context: ReplicationContext, types: StorageDataType[]): P
     if (location.kind === 'cloud') {
       await handler.authenticate(null, true);
     }
-    const settings = scopedSettings();
     await replicateData({
       library: local,
       endpoint: handler,
@@ -319,8 +339,7 @@ async function pushOne(context: ReplicationContext, types: StorageDataType[]): P
       refreshDataList: false,
       contexts: [context],
       dataToReplicate: types,
-      sourceSettings: settings,
-      targetSettings: settings
+      settings: scopedSettings()
     });
     markSynced();
   } catch (err) {
@@ -400,7 +419,6 @@ export async function reconcileForBookOpen(context: ReplicationContext): Promise
       logger.debug('reconcileForBookOpen: cloud authenticate (silent)');
       await handler.authenticate(null, true);
     }
-    const settings = scopedSettings();
     await replicateData({
       library: local,
       endpoint: handler,
@@ -408,8 +426,7 @@ export async function reconcileForBookOpen(context: ReplicationContext): Promise
       refreshDataList: false,
       contexts: [context],
       dataToReplicate: types,
-      sourceSettings: settings,
-      targetSettings: settings
+      settings: scopedSettings()
     });
     markSynced();
   } catch (err) {
@@ -446,16 +463,12 @@ export async function forceFullResync(direction: ForceResyncDirection): Promise<
     StorageDataType.READING_GOALS
   ];
 
-  // In a winner-takes-all direction, override the *source* handler's
-  // saveBehavior to Overwrite so replicator's getFilenameForRecentCheck
-  // returns undefined, the target's isPresentAndUpToDate returns false,
-  // and the pull/push always runs instead of short-circuiting on a
-  // local-newer timestamp. 'newest' keeps the default (NewOnly) so the
-  // per-item wins-by-timestamp behavior is preserved.
-  const pullSourceOverride: ReplicationSaveBehavior | undefined =
-    direction === 'remote-wins' ? ReplicationSaveBehavior.Overwrite : undefined;
-  const pushSourceOverride: ReplicationSaveBehavior | undefined =
-    direction === 'local-wins' ? ReplicationSaveBehavior.Overwrite : undefined;
+  // Each leg's settings encode the user's resolution: 'newest' uses
+  // ambient prefs (per-item wins-by-timestamp); the winner-takes-all
+  // legs force every "target wins" knob to "source wins" via
+  // scopedSettings({ winnerTakesAll: true }).
+  const pullSettings = scopedSettings({ winnerTakesAll: direction === 'remote-wins' });
+  const pushSettings = scopedSettings({ winnerTakesAll: direction === 'local-wins' });
 
   beginLongRunning();
   try {
@@ -491,14 +504,12 @@ export async function forceFullResync(direction: ForceResyncDirection): Promise<
 
     logger.debug(
       `forceFullResync: direction=${direction}, ` +
-        `pullContexts=${pullContexts.length}, pushContexts=${pushContexts.length}, ` +
-        `pullOverride=${pullSourceOverride ?? 'default'}, pushOverride=${pushSourceOverride ?? 'default'}`
+        `pullContexts=${pullContexts.length}, pushContexts=${pushContexts.length}`
     );
 
     try {
       if (direction === 'newest' || direction === 'remote-wins') {
         logger.debug(`forceFullResync: pull ${location.kind} → local`);
-        // Source (remote) gets the override; target (local) stays default.
         await replicateData({
           library: localEndpoint(),
           endpoint: endpointFor(location),
@@ -506,8 +517,7 @@ export async function forceFullResync(direction: ForceResyncDirection): Promise<
           refreshDataList: true,
           contexts: pullContexts,
           dataToReplicate: types,
-          sourceSettings: scopedSettings(pullSourceOverride),
-          targetSettings: scopedSettings()
+          settings: pullSettings
         });
       }
       if (direction === 'newest' || direction === 'local-wins') {
@@ -519,8 +529,7 @@ export async function forceFullResync(direction: ForceResyncDirection): Promise<
           refreshDataList: true,
           contexts: pushContexts,
           dataToReplicate: types,
-          sourceSettings: scopedSettings(pushSourceOverride),
-          targetSettings: scopedSettings()
+          settings: pushSettings
         });
       }
       markSynced();

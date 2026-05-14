@@ -5,20 +5,15 @@ import type {
   BackupSelection
 } from '$lib/components/backup/backup-types';
 import { BlobReader, ZipReader } from '@zip.js/zip.js';
-import {
-  database,
-  lastReadingGoalsModified$,
-  readingGoalsMergeMode$,
-  statisticsMergeMode$
-} from '$lib/data/store';
+import { database, lastReadingGoalsModified$ } from '$lib/data/store';
 import { localStoragePreferences } from '$lib/data/internal/writable-storage-subject';
 import { pagePath } from '$lib/data/env';
 import { BackupStorageHandler } from '$lib/data/storage/handler/backup-handler';
 import { BaseStorageHandler } from '$lib/data/storage/handler/base-handler';
 import { getLocalEndpoint, getSyncEndpoint } from '$lib/data/storage/storage-handler-factory';
 import { StorageDataType, SyncEndpointType } from '$lib/data/storage/storage-types';
-import { ReplicationSaveBehavior } from '$lib/functions/replication/replication-options';
 import { replicateData } from '$lib/functions/replication/replicator';
+import { scopedSettings } from '$lib/data/sync/sync-engine';
 
 /**
  * Reading-goal data lives in two places: archived goals in IDB's
@@ -85,11 +80,11 @@ export async function exportBackup(selection: BackupSelection): Promise<void> {
   backupHandler.clearData();
 
   const db = await database.db;
-  const exportSettings = {
-    saveBehavior: ReplicationSaveBehavior.Overwrite,
-    statisticsMergeMode: statisticsMergeMode$.getValue(),
-    readingGoalsMergeMode: readingGoalsMergeMode$.getValue()
-  };
+  // Export writes the snapshot the user is exporting — the ZIP is
+  // authoritative for whatever ends up in it, so use winner-takes-all
+  // settings (Overwrite + replace). The merge-mode fields are unused
+  // by the BackupStorageHandler save paths but required by the type.
+  const exportSettings = scopedSettings({ winnerTakesAll: true });
 
   for (const [bookId, choices] of selection.perBook) {
     const book = await database.getData(bookId);
@@ -225,28 +220,16 @@ export async function importBackup(
   selection: BackupSelection,
   direction: BackupImportDirection
 ): Promise<BackupImportResult> {
-  // ZIP-wins: source's getFilenameForRecentCheck returns undefined
-  // when saveBehavior=Overwrite, so the replicator's per-type
-  // up-to-date check always falls through and the ZIP version is
-  // written every time. Keep-newest leaves NewOnly in place so each
-  // item's timestamp wins.
-  const sourceBehavior =
-    direction === 'zip-wins' ? ReplicationSaveBehavior.Overwrite : ReplicationSaveBehavior.NewOnly;
-
+  // ZIP-wins forces every "target survives" knob into "source
+  // replaces target" mode at once via scopedSettings. Keep-newest
+  // uses the user's ambient prefs so each item still wins by
+  // timestamp.
   const backupHandler = getSyncEndpoint(window, SyncEndpointType.BACKUP);
   const browserHandler = getLocalEndpoint();
 
   const allContexts = await backupHandler.setBackupZip(file);
   const contextsByTitle = new Map(allContexts.map((c) => [c.title, c]));
-  const importSettings = {
-    saveBehavior: sourceBehavior,
-    statisticsMergeMode: statisticsMergeMode$.getValue(),
-    readingGoalsMergeMode: readingGoalsMergeMode$.getValue()
-  };
-  const browserImportSettings = {
-    ...importSettings,
-    saveBehavior: ReplicationSaveBehavior.NewOnly
-  };
+  const importSettings = scopedSettings({ winnerTakesAll: direction === 'zip-wins' });
 
   let booksImported = 0;
   let bookmarksImported = 0;
@@ -267,8 +250,7 @@ export async function importBackup(
       refreshDataList: true,
       contexts: [ctx],
       dataToReplicate: types,
-      sourceSettings: importSettings,
-      targetSettings: browserImportSettings
+      settings: importSettings
     });
 
     booksImported += 1;
@@ -285,8 +267,7 @@ export async function importBackup(
       refreshDataList: false,
       contexts: [],
       dataToReplicate: [StorageDataType.READING_GOALS],
-      sourceSettings: importSettings,
-      targetSettings: browserImportSettings
+      settings: importSettings
     });
 
     // Restore the localStorage current goal alongside the IDB archive

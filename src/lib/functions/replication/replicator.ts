@@ -30,11 +30,13 @@ export type ReplicationDirection = 'push' | 'pull';
  * both are sync endpoints — we never replicate between two remotes.
  * Direction picks which side is the source.
  *
- * `sourceSettings` / `targetSettings` are separate because some flows
- * are asymmetric: force-resync's source gets `Overwrite` to break the
- * up-to-date check while the target stays default; backup-import is
- * zip-wins on the source / browser-default on the target. Symmetric
- * callers (ambient push, newest-resync) pass the same object twice.
+ * `settings` is one bag covering every "should the target keep its
+ * existing row?" decision: saveBehavior (replicator-level up-to-date
+ * short-circuit + target's NewOnly timestamp check) and the merge
+ * modes for statistics / reading-goals (merge vs replace). Source
+ * and target use the same settings so an override on one side can't
+ * silently bypass the other; callers express *intent* via
+ * `scopedSettings({ winnerTakesAll })` rather than wiring knobs.
  *
  * Resolves on success. Throws on any failure (including AbortError on
  * cancel). Per-book partial successes are observable via IDB side
@@ -51,35 +53,8 @@ export interface ReplicateDataOptions {
   refreshDataList: boolean;
   contexts: ReplicationContext[];
   dataToReplicate: StorageDataType[];
-  sourceSettings: ScopedSettings;
-  targetSettings: ScopedSettings;
+  settings: ScopedSettings;
   cancelSignal?: AbortSignal;
-}
-
-export async function importBackup(
-  source: BackupStorageHandler,
-  library: LocalReplicationEndpoint,
-  file: File,
-  sourceSettings: ScopedSettings,
-  targetSettings: ScopedSettings,
-  cancelSignal: AbortSignal
-) {
-  return replicateData({
-    library,
-    endpoint: source,
-    direction: 'pull',
-    refreshDataList: true,
-    contexts: await source.setBackupZip(file),
-    dataToReplicate: [
-      StorageDataType.DATA,
-      StorageDataType.PROGRESS,
-      StorageDataType.STATISTICS,
-      StorageDataType.READING_GOALS
-    ],
-    sourceSettings,
-    targetSettings,
-    cancelSignal
-  });
 }
 
 export async function replicateData(opts: ReplicateDataOptions) {
@@ -90,8 +65,7 @@ export async function replicateData(opts: ReplicateDataOptions) {
     refreshDataList,
     contexts,
     dataToReplicate,
-    sourceSettings,
-    targetSettings,
+    settings,
     cancelSignal
   } = opts;
   const source: BookOperations = direction === 'push' ? library : endpoint;
@@ -133,8 +107,8 @@ export async function replicateData(opts: ReplicateDataOptions) {
 
           let dataProcessed = false;
 
-          const sourceScoped = source.scoped(context, sourceSettings, cancelSignal);
-          const targetScoped = target.scoped(context, targetSettings, cancelSignal);
+          const sourceScoped = source.scoped(context, settings, cancelSignal);
+          const targetScoped = target.scoped(context, settings, cancelSignal);
 
           if (processBookData) {
             if (
@@ -237,7 +211,7 @@ export async function replicateData(opts: ReplicateDataOptions) {
         try {
           if (
             await target.areReadingGoalsPresentAndUpToDate(
-              await source.getReadingGoalsFilename(sourceSettings)
+              await source.getReadingGoalsFilename(settings)
             )
           ) {
             checkCancelAndProgress(cancelSignal, true, true);
@@ -246,12 +220,7 @@ export async function replicateData(opts: ReplicateDataOptions) {
             const { readingGoals, lastGoalModified } = await source.getReadingGoals(cancelSignal);
             checkCancelAndProgress(cancelSignal);
             if (readingGoals) {
-              await target.saveReadingGoals(
-                readingGoals,
-                lastGoalModified,
-                targetSettings,
-                cancelSignal
-              );
+              await target.saveReadingGoals(readingGoals, lastGoalModified, settings, cancelSignal);
             }
             checkCancelAndProgress(cancelSignal, false, !readingGoals);
           }

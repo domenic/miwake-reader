@@ -27,10 +27,7 @@ import {
   StatisticsTabAvailableKeybind,
   type StatisticsTabKeybindMap
 } from '$lib/data/statistics-tab-keybind';
-import {
-  AutoReplicationType,
-  ReplicationSaveBehavior
-} from '$lib/functions/replication/replication-options';
+import { AutoReplicationType } from '$lib/functions/replication/replication-options';
 import { writableSubject } from '$lib/functions/svelte/store';
 import { map } from 'rxjs';
 import { BookReaderAvailableKeybind, type BookReaderKeybindMap } from './book-reader-keybind';
@@ -195,12 +192,6 @@ export const autoReplication$ = writableStringLocalStorageSubject<AutoReplicatio
   'autoReplication',
   AutoReplicationType.All
 );
-
-export const replicationSaveBehavior$ =
-  writableStringLocalStorageSubject<ReplicationSaveBehavior>()(
-    'replicationSaveBehavior',
-    ReplicationSaveBehavior.NewOnly
-  );
 
 export const keepLocalStatisticsOnDeletion$ = writableBooleanLocalStorageSubject()(
   'keepLocalStatisticsOnDeletion',
