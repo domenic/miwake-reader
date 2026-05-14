@@ -87,7 +87,13 @@
       if (target === 'fs') {
         await connectFs({ clearLibrary });
       } else {
-        await connectCloud(toProvider(target), { clearLibrary });
+        const provider = toProvider(target);
+        await connectCloud(provider, {
+          clearLibrary,
+          // The UI shows "Using your stored custom OAuth app" when
+          // creds are present; matching that hint here.
+          useCustomCredentials: !!$cloudCustomCredentials$[provider]
+        });
       }
     } catch (err) {
       // Picker cancel is silent; other errors surface.
@@ -124,7 +130,9 @@
     if (!activeCloud) return;
     busy = true;
     try {
-      await connectCloud(activeCloud.provider);
+      await connectCloud(activeCloud.provider, {
+        useCustomCredentials: activeCloud.usesCustomCredentials
+      });
       await retryAfterReconnect();
     } catch (err) {
       await messageDialog({
@@ -204,7 +212,7 @@
     };
 
     if (result.activate) {
-      await connectCloud(provider);
+      await connectCloud(provider, { useCustomCredentials: true });
     }
   }
 </script>

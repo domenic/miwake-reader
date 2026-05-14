@@ -101,10 +101,10 @@ export async function connectFs(opts: ConnectFsOptions = {}): Promise<void> {
  */
 export async function connectCloud(
   provider: CloudProviderType,
-  opts: ConnectCloudOptions = {}
+  opts: ConnectCloudOptions
 ): Promise<void> {
   const current = syncState.location;
-  const useCustom = opts.useCustomCredentials ?? !!readCustomCreds(provider);
+  const useCustom = opts.useCustomCredentials;
   const isSameSource =
     current?.kind === 'cloud' &&
     current.provider === provider &&
@@ -132,12 +132,12 @@ export type ConnectFsOptions = LeaveOptions;
 
 export interface ConnectCloudOptions extends LeaveOptions {
   /**
-   * Force the OAuth mode rather than deriving it from whether stored
-   * custom creds exist. Used by revert-to-default, which keeps stored
-   * custom creds for later but wants this connection to use the
-   * default OAuth app.
+   * Required so the caller commits to a mode. Each UI flow has a
+   * single right answer: fresh Connect uses stored custom creds if
+   * present, Reconnect stays in the current mode, Save-and-connect
+   * activates custom, revert-to-default forces default.
    */
-  useCustomCredentials?: boolean;
+  useCustomCredentials: boolean;
 }
 
 interface CompleteOptions extends LeaveOptions {
@@ -313,23 +313,18 @@ async function teardownPriorLocation(
 ): Promise<void> {
   if (prev) {
     const db = await database.db;
+    const name =
+      prev.kind === 'cloud'
+        ? cloudSourceName(prev.provider, prev.usesCustomCredentials)
+        : FS_SOURCE_NAME;
+    const existing = await db.get('storageSource', name);
+    if (existing) {
+      await database.deleteStorageSource(existing);
+    }
     if (prev.kind === 'cloud') {
-      // Keep the cloud record (with its stored RT) and the OAuth
-      // in-memory cache around so a switch back later in the session
-      // — or after a reload — can reuse the credentials silently.
-      // loadConnectionsFromDb's most-recent-wins rule prevents the
-      // dormant record from hijacking the active source. Disconnect
-      // (which DOES intend to fully sign out) goes through
-      // disconnect() instead, which clears the cache and deletes the
-      // record explicitly.
-    } else {
-      // Prior is FS, new is cloud. Drop the FS record; FS→FS replaces
-      // in place via the same-name overwrite in completeFsConnection
-      // and skips this teardown branch (priorLocation = null).
-      const existing = await db.get('storageSource', FS_SOURCE_NAME);
-      if (existing) {
-        await database.deleteStorageSource(existing);
-      }
+      // Match the IDB state: the next cloud connect (even back to the
+      // same source) starts from a clean cache and runs a fresh OAuth.
+      clearOAuthTokenCache(name);
     }
   }
 
@@ -361,22 +356,16 @@ export async function disconnect(opts: LeaveOptions = {}): Promise<void> {
   }
 
   const db = await database.db;
-
+  const name =
+    current.kind === 'cloud'
+      ? cloudSourceName(current.provider, current.usesCustomCredentials)
+      : FS_SOURCE_NAME;
   if (current.kind === 'cloud') {
-    const name = cloudSourceName(current.provider, current.usesCustomCredentials);
-    // Drop the in-memory access token so a same-tab reconnect actually
-    // re-runs the OAuth popup; otherwise the manager would reuse the
-    // still-valid cached token and never persist a new refresh_token.
     clearOAuthTokenCache(name);
-    const existing = await db.get('storageSource', name);
-    if (existing) {
-      await database.deleteStorageSource(existing);
-    }
-  } else {
-    const existing = await db.get('storageSource', FS_SOURCE_NAME);
-    if (existing) {
-      await database.deleteStorageSource(existing);
-    }
+  }
+  const existing = await db.get('storageSource', name);
+  if (existing) {
+    await database.deleteStorageSource(existing);
   }
 
   syncState.location = null;
@@ -434,16 +423,19 @@ export async function loadConnectionsFromDb(): Promise<void> {
   const db = await database.db;
   const records = await db.getAll('storageSource');
 
-  // Pick the most-recently-modified record as the active source. We
-  // intentionally keep stale records (e.g. a cloud RT after the user
-  // detoured to a sync folder) so a switch back to that provider can
-  // reuse the stored token silently — completeCloudConnection /
-  // completeFsConnection bumps lastSourceModified on the new active,
-  // making "most-recent wins" the right tiebreaker.
+  // Single-location model: at most one record should exist. Pick the
+  // most-recently-modified and delete the rest as a defensive
+  // cleanup (e.g., an older release left a dormant record alongside
+  // the active one).
   if (!records.length) return;
   const active = records.reduce((a, b) =>
     (b.lastSourceModified ?? 0) > (a.lastSourceModified ?? 0) ? b : a
   );
+  for (const r of records) {
+    if (r.name !== active.name) {
+      await database.deleteStorageSource(r);
+    }
+  }
 
   if (active.type === SyncEndpointType.GDRIVE || active.type === SyncEndpointType.ONEDRIVE) {
     syncState.location = {
