@@ -433,7 +433,13 @@ export abstract class BaseStorageHandler implements SyncEndpoint {
     const staticDataToZip: Array<
       Exclude<
         keyof Omit<BooksDbBookData, 'id'>,
-        'blobs' | 'hasThumb' | 'coverImage' | 'characters' | 'lastBookModified' | 'lastBookOpen'
+        | 'blobs'
+        | 'hasThumb'
+        | 'coverImage'
+        | 'characters'
+        | 'lastBookModified'
+        | 'lastBookOpen'
+        | 'lastSeenOnSource'
       >
     > = ['title', 'styleSheet', 'elementHtml', 'htmlBackup', 'sections'];
     const staticData: Record<string, string | Section[] | undefined> = {};

@@ -326,11 +326,34 @@ async function teardownPriorLocation(
       // same source) starts from a clean cache and runs a fresh OAuth.
       clearOAuthTokenCache(name);
     }
+    // The lastSeenOnSource flag belongs to the prior source; the
+    // new source has its own listing and will re-mark anything still
+    // present during its first reconcile + push.
+    await clearLastSeenOnSource();
   }
 
   if (clearLibrary) {
     await wipeLibraryContents();
   }
+}
+
+/**
+ * Drop the `lastSeenOnSource` flag on every local book row. Called
+ * when the active sync source changes (disconnect / switch); the
+ * next source's reconcile + push will reset the flag for books that
+ * are still mirrored there.
+ */
+async function clearLastSeenOnSource(): Promise<void> {
+  const db = await database.db;
+  const tx = db.transaction('data', 'readwrite');
+  for await (const cursor of tx.store) {
+    if (cursor.value.lastSeenOnSource) {
+      const next = { ...cursor.value };
+      delete next.lastSeenOnSource;
+      await cursor.update(next);
+    }
+  }
+  await tx.done;
 }
 
 /**
@@ -367,6 +390,8 @@ export async function disconnect(opts: LeaveOptions = {}): Promise<void> {
   if (existing) {
     await database.deleteStorageSource(existing);
   }
+  // See teardownPriorLocation: the flag is per-source.
+  await clearLastSeenOnSource();
 
   syncState.location = null;
   syncState.health = { status: 'ok' };

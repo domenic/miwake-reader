@@ -18,6 +18,17 @@ interface BooksDbV7BookData {
   lastBookModified: number;
   lastBookOpen: number;
   htmlBackup?: string;
+  /**
+   * Timestamp of the most recent confirmation that this book exists
+   * on the connected sync source — set when a remote listing returned
+   * its title, or when a push of its bookdata succeeded. Used by
+   * `pruneUnreachablePlaceholders` to distinguish "deleted on another
+   * synced device" (flag was set, title now missing from listing →
+   * prune) from "imported locally, not yet pushed" (flag never set →
+   * leave alone; the boot push will mirror it up). Cleared on
+   * disconnect / source switch.
+   */
+  lastSeenOnSource?: number;
 }
 
 interface BooksDbV7BookmarkData {

@@ -341,11 +341,24 @@ async function pushOne(context: ReplicationContext, types: StorageDataType[]): P
       dataToReplicate: types,
       settings: scopedSettings()
     });
+    // The push reached the source; flag the book so a later reconcile
+    // can tell remote-deleted from never-pushed. `id` is unset for the
+    // synthetic READING_GOALS context.
+    if (context.id && types.includes(StorageDataType.DATA)) {
+      await markBookSeenOnSource(context.id);
+    }
     markSynced();
   } catch (err) {
     const recoverable = reportSyncError('push', err);
     if (recoverable) enqueueReplay(() => pushOne(context, types));
   }
+}
+
+async function markBookSeenOnSource(id: number): Promise<void> {
+  const db = await database.db;
+  const book = await db.get('data', id);
+  if (!book) return;
+  await db.put('data', { ...book, lastSeenOnSource: Date.now() });
 }
 
 async function drainReplayQueue(): Promise<void> {

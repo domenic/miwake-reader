@@ -40,16 +40,26 @@ export async function reconcilePlaceholders(books: SyncTitle[]): Promise<void> {
 export async function ensurePlaceholders(remoteCards: ReadonlyArray<SyncTitle>): Promise<number> {
   let touched = 0;
   const db = await database.db;
+  const now = Date.now();
 
   for (const card of remoteCards) {
     const existing = await database.getDataByTitle(card.title);
 
     if (existing) {
-      // Already-downloaded books get their cover via the full content
-      // pull; only placeholders need their cover refreshed here.
-      if (!existing.elementHtml && card.coverImage && existing.coverImage !== card.coverImage) {
-        await db.put('data', { ...existing, coverImage: card.coverImage });
-        touched += 1;
+      // The book exists on this device AND is in the source listing
+      // right now — mark it lastSeenOnSource so a later prune can
+      // tell "deleted remotely" from "never pushed."
+      const coverChanged =
+        !existing.elementHtml && card.coverImage && existing.coverImage !== card.coverImage;
+      if (coverChanged || existing.lastSeenOnSource !== now) {
+        // Already-downloaded books get their cover via the full content
+        // pull; only placeholders need their cover refreshed here.
+        await db.put('data', {
+          ...existing,
+          ...(coverChanged ? { coverImage: card.coverImage } : {}),
+          lastSeenOnSource: now
+        });
+        if (coverChanged) touched += 1;
       }
       // Refresh the placeholder bookmark so /manage's progress / bookmarked
       // sort reflects what the source currently advertises. Real bookmarks
@@ -79,7 +89,8 @@ export async function ensurePlaceholders(remoteCards: ReadonlyArray<SyncTitle>):
         characters: card.characters || 0,
         sections: [],
         lastBookModified: card.lastBookModified || 0,
-        lastBookOpen: card.lastBookOpen || 0
+        lastBookOpen: card.lastBookOpen || 0,
+        lastSeenOnSource: now
       },
       ReplicationSaveBehavior.NewOnly
     );
@@ -117,11 +128,24 @@ async function maybeWritePlaceholderBookmark(
 }
 
 /**
- * Drop placeholder rows whose titles aren't in `reachableTitles`. The
+ * Drop local book rows whose titles aren't in `reachableTitles`. The
  * cascade-delete via database.deleteData also clears companion
- * bookmark / lastItem rows. Pass an empty set to drop all placeholders
- * (used by disconnect, since the single-location model has no
- * remaining source to fall back on).
+ * bookmark / lastItem rows. Pass an empty set to drop everything
+ * eligible (used by disconnect, since the single-location model has
+ * no remaining source to fall back on).
+ *
+ * Eligible rows are:
+ *  - Placeholders (no `elementHtml`) — these come exclusively from
+ *    the source's listing, so a listing without them means the source
+ *    removed them.
+ *  - Downloaded books with `lastSeenOnSource` set — we previously
+ *    confirmed they were on the source, so absence now means another
+ *    synced device deleted them. Without this, `pushAllLocalBooks`
+ *    on boot would re-upload the supposedly-deleted book.
+ *
+ * Downloaded books WITHOUT `lastSeenOnSource` are left alone: they
+ * were imported locally and never pushed, so the listing's silence
+ * is expected — the boot push will mirror them up.
  */
 export async function pruneUnreachablePlaceholders(reachableTitles: Set<string>): Promise<number> {
   const db = await database.db;
@@ -130,7 +154,10 @@ export async function pruneUnreachablePlaceholders(reachableTitles: Set<string>)
   const ids: number[] = [];
   const idsToTitles = new Map<number, string>();
   for (const book of allBooks) {
-    if (!book.elementHtml && !reachableTitles.has(book.title)) {
+    if (reachableTitles.has(book.title)) continue;
+    const isPlaceholder = !book.elementHtml;
+    const wasOnSource = !!book.lastSeenOnSource;
+    if (isPlaceholder || wasOnSource) {
       ids.push(book.id);
       idsToTitles.set(book.id, book.title);
     }
