@@ -1,4 +1,7 @@
-import type { BooksDbBookmarkData } from '$lib/data/database/books-db/versions/books-db';
+import type {
+  BooksDbBookData,
+  BooksDbBookmarkData
+} from '$lib/data/database/books-db/versions/books-db';
 import { ReplicationSaveBehavior } from '$lib/functions/replication/replication-options';
 import type { SyncTitle } from '$lib/data/storage/storage-types';
 import { database } from '$lib/data/store';
@@ -9,55 +12,23 @@ import { syncState } from '$lib/data/sync/sync-store.svelte';
  * Membership bookkeeping for the local mirror of a connected sync
  * source.
  *
- * The "membership" relation lives on each book row as
- * `lastSeenSourceInstanceId`: when set, the row has been confirmed
- * (via listing or push) on the source whose `sourceInstanceId`
- * matches. Source rotation invalidates by id mismatch — there is no
- * sticky flag to clear, which is what previously made the prune
- * primitive easy to misuse.
- *
- * The three public entry points encode the three semantic operations
- * the rest of the code needs:
- *   - `reconcileAfterAuthoritativeListing`: a listing IS the source's
- *     authoritative view right now. Seed placeholders for new titles,
- *     stamp listed rows with the current id, drop placeholders + rows
- *     known to be on THIS source but absent from the listing.
- *   - `detachSourceKeepingLibrary`: the user disconnected without
- *     wiping. Drop placeholders (they're metadata-only and can't
- *     exist without a source); keep every downloaded book.
- *   - `markBookMirroredToSource`: a push successfully wrote a book to
- *     the active source. Stamp the row so a later listing-driven
- *     reconcile can detect cross-device deletion.
- *
- * Each public entry point guards on the active `sourceInstanceId`
- * before mutating IDB — if the active source rotated between when
- * the caller captured the id and when the work executes, the
- * operation no-ops rather than writing under stale identity.
+ * Each book row carries `lastSeenSourceInstanceId`: the id of the
+ * source under which it was last confirmed (via listing or push).
+ * Source rotation invalidates by id mismatch — no sticky flag to
+ * clear, which is what previously made the prune primitive easy to
+ * misuse.
  */
 
 /**
- * Apply an authoritative listing from a specific source to local
- * state.
+ * Apply an authoritative listing for a specific source to local
+ * state: ensure placeholders for new titles, stamp listed rows with
+ * the active id, drop placeholders + rows last seen on THIS source
+ * but absent from the listing. Rows last seen on a different (or
+ * no) source are left alone — they'll be re-stamped on the next
+ * push to the active source.
  *
- * Behavior:
- *   - For each listed title: ensure a local row (placeholder if none
- *     existed) and stamp `lastSeenSourceInstanceId = expectedSourceInstanceId`.
- *   - Prune:
- *       * placeholder rows whose title is not in the listing
- *         (placeholders only ever come from listings, so an absent
- *         title means the source removed them),
- *       * downloaded rows where `lastSeenSourceInstanceId ===
- *         expectedSourceInstanceId` and the title is not in the
- *         listing (cross-device deletion).
- *   - Downloaded rows whose `lastSeenSourceInstanceId` is missing or
- *     belongs to a different source instance are LEFT ALONE — those
- *     are local-only books that haven't been pushed yet, or rows
- *     that survived a source switch and will get re-stamped on the
- *     next push to the new source.
- *
- * Bail out if `syncState.location?.sourceInstanceId` no longer
- * matches `expectedSourceInstanceId` (the user switched sources
- * mid-flight).
+ * No-ops if the active source has rotated between the caller
+ * capturing the id and the work executing.
  */
 export async function reconcileAfterAuthoritativeListing(
   listing: ReadonlyArray<SyncTitle>,
@@ -73,43 +44,25 @@ export async function reconcileAfterAuthoritativeListing(
 }
 
 /**
- * Drop placeholders only, leaving downloaded books and their
- * companion data intact. Used by disconnect-without-wipe: the source
- * is gone so placeholders (which are pure metadata derived from the
- * source's listing) have nothing to represent, but the user kept
- * their library.
+ * Drop placeholders (downloaded books stay). Used by
+ * disconnect-without-wipe: the source is gone so placeholder rows —
+ * pure metadata derived from a listing — have nothing left to
+ * represent.
  */
 export async function detachSourceKeepingLibrary(): Promise<void> {
-  const db = await database.db;
-  const allBooks = await db.getAll('data');
-
-  const ids: number[] = [];
-  const idsToTitles = new Map<number, string>();
-  for (const book of allBooks) {
-    if (!book.elementHtml) {
-      ids.push(book.id);
-      idsToTitles.set(book.id, book.title);
-    }
-  }
-  if (ids.length === 0) return;
-
-  const deleted = await database.deleteData(
-    ids,
-    idsToTitles,
-    new AbortController().signal,
-    /* keepLocalStatistics */ true
-  );
-  if (deleted.length > 0) {
+  const deleted = await deleteMatchingBooks((book) => !book.elementHtml);
+  if (deleted > 0) {
     database.notifyDataListChanged();
   }
 }
 
 /**
- * Record that a book was successfully mirrored to the active source.
- * Guards against rotation: if `syncState.location.sourceInstanceId`
- * no longer matches `expectedSourceInstanceId`, the write is
- * skipped (the caller's push completed against a source that's no
- * longer active).
+ * Stamp `lastSeenSourceInstanceId` on a book whose push to the
+ * given source just succeeded. Reads + writes happen in one
+ * readwrite transaction, so concurrent writers (replicator, delete
+ * paths) can't be clobbered by a stale-read-then-write race. No-ops
+ * if the active source rotated between when the caller captured
+ * the id and now.
  */
 export async function markBookMirroredToSource(
   bookId: number,
@@ -117,11 +70,19 @@ export async function markBookMirroredToSource(
 ): Promise<void> {
   if (!isStillActive(expectedSourceInstanceId)) return;
   const db = await database.db;
-  const book = await db.get('data', bookId);
-  if (!book) return;
-  if (book.lastSeenSourceInstanceId === expectedSourceInstanceId) return;
-  if (!isStillActive(expectedSourceInstanceId)) return;
-  await db.put('data', { ...book, lastSeenSourceInstanceId: expectedSourceInstanceId });
+  const tx = db.transaction('data', 'readwrite');
+  const store = tx.objectStore('data');
+  const book = await store.get(bookId);
+  if (!book || book.lastSeenSourceInstanceId === expectedSourceInstanceId) {
+    await tx.done;
+    return;
+  }
+  if (!isStillActive(expectedSourceInstanceId)) {
+    await tx.done;
+    return;
+  }
+  await store.put({ ...book, lastSeenSourceInstanceId: expectedSourceInstanceId });
+  await tx.done;
 }
 
 function isStillActive(expectedSourceInstanceId: string): boolean {
@@ -129,10 +90,44 @@ function isStillActive(expectedSourceInstanceId: string): boolean {
 }
 
 /**
- * Write a placeholder row into local IndexedDB for any title that
- * isn't already present, and stamp every listed row's
- * lastSeenSourceInstanceId with the active source's id. Returns the
- * count of rows touched.
+ * Scan every book row, delete those where `predicate` returns true.
+ * Companion bookmark / lastItem / statistic rows are cascade-cleaned
+ * via `database.deleteData`. Returns the count actually deleted.
+ *
+ * `precheck` runs after the scan but before any delete, so callers
+ * can bail (e.g. on source rotation) without leaving partial
+ * mutations. Returning `false` skips the deletion entirely.
+ */
+async function deleteMatchingBooks(
+  predicate: (book: BooksDbBookData) => boolean,
+  precheck?: () => boolean
+): Promise<number> {
+  const db = await database.db;
+  const allBooks = await db.getAll('data');
+  const ids: number[] = [];
+  const idsToTitles = new Map<number, string>();
+  for (const book of allBooks) {
+    if (predicate(book)) {
+      ids.push(book.id);
+      idsToTitles.set(book.id, book.title);
+    }
+  }
+  if (ids.length === 0) return 0;
+  if (precheck && !precheck()) return 0;
+  const deleted = await database.deleteData(
+    ids,
+    idsToTitles,
+    new AbortController().signal,
+    /* keepLocalStatistics */ true
+  );
+  return deleted.length;
+}
+
+/**
+ * For each listed title, create a placeholder row if none exists,
+ * and stamp the row's `lastSeenSourceInstanceId` with the active id.
+ * Refreshes the placeholder cover when the source advertises a
+ * different one. Returns the count of rows touched.
  */
 async function ensurePlaceholders(
   remoteCards: ReadonlyArray<SyncTitle>,
@@ -150,9 +145,6 @@ async function ensurePlaceholders(
         !existing.elementHtml && card.coverImage && existing.coverImage !== card.coverImage;
       const stampStale = existing.lastSeenSourceInstanceId !== sourceInstanceId;
       if (coverChanged || stampStale) {
-        // Already-downloaded books get their cover via the full
-        // content pull; only placeholders need their cover refreshed
-        // here.
         await db.put('data', {
           ...existing,
           ...(coverChanged ? { coverImage: card.coverImage } : {}),
@@ -161,10 +153,10 @@ async function ensurePlaceholders(
         if (coverChanged) touched += 1;
       }
       // Refresh the placeholder bookmark so /manage's progress /
-      // bookmarked sort reflects what the source currently
-      // advertises. Real bookmarks (placeholder !== true) are
-      // off-limits — they represent the user's actual reading
-      // position and are reconciled by the replicator.
+      // bookmarked sort reflects what the source advertises. Real
+      // bookmarks (placeholder !== true) represent the user's actual
+      // reading position and are reconciled by the replicator, not
+      // here.
       if (!existing.elementHtml) {
         const bookmark = await database.getBookmark(existing.id);
         if (!bookmark || bookmark.placeholder) {
@@ -227,42 +219,19 @@ async function maybeWritePlaceholderBookmark(
   });
 }
 
-/**
- * Drop rows the active source's authoritative listing implies are
- * gone:
- *   - Any placeholder whose title isn't in the listing (placeholders
- *     are mirrors of the source's listing; absence = removal).
- *   - Any downloaded row stamped with `expectedSourceInstanceId`
- *     whose title isn't in the listing (cross-device deletion).
- */
 async function pruneAgainstAuthoritativeListing(
   listing: ReadonlyArray<SyncTitle>,
   expectedSourceInstanceId: string
 ): Promise<number> {
   if (!isStillActive(expectedSourceInstanceId)) return 0;
-  const db = await database.db;
-  const allBooks = await db.getAll('data');
   const reachable = new Set(listing.map((b) => b.title));
-
-  const ids: number[] = [];
-  const idsToTitles = new Map<number, string>();
-  for (const book of allBooks) {
-    if (reachable.has(book.title)) continue;
-    const isPlaceholder = !book.elementHtml;
-    const wasOnActiveSource = book.lastSeenSourceInstanceId === expectedSourceInstanceId;
-    if (isPlaceholder || wasOnActiveSource) {
-      ids.push(book.id);
-      idsToTitles.set(book.id, book.title);
-    }
-  }
-  if (ids.length === 0) return 0;
-  if (!isStillActive(expectedSourceInstanceId)) return 0;
-
-  const deleted = await database.deleteData(
-    ids,
-    idsToTitles,
-    new AbortController().signal,
-    /* keepLocalStatistics */ true
+  return deleteMatchingBooks(
+    (book) => {
+      if (reachable.has(book.title)) return false;
+      const isPlaceholder = !book.elementHtml;
+      const wasOnActiveSource = book.lastSeenSourceInstanceId === expectedSourceInstanceId;
+      return isPlaceholder || wasOnActiveSource;
+    },
+    () => isStillActive(expectedSourceInstanceId)
   );
-  return deleted.length;
 }

@@ -464,29 +464,33 @@ export async function loadConnectionsFromDb(): Promise<void> {
   // cleanup (e.g., an older release left a dormant record alongside
   // the active one).
   if (!records.length) {
-    await backfillBookRowsForMissingSource();
+    // No source ever connected: still drop any orphan legacy
+    // lastSeenOnSource fields so book rows match the v7 schema.
+    await migrateLegacyLastSeenOnSource(null);
     return;
   }
-  let active = records.reduce((a, b) =>
+  const initialActive = records.reduce((a, b) =>
     (b.lastSourceModified ?? 0) > (a.lastSourceModified ?? 0) ? b : a
   );
   for (const r of records) {
-    if (r.name !== active.name) {
+    if (r.name !== initialActive.name) {
       await database.deleteStorageSource(r);
     }
   }
 
-  // Backfill: ensure the active record has a sourceInstanceId.
-  const sourceInstanceId = active.sourceInstanceId ?? newSourceInstanceId();
-  if (!active.sourceInstanceId) {
-    active = { ...active, sourceInstanceId };
+  // Backfill the active record's sourceInstanceId (a fresh UUID for
+  // any record predating the per-source-identity refactor), then
+  // migrate book rows carrying the legacy `lastSeenOnSource`
+  // timestamp to `lastSeenSourceInstanceId` pointing at the active
+  // id. Idempotent on subsequent boots.
+  const sourceInstanceId = initialActive.sourceInstanceId ?? newSourceInstanceId();
+  const active =
+    initialActive.sourceInstanceId === sourceInstanceId
+      ? initialActive
+      : { ...initialActive, sourceInstanceId };
+  if (initialActive !== active) {
     await database.saveStorageSource(active, active.name);
   }
-
-  // Backfill: migrate book rows that carry the legacy lastSeenOnSource
-  // field (from earlier in this branch's history) to
-  // lastSeenSourceInstanceId pointing at the active record's id.
-  // Books without the legacy field are left untouched.
   await migrateLegacyLastSeenOnSource(sourceInstanceId);
 
   if (active.type === SyncEndpointType.GDRIVE || active.type === SyncEndpointType.ONEDRIVE) {
@@ -518,12 +522,14 @@ export async function loadConnectionsFromDb(): Promise<void> {
 }
 
 /**
- * Drop the legacy `lastSeenOnSource` field from every book row,
- * setting `lastSeenSourceInstanceId` to the active source's
- * sourceInstanceId in its place. Idempotent — books that already
- * have the new field (and not the old) are skipped.
+ * Drop the legacy `lastSeenOnSource` field from every book row that
+ * still carries it. When `activeSourceInstanceId` is non-null,
+ * stamp `lastSeenSourceInstanceId` in its place so the row's
+ * membership claim survives the schema migration; with no active
+ * source there's nothing to point at, so just remove the legacy
+ * field. Idempotent — rows already on the new shape are skipped.
  */
-async function migrateLegacyLastSeenOnSource(activeSourceInstanceId: string): Promise<void> {
+async function migrateLegacyLastSeenOnSource(activeSourceInstanceId: string | null): Promise<void> {
   const db = await database.db;
   const tx = db.transaction('data', 'readwrite');
   for await (const cursor of tx.store) {
@@ -531,26 +537,9 @@ async function migrateLegacyLastSeenOnSource(activeSourceInstanceId: string): Pr
     if (row.lastSeenOnSource === undefined) continue;
     const next = { ...row };
     delete next.lastSeenOnSource;
-    next.lastSeenSourceInstanceId = activeSourceInstanceId;
-    await cursor.update(next);
-  }
-  await tx.done;
-}
-
-/**
- * When IDB has no active source, drop any orphan legacy
- * `lastSeenOnSource` flags. We can't migrate them to a
- * sourceInstanceId (there's none to point at), and leaving the field
- * around contradicts the schema.
- */
-async function backfillBookRowsForMissingSource(): Promise<void> {
-  const db = await database.db;
-  const tx = db.transaction('data', 'readwrite');
-  for await (const cursor of tx.store) {
-    const row = cursor.value as typeof cursor.value & { lastSeenOnSource?: number };
-    if (row.lastSeenOnSource === undefined) continue;
-    const next = { ...row };
-    delete next.lastSeenOnSource;
+    if (activeSourceInstanceId !== null) {
+      next.lastSeenSourceInstanceId = activeSourceInstanceId;
+    }
     await cursor.update(next);
   }
   await tx.done;
