@@ -18,8 +18,8 @@ import {
 } from '$lib/data/sync/sync-store.svelte';
 import { pushAllLocalBooks } from '$lib/data/sync/sync-engine';
 import {
-  pruneUnreachablePlaceholders,
-  reconcilePlaceholders
+  detachSourceKeepingLibrary,
+  reconcileAfterAuthoritativeListing
 } from '$lib/data/sync/placeholder-reconciler';
 import { cloudSourceName, FS_SOURCE_NAME, isCustomCloudName } from '$lib/data/sync/sync-helpers';
 
@@ -152,18 +152,32 @@ interface CompleteCloudOptions extends CompleteOptions {
   useCustomCredentials: boolean;
 }
 
+/**
+ * Generate a fresh `sourceInstanceId` for a newly-committed source.
+ * Every successful connect rotates this so previously-mirrored book
+ * rows whose `lastSeenSourceInstanceId` matches the prior id are
+ * naturally inert: the post-connect boot push re-stamps them with
+ * the new id where appropriate, and the cross-device-deletion prune
+ * only acts on rows whose id matches the current source.
+ */
+function newSourceInstanceId(): string {
+  return crypto.randomUUID();
+}
+
 async function completeFsConnection(
   directoryHandle: FileSystemDirectoryHandle,
   opts: CompleteOptions
 ): Promise<void> {
   const fsPath = directoryHandle.name;
+  const sourceInstanceId = newSourceInstanceId();
 
   const data: FsHandle = { directoryHandle, fsPath };
   const record: BooksDbStorageSource = {
     name: FS_SOURCE_NAME,
     type: SyncEndpointType.FS,
     data,
-    lastSourceModified: Date.now()
+    lastSourceModified: Date.now(),
+    sourceInstanceId
   };
 
   const existing = await (await database.db).get('storageSource', FS_SOURCE_NAME);
@@ -185,22 +199,23 @@ async function completeFsConnection(
     await teardownPriorLocation(opts.priorLocation, !!opts.clearLibrary);
   }
 
-  // Clear lastSeenOnSource only after validation succeeds — a fresh
-  // picker handle is always treated as a potentially-new folder, but
-  // a failed listing must leave the prior connection's flags intact.
-  // The reconcile + boot push below re-mark whatever ends up mirrored.
-  await clearLastSeenOnSource();
-  await reconcilePlaceholders(books);
-
   const now = Date.now();
   syncState.location = {
     kind: 'fs',
     path: fsPath,
     connectedAt: now,
     // The booklist + placeholder seed counts as a successful sync.
-    lastSyncedAt: now
+    lastSyncedAt: now,
+    sourceInstanceId
   };
   syncState.health = { status: 'ok' };
+
+  // Install the new active source BEFORE reconcile so the reconciler's
+  // active-source guard sees the right id. The new id is fresh, so any
+  // pre-existing book rows whose lastSeenSourceInstanceId references
+  // the prior source are inert here — they survive this reconcile,
+  // and the boot push below re-stamps them.
+  await reconcileAfterAuthoritativeListing(books, sourceInstanceId);
 
   // Mirror existing local content into the new folder. Ambient sync
   // only fires on local edits; without this, a fresh connect with an
@@ -218,6 +233,7 @@ async function completeCloudConnection(
     const customCreds = readCustomCreds(provider);
     const useCustom = opts.useCustomCredentials;
     const name = cloudSourceName(provider, useCustom);
+    const sourceInstanceId = newSourceInstanceId();
 
     const existing = await (await database.db).get('storageSource', name);
     // Reuse a previously-stored refresh token if we have one for this
@@ -245,7 +261,8 @@ async function completeCloudConnection(
       name,
       type: provider,
       data: remoteData,
-      lastSourceModified: Date.now()
+      lastSourceModified: Date.now(),
+      sourceInstanceId
     };
 
     await database.saveStorageSource(record, existing ? name : '');
@@ -283,10 +300,6 @@ async function completeCloudConnection(
       await teardownPriorLocation(opts.priorLocation, !!opts.clearLibrary);
     }
 
-    // See completeFsConnection for the timing rationale.
-    await clearLastSeenOnSource();
-    await reconcilePlaceholders(books);
-
     const now = Date.now();
     syncState.location = {
       kind: 'cloud',
@@ -294,9 +307,13 @@ async function completeCloudConnection(
       usesCustomCredentials: useCustom,
       connectedAt: now,
       lastSyncedAt: now,
-      bookCount: books.length
+      bookCount: books.length,
+      sourceInstanceId
     };
     syncState.health = { status: 'ok' };
+
+    // See completeFsConnection for the install-before-reconcile rationale.
+    await reconcileAfterAuthoritativeListing(books, sourceInstanceId);
 
     await pushAllLocalBooks();
   } finally {
@@ -313,6 +330,10 @@ async function completeCloudConnection(
  * / completeFsConnection only after the new destination's listing
  * succeeded, so a canceled or popup-blocked switch leaves the user on
  * their existing connection.
+ *
+ * The prior source's `sourceInstanceId` becomes naturally inert via
+ * id-mismatch (a fresh id is generated for the new connect), so no
+ * row-by-row flag clearing is needed.
  */
 async function teardownPriorLocation(
   prev: SyncLocation | null,
@@ -341,29 +362,10 @@ async function teardownPriorLocation(
 }
 
 /**
- * Drop the `lastSeenOnSource` flag on every local book row. Called
- * when the active sync source changes (disconnect / switch); the
- * next source's reconcile + push will reset the flag for books that
- * are still mirrored there.
- */
-async function clearLastSeenOnSource(): Promise<void> {
-  const db = await database.db;
-  const tx = db.transaction('data', 'readwrite');
-  for await (const cursor of tx.store) {
-    if (cursor.value.lastSeenOnSource) {
-      const next = { ...cursor.value };
-      delete next.lastSeenOnSource;
-      await cursor.update(next);
-    }
-  }
-  await tx.done;
-}
-
-/**
  * Tear down whatever sync location is currently configured. Idempotent
  * if nothing is connected. Drops in-memory OAuth tokens (for cloud) so
  * a same-tab reconnect re-runs the popup, deletes the IDB storageSource
- * record, prunes placeholders that are no longer reachable, and clears
+ * record, drops placeholder rows (their source is gone), and clears
  * the connection + health subjects.
  *
  * If `opts.clearLibrary` is true, also wipes the user's books,
@@ -402,20 +404,14 @@ export async function disconnect(opts: LeaveOptions = {}): Promise<void> {
     return;
   }
 
-  // Clear lastSeenOnSource on every local book BEFORE the prune
-  // below: pruneUnreachablePlaceholders treats books with the flag
-  // set as eligible for deletion, but a normal disconnect must keep
-  // the user's downloaded library intact. After this clear the
-  // prune only acts on placeholders (which have no local content).
-  await clearLastSeenOnSource();
-
-  // No remaining source after disconnect (single-location model), so
-  // every placeholder is unreachable. The empty reachable set drops
-  // them all in one pass.
-  const pruned = await pruneUnreachablePlaceholders(new Set<string>());
-  if (pruned > 0) {
-    database.notifyDataListChanged();
-  }
+  // Source gone → drop placeholders (their content lives only on the
+  // source) but keep the user's downloaded library. Downloaded books'
+  // `lastSeenSourceInstanceId` is now invariant relative to any
+  // future source: a later connect generates a fresh id, and the
+  // reconcile against that new source treats those rows as
+  // "different source, leave alone" until the boot push re-stamps
+  // them.
+  await detachSourceKeepingLibrary();
 }
 
 /**
@@ -448,9 +444,16 @@ async function wipeLibraryContents(): Promise<void> {
 }
 
 /**
- * On app boot, reconcile syncState.location with
- * what's actually persisted in IndexedDB. Call once from the root
- * layout on mount.
+ * On app boot, reconcile syncState.location with what's actually
+ * persisted in IndexedDB. Call once from the root layout on mount.
+ *
+ * Also runs a one-time backfill for the `sourceInstanceId` schema
+ * additions: any storageSource record lacking a `sourceInstanceId`
+ * gets one generated, and any book row carrying the legacy
+ * `lastSeenOnSource` (pre-refactor) field has it migrated to
+ * `lastSeenSourceInstanceId` matching the active source's new id.
+ * This is idempotent — once a record / row has the new fields the
+ * backfill is a no-op.
  */
 export async function loadConnectionsFromDb(): Promise<void> {
   const db = await database.db;
@@ -460,8 +463,11 @@ export async function loadConnectionsFromDb(): Promise<void> {
   // most-recently-modified and delete the rest as a defensive
   // cleanup (e.g., an older release left a dormant record alongside
   // the active one).
-  if (!records.length) return;
-  const active = records.reduce((a, b) =>
+  if (!records.length) {
+    await backfillBookRowsForMissingSource();
+    return;
+  }
+  let active = records.reduce((a, b) =>
     (b.lastSourceModified ?? 0) > (a.lastSourceModified ?? 0) ? b : a
   );
   for (const r of records) {
@@ -470,6 +476,19 @@ export async function loadConnectionsFromDb(): Promise<void> {
     }
   }
 
+  // Backfill: ensure the active record has a sourceInstanceId.
+  const sourceInstanceId = active.sourceInstanceId ?? newSourceInstanceId();
+  if (!active.sourceInstanceId) {
+    active = { ...active, sourceInstanceId };
+    await database.saveStorageSource(active, active.name);
+  }
+
+  // Backfill: migrate book rows that carry the legacy lastSeenOnSource
+  // field (from earlier in this branch's history) to
+  // lastSeenSourceInstanceId pointing at the active record's id.
+  // Books without the legacy field are left untouched.
+  await migrateLegacyLastSeenOnSource(sourceInstanceId);
+
   if (active.type === SyncEndpointType.GDRIVE || active.type === SyncEndpointType.ONEDRIVE) {
     syncState.location = {
       kind: 'cloud',
@@ -477,7 +496,8 @@ export async function loadConnectionsFromDb(): Promise<void> {
       usesCustomCredentials: isCustomCloudName(active.name),
       connectedAt: active.lastSourceModified,
       lastSyncedAt: null,
-      bookCount: null
+      bookCount: null,
+      sourceInstanceId
     };
   } else if (
     active.type === SyncEndpointType.FS &&
@@ -491,7 +511,47 @@ export async function loadConnectionsFromDb(): Promise<void> {
       kind: 'fs',
       path: fsData.fsPath,
       connectedAt: active.lastSourceModified,
-      lastSyncedAt: null
+      lastSyncedAt: null,
+      sourceInstanceId
     };
   }
+}
+
+/**
+ * Drop the legacy `lastSeenOnSource` field from every book row,
+ * setting `lastSeenSourceInstanceId` to the active source's
+ * sourceInstanceId in its place. Idempotent — books that already
+ * have the new field (and not the old) are skipped.
+ */
+async function migrateLegacyLastSeenOnSource(activeSourceInstanceId: string): Promise<void> {
+  const db = await database.db;
+  const tx = db.transaction('data', 'readwrite');
+  for await (const cursor of tx.store) {
+    const row = cursor.value as typeof cursor.value & { lastSeenOnSource?: number };
+    if (row.lastSeenOnSource === undefined) continue;
+    const next = { ...row };
+    delete next.lastSeenOnSource;
+    next.lastSeenSourceInstanceId = activeSourceInstanceId;
+    await cursor.update(next);
+  }
+  await tx.done;
+}
+
+/**
+ * When IDB has no active source, drop any orphan legacy
+ * `lastSeenOnSource` flags. We can't migrate them to a
+ * sourceInstanceId (there's none to point at), and leaving the field
+ * around contradicts the schema.
+ */
+async function backfillBookRowsForMissingSource(): Promise<void> {
+  const db = await database.db;
+  const tx = db.transaction('data', 'readwrite');
+  for await (const cursor of tx.store) {
+    const row = cursor.value as typeof cursor.value & { lastSeenOnSource?: number };
+    if (row.lastSeenOnSource === undefined) continue;
+    const next = { ...row };
+    delete next.lastSeenOnSource;
+    await cursor.update(next);
+  }
+  await tx.done;
 }

@@ -439,7 +439,7 @@ export abstract class BaseStorageHandler implements SyncEndpoint {
         | 'characters'
         | 'lastBookModified'
         | 'lastBookOpen'
-        | 'lastSeenOnSource'
+        | 'lastSeenSourceInstanceId'
       >
     > = ['title', 'styleSheet', 'elementHtml', 'htmlBackup', 'sections'];
     const staticData: Record<string, string | Section[] | undefined> = {};

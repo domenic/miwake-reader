@@ -20,12 +20,19 @@ export type SyncLocation =
       connectedAt: number;
       lastSyncedAt: number | null;
       bookCount: number | null;
+      /** UUID identifying the connected source instance. See the
+       *  `sourceInstanceId` field on BooksDbV7StorageSource for the
+       *  full lifecycle. */
+      sourceInstanceId: string;
     }
   | {
       kind: 'fs';
       path: string;
       connectedAt: number;
       lastSyncedAt: number | null;
+      /** UUID identifying the connected source instance. See cloud
+       *  variant above. */
+      sourceInstanceId: string;
     };
 
 export interface CustomOAuthCredentials {

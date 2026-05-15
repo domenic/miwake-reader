@@ -4,7 +4,7 @@ import type {
   SyncEndpoint
 } from '$lib/data/storage/handler/handler-roles';
 import { NeedsInteractiveAuthError, NeedsPermissionGrantError } from '$lib/data/storage/errors';
-import { StorageDataType, SyncEndpointType } from '$lib/data/storage/storage-types';
+import { StorageDataType, SyncEndpointType, type SyncTitle } from '$lib/data/storage/storage-types';
 import { getLocalEndpoint, getSyncEndpoint } from '$lib/data/storage/storage-handler-factory';
 import {
   AutoReplicationType,
@@ -22,7 +22,10 @@ import {
 } from '$lib/data/store';
 import { syncState, type SyncLocation } from '$lib/data/sync/sync-store.svelte';
 import { cloudSourceName, FS_SOURCE_NAME } from '$lib/data/sync/sync-helpers';
-import { reconcilePlaceholders } from '$lib/data/sync/placeholder-reconciler';
+import {
+  markBookMirroredToSource,
+  reconcileAfterAuthoritativeListing
+} from '$lib/data/sync/placeholder-reconciler';
 import { logger } from '$lib/data/logger';
 
 // ---------------------------------------------------------------------
@@ -161,7 +164,7 @@ export async function reconcileBooksOnBoot(): Promise<void> {
     // Listing succeeded; if it had thrown above, the outer catch would
     // skip this block — so a transient network / permission error
     // can't nuke placeholders by accident.
-    await reconcilePlaceholders(remoteBooks);
+    await reconcileAfterAuthoritativeListing(remoteBooks, location.sourceInstanceId);
 
     markSynced(location.kind === 'cloud' ? { bookCount: remoteBooks.length } : {});
     await drainReplayQueue();
@@ -315,6 +318,11 @@ function emitSyncingState(): void {
 async function pushOne(context: ReplicationContext, types: StorageDataType[]): Promise<void> {
   const location = syncState.location;
   if (!location) return;
+  // Snapshot the source identity BEFORE any await. If the user
+  // switches sources mid-push, `markBookMirroredToSource` below will
+  // see the mismatch and no-op rather than stamping the book with
+  // the new source's id (which the push never wrote to).
+  const expectedSourceInstanceId = location.sourceInstanceId;
 
   if (location.kind === 'cloud' && !isOnline$.getValue()) {
     // Offline — queue for replay and leave syncHealth$ alone so the
@@ -341,24 +349,19 @@ async function pushOne(context: ReplicationContext, types: StorageDataType[]): P
       dataToReplicate: types,
       settings: scopedSettings()
     });
-    // The push reached the source; flag the book so a later reconcile
-    // can tell remote-deleted from never-pushed. `id` is unset for the
-    // synthetic READING_GOALS context.
+    // The push reached the source we captured at function entry;
+    // stamp the book with that id so a later reconcile can tell
+    // remote-deleted from never-pushed. The stamp is guarded against
+    // a mid-flight source switch via expectedSourceInstanceId.
+    // `id` is unset for the synthetic READING_GOALS context.
     if (context.id && types.includes(StorageDataType.DATA)) {
-      await markBookSeenOnSource(context.id);
+      await markBookMirroredToSource(context.id, expectedSourceInstanceId);
     }
     markSynced();
   } catch (err) {
     const recoverable = reportSyncError('push', err);
     if (recoverable) enqueueReplay(() => pushOne(context, types));
   }
-}
-
-async function markBookSeenOnSource(id: number): Promise<void> {
-  const db = await database.db;
-  const book = await db.get('data', id);
-  if (!book) return;
-  await db.put('data', { ...book, lastSeenOnSource: Date.now() });
 }
 
 async function drainReplayQueue(): Promise<void> {
@@ -494,19 +497,20 @@ export async function forceFullResync(direction: ForceResyncDirection): Promise<
       }
     }
 
-    // Reconcile placeholders against the current remote listing so
-    // the loops below don't iterate stale local `data` (missing
-    // remote-only books or wasting cycles on remote-deleted ones).
-    //
-    // Skip for `local-wins`: the user has explicitly asked to push
-    // local copies up, including books another device may have
-    // deleted. reconcilePlaceholders would prune those locally
-    // BEFORE the push could mirror them back — turning a "this
-    // device wins" into local data loss.
+    // List the remote so the handler's in-memory state (root folder
+    // info, listing cache) is warm; the subsequent push relies on it.
+    // For `local-wins`, SKIP the reconcile step: the user has
+    // explicitly asked to push local copies up, and
+    // reconcileAfterAuthoritativeListing would prune local rows that
+    // another device deleted from the remote BEFORE the push could
+    // mirror them back — turning "this device wins" into data loss.
     const handler = endpointFor(location);
-    const remoteBooks = await handler.listSyncTitles({ refresh: true, silentOnly: true });
+    const remoteBooks: SyncTitle[] = await handler.listSyncTitles({
+      refresh: true,
+      silentOnly: true
+    });
     if (direction !== 'local-wins') {
-      await reconcilePlaceholders(remoteBooks);
+      await reconcileAfterAuthoritativeListing(remoteBooks, location.sourceInstanceId);
     }
 
     const allBooks = await (await database.db).getAll('data');
@@ -551,6 +555,14 @@ export async function forceFullResync(direction: ForceResyncDirection): Promise<
           dataToReplicate: types,
           settings: pushSettings
         });
+        // Stamp each pushed book with the source id captured when
+        // this resync started — that's the source the push actually
+        // wrote to. markBookMirroredToSource guards against a
+        // mid-flight source switch by re-checking against the
+        // current syncState before writing.
+        for (const ctx of pushContexts) {
+          if (ctx.id) await markBookMirroredToSource(ctx.id, location.sourceInstanceId);
+        }
       }
       markSynced();
     } catch (err) {
