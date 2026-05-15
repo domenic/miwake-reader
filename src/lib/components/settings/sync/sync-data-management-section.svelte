@@ -121,8 +121,12 @@
       title: 'Force full re-sync',
       description:
         'Walk every file in your library to ensure there are no differences between your sync location and this device. Useful if you suspect something drifted.',
-      action: syncState.isSyncing ? 'Syncing…' : 'Re-sync',
-      disabled: syncState.isSyncing,
+      action: syncState.isSyncing
+        ? 'Syncing…'
+        : syncState.isSyncPending
+          ? 'Sync pending…'
+          : 'Re-sync',
+      disabled: syncState.isSyncing || syncState.isSyncPending,
       onclick: onForceResync
     },
     {

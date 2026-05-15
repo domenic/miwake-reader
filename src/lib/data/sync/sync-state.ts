@@ -4,6 +4,7 @@ export type SyncIndicatorState =
   | { kind: 'disabled' }
   | { kind: 'offline' }
   | { kind: 'idle'; lastSyncedAt: number | null }
+  | { kind: 'pending' }
   | { kind: 'syncing' }
   | {
       kind: 'needs-attention';
@@ -19,11 +20,13 @@ export function deriveIndicatorState({
   location,
   health,
   online,
+  pending,
   syncing
 }: {
   location: SyncLocation | null;
   health: SyncLocationHealth;
   online: boolean;
+  pending: boolean;
   syncing: boolean;
 }): SyncIndicatorState {
   if (!location) return { kind: 'disabled' };
@@ -40,6 +43,7 @@ export function deriveIndicatorState({
   }
 
   if (syncing) return { kind: 'syncing' };
+  if (pending) return { kind: 'pending' };
 
   return { kind: 'idle', lastSyncedAt: location.lastSyncedAt };
 }

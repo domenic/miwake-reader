@@ -63,17 +63,21 @@ export type SyncLocationHealth =
  *   storageSource record is the source of truth.
  * - `health`: written by the sync engine after each ambient or
  *   long-running attempt.
- * - `isSyncing`: live indicator of whether a push or long-running
- *   op is in flight or pending.
+ * - `isSyncing`: live indicator of whether network/file sync work is
+ *   actively running.
+ * - `isSyncPending`: local changes are queued behind the debounce
+ *   window, but no sync request is currently in flight.
  */
 export const syncState = $state<{
   location: SyncLocation | null;
   health: SyncLocationHealth;
   isSyncing: boolean;
+  isSyncPending: boolean;
 }>({
   location: null,
   health: { status: 'ok' },
-  isSyncing: false
+  isSyncing: false,
+  isSyncPending: false
 });
 
 // Custom OAuth credentials are real user config — kept across
