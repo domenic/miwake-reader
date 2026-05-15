@@ -185,6 +185,11 @@ async function completeFsConnection(
     await teardownPriorLocation(opts.priorLocation, !!opts.clearLibrary);
   }
 
+  // Clear lastSeenOnSource only after validation succeeds — a fresh
+  // picker handle is always treated as a potentially-new folder, but
+  // a failed listing must leave the prior connection's flags intact.
+  // The reconcile + boot push below re-mark whatever ends up mirrored.
+  await clearLastSeenOnSource();
   await reconcilePlaceholders(books);
 
   const now = Date.now();
@@ -278,6 +283,8 @@ async function completeCloudConnection(
       await teardownPriorLocation(opts.priorLocation, !!opts.clearLibrary);
     }
 
+    // See completeFsConnection for the timing rationale.
+    await clearLastSeenOnSource();
     await reconcilePlaceholders(books);
 
     const now = Date.now();
@@ -326,10 +333,6 @@ async function teardownPriorLocation(
       // same source) starts from a clean cache and runs a fresh OAuth.
       clearOAuthTokenCache(name);
     }
-    // The lastSeenOnSource flag belongs to the prior source; the
-    // new source has its own listing and will re-mark anything still
-    // present during its first reconcile + push.
-    await clearLastSeenOnSource();
   }
 
   if (clearLibrary) {
@@ -390,8 +393,6 @@ export async function disconnect(opts: LeaveOptions = {}): Promise<void> {
   if (existing) {
     await database.deleteStorageSource(existing);
   }
-  // See teardownPriorLocation: the flag is per-source.
-  await clearLastSeenOnSource();
 
   syncState.location = null;
   syncState.health = { status: 'ok' };
@@ -400,6 +401,13 @@ export async function disconnect(opts: LeaveOptions = {}): Promise<void> {
     await wipeLibraryContents();
     return;
   }
+
+  // Clear lastSeenOnSource on every local book BEFORE the prune
+  // below: pruneUnreachablePlaceholders treats books with the flag
+  // set as eligible for deletion, but a normal disconnect must keep
+  // the user's downloaded library intact. After this clear the
+  // prune only acts on placeholders (which have no local content).
+  await clearLastSeenOnSource();
 
   // No remaining source after disconnect (single-location model), so
   // every placeholder is unreachable. The empty reachable set drops

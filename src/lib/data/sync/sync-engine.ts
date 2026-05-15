@@ -494,13 +494,20 @@ export async function forceFullResync(direction: ForceResyncDirection): Promise<
       }
     }
 
-    // Reconcile placeholders against the current remote listing
-    // first — otherwise the loops below iterate stale local `data`
-    // and miss remote-only books or waste cycles on remote-deleted
-    // ones.
+    // Reconcile placeholders against the current remote listing so
+    // the loops below don't iterate stale local `data` (missing
+    // remote-only books or wasting cycles on remote-deleted ones).
+    //
+    // Skip for `local-wins`: the user has explicitly asked to push
+    // local copies up, including books another device may have
+    // deleted. reconcilePlaceholders would prune those locally
+    // BEFORE the push could mirror them back — turning a "this
+    // device wins" into local data loss.
     const handler = endpointFor(location);
     const remoteBooks = await handler.listSyncTitles({ refresh: true, silentOnly: true });
-    await reconcilePlaceholders(remoteBooks);
+    if (direction !== 'local-wins') {
+      await reconcilePlaceholders(remoteBooks);
+    }
 
     const allBooks = await (await database.db).getAll('data');
     const pullContexts: ReplicationContext[] = allBooks.map((b) => ({
