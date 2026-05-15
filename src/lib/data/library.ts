@@ -47,13 +47,9 @@ import type { LoadData } from '$lib/functions/file-loaders/types';
 import { getLocalEndpoint, getSyncEndpoint } from '$lib/data/storage/storage-handler-factory';
 import { StorageDataType, SyncEndpointType } from '$lib/data/storage/storage-types';
 import { cloudSourceName, FS_SOURCE_NAME } from '$lib/data/sync/sync-helpers';
-import { scopedSettings, triggerSync } from '$lib/data/sync/sync-engine';
+import { scopedSettings, triggerGoalsSync, triggerSync } from '$lib/data/sync/sync-engine';
 import { syncState, type SyncLocation } from '$lib/data/sync/sync-store.svelte';
 import pLimit from 'p-limit';
-
-// Reading goals are global rather than per-book; pendingKey only needs
-// a stable, recognizable title for deduplication.
-const READING_GOALS_CTX: ReplicationContext = { title: '<reading-goals>' };
 
 /**
  * Look up a book by its local IDB id. The reader uses this on book
@@ -319,7 +315,7 @@ export async function userSaveReadingGoals(
   toInsert: BooksDbReadingGoal[]
 ): Promise<void> {
   await database.updateReadingGoals(toDelete, toInsert);
-  triggerSync(StorageDataType.READING_GOALS, READING_GOALS_CTX);
+  triggerGoalsSync();
 }
 
 /**

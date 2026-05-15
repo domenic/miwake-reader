@@ -191,12 +191,26 @@ const PUSH_DEBOUNCE_MS = 5000;
  *  memory growth if the user's auth stays broken indefinitely. */
 const REPLAY_QUEUE_MAX = 500;
 
+/**
+ * Per-book ambient pushes are keyed by title and carry a set of
+ * StorageDataTypes (DATA / PROGRESS / STATISTICS — anything that
+ * lives on a specific book). Reading goals are library-scoped, not
+ * per-book, so they don't fit this shape; they're tracked
+ * separately by `pendingGoalsPush` to avoid forcing a synthetic
+ * "book context" through the per-book pipeline.
+ */
+export type BookDataType =
+  | StorageDataType.DATA
+  | StorageDataType.PROGRESS
+  | StorageDataType.STATISTICS;
+
 interface PendingPush {
   context: ReplicationContext;
-  types: Set<StorageDataType>;
+  types: Set<BookDataType>;
 }
 
 let pending: Map<string, PendingPush> = new Map();
+let pendingGoalsPush = false;
 let pushTimer: ReturnType<typeof setTimeout> | null = null;
 let pushRunning = false;
 /** Non-push long-running operations (boot reconcile, per-book pull,
@@ -228,13 +242,14 @@ function pendingKey(context: ReplicationContext): string {
   return context.title;
 }
 
-export function triggerSync(dataType: StorageDataType, context: ReplicationContext): void {
-  const direction = autoReplication$.getValue();
-  if (direction === AutoReplicationType.Off || direction === AutoReplicationType.Down) return;
-
-  const location = syncState.location;
-  if (!location) return;
-
+/**
+ * Queue an ambient push for a specific book — DATA, PROGRESS, or
+ * STATISTICS. Multiple triggers for the same book within the
+ * debounce window coalesce into one push of the union of types.
+ * For library-scoped reading goals use `triggerGoalsSync()` instead.
+ */
+export function triggerSync(dataType: BookDataType, context: ReplicationContext): void {
+  if (!isAmbientPushAllowed()) return;
   const key = pendingKey(context);
   const existing = pending.get(key);
   if (existing) {
@@ -242,9 +257,28 @@ export function triggerSync(dataType: StorageDataType, context: ReplicationConte
   } else {
     pending.set(key, { context, types: new Set([dataType]) });
   }
-
   syncState.isSyncing = true;
   schedulePushRun();
+}
+
+/**
+ * Queue an ambient push of the user's reading goals. Goals are
+ * library-scoped (one file at the source root), so they don't carry
+ * a per-book context — repeated calls within the debounce window
+ * coalesce into one push.
+ */
+export function triggerGoalsSync(): void {
+  if (!isAmbientPushAllowed()) return;
+  pendingGoalsPush = true;
+  syncState.isSyncing = true;
+  schedulePushRun();
+}
+
+function isAmbientPushAllowed(): boolean {
+  const direction = autoReplication$.getValue();
+  if (direction === AutoReplicationType.Off || direction === AutoReplicationType.Down) return false;
+  if (!syncState.location) return false;
+  return true;
 }
 
 /**
@@ -273,11 +307,10 @@ export async function pushAllLocalBooks(): Promise<void> {
     triggerSync(StorageDataType.PROGRESS, context);
     triggerSync(StorageDataType.STATISTICS, context);
   }
-  // Reading goals are library-scoped, not per-book. Triggering once
-  // outside the per-book loop ensures a fresh connect with zero
-  // downloaded books (or only placeholders) still mirrors the user's
-  // goals up to the new source.
-  triggerSync(StorageDataType.READING_GOALS, { title: '<reading-goals>' });
+  // Reading goals are library-scoped — without this, a fresh connect
+  // with zero downloaded books (or only placeholders) would never
+  // mirror the user's goals up to the new source.
+  triggerGoalsSync();
 }
 
 function schedulePushRun(): void {
@@ -293,13 +326,15 @@ async function runPendingPushes(): Promise<void> {
     schedulePushRun();
     return;
   }
-  if (pending.size === 0) {
+  if (pending.size === 0 && !pendingGoalsPush) {
     emitSyncingState();
     return;
   }
 
   const batch = pending;
+  const runGoals = pendingGoalsPush;
   pending = new Map();
+  pendingGoalsPush = false;
   pushRunning = true;
   emitSyncingState();
 
@@ -307,19 +342,23 @@ async function runPendingPushes(): Promise<void> {
     for (const { context, types } of batch.values()) {
       await pushOne(context, [...types]);
     }
+    if (runGoals) {
+      await pushGoals();
+    }
   } finally {
     pushRunning = false;
-    if (pending.size > 0) schedulePushRun();
+    if (pending.size > 0 || pendingGoalsPush) schedulePushRun();
     emitSyncingState();
   }
 }
 
 function emitSyncingState(): void {
-  const active = pushRunning || pending.size > 0 || pushTimer !== null || longRunningOps > 0;
+  const active =
+    pushRunning || pending.size > 0 || pendingGoalsPush || pushTimer !== null || longRunningOps > 0;
   if (syncState.isSyncing !== active) syncState.isSyncing = active;
 }
 
-async function pushOne(context: ReplicationContext, types: StorageDataType[]): Promise<void> {
+async function pushOne(context: ReplicationContext, types: BookDataType[]): Promise<void> {
   const location = syncState.location;
   if (!location) return;
   // Snapshot the source identity BEFORE any await. If the user
@@ -357,7 +396,6 @@ async function pushOne(context: ReplicationContext, types: StorageDataType[]): P
     // stamp the book with that id so a later reconcile can tell
     // remote-deleted from never-pushed. The stamp is guarded against
     // a mid-flight source switch via expectedSourceInstanceId.
-    // `id` is unset for the synthetic READING_GOALS context.
     if (context.id && types.includes(StorageDataType.DATA)) {
       await markBookMirroredToSource(context.id, expectedSourceInstanceId);
     }
@@ -365,6 +403,46 @@ async function pushOne(context: ReplicationContext, types: StorageDataType[]): P
   } catch (err) {
     const recoverable = reportSyncError('push', err);
     if (recoverable) enqueueReplay(() => pushOne(context, types));
+  }
+}
+
+/**
+ * Run a queued reading-goals push. Library-scoped — the replicator
+ * pulls the goals straight from local IDB (no per-book context
+ * needed) and writes a single goals file at the source root. Mirrors
+ * pushOne's offline-queue + replay shape so an offline cloud
+ * connection or a stale RT defers the push instead of dropping it.
+ */
+async function pushGoals(): Promise<void> {
+  const location = syncState.location;
+  if (!location) return;
+
+  if (location.kind === 'cloud' && !isOnline$.getValue()) {
+    logger.debug('push (goals): offline, queueing for replay');
+    enqueueReplay(() => pushGoals());
+    return;
+  }
+
+  const local = localEndpoint();
+  const handler = endpointFor(location);
+
+  try {
+    if (location.kind === 'cloud') {
+      await handler.authenticate(null, true);
+    }
+    await replicateData({
+      library: local,
+      endpoint: handler,
+      direction: 'push',
+      refreshDataList: false,
+      contexts: [],
+      dataToReplicate: [StorageDataType.READING_GOALS],
+      settings: scopedSettings()
+    });
+    markSynced();
+  } catch (err) {
+    const recoverable = reportSyncError('push (goals)', err);
+    if (recoverable) enqueueReplay(() => pushGoals());
   }
 }
 
