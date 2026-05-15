@@ -95,9 +95,9 @@
           useCustomCredentials: !!$cloudCustomCredentials$[provider]
         });
       }
-    } catch (err) {
+    } catch (err: any) {
       // Picker cancel is silent; other errors surface.
-      if (!(err instanceof DOMException && err.name === 'AbortError')) {
+      if (err.name !== 'AbortError') {
         await messageDialog({
           title: `Couldn't connect to ${targetLabel}`,
           message: err instanceof Error ? err.message : String(err)
@@ -150,8 +150,8 @@
     busy = true;
     try {
       await connectFs({ regrantCurrentSource: true });
-    } catch (err) {
-      if (!(err instanceof DOMException && err.name === 'AbortError')) {
+    } catch (err: any) {
+      if (err.name !== 'AbortError') {
         await messageDialog({
           title: "Couldn't grant folder access",
           message: err instanceof Error ? err.message : String(err)

@@ -31,7 +31,6 @@
   import { formatPageTitle } from '$lib/functions/format-page-title';
   import { keyBy } from '$lib/functions/key-by';
   import { handleErrorDuringReplication } from '$lib/functions/replication/error-handler';
-  import { throwIfAborted } from '$lib/functions/replication/replication-error';
   import {
     replicationProgress$,
     type ReplicationProgress
@@ -78,8 +77,8 @@
 
   let selectedBookIds: ReadonlySet<number> = $state(new Set());
   let selectMode = $state(false);
-  let cancelToken = $state(new AbortController());
-  let cancelSignal = $derived(cancelToken.signal);
+  let abortController = $state(new AbortController());
+  let signal = $derived(abortController.signal);
   let cancelTooltip = $state('');
   let replicationProgress = $state(0);
   let replicationToProgress = $state(0);
@@ -199,7 +198,7 @@
     replicationToProgress = 1;
     executionStart = Date.now();
     logger.clearHistory();
-    cancelToken = new AbortController();
+    abortController = new AbortController();
   }
 
   function resetProgress() {
@@ -211,7 +210,7 @@
   }
 
   function updateProgress(p: ReplicationProgress) {
-    if (cancelSignal.aborted) return;
+    if (signal.aborted) return;
 
     progressBase = p.progressBase || progressBase || 0;
     replicationToProgress = p.maxProgress || replicationToProgress || 0;
@@ -275,7 +274,7 @@
     initializeReplicationProgressData();
 
     try {
-      await userImportBooks(document, files, cancelSignal, $fileCountData$);
+      await userImportBooks(document, files, signal, $fileCountData$);
     } catch (err: any) {
       showError(errorTitle, err.message, 'An error occurred during book import.');
     } finally {
@@ -314,7 +313,7 @@
     }, [] as string[]);
 
     try {
-      await userDeleteBooks(titlesToDelete, cancelSignal, $keepLocalStatisticsOnDeletion$);
+      await userDeleteBooks(titlesToDelete, signal, $keepLocalStatisticsOnDeletion$);
     } catch (err: any) {
       showError('Deletion Failed', err.message, 'An error occurred during book deletion.');
     } finally {
@@ -369,7 +368,7 @@
       tasks.push(
         limiter(async () => {
           try {
-            throwIfAborted(cancelSignal);
+            signal.throwIfAborted();
             await userDeleteStatisticEntries([title], true);
             replicationProgress$.next({ progressToAdd: 1 });
           } catch (error) {
@@ -411,8 +410,8 @@
     onbugReportClick={showBugReportDialog}
     ondeleteStatistics={onDeleteStatistics}
     oncancelReplication={() => {
-      if (!cancelSignal.aborted) {
-        cancelToken.abort();
+      if (!signal.aborted) {
+        abortController.abort();
         replicationProgressRemaining = 'Canceling…';
       }
     }}

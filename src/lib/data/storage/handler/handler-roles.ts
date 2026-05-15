@@ -66,12 +66,12 @@ export interface BookOperations {
   scoped(
     context: ReplicationContext,
     settings: ScopedSettings,
-    cancelSignal?: AbortSignal
+    signal?: AbortSignal
   ): ScopedBookOperations;
 
   deleteBookData(
     booksToDelete: string[],
-    cancelSignal: AbortSignal,
+    signal: AbortSignal,
     keepLocalStatistics: boolean
   ): Promise<number[]>;
 
@@ -83,7 +83,7 @@ export interface BookOperations {
    */
   getReadingGoalsFilename(settings: ScopedSettings): Promise<string | undefined>;
   areReadingGoalsPresentAndUpToDate(referenceFilename: string | undefined): Promise<boolean>;
-  getReadingGoals(cancelSignal?: AbortSignal): Promise<{
+  getReadingGoals(signal?: AbortSignal): Promise<{
     readingGoals: BooksDbReadingGoal[] | undefined;
     lastGoalModified: number;
   }>;
@@ -91,7 +91,7 @@ export interface BookOperations {
     data: BooksDbReadingGoal[],
     lastGoalModified: number,
     settings: ScopedSettings,
-    cancelSignal?: AbortSignal
+    signal?: AbortSignal
   ): Promise<void>;
 }
 
