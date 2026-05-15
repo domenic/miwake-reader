@@ -235,6 +235,7 @@ let pending: Map<string, PendingPush> = new Map();
 let pendingGoalsPush = false;
 let pushTimer: ReturnType<typeof setTimeout> | null = null;
 let pushRunning = false;
+const canceledBookPushTitles = new Set<string>();
 /** Non-push long-running operations (boot reconcile, per-book pull,
  *  force resync). Incremented at entry, decremented in `finally`;
  *  emitSyncingState ORs this with push state. */
@@ -298,6 +299,11 @@ export function syncAfterLocalMutation(mutation: LocalMutationSync): void | Prom
 function queueBookPush(dataType: BookDataType, context: ReplicationContext): void {
   if (!isPushAllowed()) return;
   const key = pendingKey(context);
+  if (dataType === StorageDataType.DATA) {
+    canceledBookPushTitles.delete(key);
+  } else if (canceledBookPushTitles.has(key)) {
+    return;
+  }
   const existing = pending.get(key);
   if (existing) {
     existing.types.add(dataType);
@@ -331,6 +337,19 @@ function isPushAllowed(): boolean {
 function isPullAllowed(): boolean {
   const direction = autoReplication$.getValue();
   return direction === AutoReplicationType.Down || direction === AutoReplicationType.All;
+}
+
+function cancelBookPushes(titles: string[]): void {
+  if (!titles.length) return;
+  for (const title of titles) {
+    pending.delete(title);
+    canceledBookPushTitles.add(title);
+  }
+  if (pending.size === 0 && !pendingGoalsPush && pushTimer) {
+    clearTimeout(pushTimer);
+    pushTimer = null;
+  }
+  emitSyncingState();
 }
 
 /**
@@ -416,6 +435,8 @@ function emitSyncingState(): void {
 }
 
 async function pushOne(context: ReplicationContext, types: BookDataType[]): Promise<void> {
+  if (canceledBookPushTitles.has(context.title)) return;
+
   const location = syncState.location;
   if (!location) return;
   // Snapshot the source identity BEFORE any await. If the user
@@ -504,6 +525,8 @@ async function pushGoals(): Promise<void> {
 }
 
 async function deleteRemoteBooks(titles: string[], cancelSignal: AbortSignal): Promise<void> {
+  cancelBookPushes(titles);
+
   const location = syncState.location;
   if (!titles.length || !location || !isPushAllowed()) return;
 
