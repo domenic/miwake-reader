@@ -4,8 +4,6 @@
   import BookCardList from '$lib/components/book-card/book-card-list.svelte';
   import type { BookCardProps } from '$lib/components/book-card/book-card-props';
   import BookManagerHeader from '$lib/components/book-card/book-manager-header.svelte';
-  import { showExportDialog } from '$lib/components/book-export/export-dialog-content.svelte';
-  import { showSyncDialog } from '$lib/components/book-export/sync-dialog-content.svelte';
   import {
     showBugReportDialog,
     showErrorDialogWithLogReport
@@ -15,24 +13,17 @@
   import type { BooksDbBookmarkData } from '$lib/data/database/books-db/versions/books-db';
   import { dialogManager } from '$lib/data/dialog-manager';
   import { appName, pagePath } from '$lib/data/env';
+  import { userDeleteBooks, userDeleteStatisticEntries, userImportBooks } from '$lib/data/library';
   import { logger } from '$lib/data/logger';
   import { confirmDialog, messageDialog } from '$lib/data/simple-dialogs';
   import { SortDirection, type SortOption } from '$lib/data/sort-types';
-  import { getStorageHandler } from '$lib/data/storage/storage-handler-factory';
-  import { StorageKey, type StorageDataType } from '$lib/data/storage/storage-types';
-  import { storageSource$ } from '$lib/data/storage/storage-view';
+  import { SyncEndpointType } from '$lib/data/storage/storage-types';
   import {
     booklistSortOptions$,
-    cacheStorageData$,
     confirmStatisticsDeletion$,
     database,
     fileCountData$,
-    isOnline$,
-    keepLocalStatisticsOnDeletion$,
-    readingGoalsMergeMode$,
-    replicationSaveBehavior$,
-    showExternalPlaceholder$,
-    statisticsMergeMode$
+    keepLocalStatisticsOnDeletion$
   } from '$lib/data/store';
   import { cloneMutateSet } from '$lib/functions/clone-mutate-set';
   import { getDropEventFiles } from '$lib/functions/file-dom/get-drop-event-files';
@@ -40,7 +31,6 @@
   import { formatPageTitle } from '$lib/functions/format-page-title';
   import { keyBy } from '$lib/functions/key-by';
   import { handleErrorDuringReplication } from '$lib/functions/replication/error-handler';
-  import { importBackup, importData, replicateData } from '$lib/functions/replication/replicator';
   import { throwIfAborted } from '$lib/functions/replication/replication-error';
   import {
     replicationProgress$,
@@ -49,40 +39,33 @@
   import { pluralize } from '$lib/functions/utils';
   import pLimit from 'p-limit';
   import { combineLatest, map, Observable, share, Subject, takeUntil } from 'rxjs';
-  import { onDestroy, tick } from 'svelte';
+  import { onDestroy, onMount, tick } from 'svelte';
   import Fa from 'svelte-fa';
 
   const booksAreLoading$ = database.listLoading$.pipe(map((isLoading) => isLoading));
 
+  // The unified library view always reads from the local IndexedDB
+  // (browser storage). Placeholder books (not-yet-downloaded cloud
+  // content) stay in the list with a cloud-icon marker and are
+  // downloaded transparently when clicked; see onBookClick below.
   const bookCards$: Observable<BookCardProps[]> = combineLatest([
     database.dataList$,
     database.bookmarks$,
     booklistSortOptions$
   ]).pipe(
-    map(([dataList, bookmarks]) => {
-      const sortProp = $booklistSortOptions$[$storageSource$];
+    map(([dataList, bookmarks, sortProp]) => {
       const isTitleSort = sortProp.property === 'title';
-
-      if ($storageSource$ === StorageKey.BROWSER) {
-        const bookmarkMap = keyBy(bookmarks, 'dataId');
-
-        return [
-          ...dataList
-            .filter((d) => $showExternalPlaceholder$ || !d.isPlaceholder)
-            .map((d) => ({
-              ...d,
-              ...bookmarkToProgress(bookmarkMap.get(d.id))
-            }))
-            .sort((card1: BookCardProps, card2: BookCardProps) =>
-              sortBookCards(card1, card2, sortProp, isTitleSort)
-            )
-        ];
-      }
+      const bookmarkMap = keyBy(bookmarks, 'dataId');
 
       return [
-        ...dataList.sort((card1: BookCardProps, card2: BookCardProps) =>
-          sortBookCards(card1, card2, sortProp, isTitleSort)
-        )
+        ...dataList
+          .map((d) => ({
+            ...d,
+            ...bookmarkToProgress(bookmarkMap.get(d.id))
+          }))
+          .sort((card1: BookCardProps, card2: BookCardProps) =>
+            sortBookCards(card1, card2, sortProp, isTitleSort)
+          )
       ];
     }),
     share()
@@ -103,7 +86,7 @@
   let replicationProgressRemaining = $state('~ ??:??:??');
   let replicationDone = new Subject<void>();
   let progressBase = 0;
-  let executionStart: number;
+  let executionStart = 0;
 
   $effect(() => {
     if (!selectMode) {
@@ -151,91 +134,116 @@
     return sortDiff;
   }
 
+  /**
+   * Verify that some sync source is still connected before navigating
+   * to the reader on a placeholder; the reader owns the actual
+   * download. With at-most-one cloud + one fs there's no per-book
+   * routing — any connected source can satisfy.
+   */
+  async function ensurePlaceholderIsReachable(): Promise<void> {
+    const db = await database.db;
+    const sources = await db.getAll('storageSource');
+    if (sources.length === 0) {
+      throw new Error(
+        "This book's content isn't downloaded and no sync source is connected. Connect one from Settings → Sync to download."
+      );
+    }
+  }
+
   async function onBookClick(bookId: number) {
     if (!operationAllowed()) {
       return;
     }
 
-    if (!selectMode) {
-      dialogManager.dialogs$.next([
-        {
-          component: '<div/>',
-          disableCloseOnClick: true
+    if (selectMode) {
+      selectedBookIds = cloneMutateSet(selectedBookIds, (set) => {
+        if (set.has(bookId)) {
+          set.delete(bookId);
+          return;
         }
-      ]);
-
-      let idToOpen = bookId;
-
-      try {
-        const bookItem = $bookCards$.find((book) => book.id === bookId);
-
-        if (!bookItem) {
-          throw new Error('Book title not found');
-        }
-
-        const isForBrowser = $storageSource$ === StorageKey.BROWSER;
-        const handler = getStorageHandler(
-          window,
-          $storageSource$,
-          '',
-          isForBrowser,
-          $cacheStorageData$,
-          $replicationSaveBehavior$,
-          $statisticsMergeMode$,
-          $readingGoalsMergeMode$
-        );
-
-        if (!cacheStorageData$) {
-          handler.clearData(false);
-        }
-
-        handler.startContext({
-          id: isForBrowser ? bookItem.id : 0,
-          title: bookItem.title,
-          imagePath: bookItem.imagePath
-        });
-
-        idToOpen = await handler.prepareBookForReading();
-
-        dialogManager.dialogs$.next([]);
-      } catch (error: any) {
-        const message = `Error opening book: ${error.message}`;
-
-        logger.warn(message);
-
-        messageDialog({ title: 'Error', message });
-
-        return;
-      }
-
-      openBook(idToOpen);
+        set.add(bookId);
+      });
       return;
     }
 
-    selectedBookIds = cloneMutateSet(selectedBookIds, (set) => {
-      if (set.has(bookId)) {
-        set.delete(bookId);
+    // /manage is a launcher — the reader owns downloading. For a
+    // placeholder, pre-check that the original sync source is still
+    // connected so we can surface a friendlier error than "couldn't
+    // render empty book" if not; otherwise just navigate.
+    const bookItem = $bookCards$.find((book) => book.id === bookId);
+    if (!bookItem) return;
+
+    if (bookItem.isPlaceholder) {
+      try {
+        await ensurePlaceholderIsReachable();
+      } catch (error: any) {
+        const message = `Can't open book: ${error.message}`;
+        logger.warn(message);
+        messageDialog({ title: 'Error', message });
         return;
       }
-      set.add(bookId);
-    });
+    }
+
+    openBook(bookId);
   }
 
   function operationAllowed() {
-    const connectivityPass = !(
-      ($storageSource$ === StorageKey.GDRIVE || $storageSource$ === StorageKey.ONEDRIVE) &&
-      !$isOnline$
-    );
+    return !replicationToProgress;
+  }
 
-    if (!connectivityPass && !replicationToProgress) {
-      const message = 'You have to be online for this operation';
+  function initializeReplicationProgressData() {
+    replicationDone = new Subject<void>();
+    replicationProgress$.pipe(takeUntil(replicationDone)).subscribe(updateProgress);
+    replicationProgressRemaining = '~ ??:??:??';
+    replicationProgress = 0;
+    replicationToProgress = 1;
+    executionStart = Date.now();
+    logger.clearHistory();
+    cancelToken = new AbortController();
+  }
 
-      logger.warn(message);
+  function resetProgress() {
+    replicationDone.next();
+    replicationDone.complete();
+    replicationToProgress = 0;
+    replicationProgress = 0;
+    cancelTooltip = '';
+  }
 
-      messageDialog({ title: 'Failure', message });
+  function updateProgress(p: ReplicationProgress) {
+    if (cancelSignal.aborted) return;
+
+    progressBase = p.progressBase || progressBase || 0;
+    replicationToProgress = p.maxProgress || replicationToProgress || 0;
+
+    if (p.skipStep) {
+      const diff =
+        Math.ceil(replicationProgress / progressBase) * progressBase - replicationProgress;
+      replicationProgress =
+        Math.floor((replicationProgress + (diff || progressBase) + Number.EPSILON) * 1000) / 1000;
+    } else if (p.completeStep) {
+      const diff = Math.ceil(replicationProgress) - replicationProgress;
+      replicationProgress = Math.floor((replicationProgress + diff + Number.EPSILON) * 1000) / 1000;
+    } else if (p.progressToAdd && p.progressToAdd > 0) {
+      replicationProgress =
+        Math.floor((replicationProgress + p.progressToAdd + Number.EPSILON) * 1000) / 1000;
     }
 
-    return !replicationToProgress && connectivityPass;
+    if (p.progressToAdd) {
+      const duration = (Date.now() - executionStart) / 1000;
+      const processPerSecond = replicationProgress / duration;
+      const remaining = (replicationToProgress - replicationProgress) / processPerSecond;
+      replicationProgressRemaining =
+        replicationToProgress > replicationProgress
+          ? `~ ${getTimestamp(Math.ceil(remaining))}`
+          : '~ 00:00:01';
+    }
+  }
+
+  function getTimestamp(seconds: number) {
+    return seconds && Number.isFinite(seconds)
+      ? new Date(seconds * 1000).toISOString().substr(11, 8)
+      : '??:??:??';
   }
 
   function openBook(bookId: number) {
@@ -252,46 +260,26 @@
   }
 
   async function onFilesChange(fileList: FileList | File[]) {
-    if (!operationAllowed()) {
-      return;
-    }
-
-    cancelTooltip = `Cancels the current Import\nAlready imported data will not be deleted`;
-
-    initializeReplicationProgressData();
+    if (!operationAllowed()) return;
 
     const supportedExtRegex = /\.(?:htmlz|epub|txt)$/;
     const files = Array.from(fileList).filter((f) => supportedExtRegex.test(f.name));
     const errorTitle = 'Book Import Failed';
 
     if (!files.length) {
-      resetProgress();
-
       showError(errorTitle, 'Imported files must be in EPUB, TXT, or HTMLZ format.');
       return;
     }
 
-    const error = await importData(
-      document,
-      getStorageHandler(
-        window,
-        $storageSource$,
-        '',
-        $storageSource$ === StorageKey.BROWSER,
-        $cacheStorageData$,
-        $replicationSaveBehavior$,
-        $statisticsMergeMode$,
-        $readingGoalsMergeMode$
-      ),
-      files,
-      cancelSignal,
-      $fileCountData$
-    ).catch((catchedError) => catchedError.message);
+    cancelTooltip = 'Cancels the current import\nAlready imported data will not be deleted';
+    initializeReplicationProgressData();
 
-    resetProgress();
-
-    if (error) {
-      showError(errorTitle, error, 'An error occurred during book import.');
+    try {
+      await userImportBooks(document, files, cancelSignal, $fileCountData$);
+    } catch (err: any) {
+      showError(errorTitle, err.message, 'An error occurred during book import.');
+    } finally {
+      resetProgress();
     }
   }
 
@@ -307,27 +295,6 @@
     }
   }
 
-  function initializeReplicationProgressData() {
-    replicationDone = new Subject<void>();
-    replicationProgress$.pipe(takeUntil(replicationDone)).subscribe(updateProgress);
-    replicationProgressRemaining = '~ ??:??:??';
-    replicationProgress = 0;
-    replicationToProgress = 1;
-    executionStart = Date.now();
-
-    logger.clearHistory();
-
-    cancelToken = new AbortController();
-  }
-
-  function resetProgress() {
-    replicationDone.next();
-    replicationDone.complete();
-    replicationToProgress = 0;
-    replicationProgress = 0;
-    cancelTooltip = '';
-  }
-
   function onSelectAllBooks() {
     const bookCards = $bookCards$;
     selectedBookIds = cloneMutateSet(selectedBookIds, (set) => {
@@ -336,139 +303,35 @@
   }
 
   async function removeBooks(bookIds: number[]) {
-    if (!operationAllowed()) {
-      return;
-    }
+    if (!operationAllowed()) return;
 
-    cancelTooltip = `Cancels the Deletion\nAlready deleted data will not be restored`;
-
+    cancelTooltip = 'Cancels the deletion\nAlready deleted data will not be restored';
     initializeReplicationProgressData();
 
-    const currentBookCount = $bookCards$.length;
-    const handler = getStorageHandler(window, $storageSource$, '');
-    const { error, deleted } = await handler.deleteBookData(
-      $bookCards$.reduce((toDelete, card) => {
-        if (bookIds.includes(card.id)) {
-          toDelete.push(card.title);
-        }
-        return toDelete;
-      }, [] as string[]),
-      cancelSignal,
-      $keepLocalStatisticsOnDeletion$
-    );
+    const titlesToDelete = $bookCards$.reduce((toDelete, card) => {
+      if (bookIds.includes(card.id)) toDelete.push(card.title);
+      return toDelete;
+    }, [] as string[]);
 
-    resetProgress();
-
-    await tick();
-
-    if (deleted.length === currentBookCount) {
-      selectMode = false;
-    } else {
-      selectedBookIds = cloneMutateSet(selectedBookIds, (set) => {
-        deleted.forEach((deletedBookId) => set.delete(deletedBookId));
-      });
-    }
-
-    if (error) {
-      showError('Deletion Failed', error, 'An error occurred during book deletion.');
-    }
-  }
-
-  async function onImportBackup(file: File) {
-    if (!operationAllowed()) {
-      return;
-    }
-
-    const errorTitle = 'Import Failed';
-
-    cancelTooltip = `Cancels the current Import\nAlready imported data will not be deleted`;
-
-    initializeReplicationProgressData();
-
-    if (!file.name.endsWith('.zip')) {
+    try {
+      await userDeleteBooks(titlesToDelete, cancelSignal, $keepLocalStatisticsOnDeletion$);
+    } catch (err: any) {
+      showError('Deletion Failed', err.message, 'An error occurred during book deletion.');
+    } finally {
       resetProgress();
-
-      showError(errorTitle, 'Only ZIP files can be imported.');
-      return;
-    }
-
-    const error = await importBackup(
-      getStorageHandler(
-        window,
-        StorageKey.BACKUP,
-        undefined,
-        $storageSource$ === StorageKey.BROWSER,
-        $cacheStorageData$,
-        $replicationSaveBehavior$,
-        $statisticsMergeMode$,
-        $readingGoalsMergeMode$
-      ),
-      getStorageHandler(
-        window,
-        $storageSource$,
-        '',
-        $storageSource$ === StorageKey.BROWSER,
-        $cacheStorageData$,
-        $replicationSaveBehavior$,
-        $statisticsMergeMode$,
-        $readingGoalsMergeMode$
-      ),
-      file,
-      cancelSignal
-    ).catch((err) => err.message);
-
-    resetProgress();
-
-    if (error) {
-      showError(errorTitle, error, 'An error occurred during book import.');
-    }
-  }
-
-  async function onExportData() {
-    const types = await showExportDialog();
-    if (!types || !operationAllowed()) return;
-
-    await runReplication(StorageKey.BACKUP, types);
-  }
-
-  async function onSyncData() {
-    const result = await showSyncDialog();
-    if (!result || !operationAllowed()) return;
-
-    await runReplication(result.target, result.types);
-  }
-
-  async function runReplication(target: StorageKey, types: StorageDataType[]) {
-    cancelTooltip = 'Cancels the current export';
-
-    initializeReplicationProgressData();
-
-    const handlers = [$storageSource$, target].map((storageType) =>
-      getStorageHandler(
-        window,
-        storageType,
-        '',
-        target === StorageKey.BROWSER,
-        $cacheStorageData$,
-        $replicationSaveBehavior$,
-        $statisticsMergeMode$,
-        $readingGoalsMergeMode$
-      )
-    );
-    const books = $bookCards$.filter((card) => selectedBookIds.has(card.id));
-    const error = await replicateData(
-      handlers[0],
-      handlers[1],
-      false,
-      books.map((book) => ({ title: book.title, imagePath: book.imagePath })),
-      types,
-      cancelSignal
-    ).catch((err: Error) => err.message);
-
-    resetProgress();
-
-    if (error) {
-      showError('Export Failed', error, 'Error(s) occurred during export.');
+      await tick();
+      // Reconcile selection state with whatever is actually in IDB
+      // now: ids that no longer exist on the cards list (i.e. were
+      // successfully deleted) drop out of the selection set; ids that
+      // still exist (failed deletes) stay selected so the user can
+      // retry. Works for both full success and partial failure.
+      const stillPresent = new Set($bookCards$.map((card) => card.id));
+      selectedBookIds = cloneMutateSet(selectedBookIds, (set) => {
+        set.forEach((id) => {
+          if (!stillPresent.has(id)) set.delete(id);
+        });
+      });
+      if (selectedBookIds.size === 0) selectMode = false;
     }
   }
 
@@ -486,16 +349,13 @@
           titles.length,
           'book',
           false
-        )} (which may include start and/or completion data).\n\nExecute a one-time sync with an export behavior of "replace" and/or a statistics merge mode of "replace" to apply deletions to other devices.`
+        )} (which may include start and/or completion data). The deletion will sync to your other devices.`
       });
     }
 
-    if (wasCanceled) {
-      return;
-    }
+    if (wasCanceled) return;
 
-    cancelTooltip = `Cancels the current Process`;
-
+    cancelTooltip = 'Cancels the current process';
     initializeReplicationProgressData();
 
     const limiter = pLimit(1);
@@ -510,14 +370,12 @@
         limiter(async () => {
           try {
             throwIfAborted(cancelSignal);
-            await database.deleteStatisticEntries([title], true);
-
+            await userDeleteStatisticEntries([title], true);
             replicationProgress$.next({ progressToAdd: 1 });
           } catch (error) {
             handleErrorDuringReplication(error, `Error on deleting statistics for ${title}: `, [
               limiter
             ]);
-
             failed += 1;
           }
         })
@@ -532,52 +390,6 @@
       showError('Deletion Failed', `Unable to delete statistics for ${pluralize(failed, 'book')}.`);
     }
   }
-
-  function updateProgress(replicationProgressData: ReplicationProgress) {
-    if (cancelSignal.aborted) {
-      return;
-    }
-
-    progressBase = replicationProgressData.progressBase || progressBase || 0;
-    replicationToProgress = replicationProgressData.maxProgress || replicationToProgress || 0;
-
-    if (replicationProgressData.skipStep) {
-      const progressDiffToAdd =
-        Math.ceil(replicationProgress / progressBase) * progressBase - replicationProgress;
-
-      replicationProgress =
-        Math.floor(
-          (replicationProgress + (progressDiffToAdd || progressBase) + Number.EPSILON) * 1000
-        ) / 1000;
-    } else if (replicationProgressData.completeStep) {
-      const progressDiffToAdd = Math.ceil(replicationProgress) - replicationProgress;
-
-      replicationProgress =
-        Math.floor((replicationProgress + progressDiffToAdd + Number.EPSILON) * 1000) / 1000;
-    } else if (replicationProgressData.progressToAdd && replicationProgressData.progressToAdd > 0) {
-      replicationProgress =
-        Math.floor(
-          (replicationProgress + replicationProgressData.progressToAdd + Number.EPSILON) * 1000
-        ) / 1000;
-    }
-
-    if (replicationProgressData.progressToAdd) {
-      const duration = (Date.now() - executionStart) / 1000;
-      const processPerSecond = replicationProgress / duration;
-      const remainingTime = (replicationToProgress - replicationProgress) / processPerSecond;
-
-      replicationProgressRemaining =
-        replicationToProgress > replicationProgress
-          ? `~ ${getTimestamp(Math.ceil(remainingTime))}`
-          : '~ 00:00:01';
-    }
-  }
-
-  function getTimestamp(seconds: number) {
-    return seconds && Number.isFinite(seconds)
-      ? new Date(seconds * 1000).toISOString().substr(11, 8)
-      : '??:??:??';
-  }
 </script>
 
 <svelte:head>
@@ -588,25 +400,22 @@
   <BookManagerHeader
     selectedCount={selectedBookIds.size}
     hasBooks={!!$bookCards$?.length}
-    {cancelTooltip}
     {replicationProgress}
     {replicationToProgress}
     {replicationProgressRemaining}
+    {cancelTooltip}
     bind:selectMode
     onselectAllClick={onSelectAllBooks}
     onremoveClick={() => removeBooks(Array.from(selectedBookIds))}
     onfilesChange={onFilesChange}
     onbugReportClick={showBugReportDialog}
+    ondeleteStatistics={onDeleteStatistics}
     oncancelReplication={() => {
       if (!cancelSignal.aborted) {
         cancelToken.abort();
-        replicationProgressRemaining = 'Canceling ...';
+        replicationProgressRemaining = 'Canceling…';
       }
     }}
-    ondeleteStatistics={onDeleteStatistics}
-    onexportData={onExportData}
-    onsyncData={onSyncData}
-    onimportBackup={onImportBackup}
   />
 </div>
 

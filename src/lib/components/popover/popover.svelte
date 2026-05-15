@@ -18,6 +18,15 @@
     eventType?: string;
     fallbackPlacements?: string[];
     placement?: Placement;
+    /**
+     * Popper positioning strategy. Use `'fixed'` when the trigger
+     * lives inside a `position: fixed`/`absolute` ancestor — the
+     * popover then uses the viewport as its containing block instead
+     * of inheriting the (often narrow) positioned ancestor's box,
+     * which would otherwise shrink-to-fit the popover and wrap its
+     * content word-by-word.
+     */
+    strategy?: 'absolute' | 'fixed';
     singlePopover?: boolean;
     xOffset?: number;
     yOffset?: number;
@@ -35,6 +44,7 @@
     eventType = 'click',
     fallbackPlacements = ['left', 'bottom', 'right'],
     placement = 'top',
+    strategy = 'absolute',
     singlePopover = true,
     xOffset = 0,
     yOffset = 10,
@@ -94,6 +104,7 @@
     } else {
       instance = createPopper(targetElement, popperElement, {
         placement,
+        strategy,
         modifiers: [
           flip,
           {
@@ -187,7 +198,9 @@
 {#if isOpen}
   <div
     data-popover
-    class="max-w-60vw absolute z-10 rounded-sm bg-[#333] text-sm font-bold text-white md:max-w-lg"
+    class="max-w-60vw z-10 rounded-sm bg-[#333] text-sm font-bold text-white md:max-w-lg"
+    class:absolute={strategy === 'absolute'}
+    class:fixed={strategy === 'fixed'}
     class:whitespace-pre-wrap={contentText}
     bind:this={popoverElement}
   >

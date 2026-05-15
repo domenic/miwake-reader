@@ -12,14 +12,13 @@ import {
   pagePath
 } from '$lib/data/env';
 import { logger } from '$lib/data/logger';
+import { NeedsInteractiveAuthError } from '$lib/data/storage/errors';
 import {
-  encrypt,
   isAppDefault,
-  unlockStorageData,
-  type RemoteContext,
-  type StorageUnlockAction
-} from '$lib/data/storage/storage-source-manager';
-import { StorageSourceDefault, StorageKey } from '$lib/data/storage/storage-types';
+  isRemoteContext,
+  type RemoteContext
+} from '$lib/data/storage/storage-source-types';
+import { StorageSourceDefault, SyncEndpointType } from '$lib/data/storage/storage-types';
 import { database } from '$lib/data/store';
 import { messageDialog } from '$lib/data/simple-dialogs';
 import { convertAuthErrorResponse } from '$lib/functions/replication/error-handler';
@@ -34,8 +33,20 @@ interface OAuthTokenData {
 
 export const storageOAuthTokens = new Map<string, OAuthTokenData>();
 
+/**
+ * Drop any cached access token for this source. Must be called by
+ * disconnect flows: connect → disconnect → reconnect within the same
+ * tab would otherwise reuse the prior access token, skip the OAuth
+ * popup entirely, and leave the freshly-written IDB record with no
+ * refresh_token. Once the cached token expires there's nothing to
+ * silently refresh from and the user has to reconnect again.
+ */
+export function clearOAuthTokenCache(storageSourceName: string): void {
+  storageOAuthTokens.delete(storageSourceName);
+}
+
 export class StorageOAuthManager {
-  private storageType: StorageKey;
+  private storageType: SyncEndpointType;
 
   private readonly refreshEndpoint;
 
@@ -65,7 +76,7 @@ export class StorageOAuthManager {
 
   private pendingGetToken: Promise<string | undefined> | undefined;
 
-  constructor(type: StorageKey, refreshEndpoint: string) {
+  constructor(type: SyncEndpointType, refreshEndpoint: string) {
     this.storageType = type;
     this.refreshEndpoint = refreshEndpoint;
   }
@@ -73,23 +84,14 @@ export class StorageOAuthManager {
   async getToken(
     window: Window,
     storageSourceName: string,
-    askForStorageUnlock: boolean,
     authWindow?: Window | null,
-    oldUnlockResult?: StorageUnlockAction,
-    oldStorageSource?: BooksDbStorageSource | undefined
+    silentOnly = false
   ): Promise<string | undefined> {
     if (this.pendingGetToken) {
       return this.pendingGetToken;
     }
 
-    this.pendingGetToken = this.doGetToken(
-      window,
-      storageSourceName,
-      askForStorageUnlock,
-      authWindow,
-      oldUnlockResult,
-      oldStorageSource
-    );
+    this.pendingGetToken = this.doGetToken(window, storageSourceName, authWindow, silentOnly);
 
     try {
       return await this.pendingGetToken;
@@ -101,13 +103,10 @@ export class StorageOAuthManager {
   private async doGetToken(
     window: Window,
     storageSourceName: string,
-    askForStorageUnlock: boolean,
     authWindow?: Window | null,
-    oldUnlockResult?: StorageUnlockAction,
-    oldStorageSource?: BooksDbStorageSource | undefined
+    silentOnly = false
   ): Promise<string | undefined> {
     const oldToken = storageOAuthTokens.get(storageSourceName);
-    const shallUnlock = !oldToken || askForStorageUnlock;
 
     if (!oldToken || this.storageSourceName !== storageSourceName) {
       this.remoteData = undefined;
@@ -124,9 +123,7 @@ export class StorageOAuthManager {
     // 2. Load credentials (and any stored refresh token)
     this.remoteData = undefined;
 
-    let secret: string | undefined;
-    let unlockResult = oldUnlockResult;
-    let storageSource = oldStorageSource;
+    let storageSource: BooksDbStorageSource | undefined;
     const defaultSource = isAppDefault(storageSourceName);
 
     if (defaultSource) {
@@ -141,39 +138,17 @@ export class StorageOAuthManager {
         refreshToken: storedData?.refreshToken
       };
     } else {
-      if (!unlockResult) {
-        const db = await database.db;
+      const db = await database.db;
+      storageSource = await db.get('storageSource', storageSourceName);
 
-        storageSource = await db.get('storageSource', storageSourceName);
-
-        if (!storageSource) {
-          throw new Error(`No storage source with name ${storageSourceName} found`);
-        }
-
-        unlockResult = await unlockStorageData(
-          storageSource,
-          'You are trying to access protected data',
-          shallUnlock
-            ? {
-                action: `Enter the correct password for ${storageSourceName} and login to your account if required to proceed`,
-                encryptedData: storageSource.data,
-                forwardSecret: true
-              }
-            : undefined
-        );
-
-        if (!unlockResult) {
-          throw new Error(`Unable to unlock required data`);
-        }
+      if (!storageSource) {
+        throw new Error(`No storage source with name ${storageSourceName} found`);
+      }
+      if (!isRemoteContext(storageSource.data)) {
+        throw new Error(`Storage source ${storageSourceName} is missing remote credentials`);
       }
 
-      this.remoteData = {
-        clientId: unlockResult.clientId,
-        clientSecret: unlockResult.clientSecret,
-        refreshToken: unlockResult.refreshToken
-      };
-
-      secret = unlockResult.secret;
+      this.remoteData = { ...storageSource.data };
     }
 
     // 3. Try refreshing with stored refresh token
@@ -184,7 +159,11 @@ export class StorageOAuthManager {
       return token.accessToken;
     }
 
-    // 4. No valid token — need interactive auth
+    // 4. No valid token — would need interactive auth.
+    if (silentOnly) {
+      throw new NeedsInteractiveAuthError(storageSourceName, this.storageType);
+    }
+
     this.parentWindow = window;
 
     logger.warn(`Opening auth window for ${storageSourceName} (${this.storageType})`);
@@ -193,8 +172,20 @@ export class StorageOAuthManager {
 
     if (authWindow) {
       this.authWindow = authWindow;
+      // If the popup was opened BEFORE we stashed, its copy-on-open of
+      // the opener's sessionStorage didn't capture the stash. Same-origin
+      // so we can write into it directly before navigating.
+      try {
+        const stash = sessionStorage.getItem(StorageOAuthManager.AUTH_STORAGE_KEY);
+        if (stash) {
+          authWindow.sessionStorage.setItem(StorageOAuthManager.AUTH_STORAGE_KEY, stash);
+        }
+      } catch {
+        // Cross-origin or closed popup — give up on the pre-copy and
+        // rely on the popup's own (possibly empty) sessionStorage.
+      }
       this.authWindow.location.assign(`${pagePath}/auth?miwake-init-auth=1`);
-    } else if (shallUnlock) {
+    } else {
       this.authWindow = StorageOAuthManager.createWindow(
         `${pagePath}/auth?miwake-init-auth=1`,
         'auth',
@@ -202,34 +193,27 @@ export class StorageOAuthManager {
         Math.min(Math.max(this.parentWindow.innerHeight, 300), 560),
         window
       );
-    } else {
-      this.authWindow = null;
     }
 
     if (!this.authWindow) {
-      if (shallUnlock) {
-        await messageDialog({
-          title: 'Login Required',
-          message: 'Log in to your cloud storage account when prompted.'
-        });
+      // Popup blocked. Surface the message dialog (a user gesture) and
+      // retry by pre-opening a wait-window during the click.
+      await messageDialog({
+        title: 'Login Required',
+        message: 'Log in to your cloud storage account when prompted.'
+      });
 
-        return this.doGetToken(
-          window,
-          storageSourceName,
-          false,
-          StorageOAuthManager.createWindow(
-            `${pagePath}/auth?miwake-init-wait=1`,
-            'auth',
-            Math.min(Math.max(this.parentWindow.innerWidth, 300), 560),
-            Math.min(Math.max(this.parentWindow.innerHeight, 300), 560),
-            window
-          ),
-          unlockResult,
-          storageSource
-        );
-      }
-
-      throw new Error('Unable to open login window. Please check your popup settings');
+      return this.doGetToken(
+        window,
+        storageSourceName,
+        StorageOAuthManager.createWindow(
+          `${pagePath}/auth?miwake-init-wait=1`,
+          'auth',
+          Math.min(Math.max(this.parentWindow.innerWidth, 300), 560),
+          Math.min(Math.max(this.parentWindow.innerHeight, 300), 560),
+          window
+        )
+      );
     }
 
     // 5. Wait for popup auth result and persist refresh token
@@ -240,42 +224,27 @@ export class StorageOAuthManager {
 
       storageOAuthTokens.set(storageSourceName, token);
 
+      // OAuth contract: needsRefreshToken=!this.remoteData.refreshToken,
+      // and when true the auth route forces prompt=consent +
+      // access_type=offline so Google MUST return a refresh_token. If
+      // we get here without one, either we asked the wrong way or the
+      // provider violated the contract — either way silent reauth on
+      // the next reload will fail, so log loudly.
+      logger.debug(
+        `waitForAuth resolved for ${storageSourceName}: ` +
+          `hadRefreshToken=${!!this.remoteData.refreshToken}, ` +
+          `gotRefreshToken=${!!token.refreshToken}, ` +
+          `willPersist=${!!(token.refreshToken && token.refreshToken !== this.remoteData.refreshToken)}`
+      );
+      if (!token.refreshToken && !this.remoteData.refreshToken) {
+        logger.error(
+          `OAuth flow returned no refresh_token for ${storageSourceName}; silent reauth will fail on next reload. Disconnect and reconnect to retry.`
+        );
+      }
+
       if (token.refreshToken && token.refreshToken !== this.remoteData.refreshToken) {
         this.remoteData.refreshToken = token.refreshToken;
-
-        try {
-          const db = await database.db;
-          const existingStorageSourceData = storageSource || {
-            storedInManager: false,
-            encryptionDisabled: false
-          };
-          const newData =
-            defaultSource || existingStorageSourceData.encryptionDisabled
-              ? {
-                  clientId: this.remoteData.clientId,
-                  clientSecret: this.remoteData.clientSecret,
-                  refreshToken: token.refreshToken
-                }
-              : await encrypt(
-                  this.parentWindow,
-                  JSON.stringify({
-                    clientId: this.remoteData.clientId,
-                    clientSecret: this.remoteData.clientSecret,
-                    refreshToken: token.refreshToken
-                  }),
-                  secret!
-                );
-
-          await db.put('storageSource', {
-            ...existingStorageSourceData,
-            name: storageSourceName,
-            type: this.storageType,
-            data: newData,
-            lastSourceModified: Date.now()
-          });
-        } catch (err: any) {
-          logger.error(`Error updating refresh token for ${storageSourceName}: ${err.message}`);
-        }
+        await this.persistRefreshToken(token.refreshToken, { bumpLastSourceModified: true });
       }
     } catch (error: any) {
       errorMessage = error.message;
@@ -303,45 +272,73 @@ export class StorageOAuthManager {
   }
 
   private async refreshToken() {
+    // Prefer the per-source custom token endpoint when the user
+    // supplied one (tenant-pinned OneDrive, etc.); otherwise fall back
+    // to the env-default this manager was constructed with.
+    const refreshUrl = this.remoteData?.tokenEndpoint || this.refreshEndpoint;
     if (
       !(
-        this.refreshEndpoint &&
+        refreshUrl &&
         this.storageSourceName &&
         this.remoteData?.clientId &&
         this.remoteData.refreshToken
       )
     ) {
+      logger.debug(
+        `refreshToken: silent early-return — ` +
+          `refreshUrl=${!!refreshUrl}, ` +
+          `storageSourceName=${JSON.stringify(this.storageSourceName ?? null)}, ` +
+          `clientId=${!!this.remoteData?.clientId}, ` +
+          `refreshToken=${!!this.remoteData?.refreshToken}`
+      );
       return undefined;
     }
+    logger.debug(`refreshToken: posting to ${refreshUrl} for ${this.storageSourceName}`);
 
     const form = new FormData();
     form.append('client_id', this.remoteData.clientId);
     form.append('refresh_token', this.remoteData.refreshToken);
     form.append('grant_type', 'refresh_token');
 
-    if (this.storageType === StorageKey.GDRIVE) {
+    // Send client_secret whenever we have one. GDrive's default app is
+    // confidential and always sets one. OneDrive's default app is public
+    // (no secret), but custom OneDrive credentials may be confidential
+    // — without the secret the refresh request is rejected and silent
+    // sync breaks until the user reconnects.
+    if (this.remoteData.clientSecret) {
       form.append('client_secret', this.remoteData.clientSecret);
     }
 
-    const response = await fetch(this.refreshEndpoint, { method: 'POST', body: form })
-      .then(async (httpResponse) => {
-        if (!httpResponse.ok) {
-          throw new Error(await convertAuthErrorResponse(httpResponse));
+    let response: any;
+    try {
+      const httpResponse = await fetch(refreshUrl, { method: 'POST', body: form });
+      if (!httpResponse.ok) {
+        const errorBody = await convertAuthErrorResponse(httpResponse);
+        logger.error(`Unable to refresh token for ${this.storageSourceName}: ${errorBody}`);
+        // 4xx: the RT itself is bad (rotated, revoked, invalid_grant).
+        // Clear it so the next caller hits the interactive auth path.
+        // 5xx / network errors are transient: keep the RT so the next
+        // ambient cycle can retry rather than forcing the user to
+        // re-sign-in over a single bad gateway.
+        if (httpResponse.status >= 400 && httpResponse.status < 500) {
+          this.remoteData.refreshToken = undefined;
         }
-
-        return httpResponse.json();
-      })
-      .catch((error) => {
-        logger.error(`Unable to refresh token for ${this.storageSourceName}: ${error.message}`);
         return undefined;
-      });
-
-    if (!response) {
-      this.remoteData.refreshToken = undefined;
+      }
+      response = await httpResponse.json();
+    } catch (err: any) {
+      // fetch() itself rejected (network down, DNS failure, TLS).
+      // Transient — keep the RT.
+      logger.error(`Unable to refresh token for ${this.storageSourceName}: ${err.message}`);
       return undefined;
     }
 
-    const { access_token: accessToken, expires_in: expiration, scope } = response;
+    const {
+      access_token: accessToken,
+      expires_in: expiration,
+      scope,
+      refresh_token: rotatedRefreshToken
+    } = response;
 
     if (!accessToken || !expiration || !scope) {
       this.remoteData.refreshToken = undefined;
@@ -349,6 +346,16 @@ export class StorageOAuthManager {
         `A required authentication property was not found\nhad token: ${!!accessToken}\nhad expiration: ${!!expiration}\nhad scope: ${!!scope}`
       );
       return undefined;
+    }
+
+    // Both Google and Microsoft rotate the refresh_token on every
+    // `grant_type=refresh_token` exchange and (eventually) invalidate
+    // the previous one. If we don't capture and persist the rotated
+    // RT, subsequent silent refreshes start failing — Microsoft is
+    // strict (re-auth required within hours), Google more lenient.
+    if (rotatedRefreshToken && rotatedRefreshToken !== this.remoteData.refreshToken) {
+      this.remoteData.refreshToken = rotatedRefreshToken;
+      await this.persistRefreshToken(rotatedRefreshToken);
     }
 
     const token: OAuthTokenData = {
@@ -361,6 +368,40 @@ export class StorageOAuthManager {
     storageOAuthTokens.set(this.storageSourceName, token);
 
     return token;
+  }
+
+  /**
+   * Write `refreshToken` to the storageSource record, preserving the
+   * rest of the data blob (especially per-source optional fields like
+   * the user-supplied `tokenEndpoint` for tenant-pinned OneDrive — a
+   * naive `{ clientId, clientSecret, refreshToken }` enumerate would
+   * drop them and force silent refresh back onto the env-default
+   * endpoint on the next reload).
+   *
+   * `bumpLastSourceModified` is true for interactive auth (the user
+   * just took an action; surface it as a fresh "connected at" in the
+   * UI) and false for silent refresh (a background token rotation
+   * isn't a connection event).
+   */
+  private async persistRefreshToken(refreshToken: string, { bumpLastSourceModified = false } = {}) {
+    if (!this.remoteData) return;
+    try {
+      const db = await database.db;
+      const existing = await db.get('storageSource', this.storageSourceName);
+      await db.put('storageSource', {
+        ...(existing ?? {}),
+        name: this.storageSourceName,
+        type: this.storageType,
+        data: { ...this.remoteData, refreshToken },
+        lastSourceModified:
+          bumpLastSourceModified || !existing ? Date.now() : existing.lastSourceModified
+      });
+      logger.debug(`refresh_token persisted for ${this.storageSourceName}`);
+    } catch (err: any) {
+      logger.error(
+        `Failed to persist refresh_token for ${this.storageSourceName} — silent reauth may fail on next reload: ${err.message}`
+      );
+    }
   }
 
   private static base64Url(buffer: Uint8Array) {
@@ -387,9 +428,12 @@ export class StorageOAuthManager {
       )
     );
 
+    // Defaults first, then remoteData — so a user-provided custom
+    // tokenEndpoint (RemoteContext.tokenEndpoint) wins over the
+    // env-default for this provider when present.
     const authData = {
-      ...this.remoteData,
       ...StorageOAuthManager.getAuthVariables(this.storageType),
+      ...this.remoteData,
       needsRefreshToken: !this.remoteData.refreshToken,
       codeVerifier: this.codeVerifier,
       codeChallenge
@@ -492,16 +536,16 @@ export class StorageOAuthManager {
     return newWindow;
   }
 
-  static getAuthVariables(target: StorageKey) {
+  static getAuthVariables(target: SyncEndpointType) {
     switch (target) {
-      case StorageKey.GDRIVE:
+      case SyncEndpointType.GDRIVE:
         return {
           authEndpoint: gDriveAuthEndpoint,
           tokenEndpoint: gDriveTokenEndpoint,
           scope: gDriveScope
         };
 
-      case StorageKey.ONEDRIVE:
+      case SyncEndpointType.ONEDRIVE:
         return {
           authEndpoint: oneDriveAuthEndpoint,
           tokenEndpoint: oneDriveTokenEndpoint,

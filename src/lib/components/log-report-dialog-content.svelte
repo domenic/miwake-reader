@@ -50,7 +50,6 @@
   import { ripple } from '$lib/components/ripple';
   import { buttonClasses, dialogActionsClasses, dialogTitleClasses } from '$lib/css-classes';
   import { logger } from '$lib/data/logger';
-  import { StorageSourceDefault } from '$lib/data/storage/storage-types';
   import {
     theme$,
     viewMode$,
@@ -84,17 +83,10 @@
     enableTapEdgeToFlip$,
     pageColumns$,
     autoPositionOnResize$,
-    requestPersistentStorage$,
     importHTMLFixMode$,
     restrictImportFixToAnchor$,
     cacheStorageData$,
     autoReplication$,
-    replicationSaveBehavior$,
-    showExternalPlaceholder$,
-    gDriveStorageSource$,
-    oneDriveStorageSource$,
-    fsStorageSource$,
-    syncTarget$,
     keepLocalStatisticsOnDeletion$,
     overwriteBookCompletion$,
     startDayHoursForTracker$,
@@ -112,8 +104,6 @@
     trackerPopupDetection$,
     adjustStatisticsAfterIdleTime$,
     readingGoal$,
-    lastSyncedSettingsSource$,
-    lastSyncedSettingsTarget$,
     lastReadingGoalsModified$,
     isOnline$,
     multiplier$,
@@ -181,19 +171,10 @@
           enableTapEdgeToFlip: enableTapEdgeToFlip$.getValue(),
           pageColumns: pageColumns$.getValue(),
           autoPositionOnResize: autoPositionOnResize$.getValue(),
-          requestPersistentStorage: requestPersistentStorage$.getValue(),
           importHTMLFixMode: importHTMLFixMode$.getValue(),
           restrictImportFixToAnchor: restrictImportFixToAnchor$.getValue(),
           cacheStorageData: cacheStorageData$.getValue(),
           autoReplication: autoReplication$.getValue(),
-          replicationSaveBehavior: replicationSaveBehavior$.getValue(),
-          showExternalPlaceholder: showExternalPlaceholder$.getValue(),
-          gDriveStorageSource:
-            gDriveStorageSource$.getValue() === StorageSourceDefault.GDRIVE_DEFAULT,
-          oneDriveStorageSource:
-            oneDriveStorageSource$.getValue() === StorageSourceDefault.ONEDRIVE_DEFAULT,
-          fsStorageSource: !!fsStorageSource$.getValue(),
-          syncTarget: !!syncTarget$.getValue(),
           keepLocalStatisticsOnDeletion: keepLocalStatisticsOnDeletion$.getValue(),
           overwriteBookCompletion: overwriteBookCompletion$.getValue(),
           startDayHoursForTracker: startDayHoursForTracker$.getValue(),
@@ -211,8 +192,6 @@
           trackerPopupDetection: trackerPopupDetection$.getValue(),
           adjustStatisticsAfterIdleTime: adjustStatisticsAfterIdleTime$.getValue(),
           readingGoal: readingGoal$.getValue(),
-          lastSyncedSettingsSource: lastSyncedSettingsSource$.getValue(),
-          lastSyncedSettingsTarget: lastSyncedSettingsTarget$.getValue(),
           lastReadingGoalsModified: lastReadingGoalsModified$.getValue(),
           isOnline: isOnline$.getValue(),
           multiplier: multiplier$.getValue()

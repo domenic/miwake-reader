@@ -4,6 +4,7 @@
     isTrackerPaused$,
     type TrackingHistory,
     isTrackerMenuOpen$,
+    trackerAvailable$,
     TrackerSkipThresholdAction,
     TrackerAutoPause
   } from '$lib/components/book-reader/book-reading-tracker/book-reading-tracker';
@@ -17,7 +18,6 @@
   } from '$lib/data/database/books-db/versions/books-db';
   import { PAGE_CHANGE } from '$lib/data/events';
   import { logger } from '$lib/data/logger';
-  import { MergeMode } from '$lib/data/merge-mode';
   import { getReadingGoalWindow, type ReadingGoal } from '$lib/data/reading-goal';
   import {
     adjustStatisticsAfterIdleTime$,
@@ -41,7 +41,7 @@
     getSecondsToDate,
     toTimeString
   } from '$lib/functions/statistic-util';
-  import { filterNotNullAndNotUndefined } from '$lib/functions/utils';
+  import { fireAndForget, filterNotNullAndNotUndefined } from '$lib/functions/utils';
   import {
     fromEvent,
     interval,
@@ -65,8 +65,6 @@
     sectionData: SectionWithProgress[];
     frozenPosition: number;
     autoScroller: AutoScroller | undefined;
-    blockDataUpdates: boolean;
-    ontrackeravailable?: () => void;
     onstatisticssaved?: () => void;
     onfreezecurrentlocation?: () => void;
   }
@@ -81,18 +79,16 @@
     sectionData,
     frozenPosition,
     autoScroller,
-    blockDataUpdates,
-    ontrackeravailable,
     onstatisticssaved,
     onfreezecurrentlocation
   }: Props = $props();
 
-  export function processStatistics(
+  export async function processStatistics(
     characterDiff: number,
     timeDiff = 1,
     referenceTick = Date.now(),
     flushData = true
-  ) {
+  ): Promise<void> {
     const todayDate = new Date();
     const absoluteTimeDiff = Math.abs(timeDiff);
     const isNegativeTimeDiff = timeDiff < 0;
@@ -188,13 +184,11 @@
 
     updateTimeToFinishBook();
 
-    return flushData ? flushUpdates() : Promise.resolve([false, 0]);
+    if (flushData) await flushUpdates();
   }
 
-  export async function flushUpdates(force = false) {
-    if (!statisticsToStore.size || (blockDataUpdates && !force)) {
-      return [false, 0];
-    }
+  export async function flushUpdates(): Promise<void> {
+    if (!statisticsToStore.size) return;
 
     actionInProgress = true;
     hadError = false;
@@ -214,7 +208,7 @@
         bookTitle,
         itemsToStore,
         ReplicationSaveBehavior.Overwrite,
-        MergeMode.LOCAL
+        'merge'
       );
 
       trackingHistory = trackingHistory.map((item) => {
@@ -227,9 +221,12 @@
 
       onstatisticssaved?.();
     } catch (error: any) {
+      // Re-queue so the next flush retries; rethrow so operational
+      // callers can decide whether to surface a dialog.
       hadError = true;
       statisticsToStore = new Set([...statisticsToStore, ...toUpdate]);
       logger.error(`Error updating statistics: ${error.message}`);
+      throw error;
     } finally {
       actionInProgress = false;
       lastTrackerFlushTime = Date.now();
@@ -238,8 +235,6 @@
         updateReadingGoalWindow();
       }
     }
-
-    return [hadError, toUpdate.length];
   }
 
   export function updateCompletedBook(
@@ -317,7 +312,7 @@
       if (isPaused) {
         trackerIdleTime = 0;
 
-        flushUpdates();
+        fireAndForget(flushUpdates());
 
         return NEVER;
       }
@@ -426,6 +421,7 @@
   onDestroy(() => {
     yomiObserver.disconnect();
     dictionaryObserver.disconnect();
+    trackerAvailable$.set(false);
   });
 
   function handleYomiMutation() {
@@ -548,7 +544,7 @@
     sessionStatistics = { ...sessionStatistics };
 
     updateTimeToFinishBook();
-    flushUpdates();
+    fireAndForget(flushUpdates());
   }
 
   function handleVisibilityChange(state: DocumentVisibilityState) {
@@ -615,7 +611,7 @@
         }
       }
 
-      ontrackeravailable?.();
+      trackerAvailable$.set(true);
     } catch ({ message }: any) {
       logger.error(`Error initializing timer: ${message}`);
     }
@@ -688,9 +684,9 @@
 
       if (frozenPosition === -1) {
         if ($adjustStatisticsAfterIdleTime$) {
-          processStatistics(0, elapsed - $trackerIdleTime$, lastTrackerTick, true);
+          fireAndForget(processStatistics(0, elapsed - $trackerIdleTime$, lastTrackerTick, true));
         } else if (elapsed) {
-          processStatistics(0, elapsed, lastTrackerTick, true);
+          fireAndForget(processStatistics(0, elapsed, lastTrackerTick, true));
         }
       }
 
@@ -723,11 +719,13 @@
       previousLastExploredCharCount = lastExploredCharCount;
       lastExploredCharCount = exploredCharCount;
 
-      processStatistics(
-        finalCharacterDiff,
-        elapsed,
-        lastTrackerTick,
-        now - lastTrackerFlushTime > 10000
+      fireAndForget(
+        processStatistics(
+          finalCharacterDiff,
+          elapsed,
+          lastTrackerTick,
+          now - lastTrackerFlushTime > 10000
+        )
       );
     }
   }
@@ -837,7 +835,7 @@
     bind:wasTrackerPaused
     {onfreezecurrentlocation}
     onupdatecurrentlocation={updateLastExploredCharCount}
-    onsavestatistics={() => flushUpdates()}
+    onsavestatistics={() => fireAndForget(flushUpdates())}
     onrevertstatistic={revertTrackerHistory}
   />
 </SidebarOverlay>

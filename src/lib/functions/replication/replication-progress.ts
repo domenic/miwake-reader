@@ -15,10 +15,5 @@ export interface ReplicationProgress {
   completeStep?: boolean;
 }
 
-export interface ReplicationDeleteResult {
-  error: string;
-  deleted: number[];
-}
-
 export const replicationProgress$ = new Subject<ReplicationProgress>();
 export const executeReplicate$ = new Subject<void>();

@@ -12,7 +12,7 @@ Hosted on <https://reader.miwake.app/>.
 
 - All top-bar menus have been redesigned to no longer just be cryptic icons, but instead be labeled and grouped.
 - Dialogs, menus, and sidebars throughout the app have been rebuilt using native browser primitives, making them more consistent and behaviorally reasonable. For example, the <kbd>Esc</kbd> key always closes them. (This work is still ongoing; track progress in [issue #11](https://github.com/domenic/miwake-reader/issues/11).)
-- The "Export" functionality has been split into separate "Back Up" and "Sync" actions.
+- The Settings page's old "Data" tab has been replaced with a "Sync" tab that gathers sync location, backup, and advanced options into one place.
 - A new theme editor makes it easier to customize your reading colors, with live preview.
 - The font picker has been redesigned as a unified popover with font previews, bundled/uploaded/system font support, and automatic font name detection from uploaded files.
 - The statistics title filter sidebar has been redesigned for clarity.
@@ -27,9 +27,14 @@ _Note: the refreshed interface, especially the top bars, has not yet been adapte
 - Section-break margins in EPUBs are now preserved correctly in vertical writing mode.
 - Furigana on the rightmost line of text is no longer clipped in vertical paginated mode.
 
-### Cloud storage
+### Sync and backups
 
-- OneDrive now uses an app-specific folder instead of requiring broad file access.
+The sync system has been rebuilt around a single-destination model. From the new **Settings → Sync** page you connect one place — Google Drive, OneDrive, or a local sync folder — and your library, bookmarks, statistics, and reading goals follow you across devices in the background.
+
+- **Sync** (continuous, ambient) and **Backup** (one-shot ZIP) are now distinct features with their own UI. The new export and import dialogs let you choose exactly what travels — books, bookmarks, statistics, reading goals, app settings — and how to resolve conflicts on import.
+- OneDrive uses an app-specific folder instead of asking for broad file access.
+- Force re-sync lets you resolve cross-device drift explicitly when ambient sync isn't enough.
+- A status indicator shows whether sync is healthy, in flight, or needs reconnection.
 - Cloud storage connections stay logged in more reliably: you should see fewer popups.
 
 ### Other improvements
@@ -54,7 +59,7 @@ _Note: the refreshed interface, especially the top bars, has not yet been adapte
 ### Transferring your books and reading data
 
 1. In ッツ Ebook Reader, open the book manager and enter selection mode (the double-checkbox icon), select all books (the double-checkmark icon), then press the export icon (cloud with an up arrow). Choose "Zip File" and press Start.
-2. In Miwake Reader, press "Restore Backup" and choose the zip file you exported.
+2. In Miwake Reader, go to **Settings → Sync** and press **Import** under "Data management", then choose the zip file you exported.
 
 This transfers your books, reading progress, statistics, and reading goals.
 

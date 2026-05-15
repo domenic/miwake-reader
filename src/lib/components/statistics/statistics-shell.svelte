@@ -31,8 +31,10 @@
   import { dialogManager } from '$lib/data/dialog-manager';
   import { logger } from '$lib/data/logger';
   import { getDateRangeLabel } from '$lib/data/reading-goal';
-  import { getStorageHandler } from '$lib/data/storage/storage-handler-factory';
-  import { StorageDataType, StorageKey } from '$lib/data/storage/storage-types';
+  import { getSyncEndpoint } from '$lib/data/storage/storage-handler-factory';
+  import { userDeleteStatisticEntries, userUpdateStatistic } from '$lib/data/library';
+  import { StorageDataType, SyncEndpointType } from '$lib/data/storage/storage-types';
+  import { ReplicationSaveBehavior } from '$lib/functions/replication/replication-options';
   import {
     confirmStatisticsDeletion$,
     database,
@@ -164,9 +166,14 @@
         }
 
         const entriesToExport = [...statisticsDataToExport.entries()];
-        const backupHandler = getStorageHandler(window, StorageKey.BACKUP);
+        const backupHandler = getSyncEndpoint(window, SyncEndpointType.BACKUP);
         const exportLimiter = pLimit(1);
         const exportTasks: Promise<void>[] = [];
+        const exportScopedSettings = {
+          saveBehavior: ReplicationSaveBehavior.NewOnly,
+          statisticsMergeMode: 'replace' as const,
+          readingGoalsMergeMode: 'replace' as const
+        };
 
         backupHandler.clearData();
 
@@ -180,8 +187,11 @@
                 );
 
                 if (dataToExport.length) {
-                  backupHandler.startContext({ id: 0, title: titleToExport, imagePath: '' });
-                  await backupHandler.saveStatistics(dataToExport, lastStatisticsModified);
+                  const scoped = backupHandler.scoped(
+                    { title: titleToExport },
+                    exportScopedSettings
+                  );
+                  await scoped.saveStatistics(dataToExport, lastStatisticsModified);
                 }
               } catch (error) {
                 exportLimiter.clearQueue();
@@ -357,7 +367,7 @@
         title: 'Delete Data',
         message: `This will delete data ${
           startDate ? `from ${getDateRangeLabel(startDate, endDate)}` : ''
-        }  for ${titleLabel}, which may include start and/or completion data.\n\nExecute a one-time sync with an export behavior of "overwrite" and/or a statistics merge mode of "replace" to apply deletions to other devices.\n\n${titleLabel}:\n${[
+        }  for ${titleLabel}, which may include start and/or completion data.\n\nDeletion syncs to connected sources when upward sync is enabled.\n\n${titleLabel}:\n${[
           ...titlesToDelete
         ].join('\n\n')}`
       });
@@ -368,9 +378,12 @@
       return;
     }
 
-    const error = await database
-      .deleteStatisticEntries([...titlesToDelete], false, startDate, endDate)
-      .catch(({ message }) => message);
+    const error = await userDeleteStatisticEntries(
+      [...titlesToDelete],
+      false,
+      startDate,
+      endDate
+    ).catch(({ message }) => message);
 
     if (error) {
       messageDialog({ title: 'Error', message: `Failed to delete data: ${error}` });
@@ -486,7 +499,7 @@
     }
 
     try {
-      await database.updateStatistic(newStatistic);
+      await userUpdateStatistic(newStatistic);
       statisticsData[statisticIndex] = { ...statistic, ...newStatistic };
       updateStatisticsData();
     } catch ({ message }: any) {

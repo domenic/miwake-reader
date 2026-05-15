@@ -4,50 +4,33 @@
     faChevronLeft,
     faChevronRight,
     faEdit,
-    faRotate,
     faSave,
     faTrash
   } from '@fortawesome/free-solid-svg-icons';
   import { ReadingGoalFrequency } from '$lib/components/book-reader/book-reading-tracker/book-reading-tracker';
   import SettingsReadingGoalsMerge from '$lib/components/settings/settings-reading-goals-merge.svelte';
-  import SettingsSyncDialog from '$lib/components/settings/settings-sync-dialog.svelte';
   import { buttonClasses } from '$lib/css-classes';
   import { confirmDialog, messageDialog } from '$lib/data/simple-dialogs';
-  import type {
-    BooksDbReadingGoal,
-    BooksDbStorageSource
-  } from '$lib/data/database/books-db/versions/books-db';
-  import { dialogManager, type SyncSelection } from '$lib/data/dialog-manager';
+  import type { BooksDbReadingGoal } from '$lib/data/database/books-db/versions/books-db';
+  import { dialogManager } from '$lib/data/dialog-manager';
   import {
     getCurrentReadingGoal,
     getDateRangeLabel,
     type ReadingGoal,
     type ReadingGoalSaveResult
   } from '$lib/data/reading-goal';
-  import { getStorageHandler } from '$lib/data/storage/storage-handler-factory';
-  import { StorageDataType, StorageKey } from '$lib/data/storage/storage-types';
-  import {
-    cacheStorageData$,
-    database,
-    isOnline$,
-    readingGoal$,
-    readingGoalsMergeMode$,
-    replicationSaveBehavior$,
-    startDayHoursForTracker$,
-    statisticsMergeMode$
-  } from '$lib/data/store';
-  import { replicateData } from '$lib/functions/replication/replicator';
-  import { isOnlineSourceAvailable, pluralize } from '$lib/functions/utils';
+  import { database, readingGoal$, startDayHoursForTracker$ } from '$lib/data/store';
+  import { userSaveReadingGoals, userDeleteReadingGoal } from '$lib/data/library';
+  import { pluralize } from '$lib/functions/utils';
   import { getDateKey, secondsToMinutes } from '$lib/functions/statistic-util';
   import { onMount, tick } from 'svelte';
   import Fa from 'svelte-fa';
 
   interface Props {
-    storageSources?: BooksDbStorageSource[];
     onspinner?: (value: boolean) => void;
   }
 
-  let { storageSources = [], onspinner }: Props = $props();
+  let { onspinner }: Props = $props();
 
   const readingGoalFrequencies = [
     {
@@ -70,10 +53,6 @@
   let sortedReadingGoals: BooksDbReadingGoal[] = $state([]);
   let historyIndex = $state(0);
   const itemsPerPage = 1;
-
-  let availableSources = $derived(
-    storageSources.filter((source) => isOnlineSourceAvailable($isOnline$, source.type))
-  );
 
   let saveDisabled = $derived(
     !!((currentTimeGoal || currentCharacterGoal) && !currentReadingGoalStartDate)
@@ -188,7 +167,7 @@
 
       onspinner?.(true);
 
-      await database.updateReadingGoals(readingGoalsToDelete, readingGoalsToInsert);
+      await userSaveReadingGoals(readingGoalsToDelete, readingGoalsToInsert);
     } catch (error: any) {
       tick().then(() =>
         messageDialog({
@@ -202,66 +181,6 @@
       await updateReadingGoalsData().catch(() => {
         // no-op
       });
-    }
-  }
-
-  async function syncReadingGoals() {
-    const [source, target] = await new Promise<SyncSelection[]>((resolver) => {
-      dialogManager.dialogs$.next([
-        {
-          component: SettingsSyncDialog,
-          props: {
-            settingsSyncHeader: 'Sync Reading Goals',
-            storageSources: availableSources,
-            resolver
-          },
-          disableCloseOnClick: true
-        }
-      ]);
-    });
-
-    if (!source || !target) {
-      return;
-    }
-
-    onspinner?.(true);
-
-    try {
-      const error = await replicateData(
-        getStorageHandler(
-          window,
-          source.type,
-          source.id,
-          target.type === StorageKey.BROWSER,
-          $cacheStorageData$,
-          $replicationSaveBehavior$,
-          $statisticsMergeMode$,
-          $readingGoalsMergeMode$
-        ),
-        getStorageHandler(
-          window,
-          target.type,
-          target.id,
-          target.type === StorageKey.BROWSER,
-          $cacheStorageData$,
-          $replicationSaveBehavior$,
-          $statisticsMergeMode$,
-          $readingGoalsMergeMode$
-        ),
-        false,
-        [],
-        [StorageDataType.READING_GOALS]
-      );
-
-      if (error) {
-        throw new Error(error);
-      }
-
-      await updateReadingGoalsData();
-    } catch ({ message }: any) {
-      messageDialog({ title: 'Error', message: `Error syncing reading goals: ${message}` });
-    } finally {
-      onspinner?.(false);
     }
   }
 
@@ -289,9 +208,6 @@
         : 'Your archived reading goal will be deleted.';
     }
 
-    dialogMessage +=
-      '\n\nExecute a one-time sync with an export behavior of "overwrite" and/or a reading goals merge mode of "replace" to apply deletions to other devices.';
-
     const wasCanceled = await confirmDialog({
       title: 'Data Deletion',
       message: dialogMessage
@@ -304,7 +220,7 @@
     onspinner?.(true);
 
     try {
-      await database.deleteReadingGoal(readingGoalToDelete?.goalStartDate);
+      await userDeleteReadingGoal(readingGoalToDelete?.goalStartDate);
       await updateReadingGoalsData();
     } catch ({ message }: any) {
       messageDialog({ title: 'Error', message: `An error occurred: ${message}` });
@@ -367,12 +283,6 @@
         </div>
       </button>
     {:else}
-      <button class={buttonClasses} onclick={syncReadingGoals}>
-        <div class="flex items-center justify-center hover:opacity-50">
-          <span class="mr-2">Sync</span>
-          <Fa icon={faRotate} />
-        </div>
-      </button>
       <button class={buttonClasses} onclick={() => (isInEditMode = true)}>
         <div class="flex items-center justify-center hover:opacity-50">
           <span class="mr-2">Edit</span>

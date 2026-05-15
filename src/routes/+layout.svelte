@@ -4,8 +4,11 @@
   import { page } from '$app/state';
   import { appName, basePath, clearConsoleOnReload } from '$lib/data/env';
   import { dialogManager, type Dialog } from '$lib/data/dialog-manager';
+  import BottomLeftCluster from '$lib/components/bottom-left-cluster.svelte';
   import { userFontsCacheName, type UserFont } from '$lib/data/fonts';
   import { reconcileUserFontCache } from '$lib/functions/reconcile-user-font-cache';
+  import { loadConnectionsFromDb } from '$lib/data/sync/source-manager';
+  import { syncEngineStart } from '$lib/data/sync/sync-engine';
   import { fontFamilyGroupOne$, isOnline$, userFonts$ } from '$lib/data/store';
   import { dummyFn, isMobile, isMobile$ } from '$lib/functions/utils';
   import { MetaTags } from 'svelte-meta-tags';
@@ -31,6 +34,12 @@
 
   if (browser) {
     reconcileUserFontCache();
+    loadConnectionsFromDb()
+      .then(() => syncEngineStart())
+      .catch(() => {
+        // Ignore boot errors; the sync UI still works off whatever the
+        // stores happen to hold.
+      });
   }
 
   if (clearConsoleOnReload && import.meta.hot) {
@@ -118,6 +127,8 @@
 />
 
 {@render children?.()}
+
+<BottomLeftCluster />
 
 {#if dialogs.length > 0}
   <div class="writing-horizontal-tb fixed inset-0 z-50 h-full w-full" style:z-index={zIndex}>

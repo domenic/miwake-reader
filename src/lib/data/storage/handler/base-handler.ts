@@ -3,20 +3,25 @@ import {
   currentDbVersion,
   type BooksDbBookData,
   type BooksDbBookmarkData,
-  type BooksDbStatistic,
-  type BooksDbReadingGoal
+  type BooksDbReadingGoal,
+  type BooksDbStatistic
 } from '$lib/data/database/books-db/versions/books-db';
 import type { Section } from '$lib/data/database/books-db/versions/v4/books-db-v4';
 import { storageRootName } from '$lib/data/env';
-import { MergeMode } from '$lib/data/merge-mode';
-import { InternalStorageSources, type StorageKey } from '$lib/data/storage/storage-types';
+import { mergeReadingGoals, readingGoalSortFunction } from '$lib/data/reading-goal';
+import type { SyncEndpointType, SyncTitle } from '$lib/data/storage/storage-types';
+import type {
+  ScopedBookOperations,
+  ScopedSettings,
+  SyncEndpoint
+} from '$lib/data/storage/handler/handler-roles';
+import { handleErrorDuringReplication } from '$lib/functions/replication/error-handler';
 import { exporterVersion } from '$lib/functions/replication/exporter-version';
-import { throwIfAborted } from '$lib/functions/replication/replication-error';
+import { AbortError, throwIfAborted } from '$lib/functions/replication/replication-error';
 import { ReplicationSaveBehavior } from '$lib/functions/replication/replication-options';
 import {
   replicationProgress$,
-  type ReplicationContext,
-  type ReplicationDeleteResult
+  type ReplicationContext
 } from '$lib/functions/replication/replication-progress';
 import pLimit from 'p-limit';
 import {
@@ -34,119 +39,186 @@ export interface ExternalFile {
   name: string;
 }
 
-export abstract class BaseStorageHandler {
-  abstract updateSettings(
-    window: Window,
-    isForBrowser: boolean,
-    saveBehavior: string,
-    statisticsMergeMode: MergeMode,
-    readingGoalsMergeMode: MergeMode,
-    cacheStorageData: boolean,
-    askForStorageUnlock: boolean,
-    storageSourceName: string
-  ): void;
+export interface ZipOpOptions {
+  progressBase?: number;
+  cancelSignal?: AbortSignal;
+}
 
-  abstract getBookList(): Promise<BookCardProps[]>;
+/**
+ * Shared chassis for sync-endpoint implementations (cloud / FS /
+ * backup). Owns long-lived state (source name, fetched-listing
+ * caches, network clients) and static ZIP / file-name helpers.
+ * Per-call state lives on the `ScopedBookOperations` returned by
+ * `scoped()`.
+ */
+export abstract class BaseStorageHandler implements SyncEndpoint {
+  readonly kind = 'sync-endpoint' as const;
+
+  /**
+   * Enumerate the titles this source holds, for placeholder seeding
+   * and reachable-set computation. Cloud and filesystem return real
+   * data; BROWSER and backup return [] (the unified library view
+   * doesn't go through this method — it reads IndexedDB directly).
+   */
+  abstract listSyncTitles(opts?: { refresh?: boolean; silentOnly?: boolean }): Promise<SyncTitle[]>;
+
+  abstract authenticate(authWindow: Window | null, silentOnly?: boolean): Promise<void>;
 
   abstract clearData(clearAll?: boolean): void;
-
-  abstract prepareBookForReading(): Promise<number>;
-
-  abstract updateLastRead(book: BooksDbBookData): Promise<void>;
-
-  abstract getFilenameForRecentCheck(fileIdentifier: string): Promise<string | undefined>;
-
-  abstract isBookPresentAndUpToDate(referenceFilename: string | undefined): Promise<boolean>;
-
-  abstract isProgressPresentAndUpToDate(referenceFilename: string | undefined): Promise<boolean>;
-
-  abstract areStatisticsPresentAndUpToDate(referenceFilename: string | undefined): Promise<boolean>;
-
-  abstract areReadingGoalsPresentAndUpToDate(
-    referenceFilename: string | undefined
-  ): Promise<boolean>;
-
-  abstract getBook(): Promise<Omit<BooksDbBookData, 'id'> | File | undefined>;
-
-  abstract getProgress(): Promise<BooksDbBookmarkData | File | undefined>;
-
-  abstract getStatistics(): Promise<{
-    statistics: BooksDbStatistic[] | undefined;
-    lastStatisticModified: number;
-  }>;
-
-  abstract getCover(): Promise<Blob | undefined>;
-
-  abstract getReadingGoals(): Promise<{
-    readingGoals: BooksDbReadingGoal[] | undefined;
-    lastGoalModified: number;
-  }>;
-
-  abstract saveBook(
-    data: Omit<BooksDbBookData, 'id'> | File,
-    skipTimestampFallback?: boolean,
-    removeStorageContext?: boolean
-  ): Promise<number>;
-
-  abstract saveProgress(data: BooksDbBookmarkData | File): Promise<void>;
-
-  abstract saveStatistics(data: BooksDbStatistic[], lastStatisticModified: number): Promise<void>;
-
-  abstract saveCover(data: Blob | undefined): Promise<void>;
-
-  abstract saveReadingGoals(data: BooksDbReadingGoal[], lastGoalModified: number): Promise<void>;
 
   abstract deleteBookData(
     booksToDelete: string[],
     cancelSignal: AbortSignal,
     keepLocalStatistics: boolean
-  ): Promise<ReplicationDeleteResult>;
+  ): Promise<number[]>;
+
+  /**
+   * Bind a (context, settings) pair for a sequence of per-book
+   * operations. Each call returns a fresh scoped object — handlers
+   * themselves carry no per-call state.
+   */
+  abstract scoped(
+    context: ReplicationContext,
+    settings: ScopedSettings,
+    cancelSignal?: AbortSignal
+  ): ScopedBookOperations;
+
+  /** Reading-goals operations are app-global; see `BookOperations`. */
+  abstract getReadingGoalsFilename(settings: ScopedSettings): Promise<string | undefined>;
+
+  abstract areReadingGoalsPresentAndUpToDate(
+    referenceFilename: string | undefined
+  ): Promise<boolean>;
+
+  abstract getReadingGoals(cancelSignal?: AbortSignal): Promise<{
+    readingGoals: BooksDbReadingGoal[] | undefined;
+    lastGoalModified: number;
+  }>;
+
+  abstract saveReadingGoals(
+    data: BooksDbReadingGoal[],
+    lastGoalModified: number,
+    settings: ScopedSettings,
+    cancelSignal?: AbortSignal
+  ): Promise<void>;
 
   static rootName = storageRootName;
 
   static readingGoalsFilePrefix = 'miwake-user-goals_';
 
-  storageType: StorageKey;
+  storageType: SyncEndpointType;
 
   protected window: Window;
 
-  protected storageSourceName: string = InternalStorageSources.INTERNAL_DEFAULT;
-
-  protected isForBrowser = false;
+  protected storageSourceName = '';
 
   protected cacheStorageData = false;
 
-  protected saveBehavior = ReplicationSaveBehavior.NewOnly;
+  /** @internal Read/written by `BaseScopedHandler` subclasses and the handler. */
+  dataListFetched = false;
 
-  protected statisticsMergeMode = MergeMode.MERGE;
+  /** @internal Read/written by `BaseScopedHandler` subclasses and the handler. */
+  rootFileListFetched = false;
 
-  protected readingGoalsMergeMode = MergeMode.MERGE;
+  /** @internal Used by `BaseScopedHandler` subclasses; not for outside callers. */
+  titleToBookCard = new Map<string, BookCardProps>();
 
-  protected askForStorageUnlock = true;
+  /** @internal Used by `BaseScopedHandler` subclasses; not for outside callers. */
+  rootFiles = new Map<string, ExternalFile>();
 
-  protected currentContext: ReplicationContext = { title: '' };
+  /** @internal Used by `BaseScopedHandler` subclasses; not for outside callers. */
+  validRootFiles = [BaseStorageHandler.readingGoalsFilePrefix];
 
-  protected cancelSignal: AbortSignal | undefined;
-
-  protected currentLastProgressValue = 0;
-
-  protected currentProgressBase = 0;
-
-  protected sanitizedTitle = '';
-
-  protected dataListFetched = false;
-
-  protected rootFileListFetched = false;
-
-  protected titleToBookCard = new Map<string, BookCardProps>();
-
-  protected rootFiles = new Map<string, ExternalFile>();
-
-  protected validRootFiles = [BaseStorageHandler.readingGoalsFilePrefix];
-
-  constructor(window: Window, storageType: StorageKey) {
+  constructor(
+    window: Window,
+    storageType: SyncEndpointType,
+    storageSourceName: string,
+    cacheStorageData: boolean
+  ) {
     this.window = window;
     this.storageType = storageType;
+    this.storageSourceName = storageSourceName;
+    this.cacheStorageData = cacheStorageData;
+  }
+
+  isCacheDisabled() {
+    return !this.cacheStorageData;
+  }
+
+  /** @internal Used by `BaseScopedHandler` subclasses. */
+  addBookCard(title: string, dataToAdd: Record<string, any>) {
+    const bookCard: BookCardProps = {
+      ...(this.titleToBookCard.get(title) || {
+        id: BaseStorageHandler.getDummyId(),
+        title,
+        imagePath: '',
+        characters: 0,
+        lastBookModified: 0,
+        lastBookOpen: 0,
+        progress: 0,
+        completed: false,
+        lastBookmarkModified: 0,
+        isPlaceholder: false
+      }),
+      ...dataToAdd
+    };
+
+    this.titleToBookCard.set(title, bookCard);
+  }
+
+  /**
+   * Shared scaffold for `deleteBookData` impls: sequential per-title
+   * loop with the standard progress/cancel/error reporting. The
+   * subclass provides `deleteOne`, which returns the deleted book-card
+   * id (or undefined if there was no matching card to surface).
+   * Throws AggregateError on any per-title failure (the partial
+   * `deleted` list is lost; callers should re-derive UI from a fresh
+   * listing rather than from the thrown error).
+   */
+  protected async deleteSequentially(
+    booksToDelete: string[],
+    cancelSignal: AbortSignal,
+    deleteOne: (title: string) => Promise<number | undefined>
+  ): Promise<number[]> {
+    const deleted: number[] = [];
+    const errors: Error[] = [];
+    const limiter = pLimit(1);
+
+    replicationProgress$.next({ progressBase: 1, maxProgress: booksToDelete.length });
+
+    const tasks = booksToDelete.map((title) =>
+      limiter(async () => {
+        try {
+          throwIfAborted(cancelSignal);
+          const id = await deleteOne(title);
+          if (id !== undefined) deleted.push(id);
+          BaseStorageHandler.reportProgress();
+        } catch (err: any) {
+          handleErrorDuringReplication(err, `Error deleting ${title}: `, [limiter]);
+          errors.push(err);
+        }
+      })
+    );
+
+    await Promise.all(tasks).catch((err) => {
+      if (err instanceof AbortError) throw err;
+    });
+
+    if (errors.length) {
+      throw new AggregateError(errors, errors[0].message);
+    }
+    return deleted;
+  }
+
+  /** @internal Used by `BaseScopedHandler` subclasses. */
+  setRootFile(filename: string, file: ExternalFile) {
+    for (let index = 0, { length } = this.validRootFiles; index < length; index += 1) {
+      const validRootFile = this.validRootFiles[index];
+
+      if (filename.startsWith(validRootFile)) {
+        this.rootFiles.set(validRootFile, file);
+      }
+    }
   }
 
   static getBookCharacters(characterAmount: number, sections: Section[]) {
@@ -175,20 +247,21 @@ export abstract class BaseStorageHandler {
     replicationProgress$.next({ completeStep: true });
   }
 
-  isCacheDisabled() {
-    return !this.cacheStorageData;
-  }
-
-  getCurrentStorageSource() {
-    return this.storageSourceName;
-  }
-
-  startContext(context: ReplicationContext, cancelSignal?: AbortSignal) {
-    this.currentContext = context;
-    this.cancelSignal = cancelSignal;
-    this.currentLastProgressValue = 0;
-    this.currentProgressBase = 0;
-    this.sanitizedTitle = BaseStorageHandler.sanitizeForFilename(this.currentContext.title);
+  /**
+   * Build an onprogress callback that streams progress deltas into the
+   * shared replicationProgress$ subject. The `last` watermark stays in
+   * the closure so each call site gets independent book-keeping —
+   * concurrent in-flight operations don't interfere.
+   */
+  static makeProgressReporter(progressBase: number) {
+    let last = 0;
+    return async (loaded: number, total: number): Promise<void> => {
+      if (!progressBase || !total) return;
+      const next = loaded / total;
+      const delta = next - last;
+      last = next;
+      BaseStorageHandler.reportProgress(delta * progressBase);
+    };
   }
 
   static getStatisticsMetadata(filename: string) {
@@ -271,6 +344,40 @@ export abstract class BaseStorageHandler {
     return `statistics_${exporterVersion}_${currentDbVersion}_${lastStatisticModified}_${charactersRead}_${readingTime}_${minReadingSpeed}_${altMinReadingSpeed}_${lastReadingSpeed}_${maxReadingSpeed}_${averageReadingTime}_${averageWeightedReadingTime}_${averageCharactersRead}_${averageWeightedCharactersRead}_${averageReadingSpeed}_${averageWeightedReadingSpeed}_${finishDate}.json`;
   }
 
+  /**
+   * Run the merge-mode pipeline (merge with existing, sort, derive
+   * filename) for a reading-goals save. The api / fs handler scope-
+   * less save methods only differ in I/O — this collapses the shared
+   * transform into one place.
+   */
+  static prepareReadingGoalsForSave(
+    readingGoals: BooksDbReadingGoal[],
+    existingData: BooksDbReadingGoal[],
+    lastGoalModified: number,
+    settings: ScopedSettings
+  ): {
+    readingGoals: BooksDbReadingGoal[];
+    lastGoalModified: number;
+    filename: string;
+  } {
+    let goals = readingGoals;
+    let modified = lastGoalModified;
+    if (settings.readingGoalsMergeMode === 'merge') {
+      ({ readingGoalsToStore: goals, newReadingGoalModified: modified } = mergeReadingGoals(
+        readingGoals,
+        existingData,
+        settings.saveBehavior === ReplicationSaveBehavior.NewOnly,
+        lastGoalModified
+      ));
+    }
+    goals.sort(readingGoalSortFunction);
+    return {
+      readingGoals: goals,
+      lastGoalModified: modified,
+      filename: BaseStorageHandler.getReadingGoalsFileName(modified)
+    };
+  }
+
   static getReadingGoalsFileName(lastGoalModified: number) {
     return `${BaseStorageHandler.readingGoalsFilePrefix}${exporterVersion}_${currentDbVersion}_${lastGoalModified}.json`;
   }
@@ -291,7 +398,7 @@ export abstract class BaseStorageHandler {
     }
   }
 
-  protected static checkIsPresentAndUpToDate<T>(
+  static checkIsPresentAndUpToDate<T>(
     functionToCall: (_: string) => any,
     keyToCheck: keyof T,
     referenceFilename: string,
@@ -315,27 +422,11 @@ export abstract class BaseStorageHandler {
     return isPresentAndUpToDate;
   }
 
-  protected addBookCard(title: string, dataToAdd: Record<string, any>) {
-    const bookCard: BookCardProps = {
-      ...(this.titleToBookCard.get(title) || {
-        id: BaseStorageHandler.getDummyId(),
-        title,
-        imagePath: '',
-        characters: 0,
-        lastBookModified: 0,
-        lastBookOpen: 0,
-        progress: 0,
-        completed: false,
-        lastBookmarkModified: 0,
-        isPlaceholder: false
-      }),
-      ...dataToAdd
-    };
-
-    this.titleToBookCard.set(title, bookCard);
-  }
-
-  protected async zipBookData(bookdata: Omit<BooksDbBookData, 'id'>, progressBase = 1) {
+  static async zipBookData(
+    bookdata: Omit<BooksDbBookData, 'id'>,
+    options: ZipOpOptions = {}
+  ): Promise<Blob> {
+    const { progressBase = 1, cancelSignal } = options;
     const zipWriter = new ZipWriter(new BlobWriter('application/zip'));
     const blobsToZip = [];
     const blobEntries = [...Object.entries(bookdata.blobs)];
@@ -348,7 +439,7 @@ export abstract class BaseStorageHandler {
         | 'characters'
         | 'lastBookModified'
         | 'lastBookOpen'
-        | 'storageSource'
+        | 'lastSeenSourceInstanceId'
       >
     > = ['title', 'styleSheet', 'elementHtml', 'htmlBackup', 'sections'];
     const staticData: Record<string, string | Section[] | undefined> = {};
@@ -363,12 +454,13 @@ export abstract class BaseStorageHandler {
         limiter(async () => {
           const [name, blob] = blobEntries[index];
 
-          await this.addDataToZip(`blobs/${name}`, blob, zipWriter, progressPerStep).catch(
-            (error) => {
-              limiter.clearQueue();
-              throw error;
-            }
-          );
+          await BaseStorageHandler.addDataToZip(`blobs/${name}`, blob, zipWriter, {
+            progressBase: progressPerStep,
+            cancelSignal
+          }).catch((error) => {
+            limiter.clearQueue();
+            throw error;
+          });
         })
       );
     }
@@ -376,16 +468,16 @@ export abstract class BaseStorageHandler {
     await Promise.all(blobsToZip);
 
     if (isBlobCover) {
-      await this.addDataToZip(
+      await BaseStorageHandler.addDataToZip(
         `cover.${await BaseStorageHandler.determineImageExtension(cover)}`,
         cover,
         zipWriter,
-        progressPerStep
+        { progressBase: progressPerStep, cancelSignal }
       );
     }
 
     for (let index = 0, { length } = staticDataToZip; index < length; index += 1) {
-      throwIfAborted(this.cancelSignal);
+      throwIfAborted(cancelSignal);
 
       const dataProperty = staticDataToZip[index];
 
@@ -393,90 +485,65 @@ export abstract class BaseStorageHandler {
     }
 
     if (Object.keys(staticData).length) {
-      await this.addDataToZip(
+      await BaseStorageHandler.addDataToZip(
         'staticdata.json',
         JSON.stringify(staticData),
         zipWriter,
-        progressPerStep
+        {
+          progressBase: progressPerStep,
+          cancelSignal
+        }
       );
     }
 
-    const finalZip = await zipWriter.close();
-
-    return finalZip;
+    return zipWriter.close();
   }
 
-  protected async addDataToZip(
+  static async addDataToZip(
     name: string,
     data: string | Blob,
     writer: ZipWriter<Blob> | undefined,
-    progressBase = 1
-  ) {
-    throwIfAborted(this.cancelSignal);
+    options: ZipOpOptions = {}
+  ): Promise<ZipWriter<Blob>> {
+    const { progressBase = 1, cancelSignal } = options;
+    throwIfAborted(cancelSignal);
 
     const zipWriter = writer || new ZipWriter(new BlobWriter('application/zip'));
-
-    this.currentLastProgressValue = 0;
-    this.currentProgressBase = progressBase;
+    const onprogress = BaseStorageHandler.makeProgressReporter(progressBase);
 
     if (data instanceof Blob) {
-      await zipWriter.add(name, new BlobReader(data), {
-        onprogress: async (progress, total) => {
-          this.reportFunction(progress, total);
-        }
-      });
+      await zipWriter.add(name, new BlobReader(data), { onprogress });
     } else if (data) {
-      await zipWriter.add(name, new TextReader(data), {
-        onprogress: async (progress, total) => {
-          this.reportFunction(progress, total);
-        }
-      });
+      await zipWriter.add(name, new TextReader(data), { onprogress });
     }
 
     return zipWriter;
   }
 
-  protected reportFunction(progress: number, total: number) {
-    if (this.currentProgressBase) {
-      const newProgress = progress / total;
-      const progressDelta = newProgress - this.currentLastProgressValue;
-
-      this.currentLastProgressValue = newProgress;
-
-      BaseStorageHandler.reportProgress(progressDelta * this.currentProgressBase);
-    }
-  }
-
-  protected async readFromZip(
+  static async readFromZip(
     writer: BlobWriter,
     errorForNoRead: string,
     retrievedData: Entry,
-    progressBase: number
+    progressBase?: number
   ): Promise<Blob>;
-  protected async readFromZip(
+  static async readFromZip(
     writer: TextWriter,
     errorForNoRead: string,
     retrievedData: Entry,
-    progressBase: number
+    progressBase?: number
   ): Promise<string>;
-  protected async readFromZip(
+  static async readFromZip(
     writer: BlobWriter | TextWriter,
     errorForNoRead: string,
     retrievedData: Entry,
     progressBase = 1
   ): Promise<Blob | string> {
-    this.currentLastProgressValue = 0;
-    this.currentProgressBase = progressBase;
-
     if (retrievedData.directory) {
       throw new Error(errorForNoRead);
     }
 
-    const zipData = await retrievedData.getData(writer, {
-      onprogress: async (progress, total) => {
-        this.reportFunction(progress, total);
-      }
-    });
+    const onprogress = BaseStorageHandler.makeProgressReporter(progressBase);
+    const zipData = await retrievedData.getData(writer, { onprogress });
 
     if (!zipData) {
       throw new Error(errorForNoRead);
@@ -485,7 +552,8 @@ export abstract class BaseStorageHandler {
     return zipData;
   }
 
-  protected async extractBookData(book: Blob, filename: string, progressBase = 1) {
+  static async extractBookData(book: Blob, filename: string, options: ZipOpOptions = {}) {
+    const { progressBase = 1, cancelSignal } = options;
     const bookreader = new ZipReader(new BlobReader(book));
     const bookDataEntries = await bookreader.getEntries();
 
@@ -516,13 +584,13 @@ export abstract class BaseStorageHandler {
       bookObjectTransforms.push(
         limiter(async () => {
           try {
-            throwIfAborted(this.cancelSignal);
+            throwIfAborted(cancelSignal);
 
             const entry = bookDataEntries[index];
 
             if (entry.filename === 'staticdata.json') {
               const staticData = JSON.parse(
-                await this.readFromZip(
+                await BaseStorageHandler.readFromZip(
                   new TextWriter(),
                   'Unable to read Static Data',
                   entry,
@@ -530,13 +598,7 @@ export abstract class BaseStorageHandler {
                 )
               ) as Omit<
                 BooksDbBookData,
-                | 'id'
-                | 'blobs'
-                | 'hasThumb'
-                | 'coverImage'
-                | 'lastBookModified'
-                | 'lastBookOpen'
-                | 'storageSource'
+                'id' | 'blobs' | 'hasThumb' | 'coverImage' | 'lastBookModified' | 'lastBookOpen'
               >;
 
               if (!staticData.elementHtml) {
@@ -564,7 +626,7 @@ export abstract class BaseStorageHandler {
               const imagePath = entry.filename.replace('blobs/', '');
               const existingBlobEntries = bookObject.blobs || {};
 
-              existingBlobEntries[imagePath] = await this.readFromZip(
+              existingBlobEntries[imagePath] = await BaseStorageHandler.readFromZip(
                 new BlobWriter(BaseStorageHandler.getImageMimeTypeFromExtension(imagePath)),
                 'Unable to read blob data',
                 entry,
@@ -572,7 +634,7 @@ export abstract class BaseStorageHandler {
               );
               bookObject.blobs = existingBlobEntries;
             } else if (entry.filename.startsWith('cover.')) {
-              bookObject.coverImage = await this.readFromZip(
+              bookObject.coverImage = await BaseStorageHandler.readFromZip(
                 new BlobWriter(BaseStorageHandler.getImageMimeTypeFromExtension(entry.filename)),
                 'Unable to read cover data',
                 entry,
@@ -592,33 +654,23 @@ export abstract class BaseStorageHandler {
     return bookObject;
   }
 
-  protected async extractAsJSON(entry: Entry, errorMessage: string, progressBase = 0.9) {
+  static async extractAsJSON(entry: Entry, errorMessage: string, progressBase = 0.9) {
     if (!entry || entry.directory) {
       return undefined;
     }
 
     const jsonData = JSON.parse(
-      await this.readFromZip(new TextWriter(), errorMessage, entry, progressBase)
+      await BaseStorageHandler.readFromZip(new TextWriter(), errorMessage, entry, progressBase)
     );
 
     return jsonData;
   }
 
-  protected setRootFile(filename: string, file: ExternalFile) {
-    for (let index = 0, { length } = this.validRootFiles; index < length; index += 1) {
-      const validRootFile = this.validRootFiles[index];
-
-      if (filename.startsWith(validRootFile)) {
-        this.rootFiles.set(validRootFile, file);
-      }
-    }
-  }
-
-  protected static getDummyId() {
+  static getDummyId() {
     return Math.floor(Date.now() * Math.random());
   }
 
-  protected static sanitizeForFilename(title: string) {
+  static sanitizeForFilename(title: string) {
     return title
       .replace(/[ ]$/, '~ttu-spc~')
       .replace(/[.]$/, '~ttu-dend~')
@@ -626,17 +678,14 @@ export abstract class BaseStorageHandler {
       .replace(/[/?<>\\:*|%"]/g, (match) => encodeURIComponent(match));
   }
 
-  protected static desanitizeFilename(title: string) {
+  static desanitizeFilename(title: string) {
     return decodeURIComponent(title)
       .replaceAll('~ttu-star~', '*')
       .replaceAll('~ttu-dend~', '.')
       .replaceAll('~ttu-spc~', ' ');
   }
 
-  protected static getBookFileName(
-    book: Omit<BooksDbBookData, 'id'> | File,
-    existingFilename?: string
-  ) {
+  static getBookFileName(book: Omit<BooksDbBookData, 'id'> | File, existingFilename?: string) {
     if (book instanceof File) {
       return book.name;
     }
@@ -659,21 +708,25 @@ export abstract class BaseStorageHandler {
     )}_${book.lastBookModified || 0}_${book.lastBookOpen || 0}.zip`;
   }
 
-  protected static getProgressFileName(progress: BooksDbBookmarkData | File) {
-    return progress instanceof File
-      ? progress.name
-      : `progress_${exporterVersion}_${currentDbVersion}_${progress.lastBookmarkModified || 0}_${
-          progress.progress || 0
-        }.json`;
+  static getProgressFileName(progress: BooksDbBookmarkData | File) {
+    if (progress instanceof File) {
+      return progress.name;
+    }
+
+    const completedSuffix = progress.completed ? '_completed' : '';
+
+    return `progress_${exporterVersion}_${currentDbVersion}_${progress.lastBookmarkModified || 0}_${
+      progress.progress || 0
+    }${completedSuffix}.json`;
   }
 
-  protected static async getCoverFileName(cover: Blob) {
+  static async getCoverFileName(cover: Blob) {
     const type = (await BaseStorageHandler.determineImageExtension(cover)) || 'jpeg';
 
     return `cover_${exporterVersion}_${currentDbVersion}.${type}`;
   }
 
-  protected static getBookMetadata(filename: string) {
+  static getBookMetadata(filename: string) {
     const parts = filename.split('_').map((part) => part.replace(/\.zip$/, ''));
 
     return {
@@ -685,18 +738,19 @@ export abstract class BaseStorageHandler {
     };
   }
 
-  protected static getProgressMetadata(filename: string) {
+  static getProgressMetadata(filename: string) {
     const parts = filename.split('_').map((part) => part.replace(/\.json$/, ''));
 
     return {
       exporterVersion: +parts[1],
       dbVersion: +parts[2],
       lastBookmarkModified: +parts[3],
-      progress: +parts[4]
+      progress: +parts[4],
+      completed: parts[5] === 'completed'
     };
   }
 
-  protected static getReadingGoalsMetadata(filename: string) {
+  static getReadingGoalsMetadata(filename: string) {
     const parts = filename.split('_').map((part) => part.replace(/\.json$/, ''));
 
     return {
@@ -759,5 +813,52 @@ export abstract class BaseStorageHandler {
 
       reader.readAsArrayBuffer(blob);
     });
+  }
+}
+
+/**
+ * Per-scope chassis. Short-lived and immutable after construction, so
+ * concurrent scopes on the same handler don't alias each other.
+ * Subclasses implement `ScopedBookOperations` and reach into
+ * `this.handler` for caches and network clients.
+ */
+export abstract class BaseScopedHandler<H> {
+  protected readonly handler: H;
+
+  protected readonly context: ReplicationContext;
+
+  protected readonly settings: ScopedSettings;
+
+  protected readonly cancelSignal: AbortSignal | undefined;
+
+  protected readonly sanitizedTitle: string;
+
+  constructor(
+    handler: H,
+    context: ReplicationContext,
+    settings: ScopedSettings,
+    cancelSignal?: AbortSignal
+  ) {
+    this.handler = handler;
+    this.context = context;
+    this.settings = settings;
+    this.cancelSignal = cancelSignal;
+    this.sanitizedTitle = BaseStorageHandler.sanitizeForFilename(context.title);
+  }
+
+  protected get title() {
+    return this.context.title;
+  }
+
+  protected get saveBehavior() {
+    return this.settings.saveBehavior;
+  }
+
+  protected get isNewOnly() {
+    return this.settings.saveBehavior === ReplicationSaveBehavior.NewOnly;
+  }
+
+  protected get isOverwrite() {
+    return this.settings.saveBehavior === ReplicationSaveBehavior.Overwrite;
   }
 }

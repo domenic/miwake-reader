@@ -20,23 +20,14 @@ import {
 } from '$lib/components/statistics/statistics-types';
 import { BlurMode } from '$lib/data/blur-mode';
 import type { UserFont } from '$lib/data/fonts';
-import { MergeMode } from '$lib/data/merge-mode';
+import type { MergeMode } from '$lib/data/merge-mode';
 import type { ReadingGoal } from '$lib/data/reading-goal';
 import { SortDirection, type SortOption } from '$lib/data/sort-types';
 import {
   StatisticsTabAvailableKeybind,
   type StatisticsTabKeybindMap
 } from '$lib/data/statistics-tab-keybind';
-import {
-  InternalStorageSources,
-  StorageDataType,
-  StorageKey,
-  StorageSourceDefault
-} from '$lib/data/storage/storage-types';
-import {
-  AutoReplicationType,
-  ReplicationSaveBehavior
-} from '$lib/functions/replication/replication-options';
+import { AutoReplicationType } from '$lib/functions/replication/replication-options';
 import { writableSubject } from '$lib/functions/svelte/store';
 import { map } from 'rxjs';
 import { BookReaderAvailableKeybind, type BookReaderKeybindMap } from './book-reader-keybind';
@@ -185,11 +176,6 @@ export const autoBookmarkTime$ = writableNumberLocalStorageSubject()('autoBookma
 
 export const pageColumns$ = writableNumberLocalStorageSubject()('pageColumns', 0);
 
-export const requestPersistentStorage$ = writableBooleanLocalStorageSubject()(
-  'requestPersistentStorage',
-  true
-);
-
 export const importHTMLFixMode$ = writableStringLocalStorageSubject<ImportHTMLFixMode>()(
   'importHTMLFixMode',
   ImportHTMLFixMode.OFF
@@ -204,33 +190,8 @@ export const cacheStorageData$ = writableBooleanLocalStorageSubject()('cacheStor
 
 export const autoReplication$ = writableStringLocalStorageSubject<AutoReplicationType>()(
   'autoReplication',
-  AutoReplicationType.Off
+  AutoReplicationType.All
 );
-
-export const replicationSaveBehavior$ =
-  writableStringLocalStorageSubject<ReplicationSaveBehavior>()(
-    'replicationSaveBehavior',
-    ReplicationSaveBehavior.NewOnly
-  );
-
-export const showExternalPlaceholder$ = writableBooleanLocalStorageSubject()(
-  'showExternalPlaceholder',
-  false
-);
-
-export const gDriveStorageSource$ = writableStringLocalStorageSubject()(
-  'gDriveStorageSource',
-  StorageSourceDefault.GDRIVE_DEFAULT
-);
-
-export const oneDriveStorageSource$ = writableStringLocalStorageSubject()(
-  'oneDriveStorageSource',
-  StorageSourceDefault.ONEDRIVE_DEFAULT
-);
-
-export const fsStorageSource$ = writableStringLocalStorageSubject()('fsStorageSource', '');
-
-export const syncTarget$ = writableStringLocalStorageSubject()('syncTarget', '');
 
 export const keepLocalStatisticsOnDeletion$ = writableBooleanLocalStorageSubject()(
   'keepLocalStatisticsOnDeletion',
@@ -251,12 +212,12 @@ export const statisticsEnabled$ = writableBooleanLocalStorageSubject()('statisti
 
 export const statisticsMergeMode$ = writableStringLocalStorageSubject<MergeMode>()(
   'statisticsMergeMode',
-  MergeMode.MERGE
+  'merge'
 );
 
 export const readingGoalsMergeMode$ = writableStringLocalStorageSubject<MergeMode>()(
   'readingGoalsMergeMode',
-  MergeMode.MERGE
+  'merge'
 );
 
 export const trackerAutoPause$ = writableStringLocalStorageSubject<TrackerAutoPause>()(
@@ -312,29 +273,9 @@ export const readingGoal$ = writableObjectLocalStorageSubject<ReadingGoal>()('re
   lastGoalModified: Date.now()
 });
 
-export const lastExportedTarget$ = writableStringLocalStorageSubject<StorageKey>()(
-  'lastExportedTarget',
-  StorageKey.BACKUP
-);
-
-export const lastExportedTypes$ = writableArrayLocalStorageSubject<StorageDataType>()(
-  'lastExportedTypes',
-  [StorageDataType.PROGRESS, StorageDataType.STATISTICS]
-);
-
 export const lastBlurredTrackerItems$ = writableSetLocalStorageSubject<string>()(
   'lastBlurredTrackerItems',
   new Set<string>()
-);
-
-export const lastSyncedSettingsSource$ = writableStringLocalStorageSubject()(
-  'lastSyncedSettingsSource',
-  InternalStorageSources.INTERNAL_BROWSER
-);
-
-export const lastSyncedSettingsTarget$ = writableStringLocalStorageSubject()(
-  'lastSyncedSettingsTarget',
-  InternalStorageSources.INTERNAL_ZIP
 );
 
 export const lastReadingGoalsModified$ = writableNumberLocalStorageSubject()(
@@ -475,14 +416,9 @@ const db = browser ? createBooksDb() : import('fake-indexeddb/auto').then(() => 
 
 export const database = new DatabaseService(db);
 
-export const booklistSortOptions$ = writableObjectLocalStorageSubject<Record<string, SortOption>>()(
+export const booklistSortOptions$ = writableObjectLocalStorageSubject<SortOption>()(
   'booklistSortOptions',
-  {
-    [StorageKey.BROWSER]: { property: 'lastBookOpen', direction: SortDirection.DESC },
-    [StorageKey.GDRIVE]: { property: 'title', direction: SortDirection.ASC },
-    [StorageKey.ONEDRIVE]: { property: 'title', direction: SortDirection.ASC },
-    [StorageKey.FS]: { property: 'title', direction: SortDirection.ASC }
-  }
+  { property: 'lastBookOpen', direction: SortDirection.DESC }
 );
 
 export const verticalCustomReadingPosition$ = writableNumberLocalStorageSubject()(

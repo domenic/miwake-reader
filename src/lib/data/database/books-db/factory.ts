@@ -3,7 +3,7 @@ import { openDB } from 'idb';
 import upgradeBooksDbFromV2 from './versions/v2/upgrade';
 
 export function createBooksDb(name = 'books') {
-  return openDB<BooksDb>(name, 6, {
+  return openDB<BooksDb>(name, 7, {
     async upgrade(oldDb, oldVersion, newVersion, transaction) {
       switch (oldVersion) {
         case 0: {
@@ -39,13 +39,6 @@ export function createBooksDb(name = 'books') {
           oldDb.createObjectStore('lastModified', {
             keyPath: ['title', 'dataType']
           });
-
-          oldDb.createObjectStore('audioBook', { keyPath: 'title' });
-
-          oldDb.createObjectStore('subtitle', { keyPath: 'title' });
-
-          oldDb.createObjectStore('handle', { keyPath: ['title', 'dataType'] });
-
           break;
         }
         case 2: {
@@ -75,16 +68,21 @@ export function createBooksDb(name = 'books') {
           oldDb.createObjectStore('lastModified', {
             keyPath: ['title', 'dataType']
           });
-
           break;
         }
-        case 5: {
-          oldDb.createObjectStore('audioBook', { keyPath: 'title' });
-
-          oldDb.createObjectStore('subtitle', { keyPath: 'title' });
-
-          oldDb.createObjectStore('handle', { keyPath: ['title', 'dataType'] });
-
+        case 6: {
+          // Drop the never-written audioBook/subtitle/handle stores,
+          // drop the password-encryption-era fields on storageSource
+          // records, drop per-book storageSource and ArrayBuffer-shaped
+          // source data. Existing rows lose those fields silently —
+          // this is a type-only narrowing for `data` and `book`;
+          // IndexedDB stores arbitrary objects and just drops
+          // references on next write.
+          for (const storeName of ['audioBook', 'subtitle', 'handle'] as const) {
+            if (oldDb.objectStoreNames.contains(storeName as never)) {
+              oldDb.deleteObjectStore(storeName as never);
+            }
+          }
           break;
         }
       }

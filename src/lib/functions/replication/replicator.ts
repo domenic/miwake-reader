@@ -1,163 +1,76 @@
 import { BackupStorageHandler } from '$lib/data/storage/handler/backup-handler';
 import { BaseStorageHandler } from '$lib/data/storage/handler/base-handler';
+import type {
+  BookOperations,
+  LocalReplicationEndpoint,
+  ScopedSettings,
+  SyncEndpoint
+} from '$lib/data/storage/handler/handler-roles';
 import { storage } from '$lib/data/window/navigator/storage';
-import { StorageDataType, StorageKey } from '$lib/data/storage/storage-types';
-import { database, requestPersistentStorage$ } from '$lib/data/store';
-import loadEpub from '$lib/functions/file-loaders/epub/load-epub';
-import loadHtmlz from '$lib/functions/file-loaders/htmlz/load-htmlz';
-import loadTxt from '$lib/functions/file-loaders/txt/load-txt';
-import type { LoadData } from '$lib/functions/file-loaders/types';
+import { StorageDataType } from '$lib/data/storage/storage-types';
+import { database } from '$lib/data/store';
 import { handleErrorDuringReplication } from '$lib/functions/replication/error-handler';
-import { throwIfAborted } from '$lib/functions/replication/replication-error';
+import { AbortError, throwIfAborted } from '$lib/functions/replication/replication-error';
 import {
   replicationProgress$,
   type ReplicationContext
 } from '$lib/functions/replication/replication-progress';
 import pLimit from 'p-limit';
 
-export async function importData(
-  document: Document,
-  targetHandler: BaseStorageHandler,
-  files: File[],
-  cancelSignal: AbortSignal,
-  fileCountData?: Record<string, number>
-) {
-  const dataIds: number[] = [];
-  const tasks: Promise<void>[] = [];
-  const lastBookModified = new Date().getTime();
-  const progressBase = 3; // load -> save -> cover;
-  const maxProgress = progressBase * files.length;
-  const limiter = pLimit(1);
+/**
+ * Direction of a replication relative to the library:
+ *   - `'pull'`: endpoint → library (the library is the target)
+ *   - `'push'`: library → endpoint (the library is the source)
+ */
+export type ReplicationDirection = 'push' | 'pull';
 
-  let errorMessage = '';
-
-  replicationProgress$.next({ progressBase, maxProgress });
-
-  await persistStorage(targetHandler.storageType);
-
-  if (targetHandler.isCacheDisabled()) {
-    targetHandler.clearData(false);
-  }
-
-  let newFileData = 0;
-
-  files.forEach((file) =>
-    tasks.push(
-      limiter(async () => {
-        let currentTitle = file.name;
-
-        if (fileCountData && Object.prototype.hasOwnProperty.call(fileCountData, currentTitle)) {
-          checkCancelAndProgress(cancelSignal, true, true);
-          checkCancelAndProgress(cancelSignal, true, true);
-          checkCancelAndProgress(cancelSignal, true, true);
-
-          return;
-        }
-
-        try {
-          throwIfAborted(cancelSignal);
-
-          let bookContent: LoadData;
-
-          if (file.name.endsWith('.epub')) {
-            bookContent = await loadEpub(file, document, lastBookModified);
-          } else if (file.name.endsWith('.txt')) {
-            bookContent = await loadTxt(file, lastBookModified);
-          } else {
-            bookContent = await loadHtmlz(file, document, lastBookModified);
-          }
-
-          if (fileCountData) {
-            fileCountData[currentTitle] = bookContent.characters;
-            checkCancelAndProgress(cancelSignal, true, true);
-            checkCancelAndProgress(cancelSignal, true, true);
-            checkCancelAndProgress(cancelSignal, true, true);
-
-            newFileData += 1;
-
-            return;
-          }
-
-          checkCancelAndProgress(cancelSignal, true, true);
-
-          currentTitle = bookContent.title;
-
-          targetHandler.startContext(
-            { title: bookContent.title, imagePath: bookContent.coverImage || '' },
-            cancelSignal
-          );
-
-          dataIds.push(await targetHandler.saveBook(bookContent, false));
-
-          checkCancelAndProgress(cancelSignal, false);
-
-          if (bookContent.coverImage) {
-            await targetHandler.saveCover(bookContent.coverImage);
-          }
-
-          database.dataListChanged$.next(targetHandler);
-
-          checkCancelAndProgress(cancelSignal, true, !bookContent.coverImage);
-        } catch (error: any) {
-          errorMessage = handleErrorDuringReplication(error, `Error importing ${currentTitle}: `, [
-            limiter
-          ]);
-        }
-      })
-    )
-  );
-
-  await Promise.all(tasks).catch(() => {});
-
-  if (fileCountData && newFileData) {
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(
-      new Blob([JSON.stringify(fileCountData)], { type: 'application/json' })
-    );
-    a.rel = 'noopener';
-    a.download = 'characters';
-
-    setTimeout(() => {
-      URL.revokeObjectURL(a.href);
-    }, 1e4);
-
-    setTimeout(() => {
-      a.click();
-    });
-  }
-
-  return errorMessage;
+/**
+ * `library` and `endpoint` are typed asymmetrically so the type
+ * system rejects `replicateData({ library: A, endpoint: B })` where
+ * both are sync endpoints — we never replicate between two remotes.
+ * Direction picks which side is the source.
+ *
+ * `settings` is one bag covering every "should the target keep its
+ * existing row?" decision: saveBehavior (replicator-level up-to-date
+ * short-circuit + target's NewOnly timestamp check) and the merge
+ * modes for statistics / reading-goals (merge vs replace). Source
+ * and target use the same settings so an override on one side can't
+ * silently bypass the other; callers express *intent* via
+ * `scopedSettings({ winnerTakesAll })` rather than wiring knobs.
+ *
+ * Resolves on success. Throws on any failure (including AbortError on
+ * cancel). Per-book partial successes are observable via IDB side
+ * effects (dataListChanged$ / bookmarksChanged$); callers that care
+ * about which book worked should subscribe to those rather than parse
+ * the thrown error.
+ */
+export interface ReplicateDataOptions {
+  library: LocalReplicationEndpoint;
+  endpoint: SyncEndpoint;
+  direction: ReplicationDirection;
+  /** Whether to fire dataListChanged$ after writes; true for flows
+   *  that affect /manage's view (force-resync, backup-import). */
+  refreshDataList: boolean;
+  contexts: ReplicationContext[];
+  dataToReplicate: StorageDataType[];
+  settings: ScopedSettings;
+  cancelSignal?: AbortSignal;
 }
 
-export async function importBackup(
-  sourceHandler: BackupStorageHandler,
-  targetHandler: BaseStorageHandler,
-  file: File,
-  cancelSignal: AbortSignal
-) {
-  return replicateData(
-    sourceHandler,
-    targetHandler,
-    true,
-    await sourceHandler.setBackupZip(file),
-    [
-      StorageDataType.DATA,
-      StorageDataType.PROGRESS,
-      StorageDataType.STATISTICS,
-      StorageDataType.READING_GOALS
-    ],
+export async function replicateData(opts: ReplicateDataOptions) {
+  const {
+    library,
+    endpoint,
+    direction,
+    refreshDataList,
+    contexts,
+    dataToReplicate,
+    settings,
     cancelSignal
-  );
-}
+  } = opts;
+  const source: BookOperations = direction === 'push' ? library : endpoint;
+  const target: BookOperations = direction === 'push' ? endpoint : library;
 
-export async function replicateData(
-  sourceHandler: BaseStorageHandler,
-  targetHandler: BaseStorageHandler,
-  refreshDataList: boolean,
-  contexts: ReplicationContext[],
-  dataToReplicate: StorageDataType[],
-  cancelSignal?: AbortSignal
-) {
   const bookOperationsLength = dataToReplicate.filter(
     (entry) => entry !== StorageDataType.READING_GOALS
   ).length;
@@ -174,18 +87,17 @@ export async function replicateData(
   const replicationLimiter = pLimit(1);
   const replicationTasks: Promise<void>[] = [];
 
-  let errorMessage = '';
+  const errors: Error[] = [];
   let processed = 0;
 
   replicationProgress$.next({ maxProgress });
 
-  await persistStorage(targetHandler.storageType).catch(() => {});
-
-  [sourceHandler, targetHandler].forEach((handler) => {
-    if (handler.isCacheDisabled()) {
-      handler.clearData(false);
-    }
-  });
+  if (direction === 'pull') {
+    // Pulling into the library — request persistent storage so the
+    // OS doesn't evict our IDB. Pushes don't need this; the endpoint
+    // manages its own persistence.
+    await persistLibraryStorage();
+  }
 
   contexts.forEach((context) =>
     replicationTasks.push(
@@ -195,92 +107,79 @@ export async function replicateData(
 
           let dataProcessed = false;
 
-          sourceHandler.startContext(context, cancelSignal);
-          targetHandler.startContext(context, cancelSignal);
+          const sourceScoped = source.scoped(context, settings, cancelSignal);
+          const targetScoped = target.scoped(context, settings, cancelSignal);
 
           if (processBookData) {
             if (
-              await targetHandler.isBookPresentAndUpToDate(
-                await sourceHandler.getFilenameForRecentCheck('bookdata_')
+              await targetScoped.isBookPresentAndUpToDate(
+                await sourceScoped.getFilenameForRecentCheck('bookdata_')
               )
             ) {
               checkCancelAndProgress(cancelSignal, true, true);
               checkCancelAndProgress(cancelSignal, true, true);
             } else {
-              const bookData = await sourceHandler.getBook();
-
+              const bookData = await sourceScoped.getBook();
               checkCancelAndProgress(cancelSignal);
-
               if (bookData) {
-                await targetHandler.saveBook(bookData);
+                await targetScoped.saveBook(bookData);
                 dataProcessed = true;
               }
-
               checkCancelAndProgress(cancelSignal, bookOperationsLength === 1, !bookData);
             }
           }
 
           if (processProgressData) {
             if (
-              await targetHandler.isProgressPresentAndUpToDate(
-                await sourceHandler.getFilenameForRecentCheck('progress_')
+              await targetScoped.isProgressPresentAndUpToDate(
+                await sourceScoped.getFilenameForRecentCheck('progress_')
               )
             ) {
               checkCancelAndProgress(cancelSignal, !dataProcessed, true);
               checkCancelAndProgress(cancelSignal, !dataProcessed, true);
             } else {
-              const progressData = await sourceHandler.getProgress();
-
+              const progressData = await sourceScoped.getProgress();
               checkCancelAndProgress(cancelSignal, !dataProcessed);
-
               if (progressData) {
-                await targetHandler.saveProgress(progressData);
-
+                await targetScoped.saveProgress(progressData);
                 dataProcessed = true;
               }
-
               checkCancelAndProgress(cancelSignal, !dataProcessed, !progressData);
             }
           }
 
           if (processStatistics) {
             if (
-              await targetHandler.areStatisticsPresentAndUpToDate(
-                await sourceHandler.getFilenameForRecentCheck('statistics_')
+              await targetScoped.areStatisticsPresentAndUpToDate(
+                await sourceScoped.getFilenameForRecentCheck('statistics_')
               )
             ) {
               checkCancelAndProgress(cancelSignal, !dataProcessed, true);
               checkCancelAndProgress(cancelSignal, !dataProcessed, true);
             } else {
-              const { statistics, lastStatisticModified } = await sourceHandler.getStatistics();
-
+              const { statistics, lastStatisticModified } = await sourceScoped.getStatistics();
               checkCancelAndProgress(cancelSignal, !dataProcessed);
-
               if (statistics) {
-                await targetHandler.saveStatistics(statistics, lastStatisticModified);
-
+                await targetScoped.saveStatistics(statistics, lastStatisticModified);
                 dataProcessed = true;
               }
-
               checkCancelAndProgress(cancelSignal, !dataProcessed, !statistics);
             }
           }
 
           if (dataProcessed) {
-            const coverData = await sourceHandler.getCover();
-
+            const coverData = await sourceScoped.getCover();
             checkCancelAndProgress(cancelSignal, !coverData);
-
-            await targetHandler.saveCover(coverData);
-
+            await targetScoped.saveCover(coverData);
             checkCancelAndProgress(cancelSignal);
 
-            if (refreshDataList) {
-              database.dataListChanged$.next(targetHandler);
-            }
-
-            if (targetHandler.storageType === StorageKey.BROWSER && processProgressData) {
-              database.bookmarksChanged$.next();
+            if (direction === 'pull') {
+              if (refreshDataList) {
+                database.dataListChanged$.next();
+              }
+              if (processProgressData) {
+                database.bookmarksChanged$.next();
+              }
             }
           } else {
             checkCancelAndProgress(cancelSignal, true, true);
@@ -289,12 +188,18 @@ export async function replicateData(
 
           processed += 1;
         } catch (error: any) {
-          errorMessage = handleErrorDuringReplication(
+          // handleErrorDuringReplication re-throws AbortError and
+          // logs other errors as a side effect. Collect non-abort
+          // errors (with a per-context prefix so the sync-health
+          // banner can name the offending book) to throw at the end
+          // as an AggregateError.
+          handleErrorDuringReplication(
             error,
             `Error Processing ${context.title}: `,
             [replicationLimiter],
             progressBaseForBookOperations
           );
+          errors.push(new Error(`Error Processing ${context.title}: ${error.message}`));
         }
       })
     )
@@ -305,63 +210,60 @@ export async function replicateData(
       replicationLimiter(async () => {
         try {
           if (
-            await targetHandler.areReadingGoalsPresentAndUpToDate(
-              await sourceHandler.getFilenameForRecentCheck(
-                BaseStorageHandler.readingGoalsFilePrefix
-              )
+            await target.areReadingGoalsPresentAndUpToDate(
+              await source.getReadingGoalsFilename(settings)
             )
           ) {
             checkCancelAndProgress(cancelSignal, true, true);
             checkCancelAndProgress(cancelSignal, true, true);
           } else {
-            const { readingGoals, lastGoalModified } = await sourceHandler.getReadingGoals();
-
+            const { readingGoals, lastGoalModified } = await source.getReadingGoals(cancelSignal);
             checkCancelAndProgress(cancelSignal);
-
             if (readingGoals) {
-              await targetHandler.saveReadingGoals(readingGoals, lastGoalModified);
+              await target.saveReadingGoals(readingGoals, lastGoalModified, settings, cancelSignal);
             }
-
             checkCancelAndProgress(cancelSignal, false, !readingGoals);
           }
-
           processed += 1;
-        } catch (error) {
-          errorMessage = handleErrorDuringReplication(
+        } catch (error: any) {
+          handleErrorDuringReplication(
             error,
             `Error Processing Reading Goals: `,
             [replicationLimiter],
             progressBaseForOtherOperations
           );
+          errors.push(new Error(`Error Processing Reading Goals: ${error.message}`));
         }
       })
     );
   }
 
-  await Promise.all(replicationTasks).catch(() => {});
+  // AbortError gets re-thrown from inside the per-task try (via
+  // handleErrorDuringReplication) and lands here as the rejection.
+  // Re-throw so a cancel isn't disguised as a successful resolution.
+  await Promise.all(replicationTasks).catch((err) => {
+    if (err instanceof AbortError) throw err;
+  });
 
-  if (targetHandler instanceof BackupStorageHandler) {
-    await targetHandler
-      .createExportZip(document, cancelSignal?.aborted || !processed)
-      .catch((error) => {
-        errorMessage = error.message;
-      });
+  if (target instanceof BackupStorageHandler) {
+    await target.createExportZip(document, cancelSignal?.aborted || !processed).catch((err) => {
+      errors.push(err);
+    });
   }
 
-  return errorMessage;
-}
-
-async function persistStorage(target: StorageKey) {
-  if (target === StorageKey.BROWSER && requestPersistentStorage$.getValue()) {
-    try {
-      await storage.persist();
-    } catch (_) {
-      // no-op
-    }
+  if (errors.length) {
+    throw new AggregateError(errors, errors[0].message);
   }
 }
 
-function checkCancelAndProgress(
+export async function persistLibraryStorage() {
+  // Best-effort. Browsers either grant on this call (and remember it
+  // forever) or deny silently per their own engagement heuristics —
+  // either way there's nothing useful for us to do beyond ask.
+  await storage.persist().catch(() => {});
+}
+
+export function checkCancelAndProgress(
   cancelSignal: AbortSignal | undefined,
   allowCancel = true,
   addDefaultProgress = false

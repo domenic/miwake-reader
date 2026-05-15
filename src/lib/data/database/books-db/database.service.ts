@@ -6,7 +6,7 @@ import type {
   BooksDbStorageSource
 } from '$lib/data/database/books-db/versions/books-db';
 import { Observable, Subject, from } from 'rxjs';
-import { StorageDataType, StorageKey } from '$lib/data/storage/storage-types';
+import { StorageDataType } from '$lib/data/storage/storage-types';
 import {
   advanceDateDays,
   getDate,
@@ -14,32 +14,30 @@ import {
   mergeStatistics,
   updateStatisticToStore
 } from '$lib/functions/statistic-util';
-import { catchError, map, shareReplay, startWith, switchMap, tap } from 'rxjs/operators';
+import { catchError, map, shareReplay, startWith, switchMap } from 'rxjs/operators';
 import {
   getCurrentReadingGoal,
   mergeReadingGoals,
   readingGoalSortFunction
 } from '$lib/data/reading-goal';
-import { lastReadingGoalsModified$, readingGoal$, syncTarget$ } from '$lib/data/store';
+import { lastReadingGoalsModified$, readingGoal$ } from '$lib/data/store';
 
-import type { BaseStorageHandler } from '$lib/data/storage/handler/base-handler';
+import type { BookCardProps } from '$lib/components/book-card/book-card-props';
+import { BaseStorageHandler } from '$lib/data/storage/handler/base-handler';
 import type { BookStatistic } from '$lib/components/statistics/statistics-types';
 import type { BooksDb } from '$lib/data/database/books-db/versions/books-db';
 import type { IDBPDatabase } from 'idb';
 import { showErrorDialogWithLogReport } from '$lib/components/log-report-dialog-content.svelte';
 import { messageDialog } from '$lib/data/simple-dialogs';
-import { MergeMode } from '$lib/data/merge-mode';
+import type { MergeMode } from '$lib/data/merge-mode';
 import { ReplicationSaveBehavior } from '$lib/functions/replication/replication-options';
 import { getDefaultStatistic } from '$lib/components/book-reader/book-reading-tracker/book-reading-tracker';
-import { getStorageHandler } from '$lib/data/storage/storage-handler-factory';
 import { handleErrorDuringReplication } from '$lib/functions/replication/error-handler';
 import { iffBrowser } from '$lib/functions/rxjs/iff-browser';
 import { logger } from '$lib/data/logger';
 import pLimit from 'p-limit';
 import { replicationProgress$ } from '$lib/functions/replication/replication-progress';
-import { setStorageSourceDefault } from '$lib/data/storage/storage-source-manager';
-import { storageSource$ } from '$lib/data/storage/storage-view';
-import { throwIfAborted } from '$lib/functions/replication/replication-error';
+import { AbortError, throwIfAborted } from '$lib/functions/replication/replication-error';
 
 const LAST_ITEM_KEY = 0;
 
@@ -50,59 +48,62 @@ export class DatabaseService {
 
   listLoading$ = new Subject<boolean>();
 
-  dataListChanged$ = new Subject<BaseStorageHandler | undefined>();
+  dataListChanged$ = new Subject<void>();
 
-  lastHandler: BaseStorageHandler | undefined;
-
+  /**
+   * The unified library view — every BookCardProps row /manage shows.
+   * Reads IndexedDB directly; no storage-handler involvement, since
+   * cloud/fs handlers are sync endpoints, not library data sources.
+   * Subscribers debounce their own work; this just emits BookCardProps[]
+   * whenever someone calls notifyDataListChanged() or fires
+   * dataListChanged$.next().
+   */
   dataList$ = iffBrowser(() =>
     this.dataListChanged$.pipe(
       startWith(undefined),
-      tap((handler) => {
-        this.lastHandler = handler;
-      }),
-      switchMap(() => storageSource$),
-      switchMap((storageSource) =>
-        from(
-          Promise.resolve(this.lastHandler || getStorageHandler(window, storageSource, '')).then(
-            (handler) => {
-              logger.clearHistory();
-
-              return handler.getBookList();
-            }
-          )
-        ).pipe(
+      switchMap(() =>
+        from(this.fetchBookCards()).pipe(
           catchError((error: unknown) => {
             if (error instanceof Error) {
               const showReport = logger.errorCount > 1;
-
               logger.warn(error.message);
-
               if (showReport) {
                 showErrorDialogWithLogReport({ title: 'Failure', message: 'Errors occurred.' });
               } else {
-                messageDialog({
-                  title: 'Error',
-                  message: `An error occured: ${error.message}`
-                });
+                messageDialog({ title: 'Error', message: `An error occured: ${error.message}` });
               }
             }
-
-            if (storageSource !== StorageKey.BROWSER) {
-              this.lastHandler = undefined;
-              storageSource$.next(StorageKey.BROWSER);
-            }
-
             return [[]];
           })
         )
       ),
-      tap(() => {
-        this.lastHandler = undefined;
-        this.listLoading$.next(false);
-      }),
       shareReplay({ refCount: true, bufferSize: 1 })
     )
   );
+
+  private async fetchBookCards(): Promise<BookCardProps[]> {
+    this.listLoading$.next(true);
+    try {
+      logger.clearHistory();
+      const db = await this.db;
+      const data = await db.getAll('data');
+      return data.map((book) => ({
+        id: book.id,
+        title: book.title,
+        imagePath: book.coverImage || '',
+        characters: BaseStorageHandler.getBookCharacters(book.characters || 0, book.sections || []),
+        lastBookModified: book.lastBookModified || 0,
+        lastBookOpen: book.lastBookOpen || 0,
+        isPlaceholder: !book.elementHtml,
+        // Overlaid by /manage's bookCards$ pipeline from the bookmark store.
+        progress: 0,
+        completed: false,
+        lastBookmarkModified: 0
+      }));
+    } finally {
+      this.listLoading$.next(false);
+    }
+  }
 
   bookmarksChanged$ = new Subject<void>();
 
@@ -127,6 +128,16 @@ export class DatabaseService {
   constructor(public db: Promise<IDBPDatabase<BooksDb>>) {
     this.db$ = from(db).pipe(shareReplay({ refCount: true, bufferSize: 1 }));
     this.isReady$ = this.db$.pipe(map((x) => !!x));
+  }
+
+  /**
+   * Use this when something has mutated the `data` store directly
+   * (sync engine seeding placeholders, importers, etc.). dataList$
+   * reads IndexedDB on every emission so no handler-cache
+   * invalidation is needed — just kick the pipeline.
+   */
+  notifyDataListChanged(): void {
+    this.dataListChanged$.next();
   }
 
   async getLastModifiedForType(title: string, dataType: string) {
@@ -203,8 +214,7 @@ export class DatabaseService {
   async upsertData(
     data: Omit<BooksDbBookData, 'id'>,
     saveBehavior: ReplicationSaveBehavior,
-    skipTimestampFallback = true,
-    removeStorageContext = true
+    skipTimestampFallback = true
   ) {
     const db = await this.db;
 
@@ -216,12 +226,14 @@ export class DatabaseService {
     const oldData = await store.index('title').get(data.title);
 
     if (oldData) {
-      if (removeStorageContext) {
-        oldData.storageSource = undefined;
-      }
-
       if (
         saveBehavior === ReplicationSaveBehavior.NewOnly &&
+        // A placeholder row is never "up to date" — it has no content,
+        // just metadata. Sync seeds placeholders with the remote's
+        // lastBookModified so /manage can sort them, which means the
+        // timestamp check below would otherwise skip the one write
+        // that actually hydrates the book.
+        oldData.elementHtml &&
         oldData.lastBookModified &&
         data.lastBookModified &&
         oldData.lastBookModified >= data.lastBookModified &&
@@ -237,8 +249,7 @@ export class DatabaseService {
             : {
                 lastBookModified: data.lastBookModified || oldData.lastBookModified,
                 lastBookOpen: data.lastBookOpen || oldData.lastBookOpen
-              }),
-          ...(removeStorageContext ? { storageSource: undefined } : {})
+              })
         };
         await store.put(bookData);
       }
@@ -253,22 +264,28 @@ export class DatabaseService {
     return bookData;
   }
 
+  /**
+   * Delete books from local IDB. Returns the ids that were actually
+   * deleted. Throws AggregateError on any per-id failure (with the
+   * partial-success list attached via `.cause` if you need it; the
+   * caller's typical recovery is to re-derive UI state from a fresh
+   * `getAll('data')` rather than parse the error).
+   */
   async deleteData(
     dataIds: number[],
     idsToTitles: Map<number, string>,
     cancelSignal: AbortSignal,
     keepLocalStatistics: boolean
-  ) {
+  ): Promise<number[]> {
     const db = await this.db;
     const lastItemObj = await db.get('lastItem', LAST_ITEM_KEY);
     const bookmarkIdData = await db.getAllKeys('bookmark');
     const lastItem = lastItemObj?.dataId;
     const bookmarkIds = new Set(bookmarkIdData);
     const deleted: number[] = [];
+    const errors: Error[] = [];
     const limiter = pLimit(1);
     const tasks: Promise<void>[] = [];
-
-    let errorMessage = '';
 
     replicationProgress$.next({ progressBase: 1, maxProgress: dataIds.length });
 
@@ -277,7 +294,6 @@ export class DatabaseService {
         limiter(async () => {
           try {
             throwIfAborted(cancelSignal);
-
             deleted.push(
               await this.deleteSingleData(
                 db,
@@ -287,20 +303,22 @@ export class DatabaseService {
                 !keepLocalStatistics
               )
             );
-          } catch (error) {
-            errorMessage = handleErrorDuringReplication(
-              error,
-              `Error deleting Book with id ${id}: `,
-              [limiter]
-            );
+          } catch (error: any) {
+            handleErrorDuringReplication(error, `Error deleting Book with id ${id}: `, [limiter]);
+            errors.push(error);
           }
         })
       )
     );
 
-    await Promise.all(tasks).catch(() => {});
+    await Promise.all(tasks).catch((err) => {
+      if (err instanceof AbortError) throw err;
+    });
 
-    return { error: errorMessage, deleted };
+    if (errors.length) {
+      throw new AggregateError(errors, errors[0].message);
+    }
+    return deleted;
   }
 
   async getBookmark(dataId: number) {
@@ -335,14 +353,9 @@ export class DatabaseService {
     cachedData: { bookmarkIds: Set<number>; lastItem: number | undefined },
     shouldDeleteStatistics: boolean
   ) {
-    const storeNames: (
-      | 'data'
-      | 'bookmark'
-      | 'statistic'
-      | 'lastItem'
-      | 'lastModified'
-      | 'handle'
-    )[] = ['data', 'handle'];
+    const storeNames: ('data' | 'bookmark' | 'statistic' | 'lastItem' | 'lastModified')[] = [
+      'data'
+    ];
     const shouldDeleteLastItem = cachedData.lastItem === dataId;
     const shouldDeleteBookmark = cachedData.bookmarkIds.has(dataId);
 
@@ -381,10 +394,6 @@ export class DatabaseService {
         await tx.objectStore('lastModified').delete([bookTitle, StorageDataType.STATISTICS]);
       }
 
-      if (bookTitle) {
-        await tx.objectStore('handle').delete(IDBKeyRange.bound([bookTitle], [bookTitle, []]));
-      }
-
       await tx.objectStore('data').delete(dataId);
       await tx.done;
 
@@ -407,18 +416,7 @@ export class DatabaseService {
     return dataId;
   }
 
-  async getStorageSources() {
-    const db = await this.db;
-
-    return db.getAll('storageSource');
-  }
-
-  async saveStorageSource(
-    storageSource: BooksDbStorageSource,
-    oldName: string,
-    isSyncTarget: boolean,
-    isStorageSourceDefault: boolean
-  ) {
+  async saveStorageSource(storageSource: BooksDbStorageSource, oldName: string) {
     const db = await this.db;
     const tx = db.transaction(['storageSource'], 'readwrite');
 
@@ -436,18 +434,6 @@ export class DatabaseService {
       }
 
       await tx.done;
-
-      if (isSyncTarget) {
-        syncTarget$.next(storageSource.name);
-      } else if (oldName) {
-        syncTarget$.next('');
-      }
-
-      if (isStorageSourceDefault) {
-        setStorageSourceDefault(storageSource.name, storageSource.type);
-      } else if (oldName) {
-        setStorageSourceDefault('', storageSource.type);
-      }
     } catch (error: any) {
       try {
         tx.abort();
@@ -460,22 +446,9 @@ export class DatabaseService {
     }
   }
 
-  async deleteStorageSource(
-    toDelete: BooksDbStorageSource,
-    wasSyncTarget: boolean,
-    wasStorageSourceDefault: boolean
-  ) {
+  async deleteStorageSource(toDelete: BooksDbStorageSource) {
     const db = await this.db;
-
     await db.delete('storageSource', toDelete.name);
-
-    if (wasSyncTarget) {
-      syncTarget$.next('');
-    }
-
-    if (wasStorageSourceDefault) {
-      setStorageSourceDefault('', toDelete.type);
-    }
   }
 
   async getStatisticsForBook(bookTitle: string) {
@@ -520,7 +493,7 @@ export class DatabaseService {
     let statisticsToStore: BooksDbStatistic[] = statistics;
     let newStatisticModified = currentLastModified;
 
-    if (statisticsMergeMode === MergeMode.MERGE) {
+    if (statisticsMergeMode === 'merge') {
       const existingStatistics = await this.getStatisticsForBook(bookTitle);
 
       statisticsToStore = mergeStatistics(
@@ -543,19 +516,16 @@ export class DatabaseService {
       const limiter = pLimit(1);
       const tasks: Promise<void>[] = [];
 
-      if (statisticsMergeMode !== MergeMode.LOCAL) {
-        tasks.push(
-          limiter(async () => {
-            try {
-              await statisticsStore.delete(IDBKeyRange.bound([bookTitle], [bookTitle, []]));
-            } catch (error: any) {
-              limiter.clearQueue();
-
-              throw error;
-            }
-          })
-        );
-      }
+      tasks.push(
+        limiter(async () => {
+          try {
+            await statisticsStore.delete(IDBKeyRange.bound([bookTitle], [bookTitle, []]));
+          } catch (error: any) {
+            limiter.clearQueue();
+            throw error;
+          }
+        })
+      );
 
       statisticsToStore.forEach((statistic) =>
         tasks.push(
@@ -621,7 +591,23 @@ export class DatabaseService {
       lastStatisticModified: newStatistic.lastStatisticModified
     };
 
-    await db.put('statistic', existingStatistic);
+    // Same transaction as storeStatistics/setFirstBookRead: bump the
+    // per-title lastModified row so the sync engine's source-side
+    // up-to-date check (getFilenameForRecentCheck → getLastModifiedForType)
+    // sees the edit and lets the ambient push run.
+    const tx = db.transaction(['statistic', 'lastModified'], 'readwrite');
+    try {
+      await tx.objectStore('statistic').put(existingStatistic);
+      await tx.objectStore('lastModified').put({
+        title: newStatistic.title,
+        dataType: StorageDataType.STATISTICS,
+        lastModifiedValue: newStatistic.lastStatisticModified
+      });
+      await tx.done;
+    } catch (err) {
+      tx.abort();
+      throw err;
+    }
   }
 
   async clearZombieStatistics() {
@@ -937,7 +923,7 @@ export class DatabaseService {
     let readingGoalsToStore: BooksDbReadingGoal[] = readingGoals;
     let newReadingGoalModified = lastGoalModified;
 
-    if (readingGoalsMergeMode === MergeMode.MERGE) {
+    if (readingGoalsMergeMode === 'merge') {
       const existingReadingGoals = await this.getReadingGoals();
 
       ({ readingGoalsToStore, newReadingGoalModified } = mergeReadingGoals(

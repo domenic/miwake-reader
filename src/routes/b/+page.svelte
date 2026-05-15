@@ -1,8 +1,8 @@
 <script lang="ts">
   import {
-    auditTime,
     BehaviorSubject,
     debounceTime,
+    distinctUntilChanged,
     EMPTY,
     filter,
     fromEvent,
@@ -25,14 +25,13 @@
   import { browser } from '$app/environment';
   import { page } from '$app/state';
   import { goto } from '$app/navigation';
-  import { faCloudBolt, faPause, faPlay, faSpinner } from '@fortawesome/free-solid-svg-icons';
+  import { faSpinner } from '@fortawesome/free-solid-svg-icons';
   import BookReader from '$lib/components/book-reader/book-reader.svelte';
   import type {
     AutoScroller,
     BookmarkManager,
     PageManager
   } from '$lib/components/book-reader/types';
-  import { showErrorDialogWithLogReport } from '$lib/components/log-report-dialog-content.svelte';
   import StyleSheetRenderer from '$lib/components/style-sheet-renderer.svelte';
   import {
     autoBookmark$,
@@ -65,11 +64,7 @@
     viewMode$,
     selectionToBookmarkEnabled$,
     lineHeight$,
-    syncTarget$,
-    autoReplication$,
     skipKeyDownListener$,
-    replicationSaveBehavior$,
-    cacheStorageData$,
     confirmClose$,
     verticalCustomReadingPosition$,
     horizontalCustomReadingPosition$,
@@ -77,13 +72,10 @@
     statisticsEnabled$,
     openTrackerOnCompletion$,
     addCharactersOnCompletion$,
-    statisticsMergeMode$,
-    isOnline$,
     manualBookmark$,
     customThemes$,
     overwriteBookCompletion$,
     startDayHoursForTracker$,
-    readingGoalsMergeMode$,
     pauseTrackerOnCustomPointChange$,
     hideSpoilerImageMode$,
     showCharacterCounter$,
@@ -131,34 +123,30 @@
   import { fullscreenManager } from '$lib/data/fullscreen-manager';
   import { logger } from '$lib/data/logger';
   import { confirmDialog, messageDialog } from '$lib/data/simple-dialogs';
-  import { MergeMode } from '$lib/data/merge-mode';
-  import { getStorageHandler } from '$lib/data/storage/storage-handler-factory';
-  import { BaseStorageHandler } from '$lib/data/storage/handler/base-handler';
-  import type { BrowserStorageHandler } from '$lib/data/storage/handler/browser-handler';
   import {
-    StorageDataType,
-    StorageSourceDefault,
-    StorageKey
-  } from '$lib/data/storage/storage-types';
-  import { storageSource$ } from '$lib/data/storage/storage-view';
+    markBookOpened,
+    openBook,
+    userSaveBookmark,
+    userSaveStatistics
+  } from '$lib/data/library';
+  import { BaseStorageHandler } from '$lib/data/storage/handler/base-handler';
+  import { StorageDataType, SyncEndpointType } from '$lib/data/storage/storage-types';
   import { availableThemes } from '$lib/data/theme-option';
   import { ViewMode } from '$lib/data/view-mode';
   import loadBookData from '$lib/functions/book-data-loader/load-book-data';
   import { formatPageTitle } from '$lib/functions/format-page-title';
   import { iffBrowser } from '$lib/functions/rxjs/iff-browser';
-  import {
-    AutoReplicationType,
-    ReplicationSaveBehavior
-  } from '$lib/functions/replication/replication-options';
-  import { replicateData } from '$lib/functions/replication/replicator';
+  import { ReplicationSaveBehavior } from '$lib/functions/replication/replication-options';
+  import type { ReplicationContext } from '$lib/functions/replication/replication-progress';
   import { reduceToEmptyString } from '$lib/functions/rxjs/reduce-to-empty-string';
   import { takeWhenBrowser } from '$lib/functions/rxjs/take-when-browser';
   import { tapDom } from '$lib/functions/rxjs/tap-dom';
-  import { multiClickHandler } from '$lib/functions/multi-click-handler';
   import {
-    executeReplicate$,
-    type ReplicationContext
-  } from '$lib/functions/replication/replication-progress';
+    isSyncingOrPending,
+    reconcileForBookOpen,
+    syncAfterLocalMutation
+  } from '$lib/data/sync/sync-engine';
+  import { syncState } from '$lib/data/sync/sync-store.svelte';
   import { getDateKey } from '$lib/functions/statistic-util';
   import { clickOutside } from '$lib/functions/use-click-outside';
   import {
@@ -200,17 +188,9 @@
   let lastSelectedRangeWasEmpty = $state(true);
   let isSelectingCustomReadingPoint = $state(false);
   let showCustomReadingPoint = $state(false);
-  let localStorageHandler: BrowserStorageHandler;
-  let dataToReplicate: StorageDataType[] = $state([]);
-  let dataToReplicateQueue: StorageDataType[] = [];
-  let externalStorageHandler = $state<BaseStorageHandler>();
-  let externalStorageErrors = $state(0);
-  let isReplicating = $state(false);
   let storedExploredCharacter = 0;
   let hasBookmarkData = $state(false);
-  let blockDataUpdates = $state(false);
   let trackerElm: BookReadingTracker = $state()!;
-  let showTrackerIcon = $state(false);
   let wasTrackerPaused = $state(true);
   let frozenPosition = $state(-1);
   let skipFirstFreezeChange = $state(false);
@@ -242,26 +222,25 @@
       subject.next(Number(page.url.searchParams.get('id')));
     });
     return subject;
-  }).pipe(shareReplay({ refCount: true, bufferSize: 1 }));
+    // distinctUntilChanged: the $effect above fires on mount and
+    // re-emits the seed value, so without this the reader pipeline
+    // would re-run twice on every open.
+  }).pipe(distinctUntilChanged(), shareReplay({ refCount: true, bufferSize: 1 }));
 
   const rawBookData$ = bookId$.pipe(
     switchMap(async (id) => {
       let bookData: BooksDbBookData | undefined;
+      logger.debug(`reader/rawBookData$: start id=${id}`);
 
       try {
-        localStorageHandler = getStorageHandler(
-          window,
-          StorageKey.BROWSER,
-          undefined,
-          true,
-          $cacheStorageData$,
-          $replicationSaveBehavior$,
-          $statisticsMergeMode$,
-          $readingGoalsMergeMode$
+        bookData = await openBook(id);
+        logger.debug(
+          `reader/rawBookData$: getBook → ${
+            bookData
+              ? `{id:${bookData.id}, title:${JSON.stringify(bookData.title)}, hasHtml:${!!bookData.elementHtml}}`
+              : 'undefined'
+          }`
         );
-
-        localStorageHandler.startContext({ id, title: '' });
-        bookData = await localStorageHandler.getBook();
 
         if (!bookData) {
           return bookData;
@@ -273,18 +252,34 @@
           imagePath: bookData.coverImage
         };
 
-        localStorageHandler.startContext(currentContext);
-
-        if (bookData.storageSource) {
-          externalStorageHandler = await getStorageHandlerByName(bookData.storageSource, true);
-        } else if ($autoReplication$ !== AutoReplicationType.Off) {
-          externalStorageHandler = await getStorageHandlerByName($syncTarget$);
-        }
-
         bookData.lastBookOpen = new Date().getTime();
 
-        await localStorageHandler.updateLastRead(bookData);
-        await syncDownData(externalStorageHandler, currentContext);
+        logger.debug('reader/rawBookData$: markBookOpened');
+        await markBookOpened(bookData);
+        logger.debug('reader/rawBookData$: reconcileForBookOpen start');
+        await reconcileForBookOpen(currentContext);
+        logger.debug('reader/rawBookData$: reconcileForBookOpen done');
+
+        // If we started from a placeholder, reconcileForBookOpen should
+        // have written real content into the `data` row — re-read so
+        // the renderer sees the hydrated book. If it's still a
+        // placeholder, syncing didn't (or couldn't) pull the content
+        // and there's nothing to render.
+        if (!bookData.elementHtml) {
+          const refreshed = await openBook(id);
+          if (refreshed) {
+            bookData = refreshed;
+          }
+          if (!bookData.elementHtml) {
+            throw new Error(
+              syncState.location
+                ? "This book's content couldn't be loaded from sync — the source file may be corrupt or incomplete. " +
+                    'Try Force re-sync in Settings → Sync to re-pull it.'
+                : "This book's content hasn't been downloaded yet. " +
+                    'Connect its sync location in Settings → Sync, then try again.'
+            );
+          }
+        }
 
         if (!$statisticsEnabled$) {
           const wasNew = (
@@ -295,8 +290,6 @@
             scheduleReplication(StorageDataType.STATISTICS);
           }
         }
-
-        bookData = await saveExternalLastRead(externalStorageHandler, bookData);
 
         if (bookData.language) {
           document.documentElement.lang = bookData.language;
@@ -309,27 +302,19 @@
         messageDialog({ title: 'Load Error', message });
         return undefined;
       } finally {
+        logger.debug(
+          `reader/rawBookData$: finally — syncedResolver, showSpinner=false, returning ${
+            bookData ? `hasHtml=${!!bookData.elementHtml}` : 'undefined'
+          }`
+        );
         syncedResolver();
 
         showSpinner = false;
       }
 
-      if (externalStorageHandler) {
-        externalStorageHandler.updateSettings(
-          window,
-          true,
-          $replicationSaveBehavior$,
-          $statisticsMergeMode$,
-          $readingGoalsMergeMode$,
-          $cacheStorageData$,
-          false,
-          bookData.storageSource || $syncTarget$
-        );
-      }
-
       return bookData;
     }),
-    share()
+    shareReplay({ refCount: true, bufferSize: 1 })
   );
 
   const leaveIfBookMissing$ = rawBookData$.pipe(
@@ -354,6 +339,9 @@
       if (!rawBookData) return EMPTY;
 
       sectionList$.next(rawBookData.sections || []);
+      logger.debug(
+        `reader/bookData$: loadBookData start (sections=${rawBookData.sections?.length ?? 0}, htmlLen=${rawBookData.elementHtml?.length ?? 0})`
+      );
 
       return loadBookData(
         rawBookData,
@@ -361,6 +349,11 @@
         document,
         $viewMode$ === ViewMode.Paginated,
         $hideSpoilerImageMode$
+      );
+    }),
+    tap((loaded) => {
+      logger.debug(
+        `reader/bookData$: loadBookData emitted (htmlLen=${loaded?.htmlContent?.length ?? 'n/a'})`
       );
     }),
     shareReplay({ refCount: true, bufferSize: 1 })
@@ -467,12 +460,6 @@
     reduceToEmptyString()
   );
 
-  const replicator$ = executeReplicate$.pipe(
-    auditTime(60000),
-    switchMap(() => executeReplication()),
-    reduceToEmptyString()
-  );
-
   const autoStartTracker$ = iffBrowser(() =>
     $statisticsEnabled$ && $trackerAutostartTime$ > 0 ? fromEvent(document, PAGE_CHANGE) : NEVER
   ).pipe(
@@ -506,7 +493,14 @@
   });
 
   $effect(() => {
-    if (!$isTrackerMenuOpen$ && wasTrackerMenuOpen) {
+    if ($isTrackerMenuOpen$ && !wasTrackerMenuOpen) {
+      // Capture the pre-pause state at open so the close-side effect
+      // knows whether to resume. Any caller (cluster button,
+      // completion flow) can just flip the menu flag and trust this
+      // edge handler to keep wasTrackerPaused in sync.
+      wasTrackerPaused = $isTrackerPaused$;
+      isTrackerPaused$.next(true);
+    } else if (!$isTrackerMenuOpen$ && wasTrackerMenuOpen) {
       if (!wasTrackerPaused) {
         isTrackerPaused$.next(false);
       }
@@ -571,12 +565,6 @@
 
   let footerChapterProgress = $derived(getCurrentChapterProgress($sectionData$));
 
-  let upSyncEnabled = $derived(
-    externalStorageHandler &&
-      ($autoReplication$ === AutoReplicationType.Up ||
-        $autoReplication$ === AutoReplicationType.All)
-  );
-
   $effect(() => {
     bookmarkData.then((data) => {
       hasBookmarkData = !!data;
@@ -624,13 +612,7 @@
   });
 
   function handleUnload(event: BeforeUnloadEvent) {
-    if (
-      $confirmClose$ &&
-      (isReplicating ||
-        storedExploredCharacter !== exploredCharCount ||
-        (upSyncEnabled && dataToReplicate.length) ||
-        (upSyncEnabled && dataToReplicateQueue.length))
-    ) {
+    if ($confirmClose$ && (isSyncingOrPending() || storedExploredCharacter !== exploredCharCount)) {
       event.preventDefault();
       // eslint-disable-next-line no-param-reassign
       return (event.returnValue = 'Are you sure you want to exit?');
@@ -639,17 +621,7 @@
     return event;
   }
 
-  function trackerSingleClickHandler() {
-    if (!statisticsEnabled$) {
-      return;
-    }
-
-    wasTrackerPaused = $isTrackerPaused$;
-    isTrackerPaused$.next(true);
-    isTrackerMenuOpen$.set(true);
-  }
-
-  function trackerDblClickHandler() {
+  function toggleTrackerPause() {
     if (!statisticsEnabled$) {
       return;
     }
@@ -745,11 +717,7 @@
 
     try {
       if (diffToComplete) {
-        const [hadError] = await trackerElm.processStatistics(diffToComplete);
-
-        if (hadError) {
-          throw new Error('Character Update failed');
-        }
+        await trackerElm.processStatistics(diffToComplete);
       }
 
       const finishedStatistic = await database.getStatisticForCompletedBook($rawBookData$.title);
@@ -793,12 +761,15 @@
         statisticsToStore.push(todayStatistic);
       }
 
-      if (statisticsToStore.length) {
-        await database.storeStatistics(
+      const ctx = bookReplicationContext();
+
+      if (statisticsToStore.length && ctx) {
+        await userSaveStatistics(
           $rawBookData$.title,
           statisticsToStore,
           ReplicationSaveBehavior.Overwrite,
-          MergeMode.LOCAL,
+          'merge',
+          ctx,
           lastStatisticModified
         );
 
@@ -806,21 +777,17 @@
           todayStatistic,
           updateFinishedStatistic ? finishedStatistic : undefined
         );
-
-        scheduleReplication(StorageDataType.STATISTICS);
       }
 
-      if (bookmarkManager) {
+      if (bookmarkManager && ctx) {
         const data = {
           ...bookmarkManager.formatBookmarkData($rawBookData$.id, customReadingPointScrollOffset),
           completed: true
         };
 
-        await database.putBookmark(data);
+        await userSaveBookmark(data, ctx);
 
         bookmarkData = Promise.resolve(data);
-
-        scheduleReplication(StorageDataType.PROGRESS);
       }
 
       if ($statisticsEnabled$ && $openTrackerOnCompletion$) {
@@ -848,18 +815,17 @@
 
   async function uncompleteBook() {
     const bookId = getBookIdSync();
-    if (!bookId || !bookmarkManager) return;
+    const ctx = bookReplicationContext();
+    if (!bookId || !bookmarkManager || !ctx) return;
 
     const data = {
       ...bookmarkManager.formatBookmarkData(bookId, customReadingPointScrollOffset),
       completed: false
     };
 
-    await database.putBookmark(data);
+    await userSaveBookmark(data, ctx);
 
     bookmarkData = Promise.resolve(data);
-
-    scheduleReplication(StorageDataType.PROGRESS);
   }
 
   function getCurrentChapterProgress(sectionData: SectionWithProgress[]) {
@@ -923,168 +889,6 @@
     }
   }
 
-  async function getStorageHandlerByName(storageSourceName: string, throwIfNotFound = false) {
-    if (!storageSourceName) {
-      if (throwIfNotFound) {
-        throw new Error(`No storage source found`);
-      }
-
-      return undefined;
-    }
-
-    if (storageSourceName === StorageSourceDefault.GDRIVE_DEFAULT) {
-      if (!$isOnline$) {
-        messageDialog({
-          title: 'Cannot Sync',
-          message:
-            'Syncing is disabled due to being offline. Refresh the page after going online to try again.'
-        });
-
-        return undefined;
-      }
-
-      return getStorageHandler(
-        window,
-        StorageKey.GDRIVE,
-        storageSourceName,
-        true,
-        $cacheStorageData$,
-        $replicationSaveBehavior$,
-        $statisticsMergeMode$,
-        $readingGoalsMergeMode$
-      );
-    }
-    if (storageSourceName === StorageSourceDefault.ONEDRIVE_DEFAULT) {
-      if (!$isOnline$) {
-        messageDialog({
-          title: 'Cannot Sync',
-          message:
-            'Syncing is disabled due to being offline. Refresh the page after going online to try again.'
-        });
-
-        return undefined;
-      }
-
-      return getStorageHandler(
-        window,
-        StorageKey.ONEDRIVE,
-        storageSourceName,
-        true,
-        $cacheStorageData$,
-        $replicationSaveBehavior$,
-        $statisticsMergeMode$,
-        $readingGoalsMergeMode$
-      );
-    }
-    if (storageSourceName) {
-      const db = await database.db;
-      const storageSource = await db.get('storageSource', storageSourceName);
-
-      if (storageSource) {
-        if (storageSource.type !== StorageKey.FS && !$isOnline$) {
-          messageDialog({
-            title: 'Cannot Sync',
-            message:
-              'Syncing is disabled due to being offline. Refresh the page after going online to try again.'
-          });
-
-          return undefined;
-        }
-
-        return getStorageHandler(
-          window,
-          storageSource.type,
-          storageSourceName,
-          true,
-          $cacheStorageData$,
-          $replicationSaveBehavior$,
-          $statisticsMergeMode$,
-          $readingGoalsMergeMode$
-        );
-      }
-      if (throwIfNotFound) {
-        throw new Error(`No storage source with name ${storageSourceName} found`);
-      }
-    }
-
-    const message = `No storage source with name ${storageSourceName} found - skipping auto import/export.`;
-
-    logger.warn(message);
-
-    messageDialog({ title: 'Configuration Error', message });
-
-    return undefined;
-  }
-
-  async function saveExternalLastRead(
-    storageHandler: BaseStorageHandler | undefined,
-    localBookData: BooksDbBookData
-  ) {
-    if (!storageHandler) {
-      return localBookData;
-    }
-
-    // eslint-disable-next-line prefer-const
-    let { id, ...bookData } = localBookData;
-
-    if (localBookData.storageSource) {
-      const externalBookData = await storageHandler.getBook();
-
-      if (externalBookData && !(externalBookData instanceof File)) {
-        bookData = {
-          ...externalBookData,
-          ...{
-            id: localBookData.id,
-            lastBookOpen: localBookData.lastBookOpen,
-            storageSource: localBookData.storageSource
-          }
-        };
-      }
-    } else if (!localBookData.elementHtml) {
-      throw new Error('Book has no data stored');
-    }
-
-    const dataToReturn = { id, ...bookData };
-
-    await storageHandler.updateLastRead(dataToReturn).catch((error: any) => {
-      const message = `Failed to update last read on external storage: ${error.message}`;
-
-      logger.warn(message);
-
-      messageDialog({ title: 'Update Error', message });
-    });
-
-    return dataToReturn;
-  }
-
-  async function syncDownData(
-    storageHandler: BaseStorageHandler | undefined,
-    context: ReplicationContext
-  ) {
-    if (localStorageHandler && storageHandler) {
-      storageHandler.startContext(context);
-    }
-
-    if (
-      localStorageHandler &&
-      storageHandler &&
-      ($autoReplication$ === AutoReplicationType.Down ||
-        $autoReplication$ === AutoReplicationType.All)
-    ) {
-      const error = await replicateData(
-        storageHandler,
-        localStorageHandler,
-        false,
-        [context],
-        [StorageDataType.PROGRESS, StorageDataType.STATISTICS, StorageDataType.READING_GOALS]
-      );
-
-      if (error) {
-        throw new Error(error);
-      }
-    }
-  }
-
   function onKeydown(ev: KeyboardEvent) {
     if (
       $skipKeyDownListener$ ||
@@ -1108,7 +912,7 @@
       $verticalMode$,
       changeChapter,
       handleSetCustomReadingPoint,
-      trackerDblClickHandler,
+      toggleTrackerPause,
       freezeTrackerPosition
     );
 
@@ -1156,11 +960,14 @@
       data.completed = true;
     }
 
-    await database.putBookmark(data);
+    const ctx = bookReplicationContext();
+    if (ctx) {
+      await userSaveBookmark(data, ctx);
+    } else {
+      await database.putBookmark(data);
+    }
 
     bookmarkData = Promise.resolve(data);
-
-    scheduleReplication(StorageDataType.PROGRESS);
   }
 
   async function scrollToBookmark() {
@@ -1211,105 +1018,6 @@
     nextChapter$.next(nextChapter.reference);
   }
 
-  async function executeReplication(isSilent = true) {
-    if (isReplicating || !dataToReplicate.length || !$rawBookData$ || !externalStorageHandler) {
-      return;
-    }
-
-    isReplicating = true;
-
-    if (!isSilent) {
-      skipKeyDownListener$.next(true);
-      logger.clearHistory();
-      openActionBackdrop();
-    }
-
-    const currentHandlerStorageSource = $rawBookData$.storageSource || $syncTarget$;
-
-    externalStorageHandler.updateSettings(
-      window,
-      false,
-      $replicationSaveBehavior$,
-      $statisticsMergeMode$,
-      $readingGoalsMergeMode$,
-      $cacheStorageData$,
-      !isSilent,
-      currentHandlerStorageSource
-    );
-
-    const error = await replicateData(
-      localStorageHandler,
-      externalStorageHandler,
-      !isSilent && $storageSource$ === externalStorageHandler.storageType,
-      [
-        {
-          id: $rawBookData$.id,
-          title: $rawBookData$.title,
-          imagePath: $rawBookData$.coverImage
-        }
-      ],
-      dataToReplicate
-    ).catch((err: any) => err.message);
-
-    externalStorageHandler.updateSettings(
-      window,
-      true,
-      $replicationSaveBehavior$,
-      $statisticsMergeMode$,
-      $readingGoalsMergeMode$,
-      $cacheStorageData$,
-      false,
-      currentHandlerStorageSource
-    );
-
-    isReplicating = false;
-
-    if (error) {
-      if (!isSilent) {
-        const showReport = logger.errorCount > 1;
-
-        logger.warn(error);
-
-        if (showReport) {
-          showErrorDialogWithLogReport({
-            title: 'Error Processing Data',
-            message: 'Some or all data could not be saved to external storage.'
-          });
-        } else {
-          messageDialog({
-            title: 'Error Processing Data',
-            message: error
-          });
-        }
-      }
-
-      externalStorageErrors += 1;
-    } else {
-      externalStorageErrors = 0;
-
-      if (!isSilent) {
-        dialogManager.dialogs$.next([]);
-      }
-
-      if (dataToReplicateQueue.length) {
-        dataToReplicate = JSON.parse(JSON.stringify(dataToReplicateQueue));
-        dataToReplicateQueue = [];
-
-        if (isSilent) {
-          executeReplicate$.next();
-        } else {
-          await executeReplication(false);
-        }
-      } else {
-        dataToReplicate = [];
-      }
-    }
-
-    if (!isSilent) {
-      skipKeyDownListener$.next(false);
-    }
-  }
-
   function openActionBackdrop() {
     dialogManager.dialogs$.next([
       {
@@ -1323,8 +1031,6 @@
     let message;
 
     try {
-      blockDataUpdates = true;
-
       await tick();
 
       autoScroller?.off();
@@ -1338,7 +1044,6 @@
         });
 
         if (wasCanceled) {
-          blockDataUpdates = false;
           return;
         }
 
@@ -1356,22 +1061,11 @@
       }
 
       if ($statisticsEnabled$ && trackerElm) {
-        const [hadError, updated] = await trackerElm.flushUpdates(true);
-
-        if (hadError) {
-          throw new Error('Error updating Statistics');
-        }
-
-        if (updated) {
-          scheduleReplication(StorageDataType.STATISTICS);
-        }
+        // Sync trigger rides the tracker's onstatisticssaved callback.
+        await trackerElm.flushUpdates();
       }
 
       dialogManager.dialogs$.next([]);
-
-      if (upSyncEnabled) {
-        await executeReplication(false);
-      }
     } catch (error: any) {
       message = error.message;
     }
@@ -1514,21 +1208,31 @@
       });
   }
 
+  function bookReplicationContext(): ReplicationContext | undefined {
+    if (!$rawBookData$) return undefined;
+    return {
+      id: $rawBookData$.id,
+      title: $rawBookData$.title,
+      imagePath: $rawBookData$.coverImage
+    };
+  }
+
+  /**
+   * Forward a local-edit event to the sync engine for trigger-only
+   * paths where the write happened elsewhere (e.g. the tracker's
+   * onstatisticssaved callback). Paired writes go through
+   * library.user* directly.
+   */
   function scheduleReplication(dataType: StorageDataType) {
-    if (upSyncEnabled) {
-      const toReplicate = isReplicating ? dataToReplicateQueue : dataToReplicate;
+    const ctx = bookReplicationContext();
+    if (!ctx) return;
 
-      if (!toReplicate.includes(dataType)) {
-        toReplicate.push(dataType);
-      }
-
-      if (!isReplicating) {
-        dataToReplicate = [...dataToReplicate];
-      }
-
-      if (!blockDataUpdates) {
-        executeReplicate$.next();
-      }
+    if (dataType === StorageDataType.DATA) {
+      syncAfterLocalMutation({ kind: 'book-data', context: ctx });
+    } else if (dataType === StorageDataType.PROGRESS) {
+      syncAfterLocalMutation({ kind: 'progress', context: ctx });
+    } else if (dataType === StorageDataType.STATISTICS) {
+      syncAfterLocalMutation({ kind: 'statistics', context: ctx });
     }
   }
 </script>
@@ -1537,7 +1241,6 @@
 {$setBackgroundColor$ ?? ''}
 {$setWritingMode$ ?? ''}
 {$textSelector$ ?? ''}
-{$replicator$ ?? ''}
 {$autoStartTracker$ ?? ''}
 
 <svelte:head>
@@ -1637,16 +1340,10 @@
       {exploredCharCount}
       {bookCharCount}
       {autoScroller}
-      {blockDataUpdates}
       bind:wasTrackerPaused
       bind:this={trackerElm}
       onfreezecurrentlocation={freezeTrackerPosition}
-      onstatisticssaved={() => {
-        if (!blockDataUpdates) {
-          scheduleReplication(StorageDataType.STATISTICS);
-        }
-      }}
-      ontrackeravailable={() => (showTrackerIcon = true)}
+      onstatisticssaved={() => scheduleReplication(StorageDataType.STATISTICS)}
     />
   {/if}
   <StyleSheetRenderer styleSheet={$bookData$.styleSheet} />
@@ -1763,50 +1460,11 @@
   id="miwake-page-footer"
   tabindex="0"
   role="button"
-  class="writing-horizontal-tb fixed bottom-0 left-0 z-10 flex h-8 w-full items-center justify-between text-xs leading-none"
+  class="writing-horizontal-tb fixed bottom-0 left-0 z-10 flex h-8 w-full items-center justify-end text-xs leading-none"
   style:color={$themeOption$?.tooltipTextFontColor}
   onclick={() => (showFooter = !showFooter)}
   onkeyup={dummyFn}
 >
-  <div class="flex h-full">
-    {#if showTrackerIcon}
-      <div
-        role="button"
-        title="Click to open tracker menu or double click to toggle tracker"
-        class="flex h-full w-8 items-center justify-center text-sm sm:text-lg"
-        class:text-red-500={$isTrackerPaused$}
-        class:animate-pulse={frozenPosition > -1}
-        use:multiClickHandler={[trackerSingleClickHandler, trackerDblClickHandler]}
-      >
-        <Fa icon={$isTrackerPaused$ ? faPlay : faPause} />
-      </div>
-    {/if}
-    {#if dataToReplicate.length}
-      <div
-        tabindex="0"
-        role="button"
-        class="flex h-full w-8 items-center justify-center text-sm sm:text-lg"
-        class:text-red-500={externalStorageErrors > 1}
-        class:animate-pulse={externalStorageErrors > 1 || isReplicating}
-        onclick={(e) => {
-          e.stopPropagation();
-          if ($statisticsEnabled$) {
-            wasTrackerPaused = $isTrackerPaused$;
-            isTrackerPaused$.next(true);
-          }
-
-          executeReplication(false).finally(() => {
-            if ($statisticsEnabled$ && !wasTrackerPaused) {
-              isTrackerPaused$.next(false);
-            }
-          });
-        }}
-        onkeyup={dummyFn}
-      >
-        <Fa icon={faCloudBolt} />
-      </div>
-    {/if}
-  </div>
   {#if showFooter && bookCharCount}
     {@const currentProgress = [
       $showCharacterCounter$ ? `${exploredCharCount} / ${bookCharCount}` : '',

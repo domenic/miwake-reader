@@ -1,9 +1,8 @@
 import type { BookCardProps } from '$lib/components/book-card/book-card-props';
 import { gDriveRefreshEndpoint } from '$lib/data/env';
-import { ApiStorageHandler } from '$lib/data/storage/handler/api-handler';
+import { ApiStorageHandler, type UploadOptions } from '$lib/data/storage/handler/api-handler';
 import { BaseStorageHandler, type ExternalFile } from '$lib/data/storage/handler/base-handler';
-import { StorageKey } from '$lib/data/storage/storage-types';
-import { database, gDriveStorageSource$ } from '$lib/data/store';
+import { SyncEndpointType } from '$lib/data/storage/storage-types';
 import pLimit from 'p-limit';
 
 interface GDriveFile extends ExternalFile {
@@ -16,24 +15,19 @@ export class GDriveStorageHandler extends ApiStorageHandler {
 
   private baseUploadApiUrl = 'https://www.googleapis.com/upload/drive/v3/files';
 
-  constructor(window: Window) {
-    super(StorageKey.GDRIVE, window, gDriveRefreshEndpoint);
+  constructor(window: Window, storageSourceName: string, cacheStorageData: boolean) {
+    super(
+      SyncEndpointType.GDRIVE,
+      window,
+      storageSourceName,
+      cacheStorageData,
+      gDriveRefreshEndpoint
+    );
   }
 
-  setInternalSettings(storageSourceName: string) {
-    const newStorageSource = storageSourceName || gDriveStorageSource$.getValue();
-
-    if (newStorageSource !== this.storageSourceName) {
-      this.clearData();
-    }
-
-    this.storageSourceName = newStorageSource;
-  }
-
-  async getBookList() {
+  async listSyncTitles({ refresh = false } = {}) {
+    if (refresh) this.clearData();
     if (!this.dataListFetched) {
-      database.listLoading$.next(true);
-
       try {
         await this.ensureTitle();
 
@@ -90,14 +84,19 @@ export class GDriveStorageHandler extends ApiStorageHandler {
       }
     }
 
-    return [...this.titleToBookCard.values()];
+    return [...this.titleToBookCard.values()].map((card) => ({
+      title: card.title,
+      characters: card.characters,
+      lastBookModified: card.lastBookModified,
+      lastBookOpen: card.lastBookOpen,
+      coverImage: card.imagePath || undefined,
+      progress: card.progress,
+      lastBookmarkModified: card.lastBookmarkModified,
+      completed: card.completed
+    }));
   }
 
-  protected async ensureTitle(
-    name = BaseStorageHandler.rootName,
-    parent = 'root',
-    readOnly = false
-  ) {
+  async ensureTitle(name = BaseStorageHandler.rootName, parent = 'root', readOnly = false) {
     if (name === BaseStorageHandler.rootName && this.rootId) {
       return this.rootId;
     }
@@ -153,29 +152,34 @@ export class GDriveStorageHandler extends ApiStorageHandler {
     return titleId;
   }
 
-  protected async getExternalFiles(remoteTitleId: string) {
-    if (
-      (!this.cacheStorageData || !this.dataListFetched) &&
-      !this.titleToFiles.has(this.currentContext.title)
-    ) {
+  async getExternalFiles(remoteTitleId: string, title: string) {
+    // With cacheStorageData=false the cache is never consulted —
+    // fetch every time. With cacheStorageData=true: hit the cache
+    // if either a bulk `listSyncTitles` filled `dataListFetched` (so
+    // missing-from-cache means "really not on the remote") or a
+    // previous fetch cached this title.
+    if (!this.cacheStorageData || (!this.dataListFetched && !this.titleToFiles.has(title))) {
       const externalFiles = await this.list(
         `trashed=false and '${remoteTitleId}' in parents`,
         'files(id,name,thumbnailLink,parents)'
       );
-
+      // Drop any stale entry up front; setTitleData repopulates on
+      // non-empty, and an empty result is now correctly an empty
+      // return rather than a stale-cached one.
+      this.titleToFiles.delete(title);
       if (externalFiles.length) {
         const groupedExternalFiles = new Map<string, GDriveFile[]>();
-
-        groupedExternalFiles.set(this.currentContext.title, externalFiles);
+        groupedExternalFiles.set(title, externalFiles);
         this.setTitleData(groupedExternalFiles);
       }
     }
 
-    return this.titleToFiles.get(this.currentContext.title) || [];
+    return this.titleToFiles.get(title) || [];
   }
 
-  protected async setRootFiles() {
-    if ((!this.cacheStorageData || !this.rootFileListFetched) && !this.rootFiles.size) {
+  async setRootFiles() {
+    if (!this.cacheStorageData || !this.rootFileListFetched) {
+      this.rootFiles.clear();
       const rootFiles = await this.list(
         `trashed=false and mimeType!='application/vnd.google-apps.folder' and '${this.rootId}' in parents`,
         'files(id,name)'
@@ -191,10 +195,11 @@ export class GDriveStorageHandler extends ApiStorageHandler {
     }
   }
 
-  protected retrieve(
+  async retrieve(
     file: GDriveFile,
     typeToRetrieve: XMLHttpRequestResponseType,
-    progressBase = 1
+    progressBase = 1,
+    cancelSignal?: AbortSignal
   ) {
     const params = new URLSearchParams();
     params.append('fields', 'files(name)');
@@ -204,19 +209,23 @@ export class GDriveStorageHandler extends ApiStorageHandler {
       `${this.baseFileApiUrl}/${file.id}?${params.toString()}`,
       { trackDownload: true },
       typeToRetrieve,
-      progressBase
+      progressBase,
+      cancelSignal
     );
   }
 
-  protected async upload(
-    folderId: string,
-    name: string,
-    files: GDriveFile[],
-    externalFile: GDriveFile | undefined,
-    data: Blob | string | undefined,
-    rootFilePrefix?: string,
-    progressBase = 0.8
-  ): Promise<GDriveFile> {
+  async upload(opts: UploadOptions): Promise<GDriveFile> {
+    const {
+      folderId,
+      name,
+      files,
+      externalFile,
+      data,
+      title,
+      rootFilePrefix,
+      progressBase = 0.8,
+      cancelSignal
+    } = opts;
     const form = new FormData();
     const params = new URLSearchParams();
 
@@ -249,25 +258,31 @@ export class GDriveStorageHandler extends ApiStorageHandler {
       `${this.baseUploadApiUrl}${externalFile ? `/${externalFile.id}` : ''}?${params.toString()}`,
       { method: externalFile ? 'PATCH' : 'POST', body: form, trackUpload: true },
       'json',
-      progressBase
+      progressBase,
+      cancelSignal
     );
 
     this.updateAfterUpload(
+      title,
       response.id,
       response.name,
       files,
       externalFile,
-      {
-        parents: [folderId]
-      },
+      { parents: [folderId] },
       rootFilePrefix
     );
 
     return response;
   }
 
-  protected executeDelete(id: string) {
-    return this.request(`${this.baseFileApiUrl}/${id}`, { method: 'DELETE' });
+  protected executeDelete(id: string, cancelSignal?: AbortSignal) {
+    return this.request(
+      `${this.baseFileApiUrl}/${id}`,
+      { method: 'DELETE' },
+      'json',
+      1,
+      cancelSignal
+    );
   }
 
   private async list(
@@ -352,12 +367,12 @@ export class GDriveStorageHandler extends ApiStorageHandler {
           bookCard.lastBookModified = lastBookModified;
           bookCard.lastBookOpen = lastBookOpen;
         } else if (file.name.startsWith('progress_')) {
-          const { progress, lastBookmarkModified } = BaseStorageHandler.getProgressMetadata(
-            file.name
-          );
+          const { progress, lastBookmarkModified, completed } =
+            BaseStorageHandler.getProgressMetadata(file.name);
 
           bookCard.progress = progress;
           bookCard.lastBookmarkModified = lastBookmarkModified;
+          bookCard.completed = completed;
         } else if (file.name.startsWith('cover_') && file.thumbnailLink) {
           bookCard.imagePath = file.thumbnailLink.replace(/=s\d+$/, '=s720');
         }

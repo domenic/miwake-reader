@@ -1,8 +1,8 @@
-import type { FsHandle, RemoteContext } from '$lib/data/storage/storage-source-manager';
+import type { FsHandle, RemoteContext } from '$lib/data/storage/storage-source-types';
 
 import type { DBSchema } from 'idb';
 import type { ReadingGoal } from '$lib/data/reading-goal';
-import type { StorageKey } from '$lib/data/storage/storage-types';
+import type { SyncEndpointType } from '$lib/data/storage/storage-types';
 
 interface Subtitle {
   id: string;
@@ -53,7 +53,7 @@ interface BooksDbV6BookmarkData {
 
 interface BooksDbV6StorageSource {
   name: string;
-  type: StorageKey;
+  type: SyncEndpointType;
   data: FsHandle | ArrayBuffer | RemoteContext;
   storedInManager: boolean;
   encryptionDisabled: boolean;

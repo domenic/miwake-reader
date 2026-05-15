@@ -6,36 +6,17 @@
   import HeaderNavTabs from '$lib/components/header-nav-tabs.svelte';
   import Popover from '$lib/components/popover/popover.svelte';
   import { baseHeaderClasses, headerDividerClasses } from '$lib/css-classes';
-  import { appName } from '$lib/data/env';
   import { SortDirection } from '$lib/data/sort-types';
   import { FilesystemStorageHandler } from '$lib/data/storage/handler/filesystem-handler';
-  import { getStorageHandler } from '$lib/data/storage/storage-handler-factory';
-  import { StorageKey } from '$lib/data/storage/storage-types';
-  import {
-    getStorageSourceValue,
-    isStorageSourceAvailable,
-    storageIcon$,
-    storageSource$,
-    storageSourceLabels,
-    storageSourceRequiresConnectivity
-  } from '$lib/data/storage/storage-view';
-  import {
-    booklistSortOptions$,
-    cacheStorageData$,
-    fileCountData$,
-    isOnline$
-  } from '$lib/data/store';
+  import { booklistSortOptions$, fileCountData$ } from '$lib/data/store';
   import { inputAllowDirectory } from '$lib/functions/file-dom/input-allow-directory';
   import { inputFile } from '$lib/functions/file-dom/input-file';
   import {
     faArrowDownShortWide,
     faArrowDownWideShort,
-    faBoxArchive,
-    faBoxOpen,
     faBug,
     faCalendarXmark,
     faCircleXmark,
-    faCloudArrowUp,
     faFile,
     faFolder,
     faSortDown,
@@ -43,8 +24,6 @@
     faTrash
   } from '@fortawesome/free-solid-svg-icons';
   import Fa from 'svelte-fa';
-  import { quintOut } from 'svelte/easing';
-  import { scale } from 'svelte/transition';
 
   const supportsDirectoryPicking = !browser || 'webkitdirectory' in HTMLInputElement.prototype;
 
@@ -52,18 +31,20 @@
     selectMode: boolean;
     selectedCount: number;
     hasBooks: boolean;
-    cancelTooltip: string;
+    /**
+     * When non-zero, the header takes over to show a progress bar
+     * and a cancel button. Imports of large libraries and bulk
+     * deletes can run for minutes; this is the affordance to abort.
+     */
     replicationProgress: number;
     replicationToProgress: number;
     replicationProgressRemaining: string;
+    cancelTooltip: string;
     onselectAllClick?: () => void;
     onremoveClick?: () => void;
     onbugReportClick?: () => void;
     onfilesChange?: (fileList: FileList) => void;
-    onimportBackup?: (file: File) => void;
     ondeleteStatistics?: () => void;
-    onexportData?: () => void;
-    onsyncData?: () => void;
     oncancelReplication?: () => void;
   }
 
@@ -71,82 +52,39 @@
     selectMode = $bindable(),
     selectedCount,
     hasBooks,
-    cancelTooltip,
     replicationProgress,
     replicationToProgress,
     replicationProgressRemaining,
+    cancelTooltip,
     onselectAllClick,
     onremoveClick,
     onbugReportClick,
     onfilesChange,
-    onimportBackup,
     ondeleteStatistics,
-    onexportData,
-    onsyncData,
     oncancelReplication
   }: Props = $props();
 
-  const inAnimationParams = {
-    delay: 150,
-    duration: 150,
-    easing: quintOut
-  };
-
-  const outAnimationParams = {
-    duration: 150,
-    easing: quintOut
-  };
-
-  const availableSources: StorageKey[] = [StorageKey.BROWSER];
-
   let fileImportElm = $state<HTMLElement>();
   let folderImportElm = $state<HTMLElement>();
-  let backupImportElm = $state<HTMLElement>();
   let countImportElm = $state<HTMLInputElement>();
   let showLoadCount = $state(false);
 
   if (browser) {
     showLoadCount = new URLSearchParams(window.location.search).has('count');
-
-    for (const key of [StorageKey.GDRIVE, StorageKey.ONEDRIVE, StorageKey.FS]) {
-      if (isStorageSourceAvailable(key, getStorageSourceValue(key), window)) {
-        availableSources.push(key);
-      }
-    }
   }
 
-  let storageSourceMenuOptions = $derived(
-    availableSources.map((key) => ({
-      key,
-      label: storageSourceLabels[key],
-      disabled: storageSourceRequiresConnectivity(key) && !$isOnline$
-    }))
-  );
-
-  let hasSyncTargets = $derived(
-    availableSources.some(
-      (key) => key !== $storageSource$ && (!storageSourceRequiresConnectivity(key) || $isOnline$)
-    )
-  );
-
-  let currentSourceLabel = $derived(storageSourceLabels[$storageSource$]);
-
-  let sortMenuItems = $derived([
-    ...($storageSource$ === StorageKey.BROWSER ? [{ property: 'id', label: 'Added (id)' }] : []),
+  const sortMenuItems = [
+    { property: 'id', label: 'Added (id)' },
     { property: 'title', label: 'Title' },
     { property: 'characters', label: 'Characters' },
     { property: 'lastBookModified', label: 'Last Update' },
     { property: 'lastBookOpen', label: 'Last Read' },
     { property: 'progress', label: 'Progress' },
     { property: 'lastBookmarkModified', label: 'Bookmarked' }
-  ]);
+  ];
 
   function dispatchFilesChange(fileList: FileList) {
     onfilesChange?.(fileList);
-  }
-
-  function dispatchImportBackup(fileList: FileList) {
-    onimportBackup?.(fileList[0]);
   }
 
   async function setCountData(fileList: FileList) {
@@ -173,13 +111,6 @@
   use:inputAllowDirectory
   use:inputFile={dispatchFilesChange}
   bind:this={folderImportElm}
-/>
-<input
-  hidden
-  type="file"
-  accept=".zip,application/zip"
-  use:inputFile={dispatchImportBackup}
-  bind:this={backupImportElm}
 />
 <input
   hidden
@@ -231,12 +162,6 @@
             />
           {/if}
           <HeaderButton
-            faIcon={faBoxOpen}
-            title="Restore books and book data from a backup ZIP file"
-            label="Restore Backup"
-            onclick={() => backupImportElm?.click()}
-          />
-          <HeaderButton
             faIcon={faBug}
             title="Report a bug"
             label="Bug Report"
@@ -255,27 +180,11 @@
           </HeaderButton>
           {#if selectedCount > 0}
             <HeaderButton
-              faIcon={faBoxArchive}
-              title="Back up selected books and book data to a ZIP file"
-              label="Back Up"
-              onclick={() => onexportData?.()}
+              faIcon={faCalendarXmark}
+              title="Delete statistics for selected books"
+              label="Delete Statistics"
+              onclick={() => ondeleteStatistics?.()}
             />
-            {#if hasSyncTargets}
-              <HeaderButton
-                faIcon={faCloudArrowUp}
-                title="Sync selected books and book data from {currentSourceLabel} to other storage sources"
-                label="Sync"
-                onclick={() => onsyncData?.()}
-              />
-            {/if}
-            {#if $storageSource$ === StorageKey.BROWSER}
-              <HeaderButton
-                faIcon={faCalendarXmark}
-                title="Delete statistics for selected books"
-                label="Delete Statistics"
-                onclick={() => ondeleteStatistics?.()}
-              />
-            {/if}
             <HeaderButton
               faIcon={faTrash}
               title="Delete selected books"
@@ -288,58 +197,19 @@
 
       <div class="flex">
         {#if !selectMode}
-          <div
-            title="Select storage source"
-            class="relative transform-gpu"
-            in:scale={inAnimationParams}
-            out:scale={outAnimationParams}
-          >
-            <HeaderMenuButton
-              title="Select storage source"
-              label="Storage Source"
-              items={storageSourceMenuOptions}
-              onselect={async (sourceMenuItem) => {
-                if (sourceMenuItem.key !== $storageSource$) {
-                  if (!$cacheStorageData$) {
-                    getStorageHandler(window, sourceMenuItem.key).clearData();
-                  }
-
-                  storageSource$.next(sourceMenuItem.key);
-                }
-              }}
-            >
-              {#snippet icon()}
-                {#key $storageIcon$}
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox={$storageIcon$.viewBox}
-                    class="h-3.5 w-3.5"
-                  >
-                    <path class="fill-current" d={$storageIcon$.d} />
-                  </svg>
-                {/key}
-              {/snippet}
-            </HeaderMenuButton>
-          </div>
-          <div
-            class="relative transform-gpu"
-            in:scale={inAnimationParams}
-            out:scale={outAnimationParams}
-          >
+          <div class="relative transform-gpu">
             <HeaderMenuButton
               title="Select sort options"
               label="Sort"
-              faIcon={$booklistSortOptions$[$storageSource$].direction === SortDirection.ASC
+              faIcon={$booklistSortOptions$.direction === SortDirection.ASC
                 ? faArrowDownShortWide
                 : faArrowDownWideShort}
               items={sortMenuItems}
             >
               {#snippet item(sortMenuItem, close)}
-                {@const isCurrentSort =
-                  $booklistSortOptions$[$storageSource$].property === sortMenuItem.property}
+                {@const isCurrentSort = $booklistSortOptions$.property === sortMenuItem.property}
                 {@const isCurrentSortAsc =
-                  isCurrentSort &&
-                  $booklistSortOptions$[$storageSource$].direction === SortDirection.ASC}
+                  isCurrentSort && $booklistSortOptions$.direction === SortDirection.ASC}
                 <div
                   class="grid cursor-default grid-cols-[auto_auto_auto] text-sm hover:bg-white hover:text-gray-700"
                   class:bg-white={isCurrentSort}
@@ -354,16 +224,11 @@
                     class:hover:text-red-500={!isCurrentSortAsc}
                     onclick={() => {
                       booklistSortOptions$.next({
-                        ...$booklistSortOptions$,
-                        ...{
-                          [$storageSource$]: {
-                            property: sortMenuItem.property as Exclude<
-                              keyof BookCardProps,
-                              'imagePath' | 'isPlaceholder'
-                            >,
-                            direction: SortDirection.ASC
-                          }
-                        }
+                        property: sortMenuItem.property as Exclude<
+                          keyof BookCardProps,
+                          'imagePath' | 'isPlaceholder'
+                        >,
+                        direction: SortDirection.ASC
                       });
                       close();
                     }}
@@ -381,16 +246,11 @@
                     class:hover:text-red-500={!isCurrentSort || isCurrentSortAsc}
                     onclick={() => {
                       booklistSortOptions$.next({
-                        ...$booklistSortOptions$,
-                        ...{
-                          [$storageSource$]: {
-                            property: sortMenuItem.property as Exclude<
-                              keyof BookCardProps,
-                              'imagePath' | 'isPlaceholder'
-                            >,
-                            direction: SortDirection.DESC
-                          }
-                        }
+                        property: sortMenuItem.property as Exclude<
+                          keyof BookCardProps,
+                          'imagePath' | 'isPlaceholder'
+                        >,
+                        direction: SortDirection.DESC
                       });
                       close();
                     }}
@@ -417,8 +277,6 @@
     <div
       title="Cancel operation"
       class="mx-auto flex h-full items-center justify-center px-4 max-w-6xl"
-      in:scale={inAnimationParams}
-      out:scale={outAnimationParams}
     >
       <Popover contentText={cancelTooltip} contentStyles={'padding: 0.75rem'} eventType="pointer">
         <button type="button" onclick={() => oncancelReplication?.()}>

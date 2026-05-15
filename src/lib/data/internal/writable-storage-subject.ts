@@ -1,8 +1,27 @@
 import { skip } from 'rxjs';
-import type { localStorage } from '../window/local-storage';
+import { localStorage as appLocalStorage } from '../window/local-storage';
 import { writableSubject } from '$lib/functions/svelte/store';
 
-type Storage = typeof localStorage;
+type Storage = typeof appLocalStorage;
+
+/**
+ * Registry of preference stores keyed by their localStorage key. The
+ * value is a closure that returns the store's *effective* serialized
+ * value (defaults included), letting backup capture settings the
+ * user has merely accepted as well as ones they've explicitly
+ * changed. Without this, a freshly-installed user who's never opened
+ * any settings page would export an empty preferences blob.
+ */
+const preferenceSerializers = new Map<string, () => string>();
+
+/**
+ * Read-only view of the registry, used by the App-settings backup.
+ */
+export const localStoragePreferences = {
+  has: (key: string) => preferenceSerializers.has(key),
+  keys: () => preferenceSerializers.keys(),
+  serialize: (key: string) => preferenceSerializers.get(key)?.()
+};
 
 export function writableStorageSubject<T>(
   storage: Storage,
@@ -15,6 +34,9 @@ export function writableStorageSubject<T>(
     subject.pipe(skip(1)).subscribe((updatedValue) => {
       storage.setItem(key, mapToString(updatedValue ?? defaultValue));
     });
+    if (storage === appLocalStorage) {
+      preferenceSerializers.set(key, () => mapToString(subject.getValue() ?? defaultValue));
+    }
     return subject;
   };
 }
