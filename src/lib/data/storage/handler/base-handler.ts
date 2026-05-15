@@ -17,7 +17,6 @@ import type {
 } from '$lib/data/storage/handler/handler-roles';
 import { handleErrorDuringReplication } from '$lib/functions/replication/error-handler';
 import { exporterVersion } from '$lib/functions/replication/exporter-version';
-import { AbortError, throwIfAborted } from '$lib/functions/replication/replication-error';
 import { ReplicationSaveBehavior } from '$lib/functions/replication/replication-options';
 import {
   replicationProgress$,
@@ -41,7 +40,7 @@ export interface ExternalFile {
 
 export interface ZipOpOptions {
   progressBase?: number;
-  cancelSignal?: AbortSignal;
+  signal?: AbortSignal;
 }
 
 /**
@@ -68,7 +67,7 @@ export abstract class BaseStorageHandler implements SyncEndpoint {
 
   abstract deleteBookData(
     booksToDelete: string[],
-    cancelSignal: AbortSignal,
+    signal: AbortSignal,
     keepLocalStatistics: boolean
   ): Promise<number[]>;
 
@@ -80,7 +79,7 @@ export abstract class BaseStorageHandler implements SyncEndpoint {
   abstract scoped(
     context: ReplicationContext,
     settings: ScopedSettings,
-    cancelSignal?: AbortSignal
+    signal?: AbortSignal
   ): ScopedBookOperations;
 
   /** Reading-goals operations are app-global; see `BookOperations`. */
@@ -90,7 +89,7 @@ export abstract class BaseStorageHandler implements SyncEndpoint {
     referenceFilename: string | undefined
   ): Promise<boolean>;
 
-  abstract getReadingGoals(cancelSignal?: AbortSignal): Promise<{
+  abstract getReadingGoals(signal?: AbortSignal): Promise<{
     readingGoals: BooksDbReadingGoal[] | undefined;
     lastGoalModified: number;
   }>;
@@ -99,7 +98,7 @@ export abstract class BaseStorageHandler implements SyncEndpoint {
     data: BooksDbReadingGoal[],
     lastGoalModified: number,
     settings: ScopedSettings,
-    cancelSignal?: AbortSignal
+    signal?: AbortSignal
   ): Promise<void>;
 
   static rootName = storageRootName;
@@ -177,7 +176,7 @@ export abstract class BaseStorageHandler implements SyncEndpoint {
    */
   protected async deleteSequentially(
     booksToDelete: string[],
-    cancelSignal: AbortSignal,
+    signal: AbortSignal,
     deleteOne: (title: string) => Promise<number | undefined>
   ): Promise<number[]> {
     const deleted: number[] = [];
@@ -189,7 +188,7 @@ export abstract class BaseStorageHandler implements SyncEndpoint {
     const tasks = booksToDelete.map((title) =>
       limiter(async () => {
         try {
-          throwIfAborted(cancelSignal);
+          signal.throwIfAborted();
           const id = await deleteOne(title);
           if (id !== undefined) deleted.push(id);
           BaseStorageHandler.reportProgress();
@@ -201,7 +200,7 @@ export abstract class BaseStorageHandler implements SyncEndpoint {
     );
 
     await Promise.all(tasks).catch((err) => {
-      if (err instanceof AbortError) throw err;
+      if (err.name === 'AbortError') throw err;
     });
 
     if (errors.length) {
@@ -426,7 +425,7 @@ export abstract class BaseStorageHandler implements SyncEndpoint {
     bookdata: Omit<BooksDbBookData, 'id'>,
     options: ZipOpOptions = {}
   ): Promise<Blob> {
-    const { progressBase = 1, cancelSignal } = options;
+    const { progressBase = 1, signal } = options;
     const zipWriter = new ZipWriter(new BlobWriter('application/zip'));
     const blobsToZip = [];
     const blobEntries = [...Object.entries(bookdata.blobs)];
@@ -456,7 +455,7 @@ export abstract class BaseStorageHandler implements SyncEndpoint {
 
           await BaseStorageHandler.addDataToZip(`blobs/${name}`, blob, zipWriter, {
             progressBase: progressPerStep,
-            cancelSignal
+            signal
           }).catch((error) => {
             limiter.clearQueue();
             throw error;
@@ -472,12 +471,12 @@ export abstract class BaseStorageHandler implements SyncEndpoint {
         `cover.${await BaseStorageHandler.determineImageExtension(cover)}`,
         cover,
         zipWriter,
-        { progressBase: progressPerStep, cancelSignal }
+        { progressBase: progressPerStep, signal }
       );
     }
 
     for (let index = 0, { length } = staticDataToZip; index < length; index += 1) {
-      throwIfAborted(cancelSignal);
+      signal?.throwIfAborted();
 
       const dataProperty = staticDataToZip[index];
 
@@ -491,7 +490,7 @@ export abstract class BaseStorageHandler implements SyncEndpoint {
         zipWriter,
         {
           progressBase: progressPerStep,
-          cancelSignal
+          signal
         }
       );
     }
@@ -505,8 +504,8 @@ export abstract class BaseStorageHandler implements SyncEndpoint {
     writer: ZipWriter<Blob> | undefined,
     options: ZipOpOptions = {}
   ): Promise<ZipWriter<Blob>> {
-    const { progressBase = 1, cancelSignal } = options;
-    throwIfAborted(cancelSignal);
+    const { progressBase = 1, signal } = options;
+    signal?.throwIfAborted();
 
     const zipWriter = writer || new ZipWriter(new BlobWriter('application/zip'));
     const onprogress = BaseStorageHandler.makeProgressReporter(progressBase);
@@ -553,7 +552,7 @@ export abstract class BaseStorageHandler implements SyncEndpoint {
   }
 
   static async extractBookData(book: Blob, filename: string, options: ZipOpOptions = {}) {
-    const { progressBase = 1, cancelSignal } = options;
+    const { progressBase = 1, signal } = options;
     const bookreader = new ZipReader(new BlobReader(book));
     const bookDataEntries = await bookreader.getEntries();
 
@@ -584,7 +583,7 @@ export abstract class BaseStorageHandler implements SyncEndpoint {
       bookObjectTransforms.push(
         limiter(async () => {
           try {
-            throwIfAborted(cancelSignal);
+            signal?.throwIfAborted();
 
             const entry = bookDataEntries[index];
 
@@ -829,7 +828,7 @@ export abstract class BaseScopedHandler<H> {
 
   protected readonly settings: ScopedSettings;
 
-  protected readonly cancelSignal: AbortSignal | undefined;
+  protected readonly signal: AbortSignal | undefined;
 
   protected readonly sanitizedTitle: string;
 
@@ -837,12 +836,12 @@ export abstract class BaseScopedHandler<H> {
     handler: H,
     context: ReplicationContext,
     settings: ScopedSettings,
-    cancelSignal?: AbortSignal
+    signal?: AbortSignal
   ) {
     this.handler = handler;
     this.context = context;
     this.settings = settings;
-    this.cancelSignal = cancelSignal;
+    this.signal = signal;
     this.sanitizedTitle = BaseStorageHandler.sanitizeForFilename(context.title);
   }
 

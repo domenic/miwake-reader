@@ -31,14 +31,14 @@ export class LocalReplicationEndpoint implements LocalReplicationEndpointRole {
   scoped(
     context: ReplicationContext,
     settings: ScopedSettings,
-    cancelSignal?: AbortSignal
+    signal?: AbortSignal
   ): ScopedBookOperations {
-    return new ScopedLocalReplicationEndpoint(this, context, settings, cancelSignal);
+    return new ScopedLocalReplicationEndpoint(this, context, settings, signal);
   }
 
   async deleteBookData(
     booksToDelete: string[],
-    cancelSignal: AbortSignal,
+    signal: AbortSignal,
     keepLocalStatistics: boolean
   ): Promise<number[]> {
     const ids: number[] = [];
@@ -53,7 +53,7 @@ export class LocalReplicationEndpoint implements LocalReplicationEndpointRole {
     }
 
     try {
-      return await database.deleteData(ids, idToTitle, cancelSignal, keepLocalStatistics);
+      return await database.deleteData(ids, idToTitle, signal, keepLocalStatistics);
     } finally {
       // On partial failure the AggregateError loses the per-id
       // deleted list, but IDB still reflects whatever got through.

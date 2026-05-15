@@ -15,7 +15,6 @@ import { StorageOAuthManager } from '$lib/data/storage/storage-oauth-manager';
 import { SyncEndpointType } from '$lib/data/storage/storage-types';
 import { database } from '$lib/data/store';
 import { convertAuthErrorResponse } from '$lib/functions/replication/error-handler';
-import { AbortError } from '$lib/functions/replication/replication-error';
 import { ReplicationSaveBehavior } from '$lib/functions/replication/replication-options';
 import type { ReplicationContext } from '$lib/functions/replication/replication-progress';
 import { mergeStatistics, updateStatisticToStore } from '$lib/functions/statistic-util';
@@ -43,7 +42,7 @@ export interface UploadOptions {
   title: string;
   rootFilePrefix?: string;
   progressBase?: number;
-  cancelSignal?: AbortSignal;
+  signal?: AbortSignal;
 }
 
 export abstract class ApiStorageHandler extends BaseStorageHandler {
@@ -61,13 +60,13 @@ export abstract class ApiStorageHandler extends BaseStorageHandler {
     file: ExternalFile,
     typeToRetrieve: XMLHttpRequestResponseType,
     progressBase?: number,
-    cancelSignal?: AbortSignal
+    signal?: AbortSignal
   ): Promise<any>;
 
   /** @internal Used by `ScopedApiHandler` to upload a single file. */
   abstract upload(opts: UploadOptions): Promise<ExternalFile>;
 
-  protected abstract executeDelete(id: string, cancelSignal?: AbortSignal): Promise<void>;
+  protected abstract executeDelete(id: string, signal?: AbortSignal): Promise<void>;
 
   protected authManager: StorageOAuthManager;
 
@@ -123,17 +122,17 @@ export abstract class ApiStorageHandler extends BaseStorageHandler {
   scoped(
     context: ReplicationContext,
     settings: ScopedSettings,
-    cancelSignal?: AbortSignal
+    signal?: AbortSignal
   ): ScopedBookOperations {
-    return new ScopedApiHandler(this, context, settings, cancelSignal);
+    return new ScopedApiHandler(this, context, settings, signal);
   }
 
-  async deleteBookData(booksToDelete: string[], cancelSignal: AbortSignal) {
+  async deleteBookData(booksToDelete: string[], signal: AbortSignal) {
     await this.ensureTitle();
-    return this.deleteSequentially(booksToDelete, cancelSignal, async (title) => {
+    return this.deleteSequentially(booksToDelete, signal, async (title) => {
       const externalId = this.titleToId.get(title);
       if (externalId) {
-        await this.executeDelete(externalId, cancelSignal);
+        await this.executeDelete(externalId, signal);
       }
       const deletedId = this.titleToBookCard.get(title)?.id;
       this.titleToFiles.delete(title);
@@ -168,12 +167,12 @@ export abstract class ApiStorageHandler extends BaseStorageHandler {
     );
   }
 
-  async getReadingGoals(cancelSignal?: AbortSignal) {
+  async getReadingGoals(signal?: AbortSignal) {
     const { file, data } = await this.getRootFile(
       BaseStorageHandler.readingGoalsFilePrefix,
       'json',
       1,
-      cancelSignal
+      signal
     );
     if (!file) {
       return { readingGoals: undefined, lastGoalModified: 0 };
@@ -188,14 +187,14 @@ export abstract class ApiStorageHandler extends BaseStorageHandler {
     readingGoals: BooksDbReadingGoal[],
     lastGoalModified: number,
     settings: ScopedSettings,
-    cancelSignal?: AbortSignal
+    signal?: AbortSignal
   ) {
     const isMerge = settings.readingGoalsMergeMode === 'merge';
     const { file, data: existingData } = await this.getRootFile(
       BaseStorageHandler.readingGoalsFilePrefix,
       isMerge ? 'json' : '',
       0.2,
-      cancelSignal
+      signal
     );
     const { readingGoals: toStore, filename } = BaseStorageHandler.prepareReadingGoalsForSave(
       readingGoals,
@@ -211,7 +210,7 @@ export abstract class ApiStorageHandler extends BaseStorageHandler {
       externalFile: file,
       data: JSON.stringify(toStore),
       rootFilePrefix: BaseStorageHandler.readingGoalsFilePrefix,
-      cancelSignal,
+      signal,
       title: ''
     });
   }
@@ -220,7 +219,7 @@ export abstract class ApiStorageHandler extends BaseStorageHandler {
     fileIdentifier: string,
     typeToRetrieve: XMLHttpRequestResponseType = '',
     progressBase = 1,
-    cancelSignal?: AbortSignal
+    signal?: AbortSignal
   ) {
     const progressPerStep = progressBase / 3;
 
@@ -241,7 +240,7 @@ export abstract class ApiStorageHandler extends BaseStorageHandler {
     let data;
 
     if (typeToRetrieve) {
-      data = await this.retrieve(file, typeToRetrieve, progressPerStep, cancelSignal);
+      data = await this.retrieve(file, typeToRetrieve, progressPerStep, signal);
     }
 
     return { file, data };
@@ -253,7 +252,7 @@ export abstract class ApiStorageHandler extends BaseStorageHandler {
     options: RequestOptions = {},
     type: XMLHttpRequestResponseType = 'json',
     progressBase = 1,
-    cancelSignal?: AbortSignal
+    signal?: AbortSignal
   ): Promise<any> {
     const token = await (options.skipAuth
       ? Promise.resolve('')
@@ -267,21 +266,21 @@ export abstract class ApiStorageHandler extends BaseStorageHandler {
         xhr.responseType = type;
 
         xhr.addEventListener('abort', () => {
-          reject(new AbortError());
+          reject(new DOMException('The operation was aborted.', 'AbortError'));
         });
 
-        // Wire cancelSignal directly to xhr.abort() so requests that
+        // Wire signal directly to xhr.abort() so requests that
         // don't emit progress events (small bodies, DELETE) are still
         // cancellable mid-flight.
-        if (cancelSignal) {
-          if (cancelSignal.aborted) {
+        if (signal) {
+          if (signal.aborted) {
             // xhr.abort() on an UNSENT request is a no-op (no 'abort'
             // event fires), so reject directly or the Promise hangs.
-            reject(new AbortError());
+            reject(new DOMException('The operation was aborted.', 'AbortError'));
             return;
           }
           abortHandler = () => xhr.abort();
-          cancelSignal.addEventListener('abort', abortHandler);
+          signal.addEventListener('abort', abortHandler);
         }
 
         if (options.trackDownload) {
@@ -338,10 +337,10 @@ export abstract class ApiStorageHandler extends BaseStorageHandler {
         xhr.send(options.body || null);
       });
     } finally {
-      if (abortHandler && cancelSignal) {
+      if (abortHandler && signal) {
         // Always remove — long-lived signals (force-resync) accumulate
         // listeners otherwise. AbortSignal doesn't auto-clean.
-        cancelSignal.removeEventListener('abort', abortHandler);
+        signal.removeEventListener('abort', abortHandler);
       }
     }
   }
@@ -464,7 +463,7 @@ export class ScopedApiHandler
 
     return BaseStorageHandler.extractBookData(data, file.name, {
       progressBase: 0.3,
-      cancelSignal: this.cancelSignal
+      signal: this.signal
     });
   }
 
@@ -529,7 +528,7 @@ export class ScopedApiHandler
 
     const zipped = await BaseStorageHandler.zipBookData(data, {
       progressBase: 0.2,
-      cancelSignal: this.cancelSignal
+      signal: this.signal
     });
 
     await this.handler.upload({
@@ -539,7 +538,7 @@ export class ScopedApiHandler
       externalFile: file,
       data: zipped,
       progressBase: 0.6,
-      cancelSignal: this.cancelSignal,
+      signal: this.signal,
       title: this.title
     });
 
@@ -560,7 +559,7 @@ export class ScopedApiHandler
       files,
       externalFile: file,
       data: JSON.stringify(data),
-      cancelSignal: this.cancelSignal,
+      signal: this.signal,
       title: this.title
     });
 
@@ -599,7 +598,7 @@ export class ScopedApiHandler
       files,
       externalFile: file,
       data: JSON.stringify(statisticsToStore),
-      cancelSignal: this.cancelSignal,
+      signal: this.signal,
       title: this.title
     });
 
@@ -623,7 +622,7 @@ export class ScopedApiHandler
         files,
         externalFile: undefined,
         data,
-        cancelSignal: this.cancelSignal,
+        signal: this.signal,
         title: this.title
       });
     }
@@ -665,12 +664,7 @@ export class ScopedApiHandler
     let data;
 
     if (typeToRetrieve) {
-      data = await this.handler.retrieve(
-        file,
-        typeToRetrieve,
-        progressPerStep * 2,
-        this.cancelSignal
-      );
+      data = await this.handler.retrieve(file, typeToRetrieve, progressPerStep * 2, this.signal);
     }
 
     return { titleId, file, files, data };

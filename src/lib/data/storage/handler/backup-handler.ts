@@ -68,9 +68,9 @@ export class BackupStorageHandler extends BaseStorageHandler {
   scoped(
     context: ReplicationContext,
     settings: ScopedSettings,
-    cancelSignal?: AbortSignal
+    signal?: AbortSignal
   ): ScopedBookOperations {
-    return new ScopedBackupHandler(this, context, settings, cancelSignal);
+    return new ScopedBackupHandler(this, context, settings, signal);
   }
 
   async getReadingGoalsFilename(settings: ScopedSettings) {
@@ -110,7 +110,7 @@ export class BackupStorageHandler extends BaseStorageHandler {
     data: BooksDbReadingGoal[],
     lastGoalModified: number,
     _settings: ScopedSettings,
-    cancelSignal?: AbortSignal
+    signal?: AbortSignal
   ) {
     const filename = BaseStorageHandler.getReadingGoalsFileName(lastGoalModified);
     data.sort(readingGoalSortFunction);
@@ -118,7 +118,7 @@ export class BackupStorageHandler extends BaseStorageHandler {
       filename,
       JSON.stringify(data),
       this.exportZipWriter,
-      { cancelSignal }
+      { signal }
     );
   }
 
@@ -278,7 +278,7 @@ class ScopedBackupHandler
 
     return BaseStorageHandler.extractBookData(bookBlob, filename, {
       progressBase: 0.6,
-      cancelSignal: this.cancelSignal
+      signal: this.signal
     });
   }
 
@@ -338,14 +338,14 @@ class ScopedBackupHandler
     const filename = `${this.sanitizedTitle}/${BaseStorageHandler.getBookFileName(data)}`;
     const zipped = await BaseStorageHandler.zipBookData(data, {
       progressBase: 0.5,
-      cancelSignal: this.cancelSignal
+      signal: this.signal
     });
 
     this.handler.exportZipWriter = await BaseStorageHandler.addDataToZip(
       filename,
       zipped,
       this.handler.exportZipWriter,
-      { progressBase: 0.5, cancelSignal: this.cancelSignal }
+      { progressBase: 0.5, signal: this.signal }
     );
 
     return 0;
@@ -358,7 +358,7 @@ class ScopedBackupHandler
       filename,
       JSON.stringify(data),
       this.handler.exportZipWriter,
-      { cancelSignal: this.cancelSignal }
+      { signal: this.signal }
     );
   }
 
@@ -374,7 +374,7 @@ class ScopedBackupHandler
       filename,
       JSON.stringify(data),
       this.handler.exportZipWriter,
-      { cancelSignal: this.cancelSignal }
+      { signal: this.signal }
     );
   }
 
@@ -389,7 +389,7 @@ class ScopedBackupHandler
       `${this.sanitizedTitle}/${filename}`,
       data,
       this.handler.exportZipWriter,
-      { cancelSignal: this.cancelSignal }
+      { signal: this.signal }
     );
   }
 

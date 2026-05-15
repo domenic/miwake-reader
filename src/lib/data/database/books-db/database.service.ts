@@ -37,7 +37,6 @@ import { iffBrowser } from '$lib/functions/rxjs/iff-browser';
 import { logger } from '$lib/data/logger';
 import pLimit from 'p-limit';
 import { replicationProgress$ } from '$lib/functions/replication/replication-progress';
-import { AbortError, throwIfAborted } from '$lib/functions/replication/replication-error';
 
 const LAST_ITEM_KEY = 0;
 
@@ -274,7 +273,7 @@ export class DatabaseService {
   async deleteData(
     dataIds: number[],
     idsToTitles: Map<number, string>,
-    cancelSignal: AbortSignal,
+    signal: AbortSignal,
     keepLocalStatistics: boolean
   ): Promise<number[]> {
     const db = await this.db;
@@ -293,7 +292,7 @@ export class DatabaseService {
       tasks.push(
         limiter(async () => {
           try {
-            throwIfAborted(cancelSignal);
+            signal.throwIfAborted();
             deleted.push(
               await this.deleteSingleData(
                 db,
@@ -312,7 +311,7 @@ export class DatabaseService {
     );
 
     await Promise.all(tasks).catch((err) => {
-      if (err instanceof AbortError) throw err;
+      if (err.name === 'AbortError') throw err;
     });
 
     if (errors.length) {

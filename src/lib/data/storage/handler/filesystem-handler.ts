@@ -85,14 +85,14 @@ export class FilesystemStorageHandler extends BaseStorageHandler {
   scoped(
     context: ReplicationContext,
     settings: ScopedSettings,
-    cancelSignal?: AbortSignal
+    signal?: AbortSignal
   ): ScopedBookOperations {
-    return new ScopedFilesystemHandler(this, context, settings, cancelSignal);
+    return new ScopedFilesystemHandler(this, context, settings, signal);
   }
 
-  async deleteBookData(booksToDelete: string[], cancelSignal: AbortSignal) {
+  async deleteBookData(booksToDelete: string[], signal: AbortSignal) {
     const rootDirectory = await this.ensureRoot();
-    return this.deleteSequentially(booksToDelete, cancelSignal, async (title) => {
+    return this.deleteSequentially(booksToDelete, signal, async (title) => {
       await rootDirectory.removeEntry(BaseStorageHandler.sanitizeForFilename(title), {
         recursive: true
       });
@@ -499,7 +499,7 @@ class ScopedFilesystemHandler
 
     return BaseStorageHandler.extractBookData(bookFile, bookFile.name, {
       progressBase: 0.6,
-      cancelSignal: this.cancelSignal
+      signal: this.signal
     });
   }
 
@@ -580,7 +580,7 @@ class ScopedFilesystemHandler
 
     const bookData = await BaseStorageHandler.zipBookData(data, {
       progressBase: 0.4,
-      cancelSignal: this.cancelSignal
+      signal: this.signal
     });
 
     await this.writeFile(rootDirectory, filename, bookData, files, file, 0.4);

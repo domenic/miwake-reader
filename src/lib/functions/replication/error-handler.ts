@@ -8,8 +8,10 @@ export function handleErrorDuringReplication(
   limiters?: LimitFunction[],
   currentProgressBase?: number
 ) {
+  const message = error.message ?? String(error);
+
   if (error.name !== 'AbortError') {
-    logger.error(`${baseError}${error.message}`);
+    logger.error(`${baseError}${message}`);
   }
 
   if (error.name === 'AbortError') {
@@ -28,7 +30,7 @@ export function handleErrorDuringReplication(
     replicationProgress$.next({ skipStep: true });
   }
 
-  return `${baseError}${error.message}`;
+  return `${baseError}${message}`;
 }
 
 export async function convertAuthErrorResponse(

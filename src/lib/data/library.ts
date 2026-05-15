@@ -32,7 +32,6 @@ import {
   persistLibraryStorage
 } from '$lib/functions/replication/replicator';
 import { handleErrorDuringReplication } from '$lib/functions/replication/error-handler';
-import { AbortError, throwIfAborted } from '$lib/functions/replication/replication-error';
 import {
   replicationProgress$,
   type ReplicationContext
@@ -82,7 +81,7 @@ export async function markBookOpened(book: BooksDbBookData): Promise<void> {
 export async function userImportBooks(
   document: Document,
   files: File[],
-  cancelSignal: AbortSignal,
+  signal: AbortSignal,
   fileCountData?: Record<string, number>
 ): Promise<void> {
   const local = getLocalEndpoint();
@@ -107,14 +106,14 @@ export async function userImportBooks(
         let currentTitle = file.name;
 
         if (fileCountData && Object.prototype.hasOwnProperty.call(fileCountData, currentTitle)) {
-          checkCancelAndProgress(cancelSignal, true, true);
-          checkCancelAndProgress(cancelSignal, true, true);
-          checkCancelAndProgress(cancelSignal, true, true);
+          checkCancelAndProgress(signal, true, true);
+          checkCancelAndProgress(signal, true, true);
+          checkCancelAndProgress(signal, true, true);
           return;
         }
 
         try {
-          throwIfAborted(cancelSignal);
+          signal.throwIfAborted();
 
           let bookContent: LoadData;
           if (file.name.endsWith('.epub')) {
@@ -127,26 +126,26 @@ export async function userImportBooks(
 
           if (fileCountData) {
             fileCountData[currentTitle] = bookContent.characters;
-            checkCancelAndProgress(cancelSignal, true, true);
-            checkCancelAndProgress(cancelSignal, true, true);
-            checkCancelAndProgress(cancelSignal, true, true);
+            checkCancelAndProgress(signal, true, true);
+            checkCancelAndProgress(signal, true, true);
+            checkCancelAndProgress(signal, true, true);
             newFileData += 1;
             return;
           }
 
-          checkCancelAndProgress(cancelSignal, true, true);
+          checkCancelAndProgress(signal, true, true);
 
           currentTitle = bookContent.title;
 
           const scoped = local.scoped(
             { title: bookContent.title, imagePath: bookContent.coverImage || '' },
             importScopedSettings,
-            cancelSignal
+            signal
           );
 
           const dataId = await scoped.saveBook(bookContent, false);
 
-          checkCancelAndProgress(cancelSignal, false);
+          checkCancelAndProgress(signal, false);
 
           if (bookContent.coverImage) {
             await scoped.saveCover(bookContent.coverImage);
@@ -167,7 +166,7 @@ export async function userImportBooks(
           // The library always drives /manage's view; emit unconditionally.
           database.dataListChanged$.next();
 
-          checkCancelAndProgress(cancelSignal, true, !bookContent.coverImage);
+          checkCancelAndProgress(signal, true, !bookContent.coverImage);
         } catch (error: any) {
           handleErrorDuringReplication(error, `Error importing ${currentTitle}: `, [limiter]);
           errors.push(new Error(`Error importing ${currentTitle}: ${error.message}`));
@@ -176,12 +175,12 @@ export async function userImportBooks(
     )
   );
 
-  // AbortError gets re-thrown from inside the per-task try (via
+  // AbortError DOMExceptions get re-thrown from inside the per-task try (via
   // handleErrorDuringReplication) and lands here as the rejection.
   // Re-throw so a cancel isn't disguised as a successful (partial)
   // import.
   await Promise.all(tasks).catch((err) => {
-    if (err instanceof AbortError) throw err;
+    if (err.name === 'AbortError') throw err;
   });
 
   if (fileCountData && newFileData) {
@@ -301,7 +300,7 @@ export async function userDeleteReadingGoal(date: string | undefined): Promise<v
  */
 export async function userDeleteBooks(
   titles: string[],
-  cancelSignal: AbortSignal,
+  signal: AbortSignal,
   keepLocalStatistics: boolean
 ): Promise<void> {
   const local = getLocalEndpoint();
@@ -309,7 +308,7 @@ export async function userDeleteBooks(
   // ids stay in IDB and `dataListChanged$` already fired, so the UI
   // re-renders from the new book list without needing the partial set
   // threaded through the return.
-  await local.deleteBookData(titles, cancelSignal, keepLocalStatistics);
+  await local.deleteBookData(titles, signal, keepLocalStatistics);
 
-  await syncAfterLocalMutation({ kind: 'books-deleted', titles, cancelSignal });
+  await syncAfterLocalMutation({ kind: 'books-deleted', titles, signal });
 }

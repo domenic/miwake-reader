@@ -227,7 +227,7 @@ export type LocalMutationSync =
   | { kind: 'progress'; context: ReplicationContext }
   | { kind: 'statistics'; context: ReplicationContext }
   | { kind: 'reading-goals' }
-  | { kind: 'books-deleted'; titles: string[]; cancelSignal: AbortSignal }
+  | { kind: 'books-deleted'; titles: string[]; signal: AbortSignal }
   | { kind: 'statistics-deleted'; titles: string[] }
   | { kind: 'reading-goals-deleted' };
 
@@ -282,7 +282,7 @@ export function syncAfterLocalMutation(mutation: LocalMutationSync): void | Prom
     case 'reading-goals':
       return queueGoalsPush();
     case 'books-deleted':
-      return deleteRemoteBooks(mutation.titles, mutation.cancelSignal);
+      return deleteRemoteBooks(mutation.titles, mutation.signal);
     case 'statistics-deleted':
       return pushDeletedStatistics(mutation.titles);
     case 'reading-goals-deleted':
@@ -524,7 +524,7 @@ async function pushGoals(): Promise<void> {
   }
 }
 
-async function deleteRemoteBooks(titles: string[], cancelSignal: AbortSignal): Promise<void> {
+async function deleteRemoteBooks(titles: string[], signal: AbortSignal): Promise<void> {
   cancelBookPushes(titles);
 
   const location = syncState.location;
@@ -542,7 +542,7 @@ async function deleteRemoteBooks(titles: string[], cancelSignal: AbortSignal): P
     if (location.kind === 'cloud') {
       await handler.authenticate(null, true);
     }
-    await handler.deleteBookData(titles, cancelSignal, false);
+    await handler.deleteBookData(titles, signal, false);
     markSynced();
   } catch (err) {
     const recoverable = reportSyncError('delete books', err);

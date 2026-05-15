@@ -10,7 +10,6 @@ import { storage } from '$lib/data/window/navigator/storage';
 import { StorageDataType } from '$lib/data/storage/storage-types';
 import { database } from '$lib/data/store';
 import { handleErrorDuringReplication } from '$lib/functions/replication/error-handler';
-import { AbortError, throwIfAborted } from '$lib/functions/replication/replication-error';
 import {
   replicationProgress$,
   type ReplicationContext
@@ -54,7 +53,7 @@ export interface ReplicateDataOptions {
   contexts: ReplicationContext[];
   dataToReplicate: StorageDataType[];
   settings: ScopedSettings;
-  cancelSignal?: AbortSignal;
+  signal?: AbortSignal;
 }
 
 export async function replicateData(opts: ReplicateDataOptions) {
@@ -66,7 +65,7 @@ export async function replicateData(opts: ReplicateDataOptions) {
     contexts,
     dataToReplicate,
     settings,
-    cancelSignal
+    signal
   } = opts;
   const source: BookOperations = direction === 'push' ? library : endpoint;
   const target: BookOperations = direction === 'push' ? endpoint : library;
@@ -103,12 +102,12 @@ export async function replicateData(opts: ReplicateDataOptions) {
     replicationTasks.push(
       replicationLimiter(async () => {
         try {
-          throwIfAborted(cancelSignal);
+          signal?.throwIfAborted();
 
           let dataProcessed = false;
 
-          const sourceScoped = source.scoped(context, settings, cancelSignal);
-          const targetScoped = target.scoped(context, settings, cancelSignal);
+          const sourceScoped = source.scoped(context, settings, signal);
+          const targetScoped = target.scoped(context, settings, signal);
 
           if (processBookData) {
             if (
@@ -116,16 +115,16 @@ export async function replicateData(opts: ReplicateDataOptions) {
                 await sourceScoped.getFilenameForRecentCheck('bookdata_')
               )
             ) {
-              checkCancelAndProgress(cancelSignal, true, true);
-              checkCancelAndProgress(cancelSignal, true, true);
+              checkCancelAndProgress(signal, true, true);
+              checkCancelAndProgress(signal, true, true);
             } else {
               const bookData = await sourceScoped.getBook();
-              checkCancelAndProgress(cancelSignal);
+              checkCancelAndProgress(signal);
               if (bookData) {
                 await targetScoped.saveBook(bookData);
                 dataProcessed = true;
               }
-              checkCancelAndProgress(cancelSignal, bookOperationsLength === 1, !bookData);
+              checkCancelAndProgress(signal, bookOperationsLength === 1, !bookData);
             }
           }
 
@@ -135,16 +134,16 @@ export async function replicateData(opts: ReplicateDataOptions) {
                 await sourceScoped.getFilenameForRecentCheck('progress_')
               )
             ) {
-              checkCancelAndProgress(cancelSignal, !dataProcessed, true);
-              checkCancelAndProgress(cancelSignal, !dataProcessed, true);
+              checkCancelAndProgress(signal, !dataProcessed, true);
+              checkCancelAndProgress(signal, !dataProcessed, true);
             } else {
               const progressData = await sourceScoped.getProgress();
-              checkCancelAndProgress(cancelSignal, !dataProcessed);
+              checkCancelAndProgress(signal, !dataProcessed);
               if (progressData) {
                 await targetScoped.saveProgress(progressData);
                 dataProcessed = true;
               }
-              checkCancelAndProgress(cancelSignal, !dataProcessed, !progressData);
+              checkCancelAndProgress(signal, !dataProcessed, !progressData);
             }
           }
 
@@ -154,24 +153,24 @@ export async function replicateData(opts: ReplicateDataOptions) {
                 await sourceScoped.getFilenameForRecentCheck('statistics_')
               )
             ) {
-              checkCancelAndProgress(cancelSignal, !dataProcessed, true);
-              checkCancelAndProgress(cancelSignal, !dataProcessed, true);
+              checkCancelAndProgress(signal, !dataProcessed, true);
+              checkCancelAndProgress(signal, !dataProcessed, true);
             } else {
               const { statistics, lastStatisticModified } = await sourceScoped.getStatistics();
-              checkCancelAndProgress(cancelSignal, !dataProcessed);
+              checkCancelAndProgress(signal, !dataProcessed);
               if (statistics) {
                 await targetScoped.saveStatistics(statistics, lastStatisticModified);
                 dataProcessed = true;
               }
-              checkCancelAndProgress(cancelSignal, !dataProcessed, !statistics);
+              checkCancelAndProgress(signal, !dataProcessed, !statistics);
             }
           }
 
           if (dataProcessed) {
             const coverData = await sourceScoped.getCover();
-            checkCancelAndProgress(cancelSignal, !coverData);
+            checkCancelAndProgress(signal, !coverData);
             await targetScoped.saveCover(coverData);
-            checkCancelAndProgress(cancelSignal);
+            checkCancelAndProgress(signal);
 
             if (direction === 'pull') {
               if (refreshDataList) {
@@ -182,13 +181,13 @@ export async function replicateData(opts: ReplicateDataOptions) {
               }
             }
           } else {
-            checkCancelAndProgress(cancelSignal, true, true);
-            checkCancelAndProgress(cancelSignal, true, true);
+            checkCancelAndProgress(signal, true, true);
+            checkCancelAndProgress(signal, true, true);
           }
 
           processed += 1;
         } catch (error: any) {
-          // handleErrorDuringReplication re-throws AbortError and
+          // handleErrorDuringReplication re-throws AbortError DOMExceptions and
           // logs other errors as a side effect. Collect non-abort
           // errors (with a per-context prefix so the sync-health
           // banner can name the offending book) to throw at the end
@@ -214,15 +213,15 @@ export async function replicateData(opts: ReplicateDataOptions) {
               await source.getReadingGoalsFilename(settings)
             )
           ) {
-            checkCancelAndProgress(cancelSignal, true, true);
-            checkCancelAndProgress(cancelSignal, true, true);
+            checkCancelAndProgress(signal, true, true);
+            checkCancelAndProgress(signal, true, true);
           } else {
-            const { readingGoals, lastGoalModified } = await source.getReadingGoals(cancelSignal);
-            checkCancelAndProgress(cancelSignal);
+            const { readingGoals, lastGoalModified } = await source.getReadingGoals(signal);
+            checkCancelAndProgress(signal);
             if (readingGoals) {
-              await target.saveReadingGoals(readingGoals, lastGoalModified, settings, cancelSignal);
+              await target.saveReadingGoals(readingGoals, lastGoalModified, settings, signal);
             }
-            checkCancelAndProgress(cancelSignal, false, !readingGoals);
+            checkCancelAndProgress(signal, false, !readingGoals);
           }
           processed += 1;
         } catch (error: any) {
@@ -238,15 +237,15 @@ export async function replicateData(opts: ReplicateDataOptions) {
     );
   }
 
-  // AbortError gets re-thrown from inside the per-task try (via
+  // AbortError DOMExceptions get re-thrown from inside the per-task try (via
   // handleErrorDuringReplication) and lands here as the rejection.
   // Re-throw so a cancel isn't disguised as a successful resolution.
   await Promise.all(replicationTasks).catch((err) => {
-    if (err instanceof AbortError) throw err;
+    if (err.name === 'AbortError') throw err;
   });
 
   if (target instanceof BackupStorageHandler) {
-    await target.createExportZip(document, cancelSignal?.aborted || !processed).catch((err) => {
+    await target.createExportZip(document, signal?.aborted || !processed).catch((err) => {
       errors.push(err);
     });
   }
@@ -264,12 +263,12 @@ export async function persistLibraryStorage() {
 }
 
 export function checkCancelAndProgress(
-  cancelSignal: AbortSignal | undefined,
+  signal: AbortSignal | undefined,
   allowCancel = true,
   addDefaultProgress = false
 ) {
   if (allowCancel) {
-    throwIfAborted(cancelSignal);
+    signal?.throwIfAborted();
   }
 
   if (addDefaultProgress) {

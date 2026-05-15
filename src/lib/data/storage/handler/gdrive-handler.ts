@@ -199,7 +199,7 @@ export class GDriveStorageHandler extends ApiStorageHandler {
     file: GDriveFile,
     typeToRetrieve: XMLHttpRequestResponseType,
     progressBase = 1,
-    cancelSignal?: AbortSignal
+    signal?: AbortSignal
   ) {
     const params = new URLSearchParams();
     params.append('fields', 'files(name)');
@@ -210,7 +210,7 @@ export class GDriveStorageHandler extends ApiStorageHandler {
       { trackDownload: true },
       typeToRetrieve,
       progressBase,
-      cancelSignal
+      signal
     );
   }
 
@@ -224,7 +224,7 @@ export class GDriveStorageHandler extends ApiStorageHandler {
       title,
       rootFilePrefix,
       progressBase = 0.8,
-      cancelSignal
+      signal
     } = opts;
     const form = new FormData();
     const params = new URLSearchParams();
@@ -259,7 +259,7 @@ export class GDriveStorageHandler extends ApiStorageHandler {
       { method: externalFile ? 'PATCH' : 'POST', body: form, trackUpload: true },
       'json',
       progressBase,
-      cancelSignal
+      signal
     );
 
     this.updateAfterUpload(
@@ -275,14 +275,8 @@ export class GDriveStorageHandler extends ApiStorageHandler {
     return response;
   }
 
-  protected executeDelete(id: string, cancelSignal?: AbortSignal) {
-    return this.request(
-      `${this.baseFileApiUrl}/${id}`,
-      { method: 'DELETE' },
-      'json',
-      1,
-      cancelSignal
-    );
+  protected executeDelete(id: string, signal?: AbortSignal) {
+    return this.request(`${this.baseFileApiUrl}/${id}`, { method: 'DELETE' }, 'json', 1, signal);
   }
 
   private async list(
