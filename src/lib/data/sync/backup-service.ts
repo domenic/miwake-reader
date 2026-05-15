@@ -260,6 +260,12 @@ export async function importBackup(
 
   let readingGoalsImported = false;
   if (selection.readingGoals && catalog.hasReadingGoals) {
+    // Snapshot the pre-import timestamp — replicateData below routes
+    // through storeReadingGoals, which writes
+    // `lastReadingGoalsModified` via its rxjs subject. Reading after
+    // would compare the ZIP's value to itself.
+    const localTsBeforeImport = Number(localStorage.getItem('lastReadingGoalsModified') ?? 0);
+
     await replicateData({
       library: browserHandler,
       endpoint: backupHandler,
@@ -274,11 +280,22 @@ export async function importBackup(
     // (mirrors the export side). Older ZIPs without this side file
     // just skip — older readers didn't have a current goal in
     // localStorage anyway.
+    //
+    // The two side-file keys (`readingGoal` and
+    // `lastReadingGoalsModified`) are a single unit of state, so for
+    // 'newest' compare timestamps and apply both keys together.
+    // Comparing key-presence alone (the previous behavior) lost
+    // newer ZIP goal state whenever the local device already had
+    // anything in the readingGoal slot.
     const goalState = await backupHandler.getReadingGoalState();
     if (goalState) {
-      for (const [k, v] of Object.entries(goalState)) {
-        if (direction === 'newest' && localStorage.getItem(k) !== null) continue;
-        localStorage.setItem(k, v);
+      const apply =
+        direction === 'zip-wins' ||
+        Number(goalState.lastReadingGoalsModified ?? 0) > localTsBeforeImport;
+      if (apply) {
+        for (const [k, v] of Object.entries(goalState)) {
+          localStorage.setItem(k, v);
+        }
       }
     }
     readingGoalsImported = true;

@@ -105,10 +105,10 @@
   }
 
   function openTrackerMenu() {
-    // Match the pre-split behavior: pausing while the menu is open
-    // freezes statistics so the user can review without the timer
-    // ticking.
-    isTrackerPaused$.next(true);
+    // /b owns the pause bookkeeping (wasTrackerPaused) — its
+    // menu-open edge effect captures the prior state and pauses.
+    // Mutating isTrackerPaused$ here would race that handler and
+    // leave wasTrackerPaused stale on close.
     isTrackerMenuOpen$.set(true);
   }
 

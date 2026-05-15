@@ -494,7 +494,14 @@
   });
 
   $effect(() => {
-    if (!$isTrackerMenuOpen$ && wasTrackerMenuOpen) {
+    if ($isTrackerMenuOpen$ && !wasTrackerMenuOpen) {
+      // Capture the pre-pause state at open so the close-side effect
+      // knows whether to resume. Any caller (cluster button,
+      // completion flow) can just flip the menu flag and trust this
+      // edge handler to keep wasTrackerPaused in sync.
+      wasTrackerPaused = $isTrackerPaused$;
+      isTrackerPaused$.next(true);
+    } else if (!$isTrackerMenuOpen$ && wasTrackerMenuOpen) {
       if (!wasTrackerPaused) {
         isTrackerPaused$.next(false);
       }

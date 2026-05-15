@@ -147,6 +147,17 @@ export async function reconcileBooksOnBoot(): Promise<void> {
   const location = syncState.location;
   if (!location) return;
 
+  // reconcileAfterAuthoritativeListing treats the remote listing as
+  // authoritative — placeholders and books last seen on this source
+  // but missing from the listing get pruned. Skip when the user has
+  // opted out of pulling remote state into local:
+  //   - `Off`: sync is off entirely; nothing to do.
+  //   - `Up`: push-only; the post-boot push will mirror any local
+  //     book up to the source even if it's currently absent there,
+  //     so we must NOT prune the local copy first.
+  const direction = autoReplication$.getValue();
+  if (direction === AutoReplicationType.Off || direction === AutoReplicationType.Up) return;
+
   const handler = endpointFor(location);
 
   beginLongRunning();
