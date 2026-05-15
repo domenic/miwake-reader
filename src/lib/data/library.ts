@@ -6,12 +6,11 @@
  * adapter at lib/data/storage/handler/local-replication-endpoint.ts):
  * that's the BookOperations peer of GDrive/OneDrive/FS handlers, used
  * by the replicator's pull/push paths and intentionally sync-naive
- * (a triggerSync there would loop pulls back to the remote).
+ * (a mutation notification there would loop pulls back to the remote).
  *
- * Every mutation here pairs the local IDB write with a triggerSync
- * (or, for deletes, a direct call to the connected endpoint's
- * deleteBookData) so the data reaches the user's other devices
- * without any individual call-site needing to remember both halves.
+ * Every mutation here pairs the local IDB write with a
+ * syncAfterLocalMutation call so the sync engine can apply direction
+ * policy and endpoint details consistently.
  *
  * UI call sites should never reach into `database.*` mutating methods
  * directly — that's how the import / backup-import / reading-goal /
@@ -25,14 +24,12 @@ import type {
   BooksDbReadingGoal,
   BooksDbStatistic
 } from '$lib/data/database/books-db/versions/books-db';
-import { cacheStorageData$, database } from '$lib/data/store';
-import { logger } from '$lib/data/logger';
+import { database } from '$lib/data/store';
 import type { MergeMode } from '$lib/data/merge-mode';
 import { ReplicationSaveBehavior } from '$lib/functions/replication/replication-options';
 import {
   checkCancelAndProgress,
-  persistLibraryStorage,
-  replicateData
+  persistLibraryStorage
 } from '$lib/functions/replication/replicator';
 import { handleErrorDuringReplication } from '$lib/functions/replication/error-handler';
 import { AbortError, throwIfAborted } from '$lib/functions/replication/replication-error';
@@ -44,11 +41,8 @@ import loadEpub from '$lib/functions/file-loaders/epub/load-epub';
 import loadHtmlz from '$lib/functions/file-loaders/htmlz/load-htmlz';
 import loadTxt from '$lib/functions/file-loaders/txt/load-txt';
 import type { LoadData } from '$lib/functions/file-loaders/types';
-import { getLocalEndpoint, getSyncEndpoint } from '$lib/data/storage/storage-handler-factory';
-import { StorageDataType, SyncEndpointType } from '$lib/data/storage/storage-types';
-import { cloudSourceName, FS_SOURCE_NAME } from '$lib/data/sync/sync-helpers';
-import { scopedSettings, triggerGoalsSync, triggerSync } from '$lib/data/sync/sync-engine';
-import { syncState, type SyncLocation } from '$lib/data/sync/sync-store.svelte';
+import { getLocalEndpoint } from '$lib/data/storage/storage-handler-factory';
+import { scopedSettings, syncAfterLocalMutation } from '$lib/data/sync/sync-engine';
 import pLimit from 'p-limit';
 
 /**
@@ -68,17 +62,6 @@ export function openBook(id: number): Promise<BooksDbBookData | undefined> {
 export async function markBookOpened(book: BooksDbBookData): Promise<void> {
   const db = await database.db;
   await db.put('data', book);
-}
-
-function endpointForCurrentLocation(location: SyncLocation) {
-  const settings = { cacheStorageData: cacheStorageData$.getValue() };
-  if (location.kind === 'cloud') {
-    const name = cloudSourceName(location.provider, location.usesCustomCredentials);
-    return location.provider === SyncEndpointType.GDRIVE
-      ? getSyncEndpoint(window, SyncEndpointType.GDRIVE, name, settings)
-      : getSyncEndpoint(window, SyncEndpointType.ONEDRIVE, name, settings);
-  }
-  return getSyncEndpoint(window, SyncEndpointType.FS, FS_SOURCE_NAME, settings);
 }
 
 /**
@@ -169,13 +152,16 @@ export async function userImportBooks(
             await scoped.saveCover(bookContent.coverImage);
           }
 
-          // Pair the local write with a DATA trigger so the imported
+          // Pair the local write with a DATA mutation so the imported
           // book reaches the connected sync location ambiently. Cover
           // ships bundled with the DATA push.
-          triggerSync(StorageDataType.DATA, {
-            id: dataId,
-            title: bookContent.title,
-            imagePath: bookContent.coverImage
+          syncAfterLocalMutation({
+            kind: 'book-data',
+            context: {
+              id: dataId,
+              title: bookContent.title,
+              imagePath: bookContent.coverImage
+            }
           });
 
           // The library always drives /manage's view; emit unconditionally.
@@ -230,7 +216,7 @@ export async function userSaveBookmark(
   context: ReplicationContext
 ): Promise<void> {
   await database.putBookmark(data);
-  triggerSync(StorageDataType.PROGRESS, context);
+  syncAfterLocalMutation({ kind: 'progress', context });
 }
 
 /**
@@ -246,7 +232,7 @@ export async function userSaveStatistics(
   lastStatisticModified?: number
 ): Promise<void> {
   await database.storeStatistics(bookTitle, data, saveBehavior, mergeMode, lastStatisticModified);
-  triggerSync(StorageDataType.STATISTICS, context);
+  syncAfterLocalMutation({ kind: 'statistics', context });
 }
 
 /**
@@ -255,16 +241,14 @@ export async function userSaveStatistics(
  */
 export async function userUpdateStatistic(statistic: BookStatistic): Promise<void> {
   await database.updateStatistic(statistic);
-  triggerSync(StorageDataType.STATISTICS, { title: statistic.title });
+  syncAfterLocalMutation({ kind: 'statistics', context: { title: statistic.title } });
 }
 
 /**
  * Bulk-delete statistics across one or more books, optionally
- * narrowed to a date range. Pushes the now-empty stats to the
- * connected sync endpoint synchronously with Overwrite +
- * MergeMode.NEWEST so the cloud's pre-existing populated file is
- * replaced rather than merged-with-empty (a no-op that would leave
- * the deleted stats hanging on the user's other devices).
+ * narrowed to a date range. The sync engine force-pushes the now-empty
+ * stats when upward sync is enabled; ambient merge-mode would
+ * otherwise merge the remote rows back.
  */
 export async function userDeleteStatisticEntries(
   bookTitles: string[],
@@ -279,30 +263,7 @@ export async function userDeleteStatisticEntries(
     endDateString
   );
 
-  const location = syncState.location;
-  if (!location || !bookTitles.length) return;
-
-  const local = getLocalEndpoint();
-  const handler = endpointForCurrentLocation(location);
-  const contexts: ReplicationContext[] = bookTitles.map((title) => ({ title }));
-  try {
-    await replicateData({
-      library: local,
-      endpoint: handler,
-      direction: 'push',
-      refreshDataList: false,
-      contexts,
-      dataToReplicate: [StorageDataType.STATISTICS],
-      // Force-replace: the shrunken/emptied local set is authoritative.
-      // Ambient merge-mode would otherwise merge the remote rows back.
-      settings: scopedSettings({ winnerTakesAll: true })
-    });
-  } catch (err: any) {
-    logger.warn(
-      `userDeleteStatisticEntries: remote push failed: ${err.message}; ` +
-        'local rows are gone but other devices may still see the deleted stats until next force-resync.'
-    );
-  }
+  await syncAfterLocalMutation({ kind: 'statistics-deleted', titles: bookTitles });
 }
 
 /**
@@ -315,48 +276,23 @@ export async function userSaveReadingGoals(
   toInsert: BooksDbReadingGoal[]
 ): Promise<void> {
   await database.updateReadingGoals(toDelete, toInsert);
-  triggerGoalsSync();
+  syncAfterLocalMutation({ kind: 'reading-goals' });
 }
 
 /**
  * Delete a reading goal (or, when given undefined, all stored goals).
- * Mirrors `userDeleteStatisticEntries`: force-push with Overwrite +
- * replace so the empty / shrunken local set actually replaces the
- * cloud's populated file, rather than getting merged back to its
- * pre-delete state under the user's ambient merge mode.
+ * Mirrors `userDeleteStatisticEntries`: the sync engine force-pushes
+ * the empty / shrunken local set when upward sync is enabled.
  */
 export async function userDeleteReadingGoal(date: string | undefined): Promise<void> {
   await database.deleteReadingGoal(date);
-
-  const location = syncState.location;
-  if (!location) return;
-
-  const local = getLocalEndpoint();
-  const handler = endpointForCurrentLocation(location);
-  try {
-    await replicateData({
-      library: local,
-      endpoint: handler,
-      direction: 'push',
-      refreshDataList: false,
-      contexts: [],
-      dataToReplicate: [StorageDataType.READING_GOALS],
-      // Force-replace: see comment in userDeleteStatisticEntries.
-      settings: scopedSettings({ winnerTakesAll: true })
-    });
-  } catch (err: any) {
-    logger.warn(
-      `userDeleteReadingGoal: remote push failed: ${err.message}; ` +
-        'local goals are gone but other devices may still see the deleted goals until next force-resync.'
-    );
-  }
+  await syncAfterLocalMutation({ kind: 'reading-goals-deleted' });
 }
 
 /**
- * Delete one or more books from the user's library — locally AND on
- * the connected sync endpoint. Without the remote leg, boot
- * reconcileBooksOnBoot would see the book in the remote listing and
- * recreate the placeholder, silently undoing the user's deletion.
+ * Delete one or more books from the user's library. When upward sync
+ * is enabled, the sync engine also deletes them from the connected
+ * source; otherwise the deletion is local-only by direction policy.
  *
  * Local deletion always runs. Remote deletion is best-effort: a
  * remote failure is logged but doesn't undo the local delete (the
@@ -375,21 +311,5 @@ export async function userDeleteBooks(
   // threaded through the return.
   await local.deleteBookData(titles, cancelSignal, keepLocalStatistics);
 
-  const location = syncState.location;
-  if (location && titles.length) {
-    try {
-      const handler = endpointForCurrentLocation(location);
-      // Cloud / FS handlers don't take keepLocalStatistics — that flag
-      // is local-side only (controls whether stats rows survive after
-      // the book row goes). Deleting the remote book folder removes
-      // every file inside it regardless.
-      await handler.deleteBookData(titles, cancelSignal);
-    } catch (err: any) {
-      logger.warn(
-        `userDeleteBooks: remote-side delete failed (${err.message}); ` +
-          'local rows are gone but the next reconcile may recreate placeholders for them. ' +
-          'Run Force re-sync · This device wins to push the deletion.'
-      );
-    }
-  }
+  await syncAfterLocalMutation({ kind: 'books-deleted', titles, cancelSignal });
 }

@@ -21,9 +21,9 @@ import type {
  *
  * NOT user-facing: components writing on a user's behalf should go
  * through `$lib/data/library` instead, which pairs each edit with the
- * appropriate `triggerSync` call. Writes here are sync-naive by
- * design — a trigger at this layer would loop just-pulled data back
- * to the remote.
+ * appropriate sync-engine mutation notification. Writes here are
+ * sync-naive by design — a trigger at this layer would loop
+ * just-pulled data back to the remote.
  */
 export class LocalReplicationEndpoint implements LocalReplicationEndpointRole {
   readonly kind = 'local' as const;

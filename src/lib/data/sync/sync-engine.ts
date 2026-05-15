@@ -48,7 +48,7 @@ import { logger } from '$lib/data/logger';
  *
  * Used by force-resync (`local-wins` / `remote-wins`), backup-import
  * (`zip-wins`), and the single-type winner-takes-all pushes from
- * `userDeleteStatisticEntries` / `userDeleteReadingGoal`. Default
+ * statistics / reading-goal delete pushes. Default
  * (winnerTakesAll=false) honors the user's ambient preferences.
  */
 export function scopedSettings({ winnerTakesAll = false } = {}): ScopedSettings {
@@ -155,8 +155,7 @@ export async function reconcileBooksOnBoot(): Promise<void> {
   //   - `Up`: push-only; the post-boot push will mirror any local
   //     book up to the source even if it's currently absent there,
   //     so we must NOT prune the local copy first.
-  const direction = autoReplication$.getValue();
-  if (direction === AutoReplicationType.Off || direction === AutoReplicationType.Up) return;
+  if (!isPullAllowed()) return;
 
   const handler = endpointFor(location);
 
@@ -187,12 +186,18 @@ export async function reconcileBooksOnBoot(): Promise<void> {
 }
 
 // ---------------------------------------------------------------------
-// Ambient push (local → connected location)
+// Local mutation mirroring (local → connected location)
 //
-// triggerSync() is called by the reader whenever a local edit happens
-// (bookmark save, stat update, etc.). It coalesces multiple calls into
-// a single debounced push. Silent auth — if the cached refresh token
-// is stale, the push is queued for replay after the user reconnects.
+// syncAfterLocalMutation() is the single user-facing write boundary:
+// library/UI code performs the local IDB mutation, then reports what
+// changed here. The engine applies direction policy and endpoint
+// details in one place so `Down` / `Off` cannot accidentally leak a
+// remote delete or push through a bespoke call site.
+//
+// Per-book saves coalesce into a single debounced push. Deletes are
+// immediate and force-replace where merging would resurrect rows.
+// Silent auth — if the cached refresh token is stale, recoverable
+// pushes are queued for replay after the user reconnects.
 // ---------------------------------------------------------------------
 
 const PUSH_DEBOUNCE_MS = 5000;
@@ -210,15 +215,21 @@ const REPLAY_QUEUE_MAX = 500;
  * separately by `pendingGoalsPush` to avoid forcing a synthetic
  * "book context" through the per-book pipeline.
  */
-export type BookDataType =
-  | StorageDataType.DATA
-  | StorageDataType.PROGRESS
-  | StorageDataType.STATISTICS;
+type BookDataType = StorageDataType.DATA | StorageDataType.PROGRESS | StorageDataType.STATISTICS;
 
 interface PendingPush {
   context: ReplicationContext;
   types: Set<BookDataType>;
 }
+
+export type LocalMutationSync =
+  | { kind: 'book-data'; context: ReplicationContext }
+  | { kind: 'progress'; context: ReplicationContext }
+  | { kind: 'statistics'; context: ReplicationContext }
+  | { kind: 'reading-goals' }
+  | { kind: 'books-deleted'; titles: string[]; cancelSignal: AbortSignal }
+  | { kind: 'statistics-deleted'; titles: string[] }
+  | { kind: 'reading-goals-deleted' };
 
 let pending: Map<string, PendingPush> = new Map();
 let pendingGoalsPush = false;
@@ -254,13 +265,38 @@ function pendingKey(context: ReplicationContext): string {
 }
 
 /**
+ * Report a user-facing local mutation to the sync engine. The local
+ * write has already completed; this function mirrors the mutation to
+ * the connected source if the active sync direction allows upward
+ * changes.
+ */
+export function syncAfterLocalMutation(mutation: LocalMutationSync): void | Promise<void> {
+  switch (mutation.kind) {
+    case 'book-data':
+      return queueBookPush(StorageDataType.DATA, mutation.context);
+    case 'progress':
+      return queueBookPush(StorageDataType.PROGRESS, mutation.context);
+    case 'statistics':
+      return queueBookPush(StorageDataType.STATISTICS, mutation.context);
+    case 'reading-goals':
+      return queueGoalsPush();
+    case 'books-deleted':
+      return deleteRemoteBooks(mutation.titles, mutation.cancelSignal);
+    case 'statistics-deleted':
+      return pushDeletedStatistics(mutation.titles);
+    case 'reading-goals-deleted':
+      return pushDeletedReadingGoals();
+  }
+}
+
+/**
  * Queue an ambient push for a specific book — DATA, PROGRESS, or
  * STATISTICS. Multiple triggers for the same book within the
  * debounce window coalesce into one push of the union of types.
- * For library-scoped reading goals use `triggerGoalsSync()` instead.
+ * For library-scoped reading goals use `queueGoalsPush()` instead.
  */
-export function triggerSync(dataType: BookDataType, context: ReplicationContext): void {
-  if (!isAmbientPushAllowed()) return;
+function queueBookPush(dataType: BookDataType, context: ReplicationContext): void {
+  if (!isPushAllowed()) return;
   const key = pendingKey(context);
   const existing = pending.get(key);
   if (existing) {
@@ -278,25 +314,30 @@ export function triggerSync(dataType: BookDataType, context: ReplicationContext)
  * a per-book context — repeated calls within the debounce window
  * coalesce into one push.
  */
-export function triggerGoalsSync(): void {
-  if (!isAmbientPushAllowed()) return;
+function queueGoalsPush(): void {
+  if (!isPushAllowed()) return;
   pendingGoalsPush = true;
   syncState.isSyncing = true;
   schedulePushRun();
 }
 
-function isAmbientPushAllowed(): boolean {
+function isPushAllowed(): boolean {
   const direction = autoReplication$.getValue();
   if (direction === AutoReplicationType.Off || direction === AutoReplicationType.Down) return false;
   if (!syncState.location) return false;
   return true;
 }
 
+function isPullAllowed(): boolean {
+  const direction = autoReplication$.getValue();
+  return direction === AutoReplicationType.Down || direction === AutoReplicationType.All;
+}
+
 /**
  * Schedule ambient pushes for every locally-downloaded book. Called
  * from connect flows so existing library content propagates to the
  * newly-attached location: ambient sync only fires on local edits
- * via triggerSync, so a freshly-connected (and possibly empty)
+ * via syncAfterLocalMutation, so a freshly-connected (and possibly empty)
  * location would otherwise stay missing every book the user already
  * has — bookmark/edit triggers only fire PROGRESS/STATISTICS for the
  * touched book, never DATA.
@@ -304,7 +345,7 @@ function isAmbientPushAllowed(): boolean {
  * Placeholders (no elementHtml) are skipped — they have nothing to
  * push.
  */
-export async function pushAllLocalBooks(): Promise<void> {
+async function pushAllLocalBooks(): Promise<void> {
   const db = await database.db;
   const all = await db.getAll('data');
   for (const book of all) {
@@ -314,14 +355,19 @@ export async function pushAllLocalBooks(): Promise<void> {
       title: book.title,
       imagePath: book.coverImage || ''
     };
-    triggerSync(StorageDataType.DATA, context);
-    triggerSync(StorageDataType.PROGRESS, context);
-    triggerSync(StorageDataType.STATISTICS, context);
+    queueBookPush(StorageDataType.DATA, context);
+    queueBookPush(StorageDataType.PROGRESS, context);
+    queueBookPush(StorageDataType.STATISTICS, context);
   }
   // Reading goals are library-scoped — without this, a fresh connect
   // with zero downloaded books (or only placeholders) would never
   // mirror the user's goals up to the new source.
-  triggerGoalsSync();
+  queueGoalsPush();
+}
+
+export async function syncAfterSourceConnected(): Promise<void> {
+  if (!isPushAllowed()) return;
+  await pushAllLocalBooks();
 }
 
 function schedulePushRun(): void {
@@ -457,6 +503,107 @@ async function pushGoals(): Promise<void> {
   }
 }
 
+async function deleteRemoteBooks(titles: string[], cancelSignal: AbortSignal): Promise<void> {
+  const location = syncState.location;
+  if (!titles.length || !location || !isPushAllowed()) return;
+
+  if (location.kind === 'cloud' && !isOnline$.getValue()) {
+    logger.debug(`delete books: offline, queueing for replay (${titles.length} title(s))`);
+    enqueueReplay(() => deleteRemoteBooks([...titles], new AbortController().signal));
+    return;
+  }
+
+  const handler = endpointFor(location);
+  beginLongRunning();
+  try {
+    if (location.kind === 'cloud') {
+      await handler.authenticate(null, true);
+    }
+    await handler.deleteBookData(titles, cancelSignal, false);
+    markSynced();
+  } catch (err) {
+    const recoverable = reportSyncError('delete books', err);
+    if (recoverable) {
+      enqueueReplay(() => deleteRemoteBooks([...titles], new AbortController().signal));
+    }
+  } finally {
+    endLongRunning();
+  }
+}
+
+async function pushDeletedStatistics(titles: string[]): Promise<void> {
+  const location = syncState.location;
+  if (!titles.length || !location || !isPushAllowed()) return;
+
+  if (location.kind === 'cloud' && !isOnline$.getValue()) {
+    logger.debug(
+      `push deleted statistics: offline, queueing for replay (${titles.length} title(s))`
+    );
+    enqueueReplay(() => pushDeletedStatistics([...titles]));
+    return;
+  }
+
+  const contexts: ReplicationContext[] = titles.map((title) => ({ title }));
+  const handler = endpointFor(location);
+
+  beginLongRunning();
+  try {
+    if (location.kind === 'cloud') {
+      await handler.authenticate(null, true);
+    }
+    await replicateData({
+      library: localEndpoint(),
+      endpoint: handler,
+      direction: 'push',
+      refreshDataList: false,
+      contexts,
+      dataToReplicate: [StorageDataType.STATISTICS],
+      settings: scopedSettings({ winnerTakesAll: true })
+    });
+    markSynced();
+  } catch (err) {
+    const recoverable = reportSyncError('push deleted statistics', err);
+    if (recoverable) enqueueReplay(() => pushDeletedStatistics([...titles]));
+  } finally {
+    endLongRunning();
+  }
+}
+
+async function pushDeletedReadingGoals(): Promise<void> {
+  const location = syncState.location;
+  if (!location || !isPushAllowed()) return;
+
+  if (location.kind === 'cloud' && !isOnline$.getValue()) {
+    logger.debug('push deleted reading goals: offline, queueing for replay');
+    enqueueReplay(() => pushDeletedReadingGoals());
+    return;
+  }
+
+  const handler = endpointFor(location);
+
+  beginLongRunning();
+  try {
+    if (location.kind === 'cloud') {
+      await handler.authenticate(null, true);
+    }
+    await replicateData({
+      library: localEndpoint(),
+      endpoint: handler,
+      direction: 'push',
+      refreshDataList: false,
+      contexts: [],
+      dataToReplicate: [StorageDataType.READING_GOALS],
+      settings: scopedSettings({ winnerTakesAll: true })
+    });
+    markSynced();
+  } catch (err) {
+    const recoverable = reportSyncError('push deleted reading goals', err);
+    if (recoverable) enqueueReplay(() => pushDeletedReadingGoals());
+  } finally {
+    endLongRunning();
+  }
+}
+
 async function drainReplayQueue(): Promise<void> {
   if (replayQueue.length === 0) return;
   logger.debug(`drainReplayQueue: replaying ${replayQueue.length} queued op(s)`);
@@ -488,10 +635,9 @@ async function drainReplayQueue(): Promise<void> {
  * Respects the autoReplication direction: only pulls if Down or Both.
  */
 export async function reconcileForBookOpen(context: ReplicationContext): Promise<void> {
-  const direction = autoReplication$.getValue();
-  if (direction !== AutoReplicationType.Down && direction !== AutoReplicationType.All) {
+  if (!isPullAllowed()) {
     logger.debug(
-      `reconcileForBookOpen: skipping (autoReplication=${direction}) for ${JSON.stringify(context.title)}`
+      `reconcileForBookOpen: skipping (autoReplication=${autoReplication$.getValue()}) for ${JSON.stringify(context.title)}`
     );
     return;
   }
@@ -677,7 +823,9 @@ export async function forceFullResync(direction: ForceResyncDirection): Promise<
  * instead — this function reads the same underlying state.
  */
 export function isSyncingOrPending(): boolean {
-  return pushRunning || pending.size > 0 || pushTimer !== null || longRunningOps > 0;
+  return (
+    pushRunning || pending.size > 0 || pendingGoalsPush || pushTimer !== null || longRunningOps > 0
+  );
 }
 
 // ---------------------------------------------------------------------
@@ -707,10 +855,10 @@ export async function syncEngineStart(): Promise<void> {
   // the source is missing — including the post-importBackup reload
   // (where the in-flight ambient triggers were dropped by the reload)
   // and any other path that writes to the library without firing
-  // triggerSync. isBookPresentAndUpToDate short-circuits the no-op
-  // case, so the cost when nothing changed is one cheap check per
-  // book.
-  if (syncState.location) void pushAllLocalBooks();
+  // mutation notification. isBookPresentAndUpToDate short-circuits
+  // the no-op case, so the cost when nothing changed is one cheap
+  // check per book.
+  void syncAfterSourceConnected();
 }
 
 /**

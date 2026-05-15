@@ -144,8 +144,7 @@
   import {
     isSyncingOrPending,
     reconcileForBookOpen,
-    triggerSync,
-    type BookDataType
+    syncAfterLocalMutation
   } from '$lib/data/sync/sync-engine';
   import { syncState } from '$lib/data/sync/sync-store.svelte';
   import { getDateKey } from '$lib/functions/statistic-util';
@@ -1224,9 +1223,17 @@
    * onstatisticssaved callback). Paired writes go through
    * library.user* directly.
    */
-  function scheduleReplication(dataType: BookDataType) {
+  function scheduleReplication(dataType: StorageDataType) {
     const ctx = bookReplicationContext();
-    if (ctx) triggerSync(dataType, ctx);
+    if (!ctx) return;
+
+    if (dataType === StorageDataType.DATA) {
+      syncAfterLocalMutation({ kind: 'book-data', context: ctx });
+    } else if (dataType === StorageDataType.PROGRESS) {
+      syncAfterLocalMutation({ kind: 'progress', context: ctx });
+    } else if (dataType === StorageDataType.STATISTICS) {
+      syncAfterLocalMutation({ kind: 'statistics', context: ctx });
+    }
   }
 </script>
 

@@ -16,7 +16,7 @@ import {
   type CustomOAuthCredentials,
   type SyncLocation
 } from '$lib/data/sync/sync-store.svelte';
-import { pushAllLocalBooks } from '$lib/data/sync/sync-engine';
+import { syncAfterSourceConnected } from '$lib/data/sync/sync-engine';
 import {
   detachSourceKeepingLibrary,
   reconcileAfterAuthoritativeListing
@@ -80,7 +80,9 @@ export async function connectFs(opts: ConnectFsOptions = {}): Promise<void> {
   });
   await completeFsConnection(directoryHandle, {
     priorLocation: current?.kind === 'fs' ? null : current,
-    clearLibrary: opts.clearLibrary
+    clearLibrary: opts.clearLibrary,
+    reuseSourceInstanceId:
+      opts.regrantCurrentSource && current?.kind === 'fs' ? current.sourceInstanceId : undefined
   });
 }
 
@@ -124,11 +126,21 @@ export async function connectCloud(
   await completeCloudConnection(provider, authWindow, {
     priorLocation: isSameSource ? null : current,
     clearLibrary: opts.clearLibrary,
-    useCustomCredentials: useCustom
+    useCustomCredentials: useCustom,
+    reuseSourceInstanceId: isSameSource ? current.sourceInstanceId : undefined
   });
 }
 
-export type ConnectFsOptions = LeaveOptions;
+export interface ConnectFsOptions extends LeaveOptions {
+  /**
+   * True only for the "Grant access" flow. Re-granting the same
+   * folder is the same sync source and should keep sourceInstanceId
+   * stable so authoritative listings can still prune remote deletes.
+   * The normal "Change folder" flow intentionally gets a new source
+   * identity, even if the picker returns the same handle.
+   */
+  regrantCurrentSource?: boolean;
+}
 
 export interface ConnectCloudOptions extends LeaveOptions {
   /**
@@ -146,22 +158,38 @@ interface CompleteOptions extends LeaveOptions {
    * or null when this is a same-source replace.
    */
   priorLocation: SyncLocation | null;
+  reuseSourceInstanceId?: string;
 }
 
 interface CompleteCloudOptions extends CompleteOptions {
   useCustomCredentials: boolean;
+  reuseSourceInstanceId?: string;
 }
 
 /**
- * Generate a fresh `sourceInstanceId` for a newly-committed source.
- * Every successful connect rotates this so previously-mirrored book
- * rows whose `lastSeenSourceInstanceId` matches the prior id are
- * naturally inert: the post-connect boot push re-stamps them with
- * the new id where appropriate, and the cross-device-deletion prune
- * only acts on rows whose id matches the current source.
+ * Generate a fresh `sourceInstanceId` for a newly-committed source
+ * identity. Same-source reconnects keep their id so authoritative
+ * listings can still prune books last mirrored from that source.
+ * Different-source switches rotate the id so rows mirrored from the
+ * previous source are inert until explicitly pushed to the new one.
  */
 function newSourceInstanceId(): string {
   return crypto.randomUUID();
+}
+
+async function isSameFsStorageSource(
+  existing: BooksDbStorageSource | undefined,
+  directoryHandle: FileSystemDirectoryHandle
+): Promise<boolean> {
+  if (!existing || existing.type !== SyncEndpointType.FS || isRemoteContext(existing.data)) {
+    return false;
+  }
+
+  try {
+    return await existing.data.directoryHandle.isSameEntry(directoryHandle);
+  } catch {
+    return false;
+  }
 }
 
 async function completeFsConnection(
@@ -169,7 +197,10 @@ async function completeFsConnection(
   opts: CompleteOptions
 ): Promise<void> {
   const fsPath = directoryHandle.name;
-  const sourceInstanceId = newSourceInstanceId();
+  const existing = await (await database.db).get('storageSource', FS_SOURCE_NAME);
+  const isSameSource = await isSameFsStorageSource(existing, directoryHandle);
+  const sourceInstanceId =
+    isSameSource && opts.reuseSourceInstanceId ? opts.reuseSourceInstanceId : newSourceInstanceId();
 
   const data: FsHandle = { directoryHandle, fsPath };
   const record: BooksDbStorageSource = {
@@ -180,7 +211,6 @@ async function completeFsConnection(
     sourceInstanceId
   };
 
-  const existing = await (await database.db).get('storageSource', FS_SOURCE_NAME);
   await database.saveStorageSource(record, existing ? FS_SOURCE_NAME : '');
 
   // Validate the new source before tearing down the old: a listing
@@ -210,18 +240,18 @@ async function completeFsConnection(
   };
   syncState.health = { status: 'ok' };
 
-  // Install the new active source BEFORE reconcile so the reconciler's
-  // active-source guard sees the right id. The new id is fresh, so any
-  // pre-existing book rows whose lastSeenSourceInstanceId references
-  // the prior source are inert here — they survive this reconcile,
-  // and the boot push below re-stamps them.
+  // Install the active source BEFORE reconcile so the reconciler's
+  // active-source guard sees the right id. Same-source reconnects keep
+  // that id, allowing remote deletions to prune matching local rows;
+  // different-source switches get a fresh id so prior-source rows are
+  // inert until mirrored to this source.
   await reconcileAfterAuthoritativeListing(books, sourceInstanceId);
 
   // Mirror existing local content into the new folder. Ambient sync
   // only fires on local edits; without this, a fresh connect with an
   // empty folder would stay empty until the user happened to bookmark
   // something.
-  await pushAllLocalBooks();
+  await syncAfterSourceConnected();
 }
 
 async function completeCloudConnection(
@@ -233,7 +263,7 @@ async function completeCloudConnection(
     const customCreds = readCustomCreds(provider);
     const useCustom = opts.useCustomCredentials;
     const name = cloudSourceName(provider, useCustom);
-    const sourceInstanceId = newSourceInstanceId();
+    const sourceInstanceId = opts.reuseSourceInstanceId ?? newSourceInstanceId();
 
     const existing = await (await database.db).get('storageSource', name);
     // Reuse a previously-stored refresh token if we have one for this
@@ -315,7 +345,7 @@ async function completeCloudConnection(
     // See completeFsConnection for the install-before-reconcile rationale.
     await reconcileAfterAuthoritativeListing(books, sourceInstanceId);
 
-    await pushAllLocalBooks();
+    await syncAfterSourceConnected();
   } finally {
     if (!authWindow.closed) {
       authWindow.close();

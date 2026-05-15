@@ -149,7 +149,7 @@
     // grant in a user-activation context.
     busy = true;
     try {
-      await connectFs();
+      await connectFs({ regrantCurrentSource: true });
     } catch (err) {
       if (!(err instanceof DOMException && err.name === 'AbortError')) {
         await messageDialog({
