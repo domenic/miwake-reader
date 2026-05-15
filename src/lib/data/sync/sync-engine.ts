@@ -272,8 +272,12 @@ export async function pushAllLocalBooks(): Promise<void> {
     triggerSync(StorageDataType.DATA, context);
     triggerSync(StorageDataType.PROGRESS, context);
     triggerSync(StorageDataType.STATISTICS, context);
-    triggerSync(StorageDataType.READING_GOALS, context);
   }
+  // Reading goals are library-scoped, not per-book. Triggering once
+  // outside the per-book loop ensures a fresh connect with zero
+  // downloaded books (or only placeholders) still mirrors the user's
+  // goals up to the new source.
+  triggerSync(StorageDataType.READING_GOALS, { title: '<reading-goals>' });
 }
 
 function schedulePushRun(): void {
