@@ -35,6 +35,7 @@
       location: syncState.location,
       health: syncState.health,
       online: $isOnline$,
+      pending: syncState.isSyncPending,
       syncing: syncState.isSyncing
     })
   );
@@ -43,6 +44,7 @@
     disabled: faCloudArrowUp,
     offline: faWifi,
     idle: faCircleCheck,
+    pending: faCloudArrowUp,
     syncing: faArrowsRotate,
     'needs-attention': faTriangleExclamation,
     error: faCircleXmark
@@ -56,6 +58,7 @@
     disabled: 'text-gray-400',
     offline: 'text-gray-400',
     idle: 'text-emerald-500/80',
+    pending: 'text-sky-500/80',
     syncing: 'text-sky-500',
     'needs-attention': 'text-amber-500',
     error: 'text-red-500'
@@ -71,6 +74,8 @@
         return indicator.lastSyncedAt
           ? `Synced ${formatRelativeTimeLive(indicator.lastSyncedAt)}`
           : 'Up to date';
+      case 'pending':
+        return 'Sync pending…';
       case 'syncing':
         return 'Syncing…';
       case 'needs-attention':

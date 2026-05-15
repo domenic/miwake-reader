@@ -225,7 +225,7 @@ interface PendingPush {
 export type LocalMutationSync =
   | { kind: 'book-data'; context: ReplicationContext }
   | { kind: 'progress'; context: ReplicationContext }
-  | { kind: 'statistics'; context: ReplicationContext }
+  | { kind: 'statistics'; context: ReplicationContext; debounceMs?: number; immediate?: boolean }
   | { kind: 'reading-goals' }
   | { kind: 'books-deleted'; titles: string[]; signal: AbortSignal }
   | { kind: 'statistics-deleted'; titles: string[] }
@@ -260,6 +260,10 @@ function endLongRunning(): void {
   emitSyncingState();
 }
 
+function formatTypes(types: Iterable<StorageDataType>): string {
+  return [...types].join(',');
+}
+
 /** Key by book title so concurrent edits to the same book coalesce. */
 function pendingKey(context: ReplicationContext): string {
   return context.title;
@@ -278,7 +282,11 @@ export function syncAfterLocalMutation(mutation: LocalMutationSync): void | Prom
     case 'progress':
       return queueBookPush(StorageDataType.PROGRESS, mutation.context);
     case 'statistics':
-      return queueBookPush(StorageDataType.STATISTICS, mutation.context);
+      return queueBookPush(StorageDataType.STATISTICS, mutation.context, {
+        debounceMs: mutation.debounceMs,
+        immediate: mutation.immediate,
+        reason: mutation.immediate ? 'reader-exit' : 'local-mutation'
+      });
     case 'reading-goals':
       return queueGoalsPush();
     case 'books-deleted':
@@ -296,13 +304,13 @@ export function syncAfterLocalMutation(mutation: LocalMutationSync): void | Prom
  * debounce window coalesce into one push of the union of types.
  * For library-scoped reading goals use `queueGoalsPush()` instead.
  */
-function queueBookPush(dataType: BookDataType, context: ReplicationContext): void {
-  if (!isPushAllowed()) return;
+function addPendingBookPush(dataType: BookDataType, context: ReplicationContext): boolean {
+  if (!isPushAllowed()) return false;
   const key = pendingKey(context);
   if (dataType === StorageDataType.DATA) {
     canceledBookPushTitles.delete(key);
   } else if (canceledBookPushTitles.has(key)) {
-    return;
+    return false;
   }
   const existing = pending.get(key);
   if (existing) {
@@ -310,8 +318,25 @@ function queueBookPush(dataType: BookDataType, context: ReplicationContext): voi
   } else {
     pending.set(key, { context, types: new Set([dataType]) });
   }
-  syncState.isSyncing = true;
-  schedulePushRun();
+  return true;
+}
+
+function queueBookPush(
+  dataType: BookDataType,
+  context: ReplicationContext,
+  {
+    debounceMs = PUSH_DEBOUNCE_MS,
+    immediate = false,
+    reason = 'local-mutation'
+  }: { debounceMs?: number; immediate?: boolean; reason?: string } = {}
+): void {
+  if (!addPendingBookPush(dataType, context)) return;
+  logger.debug(
+    `sync queue: ${reason}, title=${JSON.stringify(context.title)}, ` +
+      `type=${dataType}, debounceMs=${debounceMs}, immediate=${immediate}`
+  );
+  emitSyncingState();
+  schedulePushRun(immediate ? 0 : debounceMs, reason);
 }
 
 /**
@@ -323,8 +348,9 @@ function queueBookPush(dataType: BookDataType, context: ReplicationContext): voi
 function queueGoalsPush(): void {
   if (!isPushAllowed()) return;
   pendingGoalsPush = true;
-  syncState.isSyncing = true;
-  schedulePushRun();
+  logger.debug('sync queue: reading-goals');
+  emitSyncingState();
+  schedulePushRun(PUSH_DEBOUNCE_MS, 'reading-goals');
 }
 
 function isPushAllowed(): boolean {
@@ -364,9 +390,16 @@ function cancelBookPushes(titles: string[]): void {
  * Placeholders (no elementHtml) are skipped — they have nothing to
  * push.
  */
-async function pushAllLocalBooks(): Promise<void> {
+async function pushAllLocalBooks({
+  immediate,
+  reason
+}: {
+  immediate: boolean;
+  reason: string;
+}): Promise<void> {
   const db = await database.db;
   const all = await db.getAll('data');
+  let queuedBooks = 0;
   for (const book of all) {
     if (!book.elementHtml) continue;
     const context: ReplicationContext = {
@@ -374,27 +407,51 @@ async function pushAllLocalBooks(): Promise<void> {
       title: book.title,
       imagePath: book.coverImage || ''
     };
-    queueBookPush(StorageDataType.DATA, context);
-    queueBookPush(StorageDataType.PROGRESS, context);
-    queueBookPush(StorageDataType.STATISTICS, context);
+    if (addPendingBookPush(StorageDataType.DATA, context)) queuedBooks += 1;
+    addPendingBookPush(StorageDataType.PROGRESS, context);
+    addPendingBookPush(StorageDataType.STATISTICS, context);
   }
   // Reading goals are library-scoped — without this, a fresh connect
   // with zero downloaded books (or only placeholders) would never
   // mirror the user's goals up to the new source.
-  queueGoalsPush();
+  pendingGoalsPush = true;
+  logger.debug(
+    `sync queue: ${reason}, full local mirror queued ` +
+      `${queuedBooks} book(s), immediate=${immediate}`
+  );
+  emitSyncingState();
+  if (immediate) {
+    if (pushTimer) {
+      clearTimeout(pushTimer);
+      pushTimer = null;
+    }
+    await runPendingPushes();
+  } else {
+    schedulePushRun(PUSH_DEBOUNCE_MS, reason);
+  }
 }
 
-export async function syncAfterSourceConnected(): Promise<void> {
+export async function syncAfterSourceConnected({
+  immediate = false,
+  reason = 'source-connected'
+}: {
+  immediate?: boolean;
+  reason?: string;
+} = {}): Promise<void> {
   if (!isPushAllowed()) return;
-  await pushAllLocalBooks();
+  await pushAllLocalBooks({ immediate, reason });
 }
 
-function schedulePushRun(): void {
+function schedulePushRun(delayMs = PUSH_DEBOUNCE_MS, reason = 'local-mutation'): void {
   if (pushTimer) clearTimeout(pushTimer);
   pushTimer = setTimeout(() => {
     pushTimer = null;
     void runPendingPushes();
-  }, PUSH_DEBOUNCE_MS);
+  }, delayMs);
+  logger.debug(
+    `sync queue: scheduled run in ${delayMs}ms (${reason}); ` +
+      `pendingBooks=${pending.size}, pendingGoals=${pendingGoalsPush}`
+  );
 }
 
 async function runPendingPushes(): Promise<void> {
@@ -415,6 +472,12 @@ async function runPendingPushes(): Promise<void> {
   emitSyncingState();
 
   try {
+    logger.debug(
+      `sync run: starting batch with ${batch.size} book(s), goals=${runGoals}, ` +
+        `types=${[...batch.values()]
+          .map(({ context, types }) => `${JSON.stringify(context.title)}:[${formatTypes(types)}]`)
+          .join('; ')}`
+    );
     for (const { context, types } of batch.values()) {
       await pushOne(context, [...types]);
     }
@@ -423,15 +486,16 @@ async function runPendingPushes(): Promise<void> {
     }
   } finally {
     pushRunning = false;
-    if (pending.size > 0 || pendingGoalsPush) schedulePushRun();
+    if ((pending.size > 0 || pendingGoalsPush) && !pushTimer) schedulePushRun();
     emitSyncingState();
   }
 }
 
 function emitSyncingState(): void {
-  const active =
-    pushRunning || pending.size > 0 || pendingGoalsPush || pushTimer !== null || longRunningOps > 0;
+  const active = pushRunning || longRunningOps > 0;
+  const pendingWork = pending.size > 0 || pendingGoalsPush || pushTimer !== null;
   if (syncState.isSyncing !== active) syncState.isSyncing = active;
+  if (syncState.isSyncPending !== pendingWork) syncState.isSyncPending = pendingWork;
 }
 
 async function pushOne(context: ReplicationContext, types: BookDataType[]): Promise<void> {
@@ -456,8 +520,14 @@ async function pushOne(context: ReplicationContext, types: BookDataType[]): Prom
 
   const local = localEndpoint();
   const handler = endpointFor(location);
+  const started = Date.now();
+  const typeLabel = formatTypes(types);
 
   try {
+    logger.debug(
+      `sync push: start title=${JSON.stringify(context.title)}, ` +
+        `location=${location.kind}, types=[${typeLabel}]`
+    );
     if (location.kind === 'cloud') {
       await handler.authenticate(null, true);
     }
@@ -478,6 +548,10 @@ async function pushOne(context: ReplicationContext, types: BookDataType[]): Prom
       await markBookMirroredToSource(context.id, expectedSourceInstanceId);
     }
     markSynced();
+    logger.debug(
+      `sync push: complete title=${JSON.stringify(context.title)}, ` +
+        `types=[${typeLabel}], durationMs=${Date.now() - started}`
+    );
   } catch (err) {
     const recoverable = reportSyncError('push', err);
     if (recoverable) enqueueReplay(() => pushOne(context, types));
@@ -503,8 +577,10 @@ async function pushGoals(): Promise<void> {
 
   const local = localEndpoint();
   const handler = endpointFor(location);
+  const started = Date.now();
 
   try {
+    logger.debug(`sync push: start reading-goals, location=${location.kind}`);
     if (location.kind === 'cloud') {
       await handler.authenticate(null, true);
     }
@@ -518,6 +594,7 @@ async function pushGoals(): Promise<void> {
       settings: scopedSettings()
     });
     markSynced();
+    logger.debug(`sync push: complete reading-goals, durationMs=${Date.now() - started}`);
   } catch (err) {
     const recoverable = reportSyncError('push (goals)', err);
     if (recoverable) enqueueReplay(() => pushGoals());
@@ -873,15 +950,6 @@ export async function syncEngineStart(): Promise<void> {
   });
 
   await reconcileBooksOnBoot();
-
-  // Mirror the local library upward at every boot. Catches any books
-  // the source is missing — including the post-importBackup reload
-  // (where the in-flight ambient triggers were dropped by the reload)
-  // and any other path that writes to the library without firing
-  // mutation notification. isBookPresentAndUpToDate short-circuits
-  // the no-op case, so the cost when nothing changed is one cheap
-  // check per book.
-  void syncAfterSourceConnected();
 }
 
 /**

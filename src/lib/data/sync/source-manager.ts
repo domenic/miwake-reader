@@ -247,11 +247,12 @@ async function completeFsConnection(
   // inert until mirrored to this source.
   await reconcileAfterAuthoritativeListing(books, sourceInstanceId);
 
-  // Mirror existing local content into the new folder. Ambient sync
-  // only fires on local edits; without this, a fresh connect with an
-  // empty folder would stay empty until the user happened to bookmark
-  // something.
-  await syncAfterSourceConnected();
+  // Mirror existing local content into a newly-attached folder.
+  // Same-source re-grants keep their source id and do not need a
+  // whole-library verification pass.
+  if (!opts.reuseSourceInstanceId) {
+    await syncAfterSourceConnected({ reason: 'fs-connect' });
+  }
 }
 
 async function completeCloudConnection(
@@ -345,7 +346,9 @@ async function completeCloudConnection(
     // See completeFsConnection for the install-before-reconcile rationale.
     await reconcileAfterAuthoritativeListing(books, sourceInstanceId);
 
-    await syncAfterSourceConnected();
+    if (!opts.reuseSourceInstanceId) {
+      await syncAfterSourceConnected({ reason: 'cloud-connect' });
+    }
   } finally {
     if (!authWindow.closed) {
       authWindow.close();

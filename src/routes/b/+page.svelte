@@ -167,6 +167,8 @@
     pulseElement
   } from '$lib/functions/range-util';
 
+  const READER_STATISTICS_SYNC_THROTTLE_MS = 60_000;
+
   let showSpinner = $state(true);
   let showHeader = $state(false);
   let isBookmarkScreen = $state(false);
@@ -203,6 +205,8 @@
   let wasTrackerMenuOpen = $state(false);
   let dismissDialogs = true;
   let syncedResolver: () => void;
+  let lastReaderStatisticsSyncAt = 0;
+  let readerStatisticsSyncDirty = false;
 
   const syncedPromise = new Promise<void>((resolver) => {
     syncedResolver = resolver;
@@ -599,6 +603,8 @@
   /** Experimental Code - May be removed any time without warning */
 
   onDestroy(() => {
+    flushReaderStatisticsReplication();
+
     if (browser) {
       document.removeEventListener('miwake-action', handleAction, false);
       document.documentElement.lang = 'ja';
@@ -1063,6 +1069,7 @@
       if ($statisticsEnabled$ && trackerElm) {
         // Sync trigger rides the tracker's onstatisticssaved callback.
         await trackerElm.flushUpdates();
+        flushReaderStatisticsReplication();
       }
 
       dialogManager.dialogs$.next([]);
@@ -1223,7 +1230,34 @@
    * onstatisticssaved callback). Paired writes go through
    * library.user* directly.
    */
-  function scheduleReplication(dataType: StorageDataType) {
+  function scheduleReaderStatisticsReplication() {
+    readerStatisticsSyncDirty = true;
+
+    const now = Date.now();
+    const elapsed = now - lastReaderStatisticsSyncAt;
+    if (elapsed >= READER_STATISTICS_SYNC_THROTTLE_MS) {
+      lastReaderStatisticsSyncAt = now;
+      scheduleReplication(StorageDataType.STATISTICS);
+      return;
+    }
+
+    scheduleReplication(StorageDataType.STATISTICS, {
+      debounceMs: READER_STATISTICS_SYNC_THROTTLE_MS - elapsed
+    });
+  }
+
+  function flushReaderStatisticsReplication() {
+    if (!readerStatisticsSyncDirty) return;
+
+    readerStatisticsSyncDirty = false;
+    lastReaderStatisticsSyncAt = Date.now();
+    scheduleReplication(StorageDataType.STATISTICS, { immediate: true });
+  }
+
+  function scheduleReplication(
+    dataType: StorageDataType,
+    { debounceMs, immediate = false }: { debounceMs?: number; immediate?: boolean } = {}
+  ) {
     const ctx = bookReplicationContext();
     if (!ctx) return;
 
@@ -1232,7 +1266,7 @@
     } else if (dataType === StorageDataType.PROGRESS) {
       syncAfterLocalMutation({ kind: 'progress', context: ctx });
     } else if (dataType === StorageDataType.STATISTICS) {
-      syncAfterLocalMutation({ kind: 'statistics', context: ctx });
+      syncAfterLocalMutation({ kind: 'statistics', context: ctx, debounceMs, immediate });
     }
   }
 </script>
@@ -1343,7 +1377,7 @@
       bind:wasTrackerPaused
       bind:this={trackerElm}
       onfreezecurrentlocation={freezeTrackerPosition}
-      onstatisticssaved={() => scheduleReplication(StorageDataType.STATISTICS)}
+      onstatisticssaved={scheduleReaderStatisticsReplication}
     />
   {/if}
   <StyleSheetRenderer styleSheet={$bookData$.styleSheet} />
