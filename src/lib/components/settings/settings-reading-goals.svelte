@@ -7,7 +7,7 @@
     faSave,
     faTrash
   } from '@fortawesome/free-solid-svg-icons';
-  import { ReadingGoalFrequency } from '$lib/components/book-reader/book-reading-tracker/book-reading-tracker';
+  import { ReadingGoalFrequency } from '$lib/components/book-reader/book-reading-tracker/tracker-domain';
   import SettingsReadingGoalsMerge from '$lib/components/settings/settings-reading-goals-merge.svelte';
   import { buttonClasses } from '$lib/css-classes';
   import { confirmDialog, messageDialog } from '$lib/data/simple-dialogs';

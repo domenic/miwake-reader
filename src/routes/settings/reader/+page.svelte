@@ -1,7 +1,7 @@
 <script lang="ts">
   import { browser } from '$app/environment';
   import { faPlus } from '@fortawesome/free-solid-svg-icons';
-  import { TrackerAutoPause } from '$lib/components/book-reader/book-reading-tracker/book-reading-tracker';
+  import { TrackerAutoPause } from '$lib/components/book-reader/book-reading-tracker/tracker-domain';
   import ButtonToggleGroup from '$lib/components/button-toggle-group/button-toggle-group.svelte';
   import {
     optionsForToggle,

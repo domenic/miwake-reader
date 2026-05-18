@@ -17,10 +17,15 @@
     sectionData?: SectionWithProgress[];
     exploredCharCount?: number;
     verticalMode: boolean;
-    wasTrackerPaused: boolean;
+    resumeTrackerAfterTocCloses: boolean;
   }
 
-  let { sectionData = [], exploredCharCount = 0, verticalMode, wasTrackerPaused }: Props = $props();
+  let {
+    sectionData = [],
+    exploredCharCount = 0,
+    verticalMode,
+    resumeTrackerAfterTocCloses
+  }: Props = $props();
 
   let chapters: SectionWithProgress[] = $state([]);
   let currentChapter: SectionWithProgress = $state(undefined as any);
@@ -90,7 +95,7 @@
     const nextChapter = chapters.find((chapter) => chapter.reference === chapterId);
     const hasCharacterChange = exploredCharCount !== nextChapter?.startCharacter;
 
-    if ($statisticsEnabled$ && closeToc && hasCharacterChange && !wasTrackerPaused) {
+    if ($statisticsEnabled$ && closeToc && hasCharacterChange && resumeTrackerAfterTocCloses) {
       merge(fromEvent(document, PAGE_CHANGE))
         .pipe(debounceTime(200), take(1))
         .subscribe(() => {
@@ -102,7 +107,7 @@
 
     nextChapter$.next(chapterId);
 
-    if ((!hasCharacterChange || !$statisticsEnabled$ || wasTrackerPaused) && closeToc) {
+    if ((!hasCharacterChange || !$statisticsEnabled$ || !resumeTrackerAfterTocCloses) && closeToc) {
       tocIsOpen$.set(false);
     }
   }

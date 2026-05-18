@@ -7,7 +7,7 @@ import {
   ReadingGoalFrequency,
   TrackerAutoPause,
   TrackerSkipThresholdAction
-} from '$lib/components/book-reader/book-reading-tracker/book-reading-tracker';
+} from '$lib/components/book-reader/book-reading-tracker/tracker-domain';
 import { HeatmapDataAggregration } from '$lib/components/statistics/statistics-heatmap/statistics-heatmap';
 import {
   defaultStatisticsRoute,

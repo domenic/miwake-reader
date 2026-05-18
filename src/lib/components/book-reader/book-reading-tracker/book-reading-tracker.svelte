@@ -1,14 +1,20 @@
 <script lang="ts">
   import {
     getDefaultStatistic,
-    isTrackerPaused$,
     type TrackingHistory,
-    isTrackerMenuOpen$,
-    trackerAvailable$,
     TrackerSkipThresholdAction,
     TrackerAutoPause
-  } from '$lib/components/book-reader/book-reading-tracker/book-reading-tracker';
-  import BookTimerMenu from '$lib/components/book-reader/book-reading-tracker/book-reading-tracker-menu.svelte';
+  } from '$lib/components/book-reader/book-reading-tracker/tracker-domain';
+  import {
+    closeTrackerMenu,
+    pauseTrackerFor,
+    resetTrackerRuntime,
+    resumeTrackerFor,
+    setTrackerAvailable,
+    toggleTrackerPauseByUser,
+    trackerStatus
+  } from '$lib/components/book-reader/book-reading-tracker/tracker-state.svelte';
+  import BookReadingTrackerPanel from '$lib/components/book-reader/book-reading-tracker/book-reading-tracker-panel.svelte';
   import SidebarOverlay from '$lib/components/sidebar-overlay.svelte';
   import type { SectionWithProgress } from '$lib/components/book-reader/book-toc/book-toc';
   import type { AutoScroller } from '$lib/components/book-reader/types';
@@ -32,7 +38,6 @@
     trackerSkipThresholdAction$
   } from '$lib/data/store';
   import { ReplicationSaveBehavior } from '$lib/functions/replication/replication-options';
-  import { reduceToEmptyString } from '$lib/functions/rxjs/reduce-to-empty-string';
   import {
     getDate,
     getDateKey,
@@ -42,24 +47,13 @@
     toTimeString
   } from '$lib/functions/statistic-util';
   import { fireAndForget, filterNotNullAndNotUndefined } from '$lib/functions/utils';
-  import {
-    fromEvent,
-    interval,
-    merge,
-    NEVER,
-    Observable,
-    startWith,
-    switchMap,
-    tap,
-    throttleTime
-  } from 'rxjs';
+  import { interval, NEVER, switchMap, tap } from 'rxjs';
   import { onDestroy, onMount, tick, untrack } from 'svelte';
 
   interface Props {
     fontColor: string;
     backgroundColor: string;
     bookTitle: string;
-    wasTrackerPaused: boolean;
     exploredCharCount: number;
     bookCharCount: number;
     sectionData: SectionWithProgress[];
@@ -73,7 +67,6 @@
     fontColor,
     backgroundColor,
     bookTitle,
-    wasTrackerPaused = $bindable(),
     exploredCharCount,
     bookCharCount,
     sectionData,
@@ -231,7 +224,7 @@
       actionInProgress = false;
       lastTrackerFlushTime = Date.now();
 
-      if ($isTrackerMenuOpen$) {
+      if (trackerStatus.menuOpen) {
         updateReadingGoalWindow();
       }
     }
@@ -264,8 +257,6 @@
   let jpdbPopover: HTMLElement | null = $state(null);
   let actionInProgress = $state(false);
   let hadError = $state(false);
-  let pausedByAutoPause = false;
-  let visibilityState: DocumentVisibilityState = $state('visible');
   let currentReadingGoalStart = $state('');
   let currentReadingGoalEnd = $state('');
   let remainingTimeInReadingGoalWindow = $state('');
@@ -297,7 +288,6 @@
   let trackingHistory: TrackingHistory[] = $state([]);
   let historyIndex = 0;
   let autoScrollerStatistics = $state<BooksDbStatistic>();
-  let autoScrollerTimer$: Observable<''> | undefined;
   let lastExploredCharCountScroller = initSnapshot.exploredCharCount;
   let statisticsToStore = $state(new Set<string>());
   let lastTrackerTick = 0;
@@ -307,60 +297,72 @@
   const yomiObserver = new MutationObserver(handleYomiMutation);
   const dictionaryObserver = new MutationObserver(handleMutation);
 
-  const readingTracker$ = isTrackerPaused$.pipe(
-    switchMap((isPaused) => {
-      if (isPaused) {
+  $effect(() => {
+    const paused = trackerStatus.paused;
+
+    return untrack(() => {
+      if (paused) {
         trackerIdleTime = 0;
-
         fireAndForget(flushUpdates());
-
-        return NEVER;
+        return;
       }
 
       const now = Date.now();
-
       lastTrackerFlushTime = now;
       lastTrackerTick = now;
       updateLastExploredCharCount();
 
-      return interval(1000);
-    }),
-    tap(processTicks),
-    reduceToEmptyString()
-  );
+      const timerId = window.setInterval(processTicks, 1000);
+      return () => window.clearInterval(timerId);
+    });
+  });
 
-  const updateTrackerIdleTime$ = isTrackerPaused$.pipe(
-    switchMap((isPaused) =>
-      isPaused || $trackerIdleTime$ <= 0
-        ? NEVER
-        : merge(
-            fromEvent(document, PAGE_CHANGE),
-            fromEvent<PointerEvent>(window, 'pointermove'),
-            fromEvent<Event>(document, 'selectionchange')
-          ).pipe(
-            startWith(true),
-            throttleTime(1000),
-            tap(() => (trackerIdleTime = Date.now() + $trackerIdleTime$ * 1000))
-          )
-    ),
-    reduceToEmptyString()
-  );
+  $effect(() => {
+    const paused = trackerStatus.paused;
+    const idleSeconds = $trackerIdleTime$;
+
+    if (paused || idleSeconds <= 0) return;
+
+    let lastUpdate = 0;
+    const updateIdleDeadline = () => {
+      const now = Date.now();
+      if (now - lastUpdate < 1000) return;
+      lastUpdate = now;
+      trackerIdleTime = now + idleSeconds * 1000;
+    };
+
+    updateIdleDeadline();
+    document.addEventListener(PAGE_CHANGE, updateIdleDeadline);
+    window.addEventListener('pointermove', updateIdleDeadline);
+    document.addEventListener('selectionchange', updateIdleDeadline);
+
+    return () => {
+      document.removeEventListener(PAGE_CHANGE, updateIdleDeadline);
+      window.removeEventListener('pointermove', updateIdleDeadline);
+      document.removeEventListener('selectionchange', updateIdleDeadline);
+    };
+  });
 
   let hasReadingGoal = $derived(
     !!($readingGoal$.goalStartDate && todayKey >= $readingGoal$.goalStartDate)
   );
 
   $effect(() => {
-    handleVisibilityChange(visibilityState);
+    if (trackerStatus.menuOpen && trackerStatus.pausedOutsideMenu) {
+      untrack(() => fireAndForget(updateReadingGoalWindow()));
+    }
   });
 
   $effect(() => {
-    updateReadingGoalWindowForPausedState($isTrackerMenuOpen$);
-  });
+    const currentAutoScroller = autoScroller;
 
-  $effect(() => {
-    if (autoScroller && !autoScrollerTimer$) {
-      autoScrollerTimer$ = autoScroller.wasAutoScrollerEnabled$.pipe(
+    if (!currentAutoScroller) {
+      autoScrollerStatistics = undefined;
+      return;
+    }
+
+    const subscription = currentAutoScroller.wasAutoScrollerEnabled$
+      .pipe(
         tap((isEnabled) => {
           if (isEnabled) {
             todayKey = getDateKey($startDayHoursForTracker$);
@@ -382,10 +384,11 @@
           autoScrollerStatistics = {
             ...updateStatistic(autoScrollerStatistics, 1, diff, Date.now())
           };
-        }),
-        reduceToEmptyString()
-      );
-    }
+        })
+      )
+      .subscribe();
+
+    return () => subscription.unsubscribe();
   });
 
   $effect(() => {
@@ -421,7 +424,7 @@
   onDestroy(() => {
     yomiObserver.disconnect();
     dictionaryObserver.disconnect();
-    trackerAvailable$.set(false);
+    resetTrackerRuntime();
   });
 
   function handleYomiMutation() {
@@ -441,12 +444,10 @@
 
     const isDisplayed = isDictionaryDisplayed();
 
-    if (isDisplayed && !$isTrackerPaused$) {
-      pausedByAutoPause = true;
-      isTrackerPaused$.next(true);
-    } else if (!isDisplayed && $isTrackerPaused$ && !wasTrackerPaused && pausedByAutoPause) {
-      pausedByAutoPause = false;
-      isTrackerPaused$.next(false);
+    if (isDisplayed && !trackerStatus.paused) {
+      pauseTrackerFor('dictionary');
+    } else if (!isDisplayed) {
+      resumeTrackerFor('dictionary');
     }
   }
 
@@ -459,30 +460,26 @@
 
   function handleBlur() {
     if (
-      $isTrackerPaused$ ||
+      trackerStatus.paused ||
       $trackerAutoPause$ !== TrackerAutoPause.STRICT ||
       ($trackerPopupDetection$ && isDictionaryDisplayed())
     ) {
       return;
     }
 
-    pausedByAutoPause = true;
-    isTrackerPaused$.next(true);
+    pauseTrackerFor('window-blur');
   }
 
   function handleFocus() {
     if (
-      !$isTrackerPaused$ ||
-      !pausedByAutoPause ||
-      wasTrackerPaused ||
+      !trackerStatus.paused ||
       $trackerAutoPause$ !== TrackerAutoPause.STRICT ||
       (!$trackerPopupDetection$ && isDictionaryDisplayed())
     ) {
       return;
     }
 
-    pausedByAutoPause = false;
-    isTrackerPaused$.next(false);
+    resumeTrackerFor('window-blur');
   }
 
   function updateLastExploredCharCount() {
@@ -554,26 +551,12 @@
 
     if (
       state === 'hidden' &&
-      !$isTrackerPaused$ &&
+      !trackerStatus.paused &&
       (!$trackerPopupDetection$ || !isDictionaryDisplayed())
     ) {
-      pausedByAutoPause = true;
-      isTrackerPaused$.next(true);
-    } else if (
-      state === 'visible' &&
-      $isTrackerPaused$ &&
-      pausedByAutoPause &&
-      !wasTrackerPaused &&
-      ($trackerPopupDetection$ || !isDictionaryDisplayed())
-    ) {
-      pausedByAutoPause = false;
-      isTrackerPaused$.next(false);
-    }
-  }
-
-  function updateReadingGoalWindowForPausedState(isTrackerMenuOpen: boolean) {
-    if (isTrackerMenuOpen && wasTrackerPaused) {
-      updateReadingGoalWindow();
+      pauseTrackerFor('visibility');
+    } else if (state === 'visible' && ($trackerPopupDetection$ || !isDictionaryDisplayed())) {
+      resumeTrackerFor('visibility');
     }
   }
 
@@ -611,7 +594,7 @@
         }
       }
 
-      trackerAvailable$.set(true);
+      setTrackerAvailable(true);
     } catch ({ message }: any) {
       logger.error(`Error initializing timer: ${message}`);
     }
@@ -679,8 +662,7 @@
     lastTrackerTick = nowTick;
 
     if (trackerIdleTimeReached) {
-      wasTrackerPaused = true;
-      isTrackerPaused$.next(true);
+      pauseTrackerFor('idle');
 
       if (frozenPosition === -1) {
         if ($adjustStatisticsAfterIdleTime$) {
@@ -709,8 +691,7 @@
           finalCharacterDiff <= -Math.abs($trackerBackwardSkipThreshold$))
       ) {
         if ($trackerSkipThresholdAction$ === TrackerSkipThresholdAction.PAUSE) {
-          wasTrackerPaused = true;
-          isTrackerPaused$.next(true);
+          pauseTrackerFor('skip-threshold');
           return;
         }
         finalCharacterDiff = 0;
@@ -794,20 +775,17 @@
   }
 </script>
 
-{$readingTracker$ ?? ''}
-{$updateTrackerIdleTime$ ?? ''}
-{$autoScrollerTimer$ ?? ''}
-
 <svelte:window onblur={handleBlur} onfocus={handleFocus} />
-<svelte:document bind:visibilityState />
+<svelte:document onvisibilitychange={() => handleVisibilityChange(document.visibilityState)} />
 
 <SidebarOverlay
-  bind:open={$isTrackerMenuOpen$}
+  open={trackerStatus.menuOpen}
+  onclose={closeTrackerMenu}
   side="left"
   class="z-60 max-w-xl"
   style={`color: ${fontColor}; background-color: ${backgroundColor};`}
 >
-  <BookTimerMenu
+  <BookReadingTrackerPanel
     {fontColor}
     {backgroundColor}
     {actionInProgress}
@@ -832,8 +810,9 @@
     {bookStartDate}
     {sectionData}
     canSaveStatistics={statisticsToStore.size > 0}
-    bind:wasTrackerPaused
+    trackerPaused={trackerStatus.pausedOutsideMenu}
     {onfreezecurrentlocation}
+    ontogglepause={toggleTrackerPauseByUser}
     onupdatecurrentlocation={updateLastExploredCharCount}
     onsavestatistics={() => fireAndForget(flushUpdates())}
     onrevertstatistic={revertTrackerHistory}

@@ -6,7 +6,7 @@
     faLayerGroup,
     faRepeat
   } from '@fortawesome/free-solid-svg-icons';
-  import { ReadingGoalFrequency } from '$lib/components/book-reader/book-reading-tracker/book-reading-tracker';
+  import { ReadingGoalFrequency } from '$lib/components/book-reader/book-reading-tracker/tracker-domain';
   import Popover from '$lib/components/popover/popover.svelte';
   import {
     type HeatmapMonthLabel,

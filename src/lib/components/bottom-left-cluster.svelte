@@ -19,10 +19,10 @@
     type IconDefinition
   } from '@fortawesome/free-solid-svg-icons';
   import {
-    isTrackerMenuOpen$,
-    isTrackerPaused$,
-    trackerAvailable$
-  } from '$lib/components/book-reader/book-reading-tracker/book-reading-tracker';
+    openTrackerMenu,
+    toggleTrackerPauseByUser,
+    trackerStatus
+  } from '$lib/components/book-reader/book-reading-tracker/tracker-state.svelte';
   import Popover from '$lib/components/popover/popover.svelte';
   import { pagePath } from '$lib/data/env';
   import { messageDialog } from '$lib/data/simple-dialogs';
@@ -104,7 +104,9 @@
     page.url.pathname === `${pagePath}/b` || page.url.pathname.startsWith(`${pagePath}/b/`)
   );
 
-  let showTrackerButtons = $derived(isReaderRoute && $statisticsEnabled$ && $trackerAvailable$);
+  let showTrackerButtons = $derived(
+    isReaderRoute && $statisticsEnabled$ && trackerStatus.available
+  );
 
   async function onSyncClick() {
     if (!syncClickable) return;
@@ -127,18 +129,6 @@
       return;
     }
     await goto(`${pagePath}/settings/sync`);
-  }
-
-  function togglePause() {
-    isTrackerPaused$.next(!$isTrackerPaused$);
-  }
-
-  function openTrackerMenu() {
-    // /b owns the pause bookkeeping (wasTrackerPaused) — its
-    // menu-open edge effect captures the prior state and pauses.
-    // Mutating isTrackerPaused$ here would race that handler and
-    // leave wasTrackerPaused stale on close.
-    isTrackerMenuOpen$.set(true);
   }
 
   // 32px hit target, 16-18px icon. Hover dabs a faint translucent
@@ -191,9 +181,9 @@
 
   {#if showTrackerButtons}
     {@render clusterButton(
-      $isTrackerPaused$ ? 'Resume reading tracker' : 'Pause reading tracker',
-      $isTrackerPaused$ ? faPlay : faPause,
-      { onClick: togglePause, colorClass: 'text-gray-600' }
+      trackerStatus.paused ? 'Resume reading tracker' : 'Pause reading tracker',
+      trackerStatus.paused ? faPlay : faPause,
+      { onClick: toggleTrackerPauseByUser, colorClass: 'text-gray-600' }
     )}
     {@render clusterButton('Open reading statistics', faChartBar, {
       onClick: openTrackerMenu,

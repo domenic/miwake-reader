@@ -3,7 +3,7 @@
   import {
     TrackerAutoPause,
     TrackerSkipThresholdAction
-  } from '$lib/components/book-reader/book-reading-tracker/book-reading-tracker';
+  } from '$lib/components/book-reader/book-reading-tracker/tracker-domain';
   import ButtonToggleGroup from '$lib/components/button-toggle-group/button-toggle-group.svelte';
   import {
     optionsForToggle,

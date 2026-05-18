@@ -14,6 +14,7 @@
     side?: 'left' | 'right';
     class?: string;
     style?: string;
+    onclose?: () => void;
     children?: Snippet;
   }
 
@@ -22,6 +23,7 @@
     side = 'right',
     class: className = '',
     style,
+    onclose,
     children
   }: Props = $props();
 
@@ -92,7 +94,10 @@
   data-side={side}
   closedby="any"
   {style}
-  onclose={() => (open = false)}
+  onclose={() => {
+    open = false;
+    onclose?.();
+  }}
 >
   {@render children?.()}
 </dialog>

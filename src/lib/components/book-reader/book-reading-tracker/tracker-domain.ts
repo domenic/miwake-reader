@@ -1,18 +1,4 @@
 import type { BooksDbStatistic } from '$lib/data/database/books-db/versions/books-db';
-import { writableSubject } from '$lib/functions/svelte/store';
-import { writable } from 'svelte/store';
-
-export const isTrackerMenuOpen$ = writable(false);
-
-export const isTrackerPaused$ = writableSubject<boolean>(true);
-
-/**
- * True once the tracker has finished initializing for the current book
- * — driven by BookReadingTracker firing its `trackeravailable` event.
- * Read by the bottom-left controls cluster to decide whether the
- * play/pause and stats-menu buttons should render.
- */
-export const trackerAvailable$ = writable<boolean>(false);
 
 export enum TrackerAutoPause {
   OFF = 'off',

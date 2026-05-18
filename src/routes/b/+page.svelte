@@ -92,11 +92,15 @@
     updateImageGalleryPictureSpoilers$
   } from '$lib/components/book-reader/book-reader-image-gallery/book-reader-image-gallery';
   import BookReaderImageGallery from '$lib/components/book-reader/book-reader-image-gallery/book-reader-image-gallery.svelte';
+  import { getDefaultStatistic } from '$lib/components/book-reader/book-reading-tracker/tracker-domain';
   import {
-    getDefaultStatistic,
-    isTrackerMenuOpen$,
-    isTrackerPaused$
-  } from '$lib/components/book-reader/book-reading-tracker/book-reading-tracker';
+    openTrackerMenu,
+    pauseTrackerFor,
+    resumeTrackerFor,
+    toggleTrackerPauseByUser,
+    trackerStatus,
+    type TrackerPauseReason
+  } from '$lib/components/book-reader/book-reading-tracker/tracker-state.svelte';
   import BookReadingTracker from '$lib/components/book-reader/book-reading-tracker/book-reading-tracker.svelte';
   import {
     getChapterData,
@@ -193,7 +197,7 @@
   let storedExploredCharacter = 0;
   let hasBookmarkData = $state(false);
   let trackerElm: BookReadingTracker = $state()!;
-  let wasTrackerPaused = $state(true);
+  let resumeTrackerAfterTocCloses = $state(false);
   let frozenPosition = $state(-1);
   let skipFirstFreezeChange = $state(false);
   let bookCompleted = $state(false);
@@ -470,8 +474,7 @@
     debounceTime($trackerAutostartTime$ * 1000),
     take(1),
     tap(() => {
-      wasTrackerPaused = false;
-      isTrackerPaused$.next(wasTrackerPaused);
+      resumeTrackerFor('manual');
     }),
     reduceToEmptyString()
   );
@@ -487,32 +490,21 @@
     }
 
     if ($tocIsOpen$ && !wasTocOpen) {
-      wasTrackerPaused = $isTrackerPaused$;
-      pauseTracker();
-    } else if (!$tocIsOpen$ && wasTocOpen && !wasTrackerPaused) {
-      isTrackerPaused$.next(false);
+      resumeTrackerAfterTocCloses = !trackerStatus.paused;
+      pauseTrackerFor('toc');
+    } else if (!$tocIsOpen$ && wasTocOpen) {
+      resumeTrackerFor('toc');
     }
 
     wasTocOpen = $tocIsOpen$;
   });
 
   $effect(() => {
-    if ($isTrackerMenuOpen$ && !wasTrackerMenuOpen) {
-      // Capture the pre-pause state at open so the close-side effect
-      // knows whether to resume. Any caller (cluster button,
-      // completion flow) can just flip the menu flag and trust this
-      // edge handler to keep wasTrackerPaused in sync.
-      wasTrackerPaused = $isTrackerPaused$;
-      isTrackerPaused$.next(true);
-    } else if (!$isTrackerMenuOpen$ && wasTrackerMenuOpen) {
-      if (!wasTrackerPaused) {
-        isTrackerPaused$.next(false);
-      }
-
+    if (!trackerStatus.menuOpen && wasTrackerMenuOpen) {
       bookCompleted = false;
     }
 
-    wasTrackerMenuOpen = $isTrackerMenuOpen$;
+    wasTrackerMenuOpen = trackerStatus.menuOpen;
   });
 
   $effect(() => {
@@ -530,7 +522,7 @@
   $effect(() => {
     if (showCustomReadingPoint) {
       untrack(() => {
-        pauseTracker();
+        pauseTracker('custom-reading-point');
 
         pulseElement(customReadingPointRange?.endContainer?.parentElement, 'add', 1);
 
@@ -539,7 +531,7 @@
           .subscribe(() => {
             showCustomReadingPoint = false;
             pulseElement(customReadingPointRange?.endContainer?.parentElement, 'remove', 1);
-            restartTrackerAfterCharacterChangeOrTime(1);
+            restartTrackerAfterCharacterChangeOrTime('custom-reading-point', 1);
           });
       });
     }
@@ -585,7 +577,9 @@
     }
   });
 
-  onMount(() => document.addEventListener('miwake-action', handleAction, false));
+  onMount(() => {
+    document.addEventListener('miwake-action', handleAction, false);
+  });
 
   function handleAction({ detail }: any) {
     if (!detail.type) {
@@ -628,13 +622,12 @@
   }
 
   function toggleTrackerPause() {
-    if (!statisticsEnabled$) {
+    if (!$statisticsEnabled$) {
       return;
     }
 
     dialogManager.dialogs$.next([]);
-    wasTrackerPaused = !$isTrackerPaused$;
-    isTrackerPaused$.next(wasTrackerPaused);
+    toggleTrackerPauseByUser();
   }
 
   async function handleJump() {
@@ -644,7 +637,7 @@
       return;
     }
 
-    pauseTracker();
+    pauseTracker('jump');
     skipKeyDownListener$.next(true);
 
     const target = await numberDialog({
@@ -657,11 +650,11 @@
     skipKeyDownListener$.next(false);
 
     if (typeof target !== 'number') {
-      restartTrackerAfterCharacterChangeOrTime(1);
+      restartTrackerAfterCharacterChangeOrTime('jump', 1);
       return;
     }
 
-    restartTrackerAfterCharacterChangeOrTime(1000);
+    restartTrackerAfterCharacterChangeOrTime('jump', 1000);
 
     bookmarkManager.scrollToBookmark(
       {
@@ -680,14 +673,11 @@
     }
 
     const wasAutoscrollerEnabled = autoScroller?.wasAutoScrollerEnabled$.getValue();
-    const wasTrackerPausedBefore = $statisticsEnabled$ ? $isTrackerPaused$ : true;
-
     showHeader = false;
     autoScroller?.off();
 
     if ($statisticsEnabled$) {
-      wasTrackerPaused = true;
-      isTrackerPaused$.next(true);
+      pauseTrackerFor('completion');
     }
 
     const diffToComplete =
@@ -702,9 +692,8 @@
     });
 
     if (wasCanceled) {
-      if ($statisticsEnabled$ && !wasTrackerPausedBefore) {
-        wasTrackerPaused = false;
-        $isTrackerPaused$ = false;
+      if ($statisticsEnabled$) {
+        resumeTrackerFor('completion');
       }
 
       if (wasAutoscrollerEnabled) {
@@ -801,7 +790,7 @@
         confettiWidthModifier = 36;
         confettiMaxRuns = 0;
         bookCompleted = window.matchMedia('(min-width: 900px)').matches;
-        isTrackerMenuOpen$.set(true);
+        openTrackerMenu();
       } else {
         dialogManager.dialogs$.next([]);
         confettiWidthModifier = 0;
@@ -981,7 +970,7 @@
     if (!data || !bookmarkManager) return;
 
     if (data.exploredCharCount !== exploredCharCount) {
-      pauseTracker(true);
+      pauseTracker('jump', true);
     }
 
     bookmarkManager.scrollToBookmark(data, customReadingPointScrollOffset);
@@ -1018,7 +1007,7 @@
     }
 
     if (nextChapter.startCharacter !== exploredCharCount) {
-      pauseTracker(true);
+      pauseTracker('jump', true);
     }
 
     nextChapter$.next(nextChapter.reference);
@@ -1040,8 +1029,7 @@
       await tick();
 
       autoScroller?.off();
-      wasTrackerPaused = true;
-      isTrackerPaused$.next(true);
+      pauseTrackerFor('leaving-reader');
 
       if ($confirmClose$ && storedExploredCharacter !== exploredCharCount) {
         const wasCanceled = await confirmDialog({
@@ -1050,6 +1038,7 @@
         });
 
         if (wasCanceled) {
+          resumeTrackerFor('leaving-reader');
           return;
         }
 
@@ -1101,7 +1090,7 @@
     autoScroller?.off();
 
     if ($pauseTrackerOnCustomPointChange$) {
-      pauseTracker();
+      pauseTracker('custom-reading-point');
     }
 
     if (isPaginated) {
@@ -1170,7 +1159,7 @@
             }
 
             if ($pauseTrackerOnCustomPointChange$) {
-              restartTrackerAfterCharacterChangeOrTime(1000);
+              restartTrackerAfterCharacterChangeOrTime('custom-reading-point', 1000);
             }
           });
         } else {
@@ -1191,27 +1180,28 @@
       });
   }
 
-  function pauseTracker(restartAfterCharacterChange = false) {
-    if ($statisticsEnabled$ && !$isTrackerPaused$) {
-      wasTrackerPaused = false;
-      $isTrackerPaused$ = true;
+  function pauseTracker(reason: TrackerPauseReason = 'jump', restartAfterCharacterChange = false) {
+    if ($statisticsEnabled$ && !trackerStatus.paused) {
+      pauseTrackerFor(reason);
 
       if (restartAfterCharacterChange) {
-        restartTrackerAfterCharacterChangeOrTime();
+        restartTrackerAfterCharacterChangeOrTime(reason);
       }
     }
   }
 
-  function restartTrackerAfterCharacterChangeOrTime(timerAmount = 0) {
-    if (!$statisticsEnabled$ || wasTrackerPaused) {
+  function restartTrackerAfterCharacterChangeOrTime(
+    reason: TrackerPauseReason = 'jump',
+    timerAmount = 0
+  ) {
+    if (!$statisticsEnabled$) {
       return;
     }
 
     merge(fromEvent(document, PAGE_CHANGE), timerAmount ? timer(timerAmount) : NEVER)
       .pipe(debounceTime(200), take(1))
       .subscribe(() => {
-        wasTrackerPaused = false;
-        $isTrackerPaused$ = false;
+        resumeTrackerFor(reason);
       });
   }
 
@@ -1323,7 +1313,7 @@
         showHeader = false;
 
         if ($pauseTrackerOnCustomPointChange$) {
-          pauseTracker();
+          pauseTracker('custom-reading-point');
         }
 
         if (isPaginated) {
@@ -1337,7 +1327,7 @@
         }
 
         if ($pauseTrackerOnCustomPointChange$) {
-          restartTrackerAfterCharacterChangeOrTime(1000);
+          restartTrackerAfterCharacterChangeOrTime('custom-reading-point', 1000);
         }
       }}
       onfullscreenClick={onFullscreenClick}
@@ -1374,7 +1364,6 @@
       {exploredCharCount}
       {bookCharCount}
       {autoScroller}
-      bind:wasTrackerPaused
       bind:this={trackerElm}
       onfreezecurrentlocation={freezeTrackerPosition}
       onstatisticssaved={scheduleReaderStatisticsReplication}
@@ -1426,7 +1415,7 @@
     onbookcharcountchange={(count) => (bookCharCount = count)}
     onisbookmarkscreenchange={(value) => (isBookmarkScreen = value)}
     onbookmark={bookmarkPage}
-    ontrackerPause={() => pauseTracker(true)}
+    ontrackerPause={() => pauseTracker('jump', true)}
   />
 {:else}
   {$leaveIfBookMissing$ ?? ''}
@@ -1443,7 +1432,7 @@
       sectionData={$sectionData$}
       verticalMode={$verticalMode$}
       {exploredCharCount}
-      {wasTrackerPaused}
+      {resumeTrackerAfterTocCloses}
     />
   {/if}
 </SidebarOverlay>
@@ -1546,13 +1535,13 @@
   onkeydown={onKeydown}
   onbeforeunload={handleUnload}
   onresize={() => {
-    if ($statisticsEnabled$ && !$isTrackerPaused$) {
-      pauseTracker();
+    if ($statisticsEnabled$ && !trackerStatus.paused) {
+      pauseTracker('resize');
 
       merge(fromEvent(document, PAGE_CHANGE), timer(1000))
         .pipe(debounceTime(1000), take(1))
         .subscribe(() => {
-          restartTrackerAfterCharacterChangeOrTime(1000);
+          restartTrackerAfterCharacterChangeOrTime('resize', 1000);
         });
     }
   }}

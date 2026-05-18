@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onKeyUpStatisticsTab } from '../../../routes/b/on-keydown-reader';
   import { faSpinner } from '@fortawesome/free-solid-svg-icons';
-  import { getDefaultStatistic } from '$lib/components/book-reader/book-reading-tracker/book-reading-tracker';
+  import { getDefaultStatistic } from '$lib/components/book-reader/book-reading-tracker/tracker-domain';
   import SidebarOverlay from '$lib/components/sidebar-overlay.svelte';
   import type {
     StatisticsDeleteRequest,
