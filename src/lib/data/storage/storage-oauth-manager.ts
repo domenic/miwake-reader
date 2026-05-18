@@ -295,10 +295,10 @@ export class StorageOAuthManager {
     }
     logger.debug(`refreshToken: posting to ${refreshUrl} for ${this.storageSourceName}`);
 
-    const form = new FormData();
-    form.append('client_id', this.remoteData.clientId);
-    form.append('refresh_token', this.remoteData.refreshToken);
-    form.append('grant_type', 'refresh_token');
+    const params = new URLSearchParams();
+    params.append('client_id', this.remoteData.clientId);
+    params.append('refresh_token', this.remoteData.refreshToken);
+    params.append('grant_type', 'refresh_token');
 
     // Send client_secret whenever we have one. GDrive's default app is
     // confidential and always sets one. OneDrive's default app is public
@@ -306,12 +306,16 @@ export class StorageOAuthManager {
     // — without the secret the refresh request is rejected and silent
     // sync breaks until the user reconnects.
     if (this.remoteData.clientSecret) {
-      form.append('client_secret', this.remoteData.clientSecret);
+      params.append('client_secret', this.remoteData.clientSecret);
     }
 
     let response: any;
     try {
-      const httpResponse = await fetch(refreshUrl, { method: 'POST', body: form });
+      const httpResponse = await fetch(refreshUrl, {
+        method: 'POST',
+        body: params.toString(),
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+      });
       if (!httpResponse.ok) {
         const errorBody = await convertAuthErrorResponse(httpResponse);
         logger.error(`Unable to refresh token for ${this.storageSourceName}: ${errorBody}`);
@@ -434,6 +438,7 @@ export class StorageOAuthManager {
     const authData = {
       ...StorageOAuthManager.getAuthVariables(this.storageType),
       ...this.remoteData,
+      storageType: this.storageType,
       needsRefreshToken: !this.remoteData.refreshToken,
       codeVerifier: this.codeVerifier,
       codeChallenge

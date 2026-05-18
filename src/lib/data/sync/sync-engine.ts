@@ -114,10 +114,13 @@ function reportSyncError(context: string, err: unknown): boolean {
   const message = err instanceof Error ? err.message : String(err);
 
   if (err instanceof NeedsInteractiveAuthError) {
+    const oneDrive = err.storageType === SyncEndpointType.ONEDRIVE;
     syncState.health = {
       status: 'reauth-required',
-      summary: 'Sign-in expired',
-      detail: 'Reconnect to resume syncing. Queued changes will be pushed on reconnect.'
+      summary: oneDrive ? 'Microsoft sign-in expired' : 'Sign-in expired',
+      detail: oneDrive
+        ? 'Microsoft limits browser OneDrive sessions to about 24 hours. Reconnect to renew the session; queued changes will be pushed on reconnect.'
+        : 'Reconnect to resume syncing. Queued changes will be pushed on reconnect.'
     };
     return true;
   }

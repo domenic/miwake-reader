@@ -2,6 +2,7 @@
   import { browser } from '$app/environment';
   import { faSpinner } from '@fortawesome/free-solid-svg-icons';
   import { convertAuthErrorResponse } from '$lib/functions/replication/error-handler';
+  import { SyncEndpointType } from '$lib/data/storage/storage-types';
   import Fa from 'svelte-fa';
 
   const AUTH_CHANNEL = 'miwake-auth';
@@ -121,7 +122,7 @@
         return;
       }
 
-      const { clientId, authEndpoint, scope, codeChallenge, needsRefreshToken } =
+      const { clientId, authEndpoint, scope, codeChallenge, needsRefreshToken, storageType } =
         JSON.parse(stored);
 
       if (!clientId || !scope || !authEndpoint) {
@@ -143,7 +144,12 @@
       params.append('code_challenge_method', 'S256');
       params.append('code_challenge', codeChallenge);
 
-      if (needsRefreshToken) {
+      // Google only returns a new refresh token reliably when the
+      // offline/consent knobs are present. Microsoft keys this off
+      // the offline_access scope and caps browser-SPA refresh tokens
+      // at about a day, so forcing consent there just makes routine
+      // OneDrive renewal noisier.
+      if (needsRefreshToken && storageType === SyncEndpointType.GDRIVE) {
         params.append('access_type', 'offline');
         params.append('prompt', 'consent');
       }

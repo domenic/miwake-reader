@@ -25,10 +25,15 @@
   } from '$lib/components/book-reader/book-reading-tracker/book-reading-tracker';
   import Popover from '$lib/components/popover/popover.svelte';
   import { pagePath } from '$lib/data/env';
+  import { messageDialog } from '$lib/data/simple-dialogs';
   import { isOnline$, statisticsEnabled$ } from '$lib/data/store';
+  import { connectCloud } from '$lib/data/sync/source-manager';
+  import { retryAfterReconnect } from '$lib/data/sync/sync-engine';
   import { deriveIndicatorState } from '$lib/data/sync/sync-state';
   import { syncState } from '$lib/data/sync/sync-store.svelte';
   import { formatRelativeTimeLive } from '$lib/components/settings/sync/sync-utils';
+
+  let reconnecting = $state(false);
 
   let indicator = $derived(
     deriveIndicatorState({
@@ -88,10 +93,11 @@
   });
 
   let syncClickable = $derived(
-    indicator.kind === 'disabled' ||
-      indicator.kind === 'needs-attention' ||
-      indicator.kind === 'error' ||
-      indicator.kind === 'idle'
+    !reconnecting &&
+      (indicator.kind === 'disabled' ||
+        indicator.kind === 'needs-attention' ||
+        indicator.kind === 'error' ||
+        indicator.kind === 'idle')
   );
 
   let isReaderRoute = $derived(
@@ -102,6 +108,24 @@
 
   async function onSyncClick() {
     if (!syncClickable) return;
+    const location = syncState.location;
+    if (syncState.health.status === 'reauth-required' && location?.kind === 'cloud') {
+      reconnecting = true;
+      try {
+        await connectCloud(location.provider, {
+          useCustomCredentials: location.usesCustomCredentials
+        });
+        await retryAfterReconnect();
+      } catch (err) {
+        await messageDialog({
+          title: "Couldn't reconnect",
+          message: err instanceof Error ? err.message : String(err)
+        });
+      } finally {
+        reconnecting = false;
+      }
+      return;
+    }
     await goto(`${pagePath}/settings/sync`);
   }
 
