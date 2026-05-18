@@ -12,7 +12,7 @@
     type IconDefinition
   } from '@fortawesome/free-solid-svg-icons';
   import DialogFormButton from '$lib/components/dialog-form-button.svelte';
-  import type { TrackingHistory } from '$lib/components/book-reader/book-reading-tracker/book-reading-tracker';
+  import type { TrackingHistory } from '$lib/components/book-reader/book-reading-tracker/tracker-domain';
   import {
     getChapterData,
     type SectionWithProgress
@@ -36,7 +36,7 @@
     currentReadingGoalStart: string;
     currentReadingGoalEnd: string;
     remainingTimeInReadingGoalWindow: string;
-    wasTrackerPaused: boolean;
+    trackerPaused: boolean;
     canSaveStatistics: boolean;
     timeToFinishBook: string;
     sectionData: SectionWithProgress[];
@@ -51,6 +51,7 @@
     bookCompletionStatistics: Omit<BooksDbStatistic, 'title' | 'lastStatisticModified'> | undefined;
     autoScrollerStatistics: BooksDbStatistic | undefined;
     bookStartDate: string;
+    ontogglepause?: () => void;
     onupdatecurrentlocation?: () => void;
     onfreezecurrentlocation?: () => void;
     onsavestatistics?: () => void;
@@ -68,7 +69,7 @@
     currentReadingGoalStart,
     currentReadingGoalEnd,
     remainingTimeInReadingGoalWindow,
-    wasTrackerPaused = $bindable(),
+    trackerPaused,
     canSaveStatistics,
     timeToFinishBook,
     sectionData,
@@ -83,6 +84,7 @@
     bookCompletionStatistics,
     autoScrollerStatistics,
     bookStartDate,
+    ontogglepause,
     onupdatecurrentlocation,
     onfreezecurrentlocation,
     onsavestatistics,
@@ -160,7 +162,7 @@
   function executeAction(event: string) {
     switch (event) {
       case 'toggleTracker':
-        wasTrackerPaused = !wasTrackerPaused;
+        ontogglepause?.();
         break;
       case 'updateCurrentLocation':
         onupdatecurrentlocation?.();
@@ -285,7 +287,7 @@
                 onclick={() => executeAction(action.event)}
                 onkeyup={dummyFn}
               >
-                <Fa icon={getActionIcon(action, wasTrackerPaused)} />
+                <Fa icon={getActionIcon(action, trackerPaused)} />
               </div>
             {/if}
           {/each}

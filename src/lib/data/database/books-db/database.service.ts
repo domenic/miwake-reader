@@ -31,7 +31,7 @@ import { showErrorDialogWithLogReport } from '$lib/components/log-report-dialog-
 import { messageDialog } from '$lib/data/simple-dialogs';
 import type { MergeMode } from '$lib/data/merge-mode';
 import { ReplicationSaveBehavior } from '$lib/functions/replication/replication-options';
-import { getDefaultStatistic } from '$lib/components/book-reader/book-reading-tracker/book-reading-tracker';
+import { getDefaultStatistic } from '$lib/components/book-reader/book-reading-tracker/tracker-domain';
 import { handleErrorDuringReplication } from '$lib/functions/replication/error-handler';
 import { iffBrowser } from '$lib/functions/rxjs/iff-browser';
 import { logger } from '$lib/data/logger';

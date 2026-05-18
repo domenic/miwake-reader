@@ -7,7 +7,7 @@ import {
 } from '$lib/functions/statistic-util';
 
 import type { BooksDbReadingGoal } from '$lib/data/database/books-db/versions/books-db';
-import { ReadingGoalFrequency } from '$lib/components/book-reader/book-reading-tracker/book-reading-tracker';
+import { ReadingGoalFrequency } from '$lib/components/book-reader/book-reading-tracker/tracker-domain';
 import { database } from '$lib/data/store';
 
 export interface ReadingGoal {
