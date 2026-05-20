@@ -1,26 +1,17 @@
-import { resolve } from 'node:path';
-import { expect, test } from '../helpers/harness.ts';
+import { bookFixturePath, expect, importFiles, test } from '../helpers/harness.ts';
 
-const cases = [
-  { label: 'plain text masquerading as an .epub', file: 'not-a-zip.epub' },
-  { label: 'zip without EPUB structure', file: 'not-an-epub.epub' }
+const invalidBookFixtures = [
+  { description: 'text file with an EPUB extension', filename: 'not-a-zip.epub' },
+  { description: 'ZIP file missing EPUB structure', filename: 'not-an-epub.epub' }
 ];
 
-for (const { label, file } of cases) {
-  test(`importing ${label} surfaces the import-failed dialog`, async ({ page }) => {
+for (const { description, filename } of invalidBookFixtures) {
+  test(`importing ${description} surfaces the import-failed dialog`, async ({ page }) => {
     await page.goto('/manage');
-    // Wait for Svelte to hydrate before driving the hidden file input — its `use:inputFile`
-    // directive attaches the change listener on mount, and setInputFiles fired earlier just
-    // dispatches a change event into the void.
-    await expect(page.getByText('Drop files here or click to upload')).toBeVisible();
-
-    await page
-      .locator('input[accept*="epub"]')
-      .first()
-      .setInputFiles(resolve(import.meta.dirname, `../fixtures/books/${file}`));
+    await importFiles(page, bookFixturePath(filename));
 
     const dialog = page.locator('dialog[open]');
     await expect(dialog).toContainText('Book Import Failed');
-    await expect(dialog).toContainText(file);
+    await expect(dialog).toContainText(filename);
   });
 }

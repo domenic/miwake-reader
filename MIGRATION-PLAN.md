@@ -234,3 +234,9 @@ Learnings carried forward from each batch. Future batches should apply these by 
 - **Tests are context-isolated**: each test gets a fresh `BrowserContext`, so OPFS / IDB / localStorage all start empty. Don't add defensive clears at the start of each spec. (Confirmed empirically: parallel tests don't trample.)
 - **Helpers earn their place with multiple consumers**: removed `importBook`, `bookdataName`, `progressName`, `plantOPFS` because each had only one or zero callers. Add helpers back when ≥2 specs share a common pattern, not before.
 - **The picker init script handles directory creation lazily**: calling `plantOPFS(page, [])` is a no-op — `showDirectoryPicker` already does `getDirectoryHandle('fake-sync', { create: true })` on click.
+
+### Batch 2 (Phase 2) — signout-wipe, ambient-push-on-import, force-resync
+
+- **Shared helper threshold reached**: `connectFS`, `waitForSyncIdle`, `importFiles`, `importValidBookFixture`, and `listOPFS` now have multiple consumers. Keep sync-folder setup and OPFS reads centralized in `tests/integration/helpers/harness.ts` instead of repeating inline locator/timing code in specs.
+- **Synthetic EPUB has no cover**: `valid-japanese.epub` currently proves bookdata replication but not cover replication. Do not assert `cover_*` files from this fixture unless the generator changes to include a cover.
+- **Storage assertions stay narrow**: `ambient-push-on-import` uses OPFS only because the user-visible library card cannot prove the sync-folder write happened. Prefer `expect.poll(() => listOPFS(page))` over sleeps for this class of assertion.

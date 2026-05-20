@@ -1,21 +1,18 @@
-import { resolve } from 'node:path';
-import { expect, test } from '../helpers/harness.ts';
-
-const VALID_EPUB = resolve(import.meta.dirname, '../fixtures/books/valid-japanese.epub');
+import {
+  connectFS,
+  expect,
+  importValidBookFixture,
+  test,
+  VALID_BOOK_TITLE,
+  waitForSyncIdle
+} from '../helpers/harness.ts';
 
 test('disconnecting without wipe prunes source-only placeholders', async ({ page }) => {
   // Phase 1 — import a real book and let the sync engine upload it to /fake-sync. After this the
   // OPFS layout looks like what a real prior user session would leave behind.
-  await page.goto('/settings/sync');
-  await page.getByRole('button', { name: 'Choose folder' }).click();
-  await expect(page.getByText('Connected')).toBeVisible();
-  await expect(page.getByRole('button', { name: /^Synced/ })).toBeVisible({ timeout: 15_000 });
-
-  await page.goto('/manage');
-  await expect(page.getByText('Drop files here or click to upload')).toBeVisible();
-  await page.locator('input[accept*="epub"]').first().setInputFiles(VALID_EPUB);
-  await expect(page.getByText('テスト用の本')).toBeVisible();
-  await expect(page.getByRole('button', { name: /^Synced/ })).toBeVisible({ timeout: 15_000 });
+  await connectFS(page);
+  await importValidBookFixture(page);
+  await waitForSyncIdle(page);
 
   // Phase 2 — wipe local IDB (OPFS files persist across the wipe). The post-reload state is what
   // a fresh second device sees when it points at this same sync folder.
@@ -30,12 +27,9 @@ test('disconnecting without wipe prunes source-only placeholders', async ({ page
 
   // Phase 3 — reconnect to the same OPFS folder. The sync engine reconciles, finds the existing
   // bookdata zip, and surfaces it as a placeholder card.
-  await page.goto('/settings/sync');
-  await page.getByRole('button', { name: 'Choose folder' }).click();
-  await expect(page.getByText('Connected')).toBeVisible();
-  await expect(page.getByRole('button', { name: /^Synced/ })).toBeVisible({ timeout: 15_000 });
+  await connectFS(page);
   await page.goto('/manage');
-  await expect(page.getByText('テスト用の本')).toBeVisible();
+  await expect(page.getByText(VALID_BOOK_TITLE)).toBeVisible();
 
   // Phase 4 — disconnect without wipe. The placeholder is gone from /manage; no downloaded copy
   // exists locally to keep.
