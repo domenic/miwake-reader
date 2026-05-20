@@ -1,6 +1,7 @@
 {
   "extends": "./.svelte-kit/tsconfig.json",
   "compilerOptions": {
-    "noImplicitReturns": true
+    "noImplicitReturns": true,
+    "allowImportingTsExtensions": true
   }
 }

@@ -12,3 +12,9 @@ static/apple-touch-icon.png
 static/favicon.ico
 static/icon-512x512.png
 static/maskable-icon-512x512.png
+
+# Playwright integration test artifacts
+tests/integration/test-results/
+tests/integration/playwright-report/
+tests/integration/cloud/.auth/
+tests/integration/fixtures/books/*.epub
