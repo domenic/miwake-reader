@@ -2,19 +2,20 @@ import {
   connectFS,
   expect,
   importValidBookFixture,
-  listOPFS,
+  listSyncRoot,
   test,
+  VALID_BOOK_TITLE,
   waitForSyncIdle
 } from '../helpers/harness.ts';
 
 test('importing a book while FS sync is connected pushes book data to OPFS', async ({ page }) => {
   await connectFS(page);
-  await expect.poll(() => listOPFS(page)).toEqual([]);
+  await expect.poll(() => listSyncRoot(page)).toEqual([]);
 
   await importValidBookFixture(page);
   await waitForSyncIdle(page);
 
   await expect
-    .poll(() => listOPFS(page), { timeout: 15_000 })
-    .toEqual(expect.arrayContaining([expect.stringMatching(/\/bookdata_/)]));
+    .poll(() => listSyncRoot(page), { timeout: 15_000 })
+    .toEqual([{ kind: 'directory', name: VALID_BOOK_TITLE }]);
 });

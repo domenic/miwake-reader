@@ -26,6 +26,17 @@ export async function connectFS(page: Page) {
   await waitForSyncIdle(page);
 }
 
+export async function signOutAndWipe(page: Page) {
+  await page.goto('/settings/sync');
+  await page.getByRole('button', { name: 'Sign out and wipe' }).click();
+  const dialog = page.locator('dialog[open]');
+  await expect(dialog.getByRole('heading')).toContainText('Sign out and wipe local data?');
+  await Promise.all([
+    page.waitForURL('/'),
+    dialog.getByRole('button', { name: 'Confirm' }).click()
+  ]);
+}
+
 export function bookFixturePath(filename: string) {
   return resolve(import.meta.dirname, `../fixtures/books/${filename}`);
 }
@@ -43,27 +54,65 @@ export async function importValidBookFixture(page: Page) {
   await expect(page.getByText(VALID_BOOK_TITLE)).toBeVisible({ timeout: 15_000 });
 }
 
+export async function exportBackup(
+  page: Page,
+  path: string,
+  selection: { allBooks?: boolean; appSettings?: boolean }
+) {
+  await page.goto('/settings/sync');
+  await page.getByRole('button', { name: 'Export' }).click();
+
+  const dialog = page.locator('dialog[open]');
+  await expect(dialog.getByRole('heading', { name: 'Export backup' })).toBeVisible();
+
+  if (selection.allBooks) {
+    await dialog.getByLabel('Select all').check();
+  }
+  if (selection.appSettings) {
+    await dialog.getByLabel('App settings').check();
+  }
+
+  const [download] = await Promise.all([
+    page.waitForEvent('download'),
+    dialog.getByRole('button', { name: 'Export' }).click()
+  ]);
+  await download.saveAs(path);
+}
+
+export async function importBackup(page: Page, path: string) {
+  await page.goto('/settings/sync');
+
+  const [fileChooser] = await Promise.all([
+    page.waitForEvent('filechooser'),
+    page.getByRole('button', { name: 'Import' }).click()
+  ]);
+  await fileChooser.setFiles(path);
+
+  const dialog = page.locator('dialog[open]');
+  await expect(dialog.getByRole('heading', { name: 'Import backup' })).toBeVisible();
+  await Promise.all([
+    page.waitForURL((url) => url.pathname === '/' || url.pathname === '/manage', {
+      timeout: 30_000
+    }),
+    dialog.getByRole('button', { name: 'Import' }).click()
+  ]);
+}
+
 export async function waitForSyncIdle(page: Page) {
   await expect(page.getByRole('button', { name: /^Synced/ })).toBeVisible({ timeout: 15_000 });
 }
 
-export async function listOPFS(page: Page): Promise<string[]> {
+export async function listSyncRoot(page: Page): Promise<Array<{ kind: string; name: string }>> {
   return page.evaluate(async () => {
     const opfs = await navigator.storage.getDirectory();
     const root = await opfs.getDirectoryHandle('fake-sync', { create: true });
-    const result: string[] = [];
+    const result: Array<{ kind: string; name: string }> = [];
 
-    for await (const [dirName, dirHandle] of root.entries()) {
-      if (dirHandle.kind === 'directory') {
-        for await (const [fileName] of dirHandle.entries()) {
-          result.push(`${dirName}/${fileName}`);
-        }
-      } else {
-        result.push(dirName);
-      }
+    for await (const [name, handle] of root.entries()) {
+      result.push({ kind: handle.kind, name });
     }
 
-    return result.sort();
+    return result.sort((a, b) => a.name.localeCompare(b.name));
   });
 }
 

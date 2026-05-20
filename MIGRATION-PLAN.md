@@ -237,6 +237,12 @@ Learnings carried forward from each batch. Future batches should apply these by 
 
 ### Batch 2 (Phase 2) — signout-wipe, ambient-push-on-import, force-resync
 
-- **Shared helper threshold reached**: `connectFS`, `waitForSyncIdle`, `importFiles`, `importValidBookFixture`, and `listOPFS` now have multiple consumers. Keep sync-folder setup and OPFS reads centralized in `tests/integration/helpers/harness.ts` instead of repeating inline locator/timing code in specs.
+- **Shared helper threshold reached**: `connectFS`, `waitForSyncIdle`, `importFiles`, `importValidBookFixture`, and `listSyncRoot` now have multiple consumers. Keep sync-folder setup and OPFS reads centralized in `tests/integration/helpers/harness.ts` instead of repeating inline locator/timing code in specs.
 - **Synthetic EPUB has no cover**: `valid-japanese.epub` currently proves bookdata replication but not cover replication. Do not assert `cover_*` files from this fixture unless the generator changes to include a cover.
-- **Storage assertions stay narrow**: `ambient-push-on-import` uses OPFS only because the user-visible library card cannot prove the sync-folder write happened. Prefer `expect.poll(() => listOPFS(page))` over sleeps for this class of assertion.
+- **Storage assertions stay narrow**: ambient push specs use OPFS only because the user-visible library card cannot prove the sync-folder write happened. Assert sync-root book folders, not internal `bookdata_*` / `progress_*` filenames, unless the filename schema is the behavior under test.
+
+### Batch 3 (Phase 2) — backup app settings, backup import push
+
+- **Backup flows can stay fully UI-driven**: export/import backup specs use the real dialogs and `testInfo.outputPath(...)` downloads. No `/tmp` paths or hand-built ZIP fixtures are needed.
+- **Use app wipe as fresh-device setup when it is part of the user model**: backup restore specs reset between export and import through the same Sign out and wipe flow users see, which keeps setup independent from IndexedDB/localStorage internals.
+- **Drop stale-state-only scenarios unless they protect a supported recovery path**: scenario 23 (`open-placeholder-no-sync`) requires manufacturing a placeholder row with no sync location. Current normal UI flows prune or block that state, but defensive/boot-race states still make the reader branch plausible. Treat the scenario as D-class for migration rather than codifying stale-state setup in the integration suite.
