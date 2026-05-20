@@ -213,6 +213,24 @@ When resuming this work:
 
 1. Read this file first. It is the source of truth.
 2. Check Phase 0 status — what's done, what's pending.
-3. Find the most recent batch PR (if any) to see the current audit-worksheet style and pick up where it left off.
-4. The original harness at `~/miwake-harness/` is the reference for what each scenario does. Don't modify it; treat it as read-only source material until all scenarios are migrated, then archive it.
-5. The Bug 1 verification in Phase 0 matters: if it isn't actually fixed in main, scenario 4 conversion will fail until it is.
+3. Read the "Work log" section below — accumulated learnings should be applied to every new batch.
+4. Find the most recent batch PR (if any) to see the current audit-worksheet style and pick up where it left off.
+5. The original harness at `~/miwake-harness/` is the reference for what each scenario does. Don't modify it; treat it as read-only source material until all scenarios are migrated, then archive it.
+6. The Bug 1 verification in Phase 0 matters: if it isn't actually fixed in main, scenario 4 conversion will fail until it is.
+
+## Work log
+
+Learnings carried forward from each batch. Future batches should apply these by default.
+
+### Batch 1 (Phase 2) — fs-empty, import-bad-epub × 2, disconnect-no-wipe × 2
+
+- **Svelte hydration race**: any spec driving a `use:`-bound element (file input via `use:inputFile`, action-attached buttons, etc.) must wait for hydration before the interaction. `setInputFiles` fired before the action attaches dispatches a `change` event into the void. Anchor on an interactive UI element first (e.g. `await expect(page.getByText('Drop files…')).toBeVisible()`) before driving the input.
+- **"Connected" is not "settled"**: the Connected badge fires after the OAuth/handle handshake but before the sync engine reconciles. The bottom-left indicator's `/^Synced/` label is the actual engine-idle signal. Any spec whose post-condition depends on sync having drained should wait for `page.getByRole('button', { name: /^Synced/ })`. Currently costs ~5–6s per wait; the Phase 2 design decision (env-driven debounce override vs. `syncEngine.idle$` observable vs. UI-proxy polling) becomes pressing as batches accumulate.
+- **Prefer user-visible behavior over wire-format coupling**: planting OPFS files via `bookdataName(...)`/`progressName(...)` couples the test to the sync layer's filename schema. Drive setup through the UI (import an EPUB, let the sync engine populate OPFS); assert through what users see (book card on `/manage`, empty-state text, etc.). When a test truly needs a placeholder (a source-only book the device hasn't downloaded), use sign-out-and-wipe to clear local IDB while OPFS persists — that simulates a "fresh second device pointing at the same source" without any format knowledge in the test. Slower, but format-agnostic.
+- **Parameterize over distinct failure shapes**: when porting a spec that exercises one error mode, look for adjacent ones worth covering in the same file. E.g., malformed-EPUB has two natural shapes (not-a-zip, zip-without-EPUB-structure) and they're trivially parameterized in one `for` loop over a `cases` array. Cheaper than one spec per shape.
+- **Verify bug hypotheses before recording them**: a test failure has many possible causes (hydration race, selector mismatch, timing, real bug). My initial "valid-zip-bad-mimetype silently drops" claim was a misread of a hydration-race failure. Reproduce with a clean known-good setup before reporting a bug; don't pattern-match from a failed assertion.
+- **Locator scoping for dialogs**: `page.locator('dialog[open]').getByRole('button', { name: '…' })` is unambiguous even when the same button label appears on the page behind the modal. Avoid `.last()` tricks — they encode DOM ordering assumptions that aren't stable.
+- **`page.waitForURL` accepts globs but bare strings are cleaner**: `waitForURL('/')` resolves against `baseURL` and matches exactly. Glob `'**/'` works but reads as "any URL ending in slash" — confusing intent.
+- **Tests are context-isolated**: each test gets a fresh `BrowserContext`, so OPFS / IDB / localStorage all start empty. Don't add defensive clears at the start of each spec. (Confirmed empirically: parallel tests don't trample.)
+- **Helpers earn their place with multiple consumers**: removed `importBook`, `bookdataName`, `progressName`, `plantOPFS` because each had only one or zero callers. Add helpers back when ≥2 specs share a common pattern, not before.
+- **The picker init script handles directory creation lazily**: calling `plantOPFS(page, [])` is a no-op — `showDirectoryPicker` already does `getDirectoryHandle('fake-sync', { create: true })` on click.

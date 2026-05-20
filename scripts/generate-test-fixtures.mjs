@@ -10,7 +10,9 @@
 
 import { mkdir, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import { BlobWriter, TextReader, Uint8ArrayWriter, ZipWriter } from '@zip.js/zip.js';
+import { TextReader, Uint8ArrayWriter, ZipWriter } from '@zip.js/zip.js';
+
+const enc = new TextEncoder();
 
 const outDir = resolve(import.meta.dirname, '..', 'tests/integration/fixtures/books');
 
@@ -18,7 +20,7 @@ await mkdir(outDir, { recursive: true });
 
 await writeOut(
   'valid-japanese.epub',
-  await buildEpub({
+  await buildEPUB({
     title: 'テスト用の本',
     author: 'テスト 太郎',
     identifier: 'urn:uuid:00000000-0000-4000-8000-000000000001',
@@ -31,7 +33,13 @@ await writeOut(
   })
 );
 
-await writeOut('malformed.epub', await buildMalformedEpub());
+// "User renamed a text file to .epub" — fails at zip decoding ("End of central directory not
+// found"). The most pathological shape.
+await writeOut('not-a-zip.epub', enc.encode('this is not a zip, let alone an epub\n'));
+
+// Valid zip, EPUB-shaped name, but missing META-INF/container.xml — fails inside extractEpub. A
+// different rung of the malformed ladder than not-a-zip.
+await writeOut('not-an-epub.epub', await buildIncompleteEPUB());
 
 console.log(`Wrote fixtures to ${outDir}`);
 
@@ -41,7 +49,15 @@ async function writeOut(name, bytes) {
   console.log(`  ${name}  (${bytes.byteLength} bytes)`);
 }
 
-async function buildEpub({ title, author, identifier, language, chapters }) {
+async function buildIncompleteEPUB() {
+  const writer = new Uint8ArrayWriter();
+  const zip = new ZipWriter(writer);
+  await zip.add('mimetype', new TextReader('not/an-epub'), { level: 0 });
+  await zip.close();
+  return writer.getData();
+}
+
+async function buildEPUB({ title, author, identifier, language, chapters }) {
   const writer = new Uint8ArrayWriter();
   const zip = new ZipWriter(writer);
 
@@ -70,15 +86,6 @@ async function buildEpub({ title, author, identifier, language, chapters }) {
 
   await zip.close();
   return writer.getData();
-}
-
-async function buildMalformedEpub() {
-  const writer = new BlobWriter();
-  const zip = new ZipWriter(writer);
-  await zip.add('mimetype', new TextReader('not/an-epub'), { level: 0 });
-  await zip.close();
-  const blob = await writer.getData();
-  return new Uint8Array(await blob.arrayBuffer());
 }
 
 function containerXml() {
