@@ -155,9 +155,9 @@ export async function reconcileBooksOnBoot(): Promise<void> {
   // but missing from the listing get pruned. Skip when the user has
   // opted out of pulling remote state into local:
   //   - `Off`: sync is off entirely; nothing to do.
-  //   - `Up`: push-only; the post-boot push will mirror any local
-  //     book up to the source even if it's currently absent there,
-  //     so we must NOT prune the local copy first.
+  //   - `Up`: push-only; a missing source copy should not be treated
+  //     as authority to delete a local book. The next local mutation or
+  //     explicit resync can push it back up.
   if (!isPullAllowed()) return;
 
   const handler = endpointFor(location);

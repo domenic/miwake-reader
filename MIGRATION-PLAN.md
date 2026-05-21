@@ -246,3 +246,9 @@ Learnings carried forward from each batch. Future batches should apply these by 
 - **Backup flows can stay fully UI-driven**: export/import backup specs use the real dialogs and `testInfo.outputPath(...)` downloads. No `/tmp` paths or hand-built ZIP fixtures are needed.
 - **Use app wipe as fresh-device setup when it is part of the user model**: backup restore specs reset between export and import through the same Sign out and wipe flow users see, which keeps setup independent from IndexedDB/localStorage internals.
 - **Drop stale-state-only scenarios unless they protect a supported recovery path**: scenario 23 (`open-placeholder-no-sync`) requires manufacturing a placeholder row with no sync location. Current normal UI flows prune or block that state, but defensive/boot-race states still make the reader branch plausible. Treat the scenario as D-class for migration rather than codifying stale-state setup in the integration suite.
+
+### Batch 4 (Phase 2) — sync direction policies
+
+- **Drive sync direction through the settings UI**: `setSyncDirection()` opens Settings → Sync and checks the radio for Up only, Down only, or Off. Specs should not set `localStorage.autoReplication` directly.
+- **Assert source presence at the book-folder level**: direction-policy specs use `listSyncRoot()` and assert the book-title directory exists or is absent. They intentionally avoid `bookdata_*` filename coupling.
+- **Update stale scenario expectations against current product behavior**: scenario 39's old harness expected a whole-library upward mirror on every boot. Commit `55cf3d6` intentionally removed that boot push to reduce noisy sync activity, so the migrated spec keeps the important Up-only guarantee — a missing source copy does not prune the local book — without asserting an immediate re-push.

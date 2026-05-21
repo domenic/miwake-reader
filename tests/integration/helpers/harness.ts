@@ -3,6 +3,18 @@ import { test as base, expect, type Page } from '@playwright/test';
 
 export { expect };
 
+interface RemoveEntryCall {
+  directoryName: string;
+  name: string;
+  recursive: boolean;
+}
+
+declare global {
+  interface Window {
+    __miwakeTestRemoveEntryLog?: RemoveEntryCall[];
+  }
+}
+
 const VALID_BOOK_FILENAME = 'valid-japanese.epub';
 
 export const VALID_BOOK_TITLE = 'テスト用の本';
@@ -54,6 +66,24 @@ export async function importValidBookFixture(page: Page) {
   await expect(page.getByText(VALID_BOOK_TITLE)).toBeVisible({ timeout: 15_000 });
 }
 
+export async function deleteBookFromManage(page: Page, title: string) {
+  await page.goto('/manage');
+  const bookTitle = page.getByText(title, { exact: true });
+  await expect(bookTitle).toBeVisible();
+
+  await page.getByRole('button', { name: 'Select' }).click();
+  await bookTitle.click();
+  await page.getByRole('button', { name: 'Delete Book' }).click();
+
+  await expect(bookTitle).toHaveCount(0);
+}
+
+export async function setSyncDirection(page: Page, direction: 'Up only' | 'Down only' | 'Off') {
+  await page.goto('/settings/sync');
+  await page.getByText('Advanced').click();
+  await page.getByRole('group', { name: 'Sync direction' }).getByLabel(direction).check();
+}
+
 export async function exportBackup(
   page: Page,
   path: string,
@@ -99,7 +129,9 @@ export async function importBackup(page: Page, path: string) {
 }
 
 export async function waitForSyncIdle(page: Page) {
-  await expect(page.getByRole('button', { name: /^Synced/ })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole('button', { name: /^(Synced|Up to date)/ })).toBeVisible({
+    timeout: 15_000
+  });
 }
 
 export async function listSyncRoot(page: Page): Promise<Array<{ kind: string; name: string }>> {
@@ -116,6 +148,27 @@ export async function listSyncRoot(page: Page): Promise<Array<{ kind: string; na
   });
 }
 
+export async function clearRemoveEntryLog(page: Page) {
+  await page.evaluate(() => {
+    window.__miwakeTestRemoveEntryLog = [];
+  });
+}
+
+export async function listRemoveEntryLog(page: Page): Promise<RemoveEntryCall[]> {
+  return page.evaluate(() => window.__miwakeTestRemoveEntryLog ?? []);
+}
+
+export async function removeSyncRootEntry(page: Page, name: string) {
+  await page.evaluate(
+    async ({ name }) => {
+      const opfs = await navigator.storage.getDirectory();
+      const root = await opfs.getDirectoryHandle('fake-sync', { create: true });
+      await root.removeEntry(name, { recursive: true });
+    },
+    { name }
+  );
+}
+
 /**
  * Init script: runs in the page before any app code. Patches showDirectoryPicker to return an
  * OPFS-backed handle rooted at /fake-sync, and patches FileSystemDirectoryHandle permission methods
@@ -129,6 +182,21 @@ export async function listSyncRoot(page: Page): Promise<Array<{ kind: string; na
 function pickerInitScript() {
   FileSystemDirectoryHandle.prototype.queryPermission = async () => 'granted';
   FileSystemDirectoryHandle.prototype.requestPermission = async () => 'granted';
+
+  window.__miwakeTestRemoveEntryLog = [];
+  const originalRemoveEntry = FileSystemDirectoryHandle.prototype.removeEntry;
+  FileSystemDirectoryHandle.prototype.removeEntry = async function (
+    this: FileSystemDirectoryHandle,
+    name: string,
+    options?: { recursive?: boolean }
+  ) {
+    window.__miwakeTestRemoveEntryLog?.push({
+      directoryName: this.name,
+      name,
+      recursive: options?.recursive === true
+    });
+    return originalRemoveEntry.call(this, name, options);
+  };
 
   window.showDirectoryPicker = async () => {
     const opfs = await navigator.storage.getDirectory();
