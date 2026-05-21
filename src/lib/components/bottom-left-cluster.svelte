@@ -26,7 +26,7 @@
   import Popover from '$lib/components/popover/popover.svelte';
   import { pagePath } from '$lib/data/env';
   import { messageDialog } from '$lib/data/simple-dialogs';
-  import { isOnline$, statisticsEnabled$ } from '$lib/data/store';
+  import { autoReplication$, isOnline$, statisticsEnabled$ } from '$lib/data/store';
   import { connectCloud } from '$lib/data/sync/source-manager';
   import { retryAfterReconnect } from '$lib/data/sync/sync-engine';
   import { deriveIndicatorState } from '$lib/data/sync/sync-state';
@@ -40,6 +40,7 @@
       location: syncState.location,
       health: syncState.health,
       online: $isOnline$,
+      direction: $autoReplication$,
       pending: syncState.isSyncPending,
       syncing: syncState.isSyncing
     })
@@ -47,6 +48,7 @@
 
   const icons = {
     disabled: faCloudArrowUp,
+    off: faCloudArrowUp,
     offline: faWifi,
     idle: faCircleCheck,
     pending: faCloudArrowUp,
@@ -61,6 +63,7 @@
   // chrome (footer text, header) so the cluster doesn't dominate.
   const wrapperVariantClasses = {
     disabled: 'text-gray-400',
+    off: 'text-gray-500',
     offline: 'text-gray-400',
     idle: 'text-emerald-500/80',
     pending: 'text-sky-500/80',
@@ -73,6 +76,8 @@
     switch (indicator.kind) {
       case 'disabled':
         return 'Sync not configured';
+      case 'off':
+        return 'Sync is off';
       case 'offline':
         return "Offline — changes will sync when you're back online";
       case 'idle':
@@ -95,6 +100,7 @@
   let syncClickable = $derived(
     !reconnecting &&
       (indicator.kind === 'disabled' ||
+        indicator.kind === 'off' ||
         indicator.kind === 'needs-attention' ||
         indicator.kind === 'error' ||
         indicator.kind === 'idle')
@@ -128,7 +134,11 @@
       }
       return;
     }
-    await goto(`${pagePath}/settings/sync`);
+    await goto(
+      indicator.kind === 'off'
+        ? `${pagePath}/settings/sync#sync-direction`
+        : `${pagePath}/settings/sync`
+    );
   }
 
   // 32px hit target, 16-18px icon. Hover dabs a faint translucent

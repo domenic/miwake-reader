@@ -8,6 +8,7 @@
 
   interface Props {
     heading: string;
+    id?: string;
     subHeading?: string;
     name: string;
     options: Option[];
@@ -15,10 +16,10 @@
     onchange: (value: T) => void;
   }
 
-  let { heading, subHeading, name, options, selected, onchange }: Props = $props();
+  let { heading, id, subHeading, name, options, selected, onchange }: Props = $props();
 </script>
 
-<fieldset class="mt-5">
+<fieldset {id} class="mt-5">
   <legend class="mb-1 text-base font-medium">{heading}</legend>
   {#if subHeading}
     <p class="mb-1 text-sm text-gray-600">{subHeading}</p>

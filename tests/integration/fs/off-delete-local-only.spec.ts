@@ -23,7 +23,7 @@ test('deleting a book with sync Off leaves the source copy intact', async ({ pag
   await setSyncDirection(page, 'Off');
   await clearRemoveEntryLog(page);
   await deleteBookFromManage(page, VALID_BOOK_TITLE);
-  await waitForSyncIdle(page);
+  await expect(page.getByRole('button', { name: 'Sync is off' })).toBeVisible();
 
   expect(await listRemoveEntryLog(page)).not.toContainEqual({
     directoryName: 'fake-sync',
