@@ -1277,8 +1277,9 @@
   onclick={() => (showHeader = true)}
 ></button>
 <div
-  class="elevation-4 writing-horizontal-tb fixed inset-x-0 top-0 z-10 w-full transform-gpu transition-[translate] duration-[400ms] ease-in-out"
+  class="elevation-4 writing-horizontal-tb fixed inset-x-0 top-0 z-10 w-full transform-gpu transition-[opacity,translate] duration-150 ease-in-out"
   inert={!showHeader}
+  class:opacity-0={!showHeader}
   style:translate={showHeader ? undefined : '0 -100%'}
   use:clickOutside={() => (showHeader = false)}
 >
