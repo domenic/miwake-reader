@@ -252,3 +252,8 @@ Learnings carried forward from each batch. Future batches should apply these by 
 - **Drive sync direction through the settings UI**: `setSyncDirection()` opens Settings → Sync and checks the radio for Up only, Down only, or Off. Specs should not set `localStorage.autoReplication` directly.
 - **Assert source presence at the book-folder level**: direction-policy specs use `listSyncRoot()` and assert the book-title directory exists or is absent. They intentionally avoid `bookdata_*` filename coupling.
 - **Update stale scenario expectations against current product behavior**: scenario 39's old harness expected a whole-library upward mirror on every boot. Commit `55cf3d6` intentionally removed that boot push to reduce noisy sync activity, so the migrated spec keeps the important Up-only guarantee — a missing source copy does not prune the local book — without asserting an immediate re-push.
+
+### Batch 5 (Phase 2) — cross-device delete and local-wins resync
+
+- **Simulate source-side deletion at the book-folder boundary**: specs remove the title directory from the OPFS-backed sync root, then assert UI behavior and root entries. They do not inspect or fabricate `bookdata_*` internals.
+- **Use force re-sync through shared UI helpers**: `forceFullResync()` is the normal workflow helper and navigates to Settings → Sync. `forceFullResyncFromSettings()` is the route-local helper for source-deletion tests that must avoid a reload-triggered boot reconcile before choosing "This device wins".

@@ -12,12 +12,12 @@ import {
   waitForSyncIdle
 } from '../helpers/harness.ts';
 
-test('deleting a book with sync Off leaves the source copy intact', async ({ page }) => {
+test('deleting a book with sync "Off" leaves the source copy intact', async ({ page }) => {
   await connectFS(page);
   await importValidBookFixture(page);
   await waitForSyncIdle(page);
   await expect
-    .poll(() => listSyncRoot(page))
+    .poll(() => listSyncRoot(page), { timeout: 15_000 })
     .toEqual([{ kind: 'directory', name: VALID_BOOK_TITLE }]);
 
   await setSyncDirection(page, 'Off');

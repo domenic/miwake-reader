@@ -84,6 +84,47 @@ export async function setSyncDirection(page: Page, direction: 'Up only' | 'Down 
   await page.getByRole('group', { name: 'Sync direction' }).getByLabel(direction).check();
 }
 
+export async function forceFullResync(
+  page: Page,
+  direction: 'Keep newest' | 'This device wins' | 'Sync location wins' = 'Keep newest'
+) {
+  await page.goto('/settings/sync');
+  await forceFullResyncFromSettings(page, direction);
+}
+
+/**
+ * Drives the Force full re-sync dialog from an already-open Settings → Sync page.
+ *
+ * Most workflow helpers navigate to their owning route themselves. This lower-level helper exists
+ * for source-deletion tests where a navigation would remount the app and run boot reconcile before
+ * the test can choose "This device wins". In that state, boot reconcile correctly treats the source
+ * listing as authoritative and can prune the local book that the local-wins resync is supposed to
+ * push back up.
+ */
+export async function forceFullResyncFromSettings(
+  page: Page,
+  direction: 'Keep newest' | 'This device wins' | 'Sync location wins' = 'Keep newest'
+) {
+  await expect(page).toHaveURL(/\/settings\/sync(?:$|[?#])/);
+  await page.getByRole('button', { name: 'Re-sync' }).click();
+
+  const dialog = page.locator('dialog[open]');
+  await expect(dialog.getByRole('heading')).toContainText('Force full re-sync');
+
+  if (direction !== 'Keep newest') {
+    await dialog.getByRole('group', { name: 'Direction' }).getByLabel(direction).check();
+  }
+
+  const confirmLabel =
+    direction === 'Keep newest'
+      ? 'Reconcile'
+      : direction === 'This device wins'
+        ? 'Push over'
+        : 'Pull over';
+  await dialog.getByRole('button', { name: confirmLabel }).click();
+  await waitForSuccessfulSync(page);
+}
+
 export async function exportBackup(
   page: Page,
   path: string,
@@ -132,6 +173,10 @@ export async function waitForSyncIdle(page: Page) {
   await expect(page.getByRole('button', { name: /^(Synced|Up to date)/ })).toBeVisible({
     timeout: 15_000
   });
+}
+
+export async function waitForSuccessfulSync(page: Page) {
+  await expect(page.getByRole('button', { name: /^Synced/ })).toBeVisible({ timeout: 15_000 });
 }
 
 export async function listSyncRoot(page: Page): Promise<Array<{ kind: string; name: string }>> {
