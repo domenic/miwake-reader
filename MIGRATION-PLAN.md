@@ -262,3 +262,7 @@ Learnings carried forward from each batch. Future batches should apply these by 
 
 - **Keep leave-dialog setup UI-driven**: disconnect-with-wipe imports a real fixture so the "Also wipe my library on this device" option appears naturally for a downloaded book.
 - **Tracker visibility tests can stay mostly UI-level**: the auto-resume spec enables tracker settings through Settings → Statistics, uses the real reader tracker buttons, and only patches `document.visibilityState` to simulate tab hide/show events.
+
+### Batch 7 (Phase 2) — source-only placeholder
+
+- **Create source-only placeholders through a fresh-device flow**: the placeholder spec imports and syncs a real fixture, signs out and wipes local app state, then reconnects to the same OPFS-backed source. This covers "folder already has books" behavior without hand-planting `bookdata_*` or `progress_*` files.
