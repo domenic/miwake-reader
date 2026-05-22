@@ -257,3 +257,8 @@ Learnings carried forward from each batch. Future batches should apply these by 
 
 - **Simulate source-side deletion at the book-folder boundary**: specs remove the title directory from the OPFS-backed sync root, then assert UI behavior and root entries. They do not inspect or fabricate `bookdata_*` internals.
 - **Use force re-sync through shared UI helpers**: `forceFullResync()` is the normal workflow helper and navigates to Settings → Sync. `forceFullResyncFromSettings()` is the route-local helper for source-deletion tests that must avoid a reload-triggered boot reconcile before choosing "This device wins".
+
+### Batch 6 (Phase 2) — leave dialog and tracker controls
+
+- **Keep leave-dialog setup UI-driven**: disconnect-with-wipe imports a real fixture so the "Also wipe my library on this device" option appears naturally for a downloaded book.
+- **Tracker visibility tests can stay mostly UI-level**: the auto-resume spec enables tracker settings through Settings → Statistics, uses the real reader tracker buttons, and only patches `document.visibilityState` to simulate tab hide/show events.

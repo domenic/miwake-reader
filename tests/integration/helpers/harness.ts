@@ -12,6 +12,7 @@ interface RemoveEntryCall {
 declare global {
   interface Window {
     __miwakeTestRemoveEntryLog?: RemoveEntryCall[];
+    __miwakeTestSetVisibilityState?: (state: DocumentVisibilityState) => void;
   }
 }
 
@@ -214,6 +215,12 @@ export async function removeSyncRootEntry(page: Page, name: string) {
   );
 }
 
+export async function setDocumentVisibility(page: Page, state: DocumentVisibilityState) {
+  await page.evaluate((state) => {
+    window.__miwakeTestSetVisibilityState?.(state);
+  }, state);
+}
+
 /**
  * Init script: runs in the page before any app code. Patches showDirectoryPicker to return an
  * OPFS-backed handle rooted at /fake-sync, and patches FileSystemDirectoryHandle permission methods
@@ -223,10 +230,25 @@ export async function removeSyncRootEntry(page: Page, name: string) {
  * FileSystemDirectoryHandle is structurally identical whether it comes from the picker or from
  * navigator.storage.getDirectory, so substituting an OPFS handle gives the app a fully-functional
  * filesystem to write to without any picker UI.
+ *
+ * Playwright 1.60 does not expose a public API for making a headless page become hidden, and
+ * `page.bringToFront()` leaves all pages visible in this runner. Chromium's lifecycle CDP hooks
+ * also do not update `document.visibilityState` or fire `visibilitychange`, so the same init script
+ * installs a narrow Page Visibility seam that tests can drive with `setDocumentVisibility()`.
  */
 function pickerInitScript() {
   FileSystemDirectoryHandle.prototype.queryPermission = async () => 'granted';
   FileSystemDirectoryHandle.prototype.requestPermission = async () => 'granted';
+
+  let testVisibilityState: DocumentVisibilityState = 'visible';
+  Object.defineProperty(document, 'visibilityState', {
+    configurable: true,
+    get: () => testVisibilityState
+  });
+  window.__miwakeTestSetVisibilityState = (state: DocumentVisibilityState) => {
+    testVisibilityState = state;
+    document.dispatchEvent(new Event('visibilitychange'));
+  };
 
   window.__miwakeTestRemoveEntryLog = [];
   const originalRemoveEntry = FileSystemDirectoryHandle.prototype.removeEntry;
