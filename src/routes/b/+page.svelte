@@ -20,8 +20,6 @@
     tap,
     timer
   } from 'rxjs';
-  import { quintInOut } from 'svelte/easing';
-  import { fly } from 'svelte/transition';
   import { browser } from '$app/environment';
   import { page } from '$app/state';
   import { goto } from '$app/navigation';
@@ -1278,80 +1276,80 @@
   aria-label="Show reader header"
   onclick={() => (showHeader = true)}
 ></button>
-{#if showHeader}
-  <div
-    class="elevation-4 writing-horizontal-tb fixed inset-x-0 top-0 z-10 w-full"
-    transition:fly={{ y: -300, easing: quintInOut }}
-    use:clickOutside={() => (showHeader = false)}
-  >
-    <BookReaderHeader
-      hasChapterData={!!$sectionData$?.length}
-      hasText={!!bookCharCount}
-      hasCustomReadingPoint={!!(
-        ($customReadingPointEnabled$ || isPaginated) &&
-        ((isPaginated && customReadingPointRange) ||
-          (!isPaginated && customReadingPointLeft > -1 && customReadingPointTop > -1))
-      )}
-      showFullscreenButton={fullscreenManager.fullscreenEnabled}
-      autoScrollMultiplier={$multiplier$}
-      {hasBookmarkData}
-      {isBookmarkScreen}
-      ontocClick={() => {
-        showHeader = false;
-        tocIsOpen$.set(true);
-      }}
-      onjumpClick={handleJump}
-      {isBookCompleted}
-      oncompleteBook={completeBook}
-      onuncompleteBook={uncompleteBook}
-      onsetCustomReadingPoint={handleSetCustomReadingPoint}
-      onshowCustomReadingPoint={() => {
-        showHeader = false;
-        showCustomReadingPoint = true;
-      }}
-      onresetCustomReadingPoint={() => {
-        showHeader = false;
+<div
+  class="elevation-4 writing-horizontal-tb fixed inset-x-0 top-0 z-10 w-full transform-gpu transition-[opacity,translate] duration-150 ease-in-out"
+  inert={!showHeader}
+  class:opacity-0={!showHeader}
+  style:translate={showHeader ? undefined : '0 -100%'}
+  use:clickOutside={() => (showHeader = false)}
+>
+  <BookReaderHeader
+    hasChapterData={!!$sectionData$?.length}
+    hasText={!!bookCharCount}
+    hasCustomReadingPoint={!!(
+      ($customReadingPointEnabled$ || isPaginated) &&
+      ((isPaginated && customReadingPointRange) ||
+        (!isPaginated && customReadingPointLeft > -1 && customReadingPointTop > -1))
+    )}
+    showFullscreenButton={fullscreenManager.fullscreenEnabled}
+    autoScrollMultiplier={$multiplier$}
+    {hasBookmarkData}
+    {isBookmarkScreen}
+    ontocClick={() => {
+      showHeader = false;
+      tocIsOpen$.set(true);
+    }}
+    onjumpClick={handleJump}
+    {isBookCompleted}
+    oncompleteBook={completeBook}
+    onuncompleteBook={uncompleteBook}
+    onsetCustomReadingPoint={handleSetCustomReadingPoint}
+    onshowCustomReadingPoint={() => {
+      showHeader = false;
+      showCustomReadingPoint = true;
+    }}
+    onresetCustomReadingPoint={() => {
+      showHeader = false;
 
-        if ($pauseTrackerOnCustomPointChange$) {
-          pauseTracker('custom-reading-point');
-        }
+      if ($pauseTrackerOnCustomPointChange$) {
+        pauseTracker('custom-reading-point');
+      }
 
-        if (isPaginated) {
-          customReadingPointRange = undefined;
-        } else if ($verticalMode$) {
-          verticalCustomReadingPosition$.next(100);
-          customReadingPoint = 100;
-        } else {
-          horizontalCustomReadingPosition$.next(0);
-          customReadingPoint = 0;
-        }
+      if (isPaginated) {
+        customReadingPointRange = undefined;
+      } else if ($verticalMode$) {
+        verticalCustomReadingPosition$.next(100);
+        customReadingPoint = 100;
+      } else {
+        horizontalCustomReadingPosition$.next(0);
+        customReadingPoint = 0;
+      }
 
-        if ($pauseTrackerOnCustomPointChange$) {
-          restartTrackerAfterCharacterChangeOrTime('custom-reading-point', 1000);
-        }
-      }}
-      onfullscreenClick={onFullscreenClick}
-      onbookmarkClick={bookmarkPage}
-      onscrollToBookmarkClick={() => {
-        showHeader = false;
-        scrollToBookmark();
-      }}
-      onstatisticsClick={() => {
-        if ($rawBookData$) {
-          $preFilteredTitlesForStatistics$ = new Set([$rawBookData$.title]);
-        }
+      if ($pauseTrackerOnCustomPointChange$) {
+        restartTrackerAfterCharacterChangeOrTime('custom-reading-point', 1000);
+      }
+    }}
+    onfullscreenClick={onFullscreenClick}
+    onbookmarkClick={bookmarkPage}
+    onscrollToBookmarkClick={() => {
+      showHeader = false;
+      scrollToBookmark();
+    }}
+    onstatisticsClick={() => {
+      if ($rawBookData$) {
+        $preFilteredTitlesForStatistics$ = new Set([$rawBookData$.title]);
+      }
 
-        leaveReader(mergeEntries.STATISTICS.routeId, false);
-      }}
-      onreaderImageGalleryClick={() => {
-        showHeader = false;
-        showReaderImageGallery = true;
-      }}
-      onsettingsClick={() => leaveReader(mergeEntries.SETTINGS.routeId, false)}
-      onbookManagerClick={() => leaveReader(mergeEntries.MANAGE.routeId)}
-    />
-  </div>
-{/if}
+      leaveReader(mergeEntries.STATISTICS.routeId, false);
+    }}
+    onreaderImageGalleryClick={() => {
+      showHeader = false;
+      showReaderImageGallery = true;
+    }}
+    onsettingsClick={() => leaveReader(mergeEntries.SETTINGS.routeId, false)}
+    onbookManagerClick={() => leaveReader(mergeEntries.MANAGE.routeId)}
+  />
+</div>
 
 {#if $bookData$ && $rawBookData$}
   {#if $statisticsEnabled$}
