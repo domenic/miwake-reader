@@ -4,10 +4,6 @@
 // Run manually whenever the EPUB shape changes:
 //   npm run generate-fixtures
 //
-// The generated files are committed to the repo so tests don't rebuild them every run. Keep this
-// script self-contained — no TypeScript, no non-standard deps beyond @zip.js/zip.js (already a
-// runtime dep).
-
 import { mkdir, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { TextReader, Uint8ArrayWriter, ZipWriter } from '@zip.js/zip.js';
