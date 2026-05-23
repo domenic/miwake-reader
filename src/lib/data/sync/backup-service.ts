@@ -13,7 +13,7 @@ import { BaseStorageHandler } from '$lib/data/storage/handler/base-handler';
 import { getLocalEndpoint, getSyncEndpoint } from '$lib/data/storage/storage-handler-factory';
 import { StorageDataType, SyncEndpointType } from '$lib/data/storage/storage-types';
 import { replicateData } from '$lib/functions/replication/replicator';
-import { scopedSettings, syncAfterSourceConnected } from '$lib/data/sync/sync-engine';
+import { mirrorLocalLibraryToSource, scopedSettings } from '$lib/data/sync/sync-engine';
 
 /**
  * Reading-goal data lives in two places: archived goals in IDB's
@@ -336,7 +336,7 @@ export async function importBackup(
   // changed local library data, mirror it before the hard reload can
   // discard the in-memory ambient queue.
   if (booksImported > 0 || readingGoalsImported) {
-    await syncAfterSourceConnected({ immediate: true, reason: 'backup-import' });
+    await mirrorLocalLibraryToSource({ immediate: true });
   }
 
   // localStorage-backed stores don't observe storage events, so we

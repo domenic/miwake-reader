@@ -434,15 +434,30 @@ async function pushAllLocalBooks({
   }
 }
 
-export async function syncAfterSourceConnected({
-  immediate = false,
-  reason = 'source-connected'
+/**
+ * Complete source-connection follow-up work for source-level
+ * artifacts. Whole-library local mirroring is a separate call because
+ * re-grants and backup imports need different directionality.
+ */
+export async function syncAfterSourceConnected(): Promise<void> {
+  if (isPullAllowed()) {
+    await syncReadingGoals('pull', 'source-connected');
+  }
+}
+
+/**
+ * Mirror existing local content into the connected source. This is
+ * separate from `syncAfterSourceConnected()` because backup import
+ * has already made local data authoritative and should push those
+ * imported rows without first pulling source-level artifacts.
+ */
+export async function mirrorLocalLibraryToSource({
+  immediate = false
 }: {
   immediate?: boolean;
-  reason?: string;
 } = {}): Promise<void> {
   if (!isPushAllowed()) return;
-  await pushAllLocalBooks({ immediate, reason });
+  await pushAllLocalBooks({ immediate, reason: 'local-mirror' });
 }
 
 function schedulePushRun(delayMs = PUSH_DEBOUNCE_MS, reason = 'local-mutation'): void {
@@ -485,7 +500,7 @@ async function runPendingPushes(): Promise<void> {
       await pushOne(context, [...types]);
     }
     if (runGoals) {
-      await pushGoals();
+      await syncReadingGoals('push', 'queued');
     }
   } finally {
     pushRunning = false;
@@ -562,45 +577,50 @@ async function pushOne(context: ReplicationContext, types: BookDataType[]): Prom
 }
 
 /**
- * Run a queued reading-goals push. Library-scoped — the replicator
- * pulls the goals straight from local IDB (no per-book context
- * needed) and writes a single goals file at the source root. Mirrors
- * pushOne's offline-queue + replay shape so an offline cloud
- * connection or a stale RT defers the push instead of dropping it.
+ * Sync only the library-scoped reading-goals artifact. Connect flows
+ * use the pull side because their normal queued work mirrors local
+ * content upward; after a local wipe there is no local goal timestamp
+ * for that push queue to restore from.
  */
-async function pushGoals(): Promise<void> {
+async function syncReadingGoals(direction: 'push' | 'pull', reason: string): Promise<void> {
   const location = syncState.location;
   if (!location) return;
 
-  if (location.kind === 'cloud' && !isOnline$.getValue()) {
+  if (direction === 'push' && location.kind === 'cloud' && !isOnline$.getValue()) {
     logger.debug('push (goals): offline, queueing for replay');
-    enqueueReplay(() => pushGoals());
+    enqueueReplay(() => syncReadingGoals(direction, reason));
     return;
   }
 
-  const local = localEndpoint();
   const handler = endpointFor(location);
   const started = Date.now();
 
+  beginLongRunning();
   try {
-    logger.debug(`sync push: start reading-goals, location=${location.kind}`);
+    logger.debug(
+      `sync ${direction}: start reading-goals, reason=${reason}, location=${location.kind}`
+    );
     if (location.kind === 'cloud') {
       await handler.authenticate(null, true);
     }
     await replicateData({
-      library: local,
+      library: localEndpoint(),
       endpoint: handler,
-      direction: 'push',
+      direction,
       refreshDataList: false,
       contexts: [],
       dataToReplicate: [StorageDataType.READING_GOALS],
       settings: scopedSettings()
     });
     markSynced();
-    logger.debug(`sync push: complete reading-goals, durationMs=${Date.now() - started}`);
+    logger.debug(`sync ${direction}: complete reading-goals, durationMs=${Date.now() - started}`);
   } catch (err) {
-    const recoverable = reportSyncError('push (goals)', err);
-    if (recoverable) enqueueReplay(() => pushGoals());
+    const recoverable = reportSyncError(`${direction} reading goals`, err);
+    if (direction === 'push' && recoverable) {
+      enqueueReplay(() => syncReadingGoals(direction, reason));
+    }
+  } finally {
+    endLongRunning();
   }
 }
 

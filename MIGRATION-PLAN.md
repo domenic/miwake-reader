@@ -266,3 +266,10 @@ Learnings carried forward from each batch. Future batches should apply these by 
 ### Batch 7 (Phase 2) — source-only placeholder
 
 - **Create source-only placeholders through a fresh-device flow**: the placeholder spec imports and syncs a real fixture, signs out and wipes local app state, then reconnects to the same OPFS-backed source. This covers "folder already has books" behavior without hand-planting `bookdata_*` or `progress_*` files.
+
+### Batch 8 (Phase 2) — reading goals without books
+
+- **Keep reading-goal setup UI-driven**: the reading-goals spec uses Settings → Statistics to create the goal, then connects an empty FS source. It asserts both the root-level sync artifact and the user-facing recovery path: wipe local app state, reconnect to the same source, and see the reading goal restored in Settings → Statistics.
+- **Promote repeated settings workflows, not one-off shortcuts**: `enableStatistics()` moved to `tests/integration/helpers/harness.ts` only after three specs shared the same Settings → Statistics toggle flow. The helper still drives the real UI and waits for an enabled-only section, avoiding direct settings/localStorage writes while removing repeated hydration-prone click code.
+- **Keep sync helper APIs directional**: source connection and local mirroring are different operations. `syncAfterSourceConnected()` should handle source-level import/reconcile follow-up; `mirrorLocalLibraryToSource()` should handle pushing local/imported state outward. Avoid boolean options that make one helper mean both directions at once.
+- **Prefer user-facing recovery assertions when storage checks find a gap**: a source artifact assertion can prove a sync write happened, but a fresh-device/wipe-and-reconnect assertion proves the app can actually consume that artifact. Add the UI-level recovery check when the scenario is about portability or restore behavior.

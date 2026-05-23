@@ -1,4 +1,5 @@
 import {
+  enableStatistics,
   expect,
   importValidBookFixture,
   setDocumentVisibility,
@@ -7,13 +8,7 @@ import {
 } from '../helpers/harness.ts';
 
 test('reader tracker button auto-resumes after tab visibility returns', async ({ page }) => {
-  await page.goto('/settings/statistics');
-  await page
-    .locator('section')
-    .filter({ has: page.getByRole('heading', { name: 'Enable Statistics' }) })
-    .getByRole('button', { name: 'On', exact: true })
-    .click();
-  await expect(page.getByRole('heading', { name: 'Tracker Auto Pause' })).toBeVisible();
+  await enableStatistics(page);
   await page
     .locator('section')
     .filter({ has: page.getByRole('heading', { name: 'Tracker Auto Pause' }) })

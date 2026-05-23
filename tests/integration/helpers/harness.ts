@@ -85,6 +85,20 @@ export async function setSyncDirection(page: Page, direction: 'Up only' | 'Down 
   await page.getByRole('group', { name: 'Sync direction' }).getByLabel(direction).check();
 }
 
+export async function enableStatistics(page: Page, enabledHeading = 'Tracker Auto Pause') {
+  await page.goto('/settings/statistics');
+  const enableStatisticsSection = page.locator('section').filter({
+    has: page.getByRole('heading', { name: 'Enable Statistics' })
+  });
+
+  await expect(async () => {
+    await enableStatisticsSection.getByRole('button', { name: 'On', exact: true }).click();
+    await expect(page.getByRole('heading', { name: enabledHeading })).toBeVisible({
+      timeout: 1_000
+    });
+  }).toPass({ timeout: 10_000 });
+}
+
 export async function forceFullResync(
   page: Page,
   direction: 'Keep newest' | 'This device wins' | 'Sync location wins' = 'Keep newest'
