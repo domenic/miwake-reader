@@ -1,15 +1,13 @@
+import { expect, expectSyncRoot, test } from '../helpers/harness.ts';
 import {
   connectFS,
-  expect,
-  expectSyncRoot,
   exportBackup,
   importBackup,
   importValidBookFixture,
   signOutAndWipe,
-  test,
   VALID_BOOK_TITLE,
   waitForSyncIdle
-} from '../helpers/harness.ts';
+} from '../helpers/workflows.ts';
 
 test('restoring a book backup while FS sync is connected pushes book data to OPFS', async ({
   page

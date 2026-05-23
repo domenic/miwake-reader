@@ -1,4 +1,5 @@
-import { bookFixturePath, expect, importFiles, test } from '../helpers/harness.ts';
+import { expect, test } from '../helpers/harness.ts';
+import { bookFixturePath, importFiles } from '../helpers/workflows.ts';
 
 const invalidBookFixtures = [
   { description: 'text file with an EPUB extension', filename: 'not-a-zip.epub' },

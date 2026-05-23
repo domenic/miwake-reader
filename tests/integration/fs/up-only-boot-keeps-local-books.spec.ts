@@ -1,13 +1,10 @@
+import { expect, expectSyncRoot, removeSyncRootEntry, test } from '../helpers/harness.ts';
 import {
-  expect,
-  expectSyncRoot,
-  removeSyncRootEntry,
   setSyncDirection,
   syncValidBookFixtureToSource,
-  test,
   VALID_BOOK_TITLE,
   waitForSyncIdle
-} from '../helpers/harness.ts';
+} from '../helpers/workflows.ts';
 
 test('boot with "Up only" sync preserves local books missing from the source', async ({ page }) => {
   await syncValidBookFixtureToSource(page);

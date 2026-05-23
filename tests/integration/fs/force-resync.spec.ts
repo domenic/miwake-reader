@@ -1,11 +1,10 @@
+import { expect, test } from '../helpers/harness.ts';
 import {
   connectFS,
-  expect,
   forceFullResync,
   importValidBookFixture,
-  test,
   VALID_BOOK_TITLE
-} from '../helpers/harness.ts';
+} from '../helpers/workflows.ts';
 
 test('force re-sync "Keep newest" keeps a downloaded book available', async ({ page }) => {
   await connectFS(page);

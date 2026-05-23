@@ -1,11 +1,10 @@
+import { expect, test } from '../helpers/harness.ts';
 import {
   connectFS,
-  expect,
   signOutAndWipe,
   syncValidBookFixtureToSource,
-  test,
   VALID_BOOK_TITLE
-} from '../helpers/harness.ts';
+} from '../helpers/workflows.ts';
 
 test('opening a source-only placeholder downloads the book into the reader', async ({ page }) => {
   await syncValidBookFixtureToSource(page);

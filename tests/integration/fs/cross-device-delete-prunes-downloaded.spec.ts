@@ -1,12 +1,9 @@
+import { expect, expectSyncRoot, removeSyncRootEntry, test } from '../helpers/harness.ts';
 import {
-  expect,
-  expectSyncRoot,
-  removeSyncRootEntry,
   syncValidBookFixtureToSource,
-  test,
   VALID_BOOK_TITLE,
   waitForSyncIdle
-} from '../helpers/harness.ts';
+} from '../helpers/workflows.ts';
 
 test('boot reconcile prunes a downloaded book deleted from the sync source', async ({ page }) => {
   await syncValidBookFixtureToSource(page);

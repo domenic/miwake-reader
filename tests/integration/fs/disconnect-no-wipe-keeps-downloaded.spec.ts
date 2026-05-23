@@ -1,12 +1,11 @@
+import { expect, test } from '../helpers/harness.ts';
 import {
   connectFS,
-  expect,
   importValidBookFixture,
   openDisconnectDialog,
-  test,
   VALID_BOOK_TITLE,
   waitForSyncIdle
-} from '../helpers/harness.ts';
+} from '../helpers/workflows.ts';
 
 test('disconnecting without wipe keeps downloaded books on the device', async ({ page }) => {
   await connectFS(page);

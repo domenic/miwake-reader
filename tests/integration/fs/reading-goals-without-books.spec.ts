@@ -1,12 +1,10 @@
+import { expect, expectSyncRoot, test } from '../helpers/harness.ts';
 import {
   connectFS,
   enableStatistics,
-  expectSyncRoot,
-  expect,
   signOutAndWipe,
-  test,
   waitForSuccessfulSync
-} from '../helpers/harness.ts';
+} from '../helpers/workflows.ts';
 
 test('sync pushes reading goals with no books to the source', async ({ page }) => {
   await enableStatistics(page, 'Reading Goals');

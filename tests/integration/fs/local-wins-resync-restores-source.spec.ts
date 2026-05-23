@@ -1,13 +1,10 @@
+import { expect, expectSyncRoot, removeSyncRootEntry, test } from '../helpers/harness.ts';
 import {
-  expect,
-  expectSyncRoot,
   forceFullResyncFromSettings,
-  removeSyncRootEntry,
   syncValidBookFixtureToSource,
-  test,
   VALID_BOOK_TITLE,
   waitForSyncIdle
-} from '../helpers/harness.ts';
+} from '../helpers/workflows.ts';
 
 test('force re-sync with "This device wins" restores a local book missing from the source', async ({
   page

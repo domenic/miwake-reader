@@ -1,12 +1,11 @@
+import { expect, test } from '../helpers/harness.ts';
 import {
   connectFS,
-  expect,
   openDisconnectDialog,
   signOutAndWipe,
   syncValidBookFixtureToSource,
-  test,
   VALID_BOOK_TITLE
-} from '../helpers/harness.ts';
+} from '../helpers/workflows.ts';
 
 test('disconnecting without wipe prunes source-only placeholders', async ({ page }) => {
   // Phase 1 — import a real book and let the sync engine upload it to /fake-sync. After this the

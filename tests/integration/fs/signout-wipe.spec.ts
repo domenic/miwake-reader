@@ -1,11 +1,10 @@
+import { expect, test } from '../helpers/harness.ts';
 import {
   connectFS,
-  expect,
   importValidBookFixture,
   signOutAndWipe,
-  test,
   waitForSyncIdle
-} from '../helpers/harness.ts';
+} from '../helpers/workflows.ts';
 
 test('signing out and wiping clears the local library and sync connection', async ({ page }) => {
   await connectFS(page);

@@ -1,11 +1,10 @@
+import { expectSyncRoot, test } from '../helpers/harness.ts';
 import {
   connectFS,
-  expectSyncRoot,
   importValidBookFixture,
-  test,
   VALID_BOOK_TITLE,
   waitForSyncIdle
-} from '../helpers/harness.ts';
+} from '../helpers/workflows.ts';
 
 test('importing a book while FS sync is connected pushes book data to OPFS', async ({ page }) => {
   await connectFS(page);

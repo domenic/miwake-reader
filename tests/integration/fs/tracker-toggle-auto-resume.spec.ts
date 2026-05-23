@@ -1,11 +1,9 @@
+import { expect, setDocumentVisibility, test } from '../helpers/harness.ts';
 import {
   enableStatistics,
-  expect,
   importValidBookFixture,
-  setDocumentVisibility,
-  test,
   VALID_BOOK_TITLE
-} from '../helpers/harness.ts';
+} from '../helpers/workflows.ts';
 
 test('reader tracker button auto-resumes after tab visibility returns', async ({ page }) => {
   await enableStatistics(page);

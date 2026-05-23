@@ -1,4 +1,5 @@
-import { connectFS, expect, setSyncDirection, test } from '../helpers/harness.ts';
+import { expect, test } from '../helpers/harness.ts';
+import { connectFS, setSyncDirection } from '../helpers/workflows.ts';
 
 test('sync indicator shows a neutral off state and links to sync direction settings', async ({
   page

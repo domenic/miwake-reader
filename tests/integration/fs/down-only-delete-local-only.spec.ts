@@ -1,15 +1,17 @@
 import {
   clearRemoveEntryLog,
-  deleteBookFromManage,
   expect,
   expectSyncRoot,
   listRemoveEntryLog,
+  test
+} from '../helpers/harness.ts';
+import {
+  deleteBookFromManage,
   setSyncDirection,
   syncValidBookFixtureToSource,
-  test,
   VALID_BOOK_TITLE,
   waitForSyncIdle
-} from '../helpers/harness.ts';
+} from '../helpers/workflows.ts';
 
 test('deleting a book with "Down only" sync leaves the source copy intact', async ({ page }) => {
   await syncValidBookFixtureToSource(page);

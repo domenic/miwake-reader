@@ -1,11 +1,10 @@
+import { expect, test } from '../helpers/harness.ts';
 import {
   enableStatistics,
-  expect,
   exportBackup,
   importBackup,
-  signOutAndWipe,
-  test
-} from '../helpers/harness.ts';
+  signOutAndWipe
+} from '../helpers/workflows.ts';
 
 test('backup import restores app settings after a local wipe', async ({ page }, testInfo) => {
   const backupPath = testInfo.outputPath('app-settings-backup.zip');
