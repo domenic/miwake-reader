@@ -9,6 +9,16 @@ interface RemoveEntryCall {
   recursive: boolean;
 }
 
+interface SyncRootEntry {
+  kind: string;
+  name: string;
+}
+
+interface ExpectedSyncRootEntry {
+  kind: string | Record<string, any>;
+  name: string | Record<string, any>;
+}
+
 declare global {
   interface Window {
     __miwakeTestRemoveEntryLog?: RemoveEntryCall[];
@@ -18,6 +28,7 @@ declare global {
 }
 
 const VALID_BOOK_FILENAME = 'valid-japanese.epub';
+export const SYNC_ASSERTION_TIMEOUT = 15_000;
 
 export const VALID_BOOK_TITLE = 'テスト用の本';
 
@@ -65,7 +76,7 @@ export async function importFiles(page: Page, files: string | string[]) {
 export async function importValidBookFixture(page: Page) {
   await page.goto('/manage');
   await importFiles(page, bookFixturePath(VALID_BOOK_FILENAME));
-  await expect(page.getByText(VALID_BOOK_TITLE)).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText(VALID_BOOK_TITLE)).toBeVisible({ timeout: SYNC_ASSERTION_TIMEOUT });
 }
 
 /**
@@ -79,9 +90,7 @@ export async function importValidBookFixture(page: Page) {
 export async function syncValidBookFixtureToSource(page: Page) {
   await importValidBookFixture(page);
   await connectFS(page);
-  await expect
-    .poll(() => listSyncRoot(page), { timeout: 30_000 })
-    .toEqual([{ kind: 'directory', name: VALID_BOOK_TITLE }]);
+  await expectSyncRoot(page, [{ kind: 'directory', name: VALID_BOOK_TITLE }]);
 }
 
 export async function deleteBookFromManage(page: Page, title: string) {
@@ -96,6 +105,15 @@ export async function deleteBookFromManage(page: Page, title: string) {
   await expect(bookTitle).toHaveCount(0);
 }
 
+export async function openDisconnectDialog(page: Page) {
+  await page.goto('/settings/sync');
+  await page.getByRole('button', { name: 'Disconnect' }).click();
+
+  const dialog = page.locator('dialog[open]');
+  await expect(dialog.getByRole('heading')).toContainText('Disconnect your sync folder?');
+  return dialog;
+}
+
 export async function setSyncDirection(page: Page, direction: 'Up only' | 'Down only' | 'Off') {
   await page.goto('/settings/sync');
   await page.getByText('Advanced').click();
@@ -108,12 +126,10 @@ export async function enableStatistics(page: Page, enabledHeading = 'Tracker Aut
     has: page.getByRole('heading', { name: 'Enable Statistics' })
   });
 
-  await expect(async () => {
-    await enableStatisticsSection.getByRole('button', { name: 'On', exact: true }).click();
-    await expect(page.getByRole('heading', { name: enabledHeading })).toBeVisible({
-      timeout: 1_000
-    });
-  }).toPass({ timeout: 10_000 });
+  await enableStatisticsSection.getByRole('button', { name: 'On', exact: true }).click();
+  await expect(page.getByRole('heading', { name: enabledHeading })).toBeVisible({
+    timeout: SYNC_ASSERTION_TIMEOUT
+  });
 }
 
 export async function forceFullResync(
@@ -203,19 +219,21 @@ export async function importBackup(page: Page, path: string) {
 
 export async function waitForSyncIdle(page: Page) {
   await expect(page.getByRole('button', { name: /^(Synced|Up to date)/ })).toBeVisible({
-    timeout: 15_000
+    timeout: SYNC_ASSERTION_TIMEOUT
   });
 }
 
 export async function waitForSuccessfulSync(page: Page) {
-  await expect(page.getByRole('button', { name: /^Synced/ })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole('button', { name: /^Synced/ })).toBeVisible({
+    timeout: SYNC_ASSERTION_TIMEOUT
+  });
 }
 
-export async function listSyncRoot(page: Page): Promise<Array<{ kind: string; name: string }>> {
+async function listSyncRoot(page: Page): Promise<SyncRootEntry[]> {
   return page.evaluate(async () => {
     const opfs = await navigator.storage.getDirectory();
     const root = await opfs.getDirectoryHandle('fake-sync', { create: true });
-    const result: Array<{ kind: string; name: string }> = [];
+    const result: SyncRootEntry[] = [];
 
     for await (const [name, handle] of root.entries()) {
       result.push({ kind: handle.kind, name });
@@ -223,6 +241,16 @@ export async function listSyncRoot(page: Page): Promise<Array<{ kind: string; na
 
     return result.sort((a, b) => a.name.localeCompare(b.name));
   });
+}
+
+export async function expectSyncRoot(
+  page: Page,
+  entries: ExpectedSyncRootEntry[],
+  options?: { timeout?: number }
+) {
+  await expect
+    .poll(() => listSyncRoot(page), { timeout: SYNC_ASSERTION_TIMEOUT, ...options })
+    .toEqual(entries);
 }
 
 export async function clearRemoveEntryLog(page: Page) {

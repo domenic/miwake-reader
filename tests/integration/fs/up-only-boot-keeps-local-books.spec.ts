@@ -1,6 +1,6 @@
 import {
   expect,
-  listSyncRoot,
+  expectSyncRoot,
   removeSyncRootEntry,
   setSyncDirection,
   syncValidBookFixtureToSource,
@@ -14,7 +14,7 @@ test('boot with "Up only" sync preserves local books missing from the source', a
 
   await setSyncDirection(page, 'Up only');
   await removeSyncRootEntry(page, VALID_BOOK_TITLE);
-  await expect.poll(() => listSyncRoot(page)).toEqual([]);
+  await expectSyncRoot(page, []);
 
   await page.reload();
   await waitForSyncIdle(page);

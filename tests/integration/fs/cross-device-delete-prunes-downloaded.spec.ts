@@ -1,6 +1,6 @@
 import {
   expect,
-  listSyncRoot,
+  expectSyncRoot,
   removeSyncRootEntry,
   syncValidBookFixtureToSource,
   test,
@@ -12,12 +12,12 @@ test('boot reconcile prunes a downloaded book deleted from the sync source', asy
   await syncValidBookFixtureToSource(page);
 
   await removeSyncRootEntry(page, VALID_BOOK_TITLE);
-  await expect.poll(() => listSyncRoot(page)).toEqual([]);
+  await expectSyncRoot(page, []);
 
   await page.reload();
   await waitForSyncIdle(page);
 
   await page.goto('/manage');
   await expect(page.getByText(VALID_BOOK_TITLE, { exact: true })).toHaveCount(0);
-  await expect.poll(() => listSyncRoot(page), { timeout: 5_000 }).toEqual([]);
+  await expectSyncRoot(page, []);
 });

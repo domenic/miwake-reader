@@ -2,6 +2,7 @@ import {
   connectFS,
   expect,
   importValidBookFixture,
+  openDisconnectDialog,
   test,
   VALID_BOOK_TITLE,
   waitForSyncIdle
@@ -14,11 +15,7 @@ test('disconnecting with "Also wipe my library on this device" clears downloaded
   await connectFS(page);
   await waitForSyncIdle(page);
 
-  await page.goto('/settings/sync');
-  await page.getByRole('button', { name: 'Disconnect' }).click();
-
-  const dialog = page.locator('dialog[open]');
-  await expect(dialog.getByRole('heading')).toContainText('Disconnect your sync folder?');
+  const dialog = await openDisconnectDialog(page);
   await expect(dialog.getByText('1 downloaded book stays in your library')).toBeVisible();
   await dialog.getByLabel(/Also wipe my library on this device/).check();
   await dialog.getByRole('button', { name: 'Disconnect and wipe' }).click();

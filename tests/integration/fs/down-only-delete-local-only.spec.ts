@@ -2,8 +2,8 @@ import {
   clearRemoveEntryLog,
   deleteBookFromManage,
   expect,
+  expectSyncRoot,
   listRemoveEntryLog,
-  listSyncRoot,
   setSyncDirection,
   syncValidBookFixtureToSource,
   test,
@@ -24,7 +24,5 @@ test('deleting a book with "Down only" sync leaves the source copy intact', asyn
     name: VALID_BOOK_TITLE,
     recursive: true
   });
-  await expect
-    .poll(() => listSyncRoot(page), { timeout: 5_000 })
-    .toEqual([{ kind: 'directory', name: VALID_BOOK_TITLE }]);
+  await expectSyncRoot(page, [{ kind: 'directory', name: VALID_BOOK_TITLE }]);
 });

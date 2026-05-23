@@ -1,8 +1,8 @@
 import {
   connectFS,
   enableStatistics,
+  expectSyncRoot,
   expect,
-  listSyncRoot,
   signOutAndWipe,
   test,
   waitForSuccessfulSync
@@ -26,14 +26,12 @@ test('sync pushes reading goals with no books to the source', async ({ page }) =
   await connectFS(page);
   await waitForSuccessfulSync(page);
 
-  await expect
-    .poll(() => listSyncRoot(page), { timeout: 15_000 })
-    .toEqual([
-      {
-        kind: 'file',
-        name: expect.stringMatching(/^miwake-user-goals_\d+_\d+_\d+\.json$/)
-      }
-    ]);
+  await expectSyncRoot(page, [
+    {
+      kind: 'file',
+      name: expect.stringMatching(/^miwake-user-goals_\d+_\d+_\d+\.json$/)
+    }
+  ]);
 
   await signOutAndWipe(page);
   await connectFS(page);

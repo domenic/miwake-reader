@@ -1,8 +1,7 @@
 import {
   connectFS,
-  expect,
+  expectSyncRoot,
   importValidBookFixture,
-  listSyncRoot,
   test,
   VALID_BOOK_TITLE,
   waitForSyncIdle
@@ -10,12 +9,10 @@ import {
 
 test('importing a book while FS sync is connected pushes book data to OPFS', async ({ page }) => {
   await connectFS(page);
-  await expect.poll(() => listSyncRoot(page)).toEqual([]);
+  await expectSyncRoot(page, []);
 
   await importValidBookFixture(page);
   await waitForSyncIdle(page);
 
-  await expect
-    .poll(() => listSyncRoot(page), { timeout: 15_000 })
-    .toEqual([{ kind: 'directory', name: VALID_BOOK_TITLE }]);
+  await expectSyncRoot(page, [{ kind: 'directory', name: VALID_BOOK_TITLE }]);
 });
