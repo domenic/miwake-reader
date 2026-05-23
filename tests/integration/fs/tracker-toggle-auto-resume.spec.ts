@@ -1,9 +1,6 @@
 import { expect, setDocumentVisibility, test } from '../helpers/harness.ts';
-import {
-  enableStatistics,
-  importValidBookFixture,
-  VALID_BOOK_TITLE
-} from '../helpers/workflows.ts';
+import { importBookFixtures, openBookFromManage, VALID_BOOK } from '../helpers/fixtures.ts';
+import { enableStatistics } from '../helpers/workflows.ts';
 
 test('reader tracker button auto-resumes after tab visibility returns', async ({ page }) => {
   await enableStatistics(page);
@@ -13,9 +10,8 @@ test('reader tracker button auto-resumes after tab visibility returns', async ({
     .getByRole('button', { name: 'Moderate', exact: true })
     .click();
 
-  await importValidBookFixture(page);
-  await page.getByText(VALID_BOOK_TITLE, { exact: true }).click();
-  await page.waitForURL((url) => url.pathname === '/b' && url.searchParams.has('id'));
+  await importBookFixtures(page, [VALID_BOOK]);
+  await openBookFromManage(page, VALID_BOOK);
 
   await page.getByRole('button', { name: 'Resume reading tracker' }).click();
   await expect(page.getByRole('button', { name: 'Pause reading tracker' })).toBeVisible();

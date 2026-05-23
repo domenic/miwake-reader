@@ -1,16 +1,11 @@
 import { expect, test } from '../helpers/harness.ts';
-import {
-  connectFS,
-  importValidBookFixture,
-  openDisconnectDialog,
-  VALID_BOOK_TITLE,
-  waitForSyncIdle
-} from '../helpers/workflows.ts';
+import { expectBooksAbsent, importBookFixtures, VALID_BOOK } from '../helpers/fixtures.ts';
+import { connectFS, openDisconnectDialog, waitForSyncIdle } from '../helpers/workflows.ts';
 
 test('disconnecting with "Also wipe my library on this device" clears downloaded books', async ({
   page
 }) => {
-  await importValidBookFixture(page);
+  await importBookFixtures(page, [VALID_BOOK]);
   await connectFS(page);
   await waitForSyncIdle(page);
 
@@ -21,6 +16,6 @@ test('disconnecting with "Also wipe my library on this device" clears downloaded
 
   await expect(page.getByRole('button', { name: 'Choose folder' })).toBeVisible();
   await page.goto('/manage');
-  await expect(page.getByText(VALID_BOOK_TITLE, { exact: true })).toHaveCount(0);
+  await expectBooksAbsent(page, [VALID_BOOK]);
   await expect(page.getByText('Drop files here or click to upload')).toBeVisible();
 });

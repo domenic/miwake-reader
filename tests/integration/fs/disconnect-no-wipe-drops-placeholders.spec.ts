@@ -1,16 +1,16 @@
 import { expect, test } from '../helpers/harness.ts';
+import { expectBooksVisible, VALID_BOOK } from '../helpers/fixtures.ts';
 import {
   connectFS,
   openDisconnectDialog,
   signOutAndWipe,
-  syncValidBookFixtureToSource,
-  VALID_BOOK_TITLE
+  syncBookFixturesToSource
 } from '../helpers/workflows.ts';
 
 test('disconnecting without wipe prunes source-only placeholders', async ({ page }) => {
   // Phase 1 — import a real book and let the sync engine upload it to /fake-sync. After this the
   // OPFS layout looks like what a real prior user session would leave behind.
-  await syncValidBookFixtureToSource(page);
+  await syncBookFixturesToSource(page, [VALID_BOOK]);
 
   // Phase 2 — wipe local IDB (OPFS files persist across the wipe). The post-reload state is what
   // a fresh second device sees when it points at this same sync folder.
@@ -20,7 +20,7 @@ test('disconnecting without wipe prunes source-only placeholders', async ({ page
   // bookdata zip, and surfaces it as a placeholder card.
   await connectFS(page);
   await page.goto('/manage');
-  await expect(page.getByText(VALID_BOOK_TITLE)).toBeVisible();
+  await expectBooksVisible(page, [VALID_BOOK]);
 
   // Phase 4 — disconnect without wipe. The placeholder is gone from /manage; no downloaded copy
   // exists locally to keep.

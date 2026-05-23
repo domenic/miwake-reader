@@ -1,10 +1,6 @@
-import { resolve } from 'node:path';
 import { expect, type Page } from '@playwright/test';
-import { expectSyncRoot, SYNC_ASSERTION_TIMEOUT } from './harness.ts';
-
-const VALID_BOOK_FILENAME = 'valid-japanese.epub';
-
-export const VALID_BOOK_TITLE = 'テスト用の本';
+import { SYNC_ASSERTION_TIMEOUT } from './harness.ts';
+import { expectBooksInSyncRoot, importBookFixtures, type LibraryBookFixture } from './fixtures.ts';
 
 export async function connectFS(page: Page) {
   await page.goto('/settings/sync');
@@ -24,45 +20,21 @@ export async function signOutAndWipe(page: Page) {
   ]);
 }
 
-export function bookFixturePath(filename: string) {
-  return resolve(import.meta.dirname, `../fixtures/books/${filename}`);
-}
-
-export async function importFiles(page: Page, files: string | string[]) {
-  await expect(page.getByText('Drop files here or click to upload')).toBeVisible();
-  await page.locator('input[accept*="epub"]').first().setInputFiles(files);
-}
-
-export async function importValidBookFixture(page: Page) {
-  await page.goto('/manage');
-  await importFiles(page, bookFixturePath(VALID_BOOK_FILENAME));
-  await expect(page.getByText(VALID_BOOK_TITLE)).toBeVisible({ timeout: SYNC_ASSERTION_TIMEOUT });
-}
-
 /**
- * Imports the shared valid book fixture, connects a fresh sync source, and waits for the fixture to
- * appear as a top-level source folder.
+ * Imports book fixtures, connects a fresh sync source, and waits for those fixtures to appear as
+ * top-level source folders.
  *
- * Use this when the source copy is setup for the scenario under test. Importing before connection
- * lets the source-connection mirror do the upload; that is less racy than importing into an already
- * connected source and waiting for the ambient debounced push.
+ * Use this when source copies are setup for the scenario under test. Importing before connection
+ * lets the source-connection mirror do the upload; that is less racy than importing into an
+ * already-connected source and waiting for the ambient debounced push.
  */
-export async function syncValidBookFixtureToSource(page: Page) {
-  await importValidBookFixture(page);
+export async function syncBookFixturesToSource(
+  page: Page,
+  fixtures: readonly LibraryBookFixture[]
+) {
+  await importBookFixtures(page, fixtures);
   await connectFS(page);
-  await expectSyncRoot(page, [{ kind: 'directory', name: VALID_BOOK_TITLE }]);
-}
-
-export async function deleteBookFromManage(page: Page, title: string) {
-  await page.goto('/manage');
-  const bookTitle = page.getByText(title, { exact: true });
-  await expect(bookTitle).toBeVisible();
-
-  await page.getByRole('button', { name: 'Select' }).click();
-  await bookTitle.click();
-  await page.getByRole('button', { name: 'Delete Book' }).click();
-
-  await expect(bookTitle).toHaveCount(0);
+  await expectBooksInSyncRoot(page, fixtures);
 }
 
 export async function openDisconnectDialog(page: Page) {

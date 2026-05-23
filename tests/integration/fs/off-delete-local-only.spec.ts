@@ -1,29 +1,20 @@
-import {
-  clearRemoveEntryLog,
-  expect,
-  expectSyncRoot,
-  listRemoveEntryLog,
-  test
-} from '../helpers/harness.ts';
+import { clearRemoveEntryLog, expect, test } from '../helpers/harness.ts';
 import {
   deleteBookFromManage,
-  setSyncDirection,
-  syncValidBookFixtureToSource,
-  VALID_BOOK_TITLE
-} from '../helpers/workflows.ts';
+  expectBooksInSyncRoot,
+  expectSourceBookRemoveNotLogged,
+  VALID_BOOK
+} from '../helpers/fixtures.ts';
+import { setSyncDirection, syncBookFixturesToSource } from '../helpers/workflows.ts';
 
 test('deleting a book with sync "Off" leaves the source copy intact', async ({ page }) => {
-  await syncValidBookFixtureToSource(page);
+  await syncBookFixturesToSource(page, [VALID_BOOK]);
 
   await setSyncDirection(page, 'Off');
   await clearRemoveEntryLog(page);
-  await deleteBookFromManage(page, VALID_BOOK_TITLE);
+  await deleteBookFromManage(page, VALID_BOOK);
   await expect(page.getByRole('button', { name: 'Sync is off' })).toBeVisible();
 
-  expect(await listRemoveEntryLog(page)).not.toContainEqual({
-    directoryName: 'fake-sync',
-    name: VALID_BOOK_TITLE,
-    recursive: true
-  });
-  await expectSyncRoot(page, [{ kind: 'directory', name: VALID_BOOK_TITLE }]);
+  await expectSourceBookRemoveNotLogged(page, VALID_BOOK);
+  await expectBooksInSyncRoot(page, [VALID_BOOK]);
 });

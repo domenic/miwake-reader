@@ -1,18 +1,16 @@
-import { expect, test } from '../helpers/harness.ts';
-import { bookFixturePath, importFiles } from '../helpers/workflows.ts';
+import { test } from '../helpers/harness.ts';
+import {
+  expectImportFailedForFixture,
+  fixtureDescription,
+  importBookFixtures,
+  INVALID_IMPORT_BOOKS
+} from '../helpers/fixtures.ts';
 
-const invalidBookFixtures = [
-  { description: 'text file with an EPUB extension', filename: 'not-a-zip.epub' },
-  { description: 'ZIP file missing EPUB structure', filename: 'not-an-epub.epub' }
-];
-
-for (const { description, filename } of invalidBookFixtures) {
-  test(`importing ${description} surfaces the import-failed dialog`, async ({ page }) => {
-    await page.goto('/manage');
-    await importFiles(page, bookFixturePath(filename));
-
-    const dialog = page.locator('dialog[open]');
-    await expect(dialog).toContainText('Book Import Failed');
-    await expect(dialog).toContainText(filename);
+for (const fixture of INVALID_IMPORT_BOOKS) {
+  test(`importing ${fixtureDescription(fixture)} surfaces the import-failed dialog`, async ({
+    page
+  }) => {
+    await importBookFixtures(page, [fixture]);
+    await expectImportFailedForFixture(page, fixture);
   });
 }
