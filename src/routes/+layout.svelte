@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { Snippet } from 'svelte';
+  import { onMount, tick, type Snippet } from 'svelte';
   import { browser } from '$app/environment';
   import { page } from '$app/state';
   import { appName, basePath, clearConsoleOnReload } from '$lib/data/env';
@@ -46,6 +46,15 @@
     // eslint-disable-next-line no-console
     import.meta.hot.on('vite:beforeUpdate', () => console.clear());
   }
+
+  onMount(() => {
+    void tick().then(() => {
+      // `src/app.html` marks the SSR shell inert because it may be visible before Svelte has
+      // attached handlers. Remove that guard only after mount + `tick()`, so both real users and
+      // Playwright see controls become actionable when client-side behavior is actually installed.
+      document.getElementById('app-shell')?.removeAttribute('inert');
+    });
+  });
 
   function addUserFonts(userFonts: UserFont[]) {
     let styleContent = '';

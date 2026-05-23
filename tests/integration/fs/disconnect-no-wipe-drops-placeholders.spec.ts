@@ -1,18 +1,15 @@
 import {
   connectFS,
   expect,
-  importValidBookFixture,
+  syncValidBookFixtureToSource,
   test,
-  VALID_BOOK_TITLE,
-  waitForSyncIdle
+  VALID_BOOK_TITLE
 } from '../helpers/harness.ts';
 
 test('disconnecting without wipe prunes source-only placeholders', async ({ page }) => {
   // Phase 1 — import a real book and let the sync engine upload it to /fake-sync. After this the
   // OPFS layout looks like what a real prior user session would leave behind.
-  await connectFS(page);
-  await importValidBookFixture(page);
-  await waitForSyncIdle(page);
+  await syncValidBookFixtureToSource(page);
 
   // Phase 2 — wipe local IDB (OPFS files persist across the wipe). The post-reload state is what
   // a fresh second device sees when it points at this same sync folder.

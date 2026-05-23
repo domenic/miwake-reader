@@ -28,6 +28,10 @@ import {
 } from '$lib/data/sync/placeholder-reconciler';
 import { logger } from '$lib/data/logger';
 
+declare global {
+  var __miwakeTestSyncPushDebounceMs: number | undefined;
+}
+
 // ---------------------------------------------------------------------
 // Handler factories
 // ---------------------------------------------------------------------
@@ -203,7 +207,16 @@ export async function reconcileBooksOnBoot(): Promise<void> {
 // pushes are queued for replay after the user reconnects.
 // ---------------------------------------------------------------------
 
-const PUSH_DEBOUNCE_MS = 5000;
+const DEFAULT_PUSH_DEBOUNCE_MS = 5000;
+// Playwright installs this before app modules load. Keep the user-facing default high enough to
+// coalesce real reading/import churn, but let integration tests drain ambient pushes quickly.
+const testSyncPushDebounceMs =
+  typeof globalThis.__miwakeTestSyncPushDebounceMs === 'number' &&
+  Number.isFinite(globalThis.__miwakeTestSyncPushDebounceMs) &&
+  globalThis.__miwakeTestSyncPushDebounceMs >= 0
+    ? globalThis.__miwakeTestSyncPushDebounceMs
+    : undefined;
+const PUSH_DEBOUNCE_MS = testSyncPushDebounceMs ?? DEFAULT_PUSH_DEBOUNCE_MS;
 
 /** Safety rail on the reauth-replay queue. Well above any realistic
  *  edit rate during a single disconnected session; prevents runaway

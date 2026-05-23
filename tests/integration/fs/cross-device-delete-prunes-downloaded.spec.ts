@@ -1,21 +1,15 @@
 import {
-  connectFS,
   expect,
-  importValidBookFixture,
   listSyncRoot,
   removeSyncRootEntry,
+  syncValidBookFixtureToSource,
   test,
   VALID_BOOK_TITLE,
   waitForSyncIdle
 } from '../helpers/harness.ts';
 
 test('boot reconcile prunes a downloaded book deleted from the sync source', async ({ page }) => {
-  await connectFS(page);
-  await importValidBookFixture(page);
-  await waitForSyncIdle(page);
-  await expect
-    .poll(() => listSyncRoot(page), { timeout: 15_000 })
-    .toEqual([{ kind: 'directory', name: VALID_BOOK_TITLE }]);
+  await syncValidBookFixtureToSource(page);
 
   await removeSyncRootEntry(page, VALID_BOOK_TITLE);
   await expect.poll(() => listSyncRoot(page)).toEqual([]);

@@ -1,24 +1,18 @@
 import {
   clearRemoveEntryLog,
-  connectFS,
   deleteBookFromManage,
   expect,
-  importValidBookFixture,
   listRemoveEntryLog,
   listSyncRoot,
   setSyncDirection,
+  syncValidBookFixtureToSource,
   test,
   VALID_BOOK_TITLE,
   waitForSyncIdle
 } from '../helpers/harness.ts';
 
 test('deleting a book with "Down only" sync leaves the source copy intact', async ({ page }) => {
-  await connectFS(page);
-  await importValidBookFixture(page);
-  await waitForSyncIdle(page);
-  await expect
-    .poll(() => listSyncRoot(page), { timeout: 15_000 })
-    .toEqual([{ kind: 'directory', name: VALID_BOOK_TITLE }]);
+  await syncValidBookFixtureToSource(page);
 
   await setSyncDirection(page, 'Down only');
   await clearRemoveEntryLog(page);

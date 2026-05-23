@@ -12,6 +12,7 @@ interface RemoveEntryCall {
 declare global {
   interface Window {
     __miwakeTestRemoveEntryLog?: RemoveEntryCall[];
+    __miwakeTestSyncPushDebounceMs?: number;
     __miwakeTestSetVisibilityState?: (state: DocumentVisibilityState) => void;
   }
 }
@@ -65,6 +66,22 @@ export async function importValidBookFixture(page: Page) {
   await page.goto('/manage');
   await importFiles(page, bookFixturePath(VALID_BOOK_FILENAME));
   await expect(page.getByText(VALID_BOOK_TITLE)).toBeVisible({ timeout: 15_000 });
+}
+
+/**
+ * Imports the shared valid book fixture, connects a fresh sync source, and waits for the fixture to
+ * appear as a top-level source folder.
+ *
+ * Use this when the source copy is setup for the scenario under test. Importing before connection
+ * lets the source-connection mirror do the upload; that is less racy than importing into an already
+ * connected source and waiting for the ambient debounced push.
+ */
+export async function syncValidBookFixtureToSource(page: Page) {
+  await importValidBookFixture(page);
+  await connectFS(page);
+  await expect
+    .poll(() => listSyncRoot(page), { timeout: 30_000 })
+    .toEqual([{ kind: 'directory', name: VALID_BOOK_TITLE }]);
 }
 
 export async function deleteBookFromManage(page: Page, title: string) {
@@ -251,6 +268,8 @@ export async function setDocumentVisibility(page: Page, state: DocumentVisibilit
  * installs a narrow Page Visibility seam that tests can drive with `setDocumentVisibility()`.
  */
 function pickerInitScript() {
+  window.__miwakeTestSyncPushDebounceMs = 50;
+
   FileSystemDirectoryHandle.prototype.queryPermission = async () => 'granted';
   FileSystemDirectoryHandle.prototype.requestPermission = async () => 'granted';
 

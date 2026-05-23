@@ -1,17 +1,14 @@
 import {
   connectFS,
   expect,
-  importValidBookFixture,
   signOutAndWipe,
+  syncValidBookFixtureToSource,
   test,
-  VALID_BOOK_TITLE,
-  waitForSuccessfulSync
+  VALID_BOOK_TITLE
 } from '../helpers/harness.ts';
 
 test('opening a source-only placeholder downloads the book into the reader', async ({ page }) => {
-  await connectFS(page);
-  await importValidBookFixture(page);
-  await waitForSuccessfulSync(page);
+  await syncValidBookFixtureToSource(page);
 
   await signOutAndWipe(page);
   await connectFS(page);

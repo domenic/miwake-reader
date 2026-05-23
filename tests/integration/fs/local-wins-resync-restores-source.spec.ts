@@ -1,10 +1,9 @@
 import {
-  connectFS,
   expect,
   forceFullResyncFromSettings,
-  importValidBookFixture,
   listSyncRoot,
   removeSyncRootEntry,
+  syncValidBookFixtureToSource,
   test,
   VALID_BOOK_TITLE,
   waitForSyncIdle
@@ -13,12 +12,7 @@ import {
 test('force re-sync with "This device wins" restores a local book missing from the source', async ({
   page
 }) => {
-  await connectFS(page);
-  await importValidBookFixture(page);
-  await waitForSyncIdle(page);
-  await expect
-    .poll(() => listSyncRoot(page), { timeout: 15_000 })
-    .toEqual([{ kind: 'directory', name: VALID_BOOK_TITLE }]);
+  await syncValidBookFixtureToSource(page);
 
   await page.goto('/settings/sync');
   await waitForSyncIdle(page);
