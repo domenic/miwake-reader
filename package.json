@@ -8,18 +8,21 @@
     "dev": "vite dev",
     "build": "vite build",
     "preview": "vite preview",
-    "prepare": "husky && svelte-kit sync",
+    "prepare": "husky && svelte-kit sync && npm run generate-fixtures",
     "check": "npm run check:lint && npm run check:format && npm run check:types",
     "check:lint": "eslint .",
     "check:format": "prettier --check .",
     "check:types": "svelte-check --tsconfig ./tsconfig.json",
     "lint": "eslint --fix .",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "test:integration": "playwright test",
+    "generate-fixtures": "node scripts/generate-test-fixtures.mjs"
   },
   "devDependencies": {
     "@commitlint/cli": "20.5.0",
     "@commitlint/config-conventional": "20.5.0",
     "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.60.0",
     "@sveltejs/adapter-static": "^3.0.10",
     "@sveltejs/kit": "^2.57.1",
     "@sveltejs/vite-plugin-svelte": "^7.0.0",

@@ -32,7 +32,8 @@ export default tseslint.config(
             '*.mjs',
             '.prettierrc.cjs',
             'tailwindcss/*.cjs',
-            'scripts/*.mjs'
+            'scripts/*.mjs',
+            'playwright.config.ts'
           ]
         },
         sourceType: 'module',
@@ -62,6 +63,22 @@ export default tseslint.config(
       '@typescript-eslint/no-unused-vars': [
         'error',
         { argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrorsIgnorePattern: '^_' }
+      ]
+    }
+  },
+  {
+    files: ['tests/**/*.ts'],
+    rules: {
+      '@typescript-eslint/no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              regex: '^\\.\\.?/.*(?<!\\.[a-z]+)$',
+              message: 'Relative imports under tests/ must include a file extension (e.g. .ts).'
+            }
+          ]
+        }
       ]
     }
   },

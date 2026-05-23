@@ -16,7 +16,7 @@ import {
   type CustomOAuthCredentials,
   type SyncLocation
 } from '$lib/data/sync/sync-store.svelte';
-import { syncAfterSourceConnected } from '$lib/data/sync/sync-engine';
+import { mirrorLocalLibraryToSource, syncAfterSourceConnected } from '$lib/data/sync/sync-engine';
 import {
   detachSourceKeepingLibrary,
   reconcileAfterAuthoritativeListing
@@ -247,11 +247,13 @@ async function completeFsConnection(
   // inert until mirrored to this source.
   await reconcileAfterAuthoritativeListing(books, sourceInstanceId);
 
-  // Mirror existing local content into a newly-attached folder.
-  // Same-source re-grants keep their source id and do not need a
-  // whole-library verification pass.
+  await syncAfterSourceConnected();
+
+  // Same-source re-grants do not need a whole-library local mirror:
+  // the source identity did not change and every local book has
+  // already had its chance to sync.
   if (!opts.reuseSourceInstanceId) {
-    await syncAfterSourceConnected({ reason: 'fs-connect' });
+    await mirrorLocalLibraryToSource();
   }
 }
 
@@ -346,8 +348,10 @@ async function completeCloudConnection(
     // See completeFsConnection for the install-before-reconcile rationale.
     await reconcileAfterAuthoritativeListing(books, sourceInstanceId);
 
+    await syncAfterSourceConnected();
+
     if (!opts.reuseSourceInstanceId) {
-      await syncAfterSourceConnected({ reason: 'cloud-connect' });
+      await mirrorLocalLibraryToSource();
     }
   } finally {
     if (!authWindow.closed) {

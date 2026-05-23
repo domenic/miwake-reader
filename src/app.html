@@ -13,6 +13,11 @@
     %sveltekit.head%
   </head>
   <body class="h-full w-full font-sans wrap-break-word">
-    <div class="h-full w-full">%sveltekit.body%</div>
+    <!--
+      The server-rendered app can appear before Svelte has attached client-side event handlers.
+      Keep the shell inert until the root layout removes this attribute after hydration; otherwise
+      a fast user can click a visually-enabled button and have the click disappear.
+    -->
+    <div id="app-shell" class="h-full w-full" inert>%sveltekit.body%</div>
   </body>
 </html>

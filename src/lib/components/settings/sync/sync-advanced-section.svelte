@@ -20,10 +20,15 @@
   let hasLocation = $derived(syncState.location !== null);
   let locationLabel = $derived(describeSyncLocation(syncState.location) || 'your sync location');
 
+  let advancedOpen = $state(false);
   let storagePersisted = $state<boolean | null>(null);
   let storageQuota = $state<string | null>(null);
 
   onMount(() => {
+    if (window.location.hash === '#sync-direction') {
+      advancedOpen = true;
+    }
+
     storage.persisted().then((p) => {
       storagePersisted = p;
     });
@@ -110,7 +115,7 @@
   ];
 </script>
 
-<details class="pb-8">
+<details class="pb-8" bind:open={advancedOpen}>
   <summary class="mb-2 flex cursor-pointer items-center gap-2 border-b border-black pb-1">
     <Fa icon={faChevronRight} class="chevron text-sm text-gray-500" />
     <h2 class="text-xl font-medium capitalize">Advanced</h2>
@@ -123,6 +128,7 @@
   </p>
 
   <SyncRadioGroup
+    id="sync-direction"
     heading="Sync direction"
     name="sync-direction"
     options={directionOptions}
