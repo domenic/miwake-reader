@@ -3,6 +3,7 @@ import { expect, type Page } from '@playwright/test';
 import {
   expectSyncRoot,
   listRemoveEntryLog,
+  overwriteSyncRootFile,
   removeSyncRootEntry,
   SYNC_ASSERTION_TIMEOUT
 } from './harness.ts';
@@ -10,10 +11,12 @@ import {
 const NOT_A_ZIP_BOOK = 'not-a-zip-book';
 const NOT_AN_EPUB_BOOK = 'not-an-epub-book';
 
+export const LONG_BOOK = 'long-book';
+export const PLAIN_TEXT_BOOK = 'plain-text-book';
 export const VALID_BOOK = 'valid-book';
 export const INVALID_IMPORT_BOOKS = [NOT_A_ZIP_BOOK, NOT_AN_EPUB_BOOK] as const;
 
-export type LibraryBookFixture = typeof VALID_BOOK;
+export type LibraryBookFixture = typeof VALID_BOOK | typeof LONG_BOOK | typeof PLAIN_TEXT_BOOK;
 export type InvalidImportBookFixture = typeof NOT_A_ZIP_BOOK | typeof NOT_AN_EPUB_BOOK;
 export type BookFixture = LibraryBookFixture | InvalidImportBookFixture;
 
@@ -44,6 +47,22 @@ const fixtureMetadata = new Map<BookFixture, BookFixtureMetadata>([
     }
   ],
   [
+    LONG_BOOK,
+    {
+      title: 'Long test book',
+      path: resolve(fixtureRoot, 'long-test-book.epub'),
+      readerText: 'This is paragraph 1 in chapter 1.'
+    }
+  ],
+  [
+    PLAIN_TEXT_BOOK,
+    {
+      title: 'plain-text-book',
+      path: resolve(fixtureRoot, 'plain-text-book.txt'),
+      readerText: 'This plain text fixture gives the library another real imported book.'
+    }
+  ],
+  [
     NOT_A_ZIP_BOOK,
     {
       path: resolve(fixtureRoot, 'not-a-zip.epub'),
@@ -70,8 +89,10 @@ export function fixtureDescription(fixture: BookFixture) {
 
 export async function importBookFixtures(page: Page, fixtures: readonly BookFixture[]) {
   await page.goto('/manage');
-  await expect(page.getByText('Drop files here or click to upload')).toBeVisible();
-  await page.locator('input[accept*="epub"]').first().setInputFiles(fixturePaths(fixtures));
+  const importButton = page.getByRole('button', { name: 'Import Files' });
+  await expect(importButton).toBeVisible();
+  const [fileChooser] = await Promise.all([page.waitForEvent('filechooser'), importButton.click()]);
+  await fileChooser.setFiles(fixturePaths(fixtures));
   await expectBooksVisible(page, libraryBookFixtures(fixtures));
 }
 
@@ -116,6 +137,10 @@ export async function deleteBookFromManage(page: Page, fixture: LibraryBookFixtu
   await expect(bookTitle).toHaveCount(0);
 }
 
+export function bookProgressBar(page: Page, fixture: LibraryBookFixture) {
+  return bookCard(page, fixture).getByRole('progressbar', { name: /Reading progress/ });
+}
+
 export async function expectBooksInSyncRoot(page: Page, fixtures: readonly LibraryBookFixture[]) {
   await expectSyncRoot(
     page,
@@ -125,6 +150,10 @@ export async function expectBooksInSyncRoot(page: Page, fixtures: readonly Libra
 
 export async function removeBooksFromSyncRoot(page: Page, fixtures: readonly LibraryBookFixture[]) {
   await Promise.all(fixtures.map((fixture) => removeSyncRootEntry(page, fixtureTitle(fixture))));
+}
+
+export async function corruptBookDataInSyncRoot(page: Page, fixture: LibraryBookFixture) {
+  await overwriteSyncRootFile(page, fixtureTitle(fixture), 'bookdata_', 'this is not a zip file');
 }
 
 export async function expectSourceBookRemoveNotLogged(page: Page, fixture: LibraryBookFixture) {
@@ -169,5 +198,8 @@ function getFixtureMetadata(fixture: BookFixture) {
 }
 
 function libraryBookFixtures(fixtures: readonly BookFixture[]) {
-  return fixtures.filter((fixture): fixture is LibraryBookFixture => fixture === VALID_BOOK);
+  return fixtures.filter(
+    (fixture): fixture is LibraryBookFixture =>
+      fixture === VALID_BOOK || fixture === LONG_BOOK || fixture === PLAIN_TEXT_BOOK
+  );
 }

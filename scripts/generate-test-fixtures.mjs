@@ -29,6 +29,32 @@ await writeOut(
   })
 );
 
+await writeOut(
+  'long-test-book.epub',
+  await buildEPUB({
+    title: 'Long test book',
+    author: 'Test Author',
+    identifier: 'urn:uuid:00000000-0000-4000-8000-000000000002',
+    language: 'en',
+    chapters: Array.from({ length: 8 }, (_, i) => ({
+      title: `Chapter ${i + 1}`,
+      body: Array.from(
+        { length: 80 },
+        (_, j) =>
+          `This is paragraph ${j + 1} in chapter ${i + 1}. It gives the reader enough text for several page turns during integration tests.`
+      ).join('\n\n')
+    }))
+  })
+);
+
+await writeOut(
+  'plain-text-book.txt',
+  enc.encode(`This plain text fixture gives the library another real imported book.
+
+It is intentionally small; the integration tests only need a third user-importable title.
+`)
+);
+
 // "User renamed a text file to .epub" — fails at zip decoding ("End of central directory not
 // found"). The most pathological shape.
 await writeOut('not-a-zip.epub', enc.encode('this is not a zip, let alone an epub\n'));

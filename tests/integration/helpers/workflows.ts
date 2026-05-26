@@ -46,6 +46,13 @@ export async function openDisconnectDialog(page: Page) {
   return dialog;
 }
 
+export async function completeCurrentBook(page: Page) {
+  await page.getByRole('button', { name: 'Show reader header' }).click();
+  await page.getByRole('button', { name: 'Complete Book' }).click();
+  await page.locator('dialog[open]').getByRole('button', { name: 'Confirm' }).click();
+  await expect(page.getByRole('button', { name: 'Undo Complete' })).toBeVisible();
+}
+
 export async function setSyncDirection(page: Page, direction: 'Up only' | 'Down only' | 'Off') {
   await page.goto('/settings/sync');
   await page.getByText('Advanced').click();
