@@ -61,23 +61,7 @@
 
     for (let index = 0, { length } = userFonts; index < length; index += 1) {
       const userFont = userFonts[index];
-      const ext = userFont.fileName.split('.').pop() || '';
-
-      let format = '';
-
-      switch (ext) {
-        case 'otf':
-          format = 'opentype';
-          break;
-        case 'ttf':
-          format = 'truetype';
-          break;
-        default:
-          format = ext;
-          break;
-      }
-
-      styleContent += `@font-face{font-family: '${userFont.name}';font-style: normal;font-weight: 400;font-display: swap;src: local(''), url('${userFont.path}') format('${format}')}\n`;
+      styleContent += `@font-face{font-family: '${userFont.name}';font-style: normal;font-weight: 400;font-display: swap;src: url('${userFont.path}')}\n`;
     }
 
     let styleElement = document.getElementById(userFontsCacheName);
