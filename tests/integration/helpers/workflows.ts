@@ -139,7 +139,7 @@ export async function forceFullResyncFromSettings(
 export async function exportBackup(
   page: Page,
   path: string,
-  selection: { allBooks?: boolean; appSettings?: boolean }
+  selection: { allBooks?: boolean; allStatistics?: boolean; appSettings?: boolean }
 ) {
   await page.goto('/settings/sync');
   await page.getByRole('button', { name: 'Export' }).click();
@@ -149,6 +149,9 @@ export async function exportBackup(
 
   if (selection.allBooks) {
     await dialog.getByLabel('Select all').check();
+  }
+  if (selection.allStatistics) {
+    await dialog.getByLabel('All statistics').check();
   }
   if (selection.appSettings) {
     await dialog.getByLabel('App settings').check();
@@ -161,7 +164,11 @@ export async function exportBackup(
   await download.saveAs(path);
 }
 
-export async function importBackup(page: Page, path: string) {
+export async function importBackup(
+  page: Page,
+  path: string,
+  { direction = 'Keep newest' }: { direction?: 'Keep newest' | 'ZIP wins' } = {}
+) {
   await page.goto('/settings/sync');
 
   const [fileChooser] = await Promise.all([
@@ -172,6 +179,10 @@ export async function importBackup(page: Page, path: string) {
 
   const dialog = page.locator('dialog[open]');
   await expect(dialog.getByRole('heading', { name: 'Import backup' })).toBeVisible();
+  await dialog
+    .getByRole('group', { name: 'When the ZIP and this device disagree' })
+    .getByLabel(direction)
+    .check();
   await Promise.all([
     page.waitForURL((url) => url.pathname === '/' || url.pathname === '/manage', {
       timeout: 30_000

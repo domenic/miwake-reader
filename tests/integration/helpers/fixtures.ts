@@ -41,6 +41,11 @@ interface ManageBookExpectations {
   downloaded: readonly LibraryBookFixture[];
 }
 
+interface StatisticRowExpectation {
+  fixture: LibraryBookFixture;
+  dateKey: string;
+}
+
 const fixtureRoot = resolve(import.meta.dirname, '../fixtures/books');
 const fixtureMetadata = new Map<BookFixture, BookFixtureMetadata>([
   [
@@ -149,6 +154,68 @@ export async function expectBooksInManage(
   ]);
 }
 
+export async function recordStatisticForBook(
+  page: Page,
+  fixture: LibraryBookFixture,
+  dateKey: string
+) {
+  await page.clock.setSystemTime(new Date(`${dateKey}T12:00:00Z`));
+  await openBookFromManage(page, fixture);
+
+  await page.getByRole('button', { name: 'Resume reading tracker' }).click();
+  await expect(page.getByRole('button', { name: 'Pause reading tracker' })).toBeVisible({
+    timeout: SYNC_ASSERTION_TIMEOUT
+  });
+
+  await page.clock.runFor(2_000);
+  await page.getByRole('button', { name: 'Pause reading tracker' }).click();
+  await expect(page.getByRole('button', { name: 'Resume reading tracker' })).toBeVisible({
+    timeout: SYNC_ASSERTION_TIMEOUT
+  });
+}
+
+export async function expectStatisticsInSummary(
+  page: Page,
+  {
+    present,
+    absent = []
+  }: { present: readonly StatisticRowExpectation[]; absent?: readonly StatisticRowExpectation[] }
+) {
+  await showAllStatistics(page);
+
+  await Promise.all([
+    ...present.map(async ({ fixture, dateKey }) => {
+      await expect(page.getByText(dateKey, { exact: true })).toBeVisible({
+        timeout: SYNC_ASSERTION_TIMEOUT
+      });
+      await expect(
+        page.getByRole('button', { name: fixtureTitle(fixture), exact: true }).first()
+      ).toBeVisible({ timeout: SYNC_ASSERTION_TIMEOUT });
+    }),
+    ...absent.map(async ({ dateKey }) => {
+      await expect(page.getByText(dateKey, { exact: true })).toHaveCount(0, {
+        timeout: SYNC_ASSERTION_TIMEOUT
+      });
+    })
+  ]);
+}
+
+export async function expectNoStatisticsInSummary(page: Page) {
+  await showAllStatistics(page);
+  await expect(page.getByText(/No Data found/)).toBeVisible({ timeout: SYNC_ASSERTION_TIMEOUT });
+}
+
+export async function deleteAllStatisticsFromSummary(page: Page) {
+  await showAllStatistics(page);
+  const settings = await openStatisticsSettings(page);
+  await settings.getByRole('button', { name: 'Delete All' }).click();
+
+  const dialog = page.locator('dialog[open]');
+  await expect(dialog.getByRole('heading', { name: 'Delete Data' })).toBeVisible();
+  await dialog.getByRole('button', { name: 'Confirm' }).click();
+  await expect(page.getByText(/No Data found/)).toBeVisible({ timeout: SYNC_ASSERTION_TIMEOUT });
+}
+
 export async function openBookFromManage(page: Page, fixture: LibraryBookFixture) {
   await page.goto('/manage');
   await page.getByText(fixtureTitle(fixture), { exact: true }).click();
@@ -183,9 +250,24 @@ export async function expectBooksInSyncRoot(
 ) {
   await expectSyncRoot(
     page,
-    fixtures.map((fixture) => ({ kind: 'directory', name: fixtureTitle(fixture) })),
+    fixtures
+      .map((fixture) => ({ kind: 'directory', name: fixtureTitle(fixture) }))
+      .sort((a, b) => a.name.localeCompare(b.name)),
     options
   );
+}
+
+export async function expectBookStatisticsInSyncRoot(
+  page: Page,
+  fixture: LibraryBookFixture,
+  dateKeys: readonly string[],
+  options?: SyncRootOptions
+) {
+  await expect
+    .poll(() => listBookStatisticsInSyncRoot(page, fixture, options), {
+      timeout: SYNC_ASSERTION_TIMEOUT
+    })
+    .toEqual([...dateKeys].sort());
 }
 
 export async function removeBooksFromSyncRoot(
@@ -236,6 +318,56 @@ export function bookCard(page: Page, fixture: LibraryBookFixture) {
 
 function bookPlaceholderIndicator(page: Page, fixture: LibraryBookFixture) {
   return bookCard(page, fixture).getByTitle(/Not downloaded yet/);
+}
+
+async function showAllStatistics(page: Page) {
+  await page.goto('/statistics/summary');
+  const settings = await openStatisticsSettings(page);
+  await settings.getByRole('button', { name: 'Set to All Time for selected Book Titles' }).click();
+  await settings.getByTitle('Close statistics settings').click();
+  await expect(settings).toHaveCount(0, { timeout: SYNC_ASSERTION_TIMEOUT });
+}
+
+async function openStatisticsSettings(page: Page) {
+  await page.getByRole('button', { name: 'Statistics Settings', exact: true }).click();
+  const settings = page.locator('dialog.sidebar-overlay[open]').filter({
+    has: page.getByRole('button', { name: 'Delete All' })
+  });
+  await expect(settings).toBeVisible({ timeout: SYNC_ASSERTION_TIMEOUT });
+  return settings;
+}
+
+async function listBookStatisticsInSyncRoot(
+  page: Page,
+  fixture: LibraryBookFixture,
+  { rootName = 'fake-sync' }: SyncRootOptions = {}
+) {
+  return page.evaluate(
+    async ({ rootName, title }) => {
+      const opfs = await navigator.storage.getDirectory();
+      const root = await opfs.getDirectoryHandle(rootName, { create: true });
+      const directory = await root.getDirectoryHandle(title);
+
+      const dateKeys: string[] = [];
+      for await (const [name, handle] of directory.entries()) {
+        if (!(handle instanceof FileSystemFileHandle) || !name.startsWith('statistics_')) continue;
+
+        const file = await handle.getFile();
+        const statistics = JSON.parse(await file.text()) as Array<{
+          dateKey?: string;
+          readingTime?: number;
+        }>;
+        for (const statistic of statistics) {
+          if (statistic.dateKey && Number(statistic.readingTime) > 0) {
+            dateKeys.push(statistic.dateKey);
+          }
+        }
+      }
+
+      return dateKeys.sort();
+    },
+    { rootName, title: fixtureTitle(fixture) }
+  );
 }
 
 function fixturePaths(fixtures: readonly BookFixture[]) {

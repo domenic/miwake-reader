@@ -3,6 +3,7 @@ import {
   bookProgressBar,
   corruptBookDataInSyncRoot,
   expectBooksInManage,
+  expectBooksInSyncRoot,
   importBookFixtures,
   LONG_BOOK,
   openBookFromManage,
@@ -42,6 +43,7 @@ test('fresh-device placeholders preserve varied UI-created progress and surface 
   await completeCurrentBook(page);
 
   await connectFS(page);
+  await expectBooksInSyncRoot(page, [VALID_BOOK, LONG_BOOK, PLAIN_TEXT_BOOK]);
 
   await signOutAndWipe(page);
   await corruptBookDataInSyncRoot(page, PLAIN_TEXT_BOOK);
