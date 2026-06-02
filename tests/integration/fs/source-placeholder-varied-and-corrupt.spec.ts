@@ -2,7 +2,7 @@ import { expect, test } from '../helpers/harness.ts';
 import {
   bookProgressBar,
   corruptBookDataInSyncRoot,
-  expectBooksVisible,
+  expectBooksInManage,
   importBookFixtures,
   LONG_BOOK,
   openBookFromManage,
@@ -32,7 +32,10 @@ test('fresh-device placeholders preserve varied UI-created progress and surface 
   await page.getByRole('button', { name: 'Bookmark' }).click();
   await page.getByRole('button', { name: 'Show reader header' }).click();
   await expect(page.getByRole('button', { name: 'Return to Bookmark' })).toBeVisible();
-  await page.goto('/manage');
+  await expectBooksInManage(page, {
+    placeholders: [],
+    downloaded: [VALID_BOOK, LONG_BOOK, PLAIN_TEXT_BOOK]
+  });
   await expect(bookProgressBar(page, LONG_BOOK)).toHaveAttribute('value', PARTIAL_PROGRESS_VALUE);
 
   await openBookFromManage(page, VALID_BOOK);
@@ -44,8 +47,10 @@ test('fresh-device placeholders preserve varied UI-created progress and surface 
   await corruptBookDataInSyncRoot(page, PLAIN_TEXT_BOOK);
   await connectFS(page);
 
-  await page.goto('/manage');
-  await expectBooksVisible(page, [VALID_BOOK, LONG_BOOK, PLAIN_TEXT_BOOK]);
+  await expectBooksInManage(page, {
+    placeholders: [VALID_BOOK, LONG_BOOK, PLAIN_TEXT_BOOK],
+    downloaded: []
+  });
   await expect(bookProgressBar(page, VALID_BOOK)).toHaveAttribute('value', '100');
   await expect(bookProgressBar(page, LONG_BOOK)).toHaveAttribute('value', PARTIAL_PROGRESS_VALUE);
   await expect(bookProgressBar(page, PLAIN_TEXT_BOOK)).toHaveAttribute('value', '0');

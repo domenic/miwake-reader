@@ -1,7 +1,7 @@
 import { expect, test } from '../helpers/harness.ts';
 import {
-  bookCard,
   expectBookReaderText,
+  expectBooksInManage,
   openBookFromManage,
   VALID_BOOK
 } from '../helpers/fixtures.ts';
@@ -13,12 +13,7 @@ test('opening a source-only placeholder downloads the book into the reader', asy
   await signOutAndWipe(page);
   await connectFS(page);
 
-  await page.goto('/manage');
-  const book = bookCard(page, VALID_BOOK);
-  await expect(book).toBeVisible();
-  await expect(
-    book.getByTitle('Not downloaded yet — click the book to copy it from your local sync folder')
-  ).toBeVisible();
+  await expectBooksInManage(page, { placeholders: [VALID_BOOK], downloaded: [] });
 
   await openBookFromManage(page, VALID_BOOK);
 

@@ -1,9 +1,16 @@
 import { expect, type Page } from '@playwright/test';
-import { SYNC_ASSERTION_TIMEOUT } from './harness.ts';
+import {
+  pickSyncRootOnNextPicker,
+  SYNC_ASSERTION_TIMEOUT,
+  type SyncRootOptions
+} from './harness.ts';
 import { expectBooksInSyncRoot, importBookFixtures, type LibraryBookFixture } from './fixtures.ts';
 
-export async function connectFS(page: Page) {
+export async function connectFS(page: Page, options?: SyncRootOptions) {
   await page.goto('/settings/sync');
+  if (options?.rootName) {
+    await pickSyncRootOnNextPicker(page, options.rootName);
+  }
   await page.getByRole('button', { name: 'Choose folder' }).click();
   await expect(page.getByText('Connected')).toBeVisible();
   await waitForSyncIdle(page);
@@ -30,11 +37,12 @@ export async function signOutAndWipe(page: Page) {
  */
 export async function syncBookFixturesToSource(
   page: Page,
-  fixtures: readonly LibraryBookFixture[]
+  fixtures: readonly LibraryBookFixture[],
+  options?: SyncRootOptions
 ) {
   await importBookFixtures(page, fixtures);
-  await connectFS(page);
-  await expectBooksInSyncRoot(page, fixtures);
+  await connectFS(page, options);
+  await expectBooksInSyncRoot(page, fixtures, options);
 }
 
 export async function openDisconnectDialog(page: Page) {
@@ -43,6 +51,15 @@ export async function openDisconnectDialog(page: Page) {
 
   const dialog = page.locator('dialog[open]');
   await expect(dialog.getByRole('heading')).toContainText('Disconnect your sync folder?');
+  return dialog;
+}
+
+export async function openChangeFolderDialog(page: Page) {
+  await page.goto('/settings/sync');
+  await page.getByRole('button', { name: 'Change folder' }).click();
+
+  const dialog = page.locator('dialog[open]');
+  await expect(dialog.getByRole('heading')).toContainText('Switch to your sync folder?');
   return dialog;
 }
 
@@ -109,6 +126,13 @@ export async function forceFullResyncFromSettings(
         ? 'Push over'
         : 'Pull over';
   await dialog.getByRole('button', { name: confirmLabel }).click();
+  // `waitForSuccessfulSync()` can otherwise match the previous idle
+  // indicator before the async force-resync handler has had a chance
+  // to flip sync state. First observe the explicit operation starting,
+  // then wait for the new successful idle state.
+  await expect(
+    page.locator('button[aria-label^="Sync pending"], button[aria-label^="Syncing"]')
+  ).toBeVisible({ timeout: SYNC_ASSERTION_TIMEOUT });
   await waitForSuccessfulSync(page);
 }
 

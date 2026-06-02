@@ -336,7 +336,7 @@ export async function importBackup(
   // changed local library data, mirror it before the hard reload can
   // discard the in-memory ambient queue.
   if (booksImported > 0 || readingGoalsImported) {
-    await mirrorLocalLibraryToSource({ immediate: true });
+    await mirrorLocalLibraryToSource();
   }
 
   // localStorage-backed stores don't observe storage events, so we

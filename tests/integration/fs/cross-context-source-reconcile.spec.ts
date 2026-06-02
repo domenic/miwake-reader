@@ -3,8 +3,7 @@ import { copySyncRoot, expect, newPageInTestContext, test } from '../helpers/har
 import {
   bookProgressBar,
   deleteBookFromManage,
-  expectBooksAbsent,
-  expectBooksVisible,
+  expectBooksInManage,
   importBookFixtures,
   LONG_BOOK,
   openBookFromManage,
@@ -28,17 +27,16 @@ test('force full re-sync with source wins picks up another context adding and de
     await waitForSyncIdle(page);
     await copySyncRoot(page, observer.page);
     await forceFullResync(observer.page, 'Sync location wins');
-    await page.goto('/manage');
-    await observer.page.goto('/manage');
-    await expectBooksVisible(observer.page, [VALID_BOOK, LONG_BOOK]);
+    await expectBooksInManage(observer.page, {
+      placeholders: [],
+      downloaded: [VALID_BOOK, LONG_BOOK]
+    });
 
     await deleteBookFromManage(page, LONG_BOOK);
     await waitForSyncIdle(page);
     await copySyncRoot(page, observer.page);
     await forceFullResync(observer.page, 'Sync location wins');
-    await observer.page.goto('/manage');
-    await expectBooksAbsent(observer.page, [LONG_BOOK]);
-    await expectBooksVisible(observer.page, [VALID_BOOK]);
+    await expectBooksInManage(observer.page, { placeholders: [], downloaded: [VALID_BOOK] });
   } finally {
     await observer.context.close();
   }
@@ -56,8 +54,10 @@ test('boot reconcile picks up another context adding, completing, and deleting b
     await copySyncRoot(page, observer.page);
     await observer.page.reload();
     await waitForSyncIdle(observer.page);
-    await observer.page.goto('/manage');
-    await expectBooksVisible(observer.page, [VALID_BOOK, LONG_BOOK]);
+    await expectBooksInManage(observer.page, {
+      placeholders: [VALID_BOOK, LONG_BOOK],
+      downloaded: []
+    });
 
     await openBookFromManage(page, VALID_BOOK);
     await completeCurrentBook(page);
@@ -66,7 +66,10 @@ test('boot reconcile picks up another context adding, completing, and deleting b
     await copySyncRoot(page, observer.page);
     await observer.page.reload();
     await waitForSyncIdle(observer.page);
-    await observer.page.goto('/manage');
+    await expectBooksInManage(observer.page, {
+      placeholders: [VALID_BOOK, LONG_BOOK],
+      downloaded: []
+    });
     await expect(bookProgressBar(observer.page, VALID_BOOK)).toHaveAttribute('value', '100');
 
     await deleteBookFromManage(page, LONG_BOOK);
@@ -74,9 +77,7 @@ test('boot reconcile picks up another context adding, completing, and deleting b
     await copySyncRoot(page, observer.page);
     await observer.page.reload();
     await waitForSyncIdle(observer.page);
-    await observer.page.goto('/manage');
-    await expectBooksAbsent(observer.page, [LONG_BOOK]);
-    await expectBooksVisible(observer.page, [VALID_BOOK]);
+    await expectBooksInManage(observer.page, { placeholders: [VALID_BOOK], downloaded: [] });
   } finally {
     await observer.context.close();
   }
@@ -90,7 +91,6 @@ async function connectedObserver(browser: Browser, testInfo: TestInfo, sourcePag
   await observer.page.goto('/');
   await copySyncRoot(sourcePage, observer.page);
   await connectFS(observer.page);
-  await observer.page.goto('/manage');
-  await expectBooksVisible(observer.page, [VALID_BOOK]);
+  await expectBooksInManage(observer.page, { placeholders: [VALID_BOOK], downloaded: [] });
   return observer;
 }

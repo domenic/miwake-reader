@@ -1,5 +1,5 @@
 import { expect, test } from '../helpers/harness.ts';
-import { expectBooksVisible, VALID_BOOK } from '../helpers/fixtures.ts';
+import { expectBooksInManage, VALID_BOOK } from '../helpers/fixtures.ts';
 import {
   connectFS,
   openDisconnectDialog,
@@ -19,8 +19,7 @@ test('disconnecting without wipe prunes source-only placeholders', async ({ page
   // Phase 3 — reconnect to the same OPFS folder. The sync engine reconciles, finds the existing
   // bookdata zip, and surfaces it as a placeholder card.
   await connectFS(page);
-  await page.goto('/manage');
-  await expectBooksVisible(page, [VALID_BOOK]);
+  await expectBooksInManage(page, { placeholders: [VALID_BOOK], downloaded: [] });
 
   // Phase 4 — disconnect without wipe. The placeholder is gone from /manage; no downloaded copy
   // exists locally to keep.
@@ -28,6 +27,6 @@ test('disconnecting without wipe prunes source-only placeholders', async ({ page
   await leaveDialog.getByRole('button', { name: 'Disconnect' }).click();
   await expect(page.getByRole('button', { name: 'Choose folder' })).toBeVisible();
 
-  await page.goto('/manage');
+  await expectBooksInManage(page, { placeholders: [], downloaded: [] });
   await expect(page.getByText('Drop files here or click to upload')).toBeVisible();
 });

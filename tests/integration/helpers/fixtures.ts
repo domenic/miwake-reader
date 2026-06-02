@@ -5,7 +5,8 @@ import {
   listRemoveEntryLog,
   overwriteSyncRootFile,
   removeSyncRootEntry,
-  SYNC_ASSERTION_TIMEOUT
+  SYNC_ASSERTION_TIMEOUT,
+  type SyncRootOptions
 } from './harness.ts';
 
 const NOT_A_ZIP_BOOK = 'not-a-zip-book';
@@ -35,6 +36,10 @@ interface InvalidImportBookFixtureMetadata extends BaseBookFixtureMetadata {
 }
 
 type BookFixtureMetadata = LibraryBookFixtureMetadata | InvalidImportBookFixtureMetadata;
+interface ManageBookExpectations {
+  placeholders: readonly LibraryBookFixture[];
+  downloaded: readonly LibraryBookFixture[];
+}
 
 const fixtureRoot = resolve(import.meta.dirname, '../fixtures/books');
 const fixtureMetadata = new Map<BookFixture, BookFixtureMetadata>([
@@ -93,12 +98,8 @@ export async function importBookFixtures(page: Page, fixtures: readonly BookFixt
   await expect(importButton).toBeVisible();
   const [fileChooser] = await Promise.all([page.waitForEvent('filechooser'), importButton.click()]);
   await fileChooser.setFiles(fixturePaths(fixtures));
-  await expectBooksVisible(page, libraryBookFixtures(fixtures));
-}
-
-export async function expectBooksVisible(page: Page, fixtures: readonly LibraryBookFixture[]) {
   await Promise.all(
-    fixtures.map((fixture) =>
+    libraryBookFixtures(fixtures).map((fixture) =>
       expect(page.getByText(fixtureTitle(fixture), { exact: true })).toBeVisible({
         timeout: SYNC_ASSERTION_TIMEOUT
       })
@@ -106,12 +107,46 @@ export async function expectBooksVisible(page: Page, fixtures: readonly LibraryB
   );
 }
 
-export async function expectBooksAbsent(page: Page, fixtures: readonly LibraryBookFixture[]) {
-  await Promise.all(
-    fixtures.map((fixture) =>
-      expect(page.getByText(fixtureTitle(fixture), { exact: true })).toHaveCount(0)
-    )
-  );
+export async function expectBooksInManage(
+  page: Page,
+  { placeholders, downloaded }: ManageBookExpectations
+) {
+  await page.goto('/manage');
+
+  const placeholderFixtures = new Set(placeholders);
+  const downloadedFixtures = new Set(downloaded);
+  const fixturesInBothStates = placeholderFixtures.intersection(downloadedFixtures);
+  if (placeholderFixtures.size !== placeholders.length) {
+    throw new Error('A fixture appears more than once in /manage placeholder expectations');
+  }
+  if (downloadedFixtures.size !== downloaded.length) {
+    throw new Error('A fixture appears more than once in /manage downloaded expectations');
+  }
+  if (fixturesInBothStates.size > 0) {
+    throw new Error(
+      `Fixtures appear in both /manage placeholder and downloaded expectations: ${[...fixturesInBothStates].join(', ')}`
+    );
+  }
+
+  const expectedBookCount = placeholderFixtures.size + downloadedFixtures.size;
+
+  await expect(page.locator('[role="banner"]')).toHaveCount(expectedBookCount, {
+    timeout: SYNC_ASSERTION_TIMEOUT
+  });
+  await Promise.all([
+    ...placeholders.map(async (fixture) => {
+      await expect(bookCard(page, fixture)).toBeVisible({ timeout: SYNC_ASSERTION_TIMEOUT });
+      await expect(bookPlaceholderIndicator(page, fixture)).toBeVisible({
+        timeout: SYNC_ASSERTION_TIMEOUT
+      });
+    }),
+    ...downloaded.map(async (fixture) => {
+      await expect(bookCard(page, fixture)).toBeVisible({ timeout: SYNC_ASSERTION_TIMEOUT });
+      await expect(bookPlaceholderIndicator(page, fixture)).toHaveCount(0, {
+        timeout: SYNC_ASSERTION_TIMEOUT
+      });
+    })
+  ]);
 }
 
 export async function openBookFromManage(page: Page, fixture: LibraryBookFixture) {
@@ -141,19 +176,40 @@ export function bookProgressBar(page: Page, fixture: LibraryBookFixture) {
   return bookCard(page, fixture).getByRole('progressbar', { name: /Reading progress/ });
 }
 
-export async function expectBooksInSyncRoot(page: Page, fixtures: readonly LibraryBookFixture[]) {
+export async function expectBooksInSyncRoot(
+  page: Page,
+  fixtures: readonly LibraryBookFixture[],
+  options?: SyncRootOptions
+) {
   await expectSyncRoot(
     page,
-    fixtures.map((fixture) => ({ kind: 'directory', name: fixtureTitle(fixture) }))
+    fixtures.map((fixture) => ({ kind: 'directory', name: fixtureTitle(fixture) })),
+    options
   );
 }
 
-export async function removeBooksFromSyncRoot(page: Page, fixtures: readonly LibraryBookFixture[]) {
-  await Promise.all(fixtures.map((fixture) => removeSyncRootEntry(page, fixtureTitle(fixture))));
+export async function removeBooksFromSyncRoot(
+  page: Page,
+  fixtures: readonly LibraryBookFixture[],
+  options?: SyncRootOptions
+) {
+  await Promise.all(
+    fixtures.map((fixture) => removeSyncRootEntry(page, fixtureTitle(fixture), options))
+  );
 }
 
-export async function corruptBookDataInSyncRoot(page: Page, fixture: LibraryBookFixture) {
-  await overwriteSyncRootFile(page, fixtureTitle(fixture), 'bookdata_', 'this is not a zip file');
+export async function corruptBookDataInSyncRoot(
+  page: Page,
+  fixture: LibraryBookFixture,
+  options?: SyncRootOptions
+) {
+  await overwriteSyncRootFile(
+    page,
+    fixtureTitle(fixture),
+    'bookdata_',
+    'this is not a zip file',
+    options
+  );
 }
 
 export async function expectSourceBookRemoveNotLogged(page: Page, fixture: LibraryBookFixture) {
@@ -176,6 +232,10 @@ export function bookCard(page: Page, fixture: LibraryBookFixture) {
   return page.locator('[role="banner"]').filter({
     has: page.getByText(fixtureTitle(fixture), { exact: true })
   });
+}
+
+function bookPlaceholderIndicator(page: Page, fixture: LibraryBookFixture) {
+  return bookCard(page, fixture).getByTitle(/Not downloaded yet/);
 }
 
 function fixturePaths(fixtures: readonly BookFixture[]) {

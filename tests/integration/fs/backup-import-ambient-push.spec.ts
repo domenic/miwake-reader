@@ -1,7 +1,7 @@
 import { expectSyncRoot, test } from '../helpers/harness.ts';
 import {
+  expectBooksInManage,
   expectBooksInSyncRoot,
-  expectBooksVisible,
   importBookFixtures,
   VALID_BOOK
 } from '../helpers/fixtures.ts';
@@ -26,8 +26,7 @@ test('restoring a book backup while FS sync is connected pushes book data to OPF
   await expectSyncRoot(page, []);
 
   await importBackup(page, backupPath);
-  await page.goto('/manage');
-  await expectBooksVisible(page, [VALID_BOOK]);
+  await expectBooksInManage(page, { placeholders: [], downloaded: [VALID_BOOK] });
   await waitForSyncIdle(page);
 
   await expectBooksInSyncRoot(page, [VALID_BOOK]);
