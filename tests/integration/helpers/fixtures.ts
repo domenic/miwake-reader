@@ -28,11 +28,18 @@ interface BaseBookFixtureMetadata {
 interface LibraryBookFixtureMetadata extends BaseBookFixtureMetadata {
   title: string;
   readerText: string;
+  partwayBookmark?: PartwayBookmarkMetadata;
 }
 
 interface InvalidImportBookFixtureMetadata extends BaseBookFixtureMetadata {
   importFailureDescription: string;
   importFailureText: string;
+}
+
+interface PartwayBookmarkMetadata {
+  tocButtonTitle: string;
+  minimumFooterPage: number;
+  progressValue: string;
 }
 
 type BookFixtureMetadata = LibraryBookFixtureMetadata | InvalidImportBookFixtureMetadata;
@@ -61,7 +68,12 @@ const fixtureMetadata = new Map<BookFixture, BookFixtureMetadata>([
     {
       title: 'Long test book',
       path: resolve(fixtureRoot, 'long-test-book.epub'),
-      readerText: 'This is paragraph 1 in chapter 1.'
+      readerText: 'This is paragraph 1 in chapter 1.',
+      partwayBookmark: {
+        tocButtonTitle: 'Go to Chapter 4',
+        minimumFooterPage: 1_000,
+        progressValue: '38'
+      }
     }
   ],
   [
@@ -243,6 +255,38 @@ export function bookProgressBar(page: Page, fixture: LibraryBookFixture) {
   return bookCard(page, fixture).getByRole('progressbar', { name: /Reading progress/ });
 }
 
+export async function bookmarkFixturePartway(page: Page, fixture: LibraryBookFixture) {
+  await bookmarkFixtureAtTOCEntry(page, fixture, getPartwayBookmark(fixture));
+}
+
+export async function expectBookPartwayProgress(page: Page, fixture: LibraryBookFixture) {
+  await expect(bookProgressBar(page, fixture)).toHaveAttribute(
+    'value',
+    getPartwayBookmark(fixture).progressValue
+  );
+}
+
+async function bookmarkFixtureAtTOCEntry(
+  page: Page,
+  fixture: LibraryBookFixture,
+  { tocButtonTitle, minimumFooterPage }: PartwayBookmarkMetadata
+) {
+  await openBookFromManage(page, fixture);
+  await page.getByRole('button', { name: 'Show reader header' }).click();
+  await page.getByRole('button', { name: 'TOC' }).click();
+  await page.getByTitle(tocButtonTitle).click();
+  await expect
+    .poll(async () => {
+      const footerText = await page.locator('#miwake-page-footer').innerText();
+      return Number(/(\d+) \/ \d+/.exec(footerText)?.[1] ?? 0);
+    })
+    .toBeGreaterThan(minimumFooterPage);
+  await page.getByRole('button', { name: 'Show reader header' }).click();
+  await page.getByRole('button', { name: 'Bookmark' }).click();
+  await page.getByRole('button', { name: 'Show reader header' }).click();
+  await expect(page.getByRole('button', { name: 'Return to Bookmark' })).toBeVisible();
+}
+
 export async function expectBooksInSyncRoot(
   page: Page,
   fixtures: readonly LibraryBookFixture[],
@@ -376,6 +420,14 @@ function fixturePaths(fixtures: readonly BookFixture[]) {
 
 function fixtureTitle(fixture: LibraryBookFixture) {
   return getFixtureMetadata(fixture).title;
+}
+
+function getPartwayBookmark(fixture: LibraryBookFixture) {
+  const { partwayBookmark } = getFixtureMetadata(fixture);
+  if (!partwayBookmark) {
+    throw new Error(`${fixture} does not define a partway bookmark position`);
+  }
+  return partwayBookmark;
 }
 
 function getFixtureMetadata(fixture: LibraryBookFixture): LibraryBookFixtureMetadata;

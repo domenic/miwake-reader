@@ -104,7 +104,12 @@ function patchLocation(patch: Partial<SyncLocation>): void {
 }
 
 function markSynced(extra: Partial<SyncLocation> = {}): void {
-  patchLocation({ lastSyncedAt: Date.now(), ...extra });
+  const previous = syncState.location?.lastSyncedAt ?? 0;
+  // `lastSyncedAt` is also rendered as a machine-readable `<time datetime>` in Settings -> Sync.
+  // Make it monotonic so back-to-back no-op syncs still produce a distinct completion marker,
+  // even when they finish inside the same millisecond or a test clock is frozen.
+  const lastSyncedAt = Math.max(Date.now(), previous + 1);
+  patchLocation({ lastSyncedAt, ...extra });
   syncState.health = { status: 'ok' };
 }
 

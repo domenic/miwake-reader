@@ -88,11 +88,35 @@ export async function enableStatistics(page: Page, enabledHeading = 'Tracker Aut
   });
 }
 
+export async function setReadingGoal(
+  page: Page,
+  { timeGoal, startDate }: { timeGoal: string; startDate: string }
+) {
+  const { timeGoal: timeGoalInput, startDate: startDateInput } = await openReadingGoals(page);
+  await page.getByRole('button', { name: 'Edit' }).click();
+  await timeGoalInput.fill(timeGoal);
+  await startDateInput.fill(startDate);
+  await page.getByRole('button', { name: 'Save' }).click();
+  await expect(page.getByRole('button', { name: 'Edit' })).toBeVisible();
+  await expect(timeGoalInput).toHaveValue(timeGoal);
+  await expect(startDateInput).toHaveValue(startDate);
+}
+
+export async function expectReadingGoal(
+  page: Page,
+  { timeGoal, startDate }: { timeGoal: string; startDate: string }
+) {
+  const { timeGoal: timeGoalInput, startDate: startDateInput } = await openReadingGoals(page);
+  await expect(timeGoalInput).toHaveValue(timeGoal);
+  await expect(startDateInput).toHaveValue(startDate);
+}
+
 export async function forceFullResync(
   page: Page,
   direction: 'Keep newest' | 'This device wins' | 'Sync location wins' = 'Keep newest'
 ) {
   await page.goto('/settings/sync');
+  await waitForSyncIdle(page);
   await forceFullResyncFromSettings(page, direction);
 }
 
@@ -110,6 +134,7 @@ export async function forceFullResyncFromSettings(
   direction: 'Keep newest' | 'This device wins' | 'Sync location wins' = 'Keep newest'
 ) {
   await expect(page).toHaveURL(/\/settings\/sync(?:$|[?#])/);
+  const previousLastSyncedAt = await syncLocationLastSyncedDateTime(page);
   await page.getByRole('button', { name: 'Re-sync' }).click();
 
   const dialog = page.locator('dialog[open]');
@@ -126,20 +151,28 @@ export async function forceFullResyncFromSettings(
         ? 'Push over'
         : 'Pull over';
   await dialog.getByRole('button', { name: confirmLabel }).click();
-  // `waitForSuccessfulSync()` can otherwise match the previous idle
-  // indicator before the async force-resync handler has had a chance
-  // to flip sync state. First observe the explicit operation starting,
-  // then wait for the new successful idle state.
-  await expect(
-    page.locator('button[aria-label^="Sync pending"], button[aria-label^="Syncing"]')
-  ).toBeVisible({ timeout: SYNC_ASSERTION_TIMEOUT });
+  await expect(dialog).toHaveCount(0);
+  // Settings -> Sync renders the exact last-sync time as `<time datetime>`. Waiting for that
+  // value to advance gives the test a durable completion marker, unlike the fleeting "Syncing..."
+  // label that fast no-op syncs may never paint.
+  await expect
+    .poll(() => syncLocationLastSyncedDateTime(page), {
+      timeout: SYNC_ASSERTION_TIMEOUT
+    })
+    .not.toBe(previousLastSyncedAt);
   await waitForSuccessfulSync(page);
 }
 
 export async function exportBackup(
   page: Page,
   path: string,
-  selection: { allBooks?: boolean; allStatistics?: boolean; appSettings?: boolean }
+  selection: {
+    allBooks?: boolean;
+    allBookmarks?: boolean;
+    allStatistics?: boolean;
+    appSettings?: boolean;
+    readingGoals?: boolean;
+  }
 ) {
   await page.goto('/settings/sync');
   await page.getByRole('button', { name: 'Export' }).click();
@@ -147,8 +180,14 @@ export async function exportBackup(
   const dialog = page.locator('dialog[open]');
   await expect(dialog.getByRole('heading', { name: 'Export backup' })).toBeVisible();
 
+  if (selection.readingGoals) {
+    await dialog.getByLabel('Reading goals').check();
+  }
   if (selection.allBooks) {
     await dialog.getByLabel('Select all').check();
+  }
+  if (selection.allBookmarks) {
+    await dialog.getByLabel('All bookmarks').check();
   }
   if (selection.allStatistics) {
     await dialog.getByLabel('All statistics').check();
@@ -201,4 +240,28 @@ export async function waitForSuccessfulSync(page: Page) {
   await expect(page.getByRole('button', { name: /^Synced/ })).toBeVisible({
     timeout: SYNC_ASSERTION_TIMEOUT
   });
+}
+
+async function openReadingGoals(page: Page) {
+  await page.goto('/settings/statistics');
+  const readingGoalsHeading = page.getByRole('heading', { name: 'Reading Goals' });
+  if ((await readingGoalsHeading.count()) === 0) {
+    await enableStatistics(page, 'Reading Goals');
+  }
+
+  await expect(readingGoalsHeading).toBeVisible({ timeout: SYNC_ASSERTION_TIMEOUT });
+  return {
+    timeGoal: page.getByText('Time Goal (Min)', { exact: true }).locator('input[type="number"]'),
+    startDate: page.getByText('Start Date', { exact: true }).locator('input[type="date"]')
+  };
+}
+
+async function syncLocationLastSyncedDateTime(page: Page) {
+  const syncLocationSection = page.locator('section').filter({
+    has: page.getByRole('heading', { name: 'Sync location' })
+  });
+  const lastSyncedTime = syncLocationSection.locator('time[datetime]').first();
+  if ((await lastSyncedTime.count()) === 0) return null;
+
+  return lastSyncedTime.getAttribute('datetime');
 }
