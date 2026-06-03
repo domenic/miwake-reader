@@ -29,9 +29,7 @@
       objectUrl = '';
     }
     if (typeof value !== 'string') {
-      objectUrl = URL.createObjectURL(
-        value.type ? value : new Blob([value], { type: 'image/jpeg' })
-      );
+      objectUrl = URL.createObjectURL(value);
 
       return objectUrl;
     }
@@ -43,19 +41,8 @@
     let prevValue: string | Blob | undefined;
     let prevResponse: string | undefined;
 
-    const isEqual = (newValue: string | Blob) => {
-      if (!prevValue) return false;
-      if (prevValue instanceof Blob && newValue instanceof Blob) {
-        return prevValue.type === newValue.type && prevValue.size === newValue.size;
-      }
-      if (typeof prevValue !== 'object' || typeof newValue !== 'object') {
-        return prevValue === newValue;
-      }
-      return false;
-    };
-
     return (value: string | Blob) => {
-      if (isEqual(value)) return prevResponse as string;
+      if (value === prevValue) return prevResponse as string;
 
       prevValue = value;
       prevResponse = convertImagePath(value);

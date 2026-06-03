@@ -5,13 +5,13 @@ This file is the durable handoff for migrating `~/miwake-harness/` scenarios int
 ## Current State
 
 - Source harness files on disk: 46 numeric FS-ish scenarios (`00-*.mjs` through `46-*.mjs`, with no `25-*`) and 15 `cloud-*.mjs` scenarios.
-- In-tree Playwright FS specs: 37 files, 39 tests under `tests/integration/fs/`.
+- In-tree Playwright FS specs: 38 files, 39 tests under `tests/integration/fs/`.
 - Test command: `npm run test:integration`.
 - Main harness: `tests/integration/helpers/harness.ts`.
 - User workflow helpers: `tests/integration/helpers/workflows.ts`.
 - Book fixture helpers: `tests/integration/helpers/fixtures.ts`.
 - Generated book fixtures: `tests/integration/fixtures/books/*`, produced by `npm run generate-fixtures` / `prepare` and gitignored.
-- Latest verification: `npm run check` and `npx playwright test tests/integration/fs` passed after the force/prune batch.
+- Latest verification: `npm run check` and `npx playwright test tests/integration/fs/cover-refresh.spec.ts` passed after the cover-refresh port.
 
 ## Migration Rules
 
@@ -67,6 +67,7 @@ This file is the durable handoff for migrating `~/miwake-harness/` scenarios int
 | `13-force-resync-prunes.mjs`                             | `fs/force-resync-prunes-source-deleted-placeholders.spec.ts`                                                                            | Force re-sync prunes source-deleted placeholders without requiring a reload.                                    |
 | `14-switch-listing-fails.mjs`                            | `fs/source-switch-listing-failure.spec.ts`                                                                                              | A listing failure during folder switch shows an error and leaves the current connection/library.                |
 | `15-disconnect-with-wipe.mjs`                            | `fs/disconnect-with-wipe.spec.ts`                                                                                                       | Downloaded book unlocks wipe affordance naturally.                                                              |
+| `16-cover-refresh.mjs`                                   | `fs/cover-refresh.spec.ts`                                                                                                              | Boot reconcile refreshes a source-only placeholder cover after the OPFS cover file changes.                     |
 | `17-force-resync-local-wins.mjs`                         | `fs/force-resync-local-wins-overwrites-newer-source-progress.spec.ts`                                                                   | "This device wins" overwrites newer source progress using UI-created progress on both sides.                    |
 | `18-ambient-push-on-bookmark.mjs`                        | `fs/cross-context-source-reconcile.spec.ts`, `fs/source-placeholder-varied-and-corrupt.spec.ts`                                         | Progress pushes are covered via real reader bookmark/completion workflows, not filename inspection.             |
 | `19-force-resync-corrupt-zip.mjs`                        | `fs/force-resync-corrupt-source-bookdata.spec.ts`                                                                                       | Force re-sync surfaces corrupt source bookdata as sync failure while keeping the source placeholder.            |
@@ -104,23 +105,21 @@ This file is the durable handoff for migrating `~/miwake-harness/` scenarios int
 
 These remain to port, drop, or explicitly classify.
 
-| Harness scenario                                 | Behavior to preserve                                                               | Recommended approach                                                                                                                   |
-| ------------------------------------------------ | ---------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| `16-cover-refresh.mjs`                           | Placeholder cover refresh updates stored/rendered cover when source cover changes. | Needs a fixture with a cover and a UI-readable cover assertion. Avoid pixel sampling unless there is no better user-visible assertion. |
-| `26-reconnect-preserves-oauth-mode.mjs`          | Reconnect does not silently switch between default and custom OAuth modes.         | Numeric file, but cloud/OAuth behavior; defer to cloud/fake-cloud work.                                                                |
-| `29-onedrive-custom-rt-refresh-sends-secret.mjs` | Custom OneDrive refresh sends `client_secret`.                                     | Numeric file, but cloud/OAuth behavior; defer to fake-cloud or focused storage-oauth test.                                             |
-| `37-backfill-source-instance-id.mjs`             | Pre-refactor `lastSeenOnSource` rows migrate to `lastSeenSourceInstanceId`.        | Historical migration test; likely needs direct IDB setup or should be dropped if old DB versions are no longer supported.              |
+| Harness scenario                                 | Behavior to preserve                                                        | Recommended approach                                                                                                      |
+| ------------------------------------------------ | --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `26-reconnect-preserves-oauth-mode.mjs`          | Reconnect does not silently switch between default and custom OAuth modes.  | Numeric file, but cloud/OAuth behavior; defer to cloud/fake-cloud work.                                                   |
+| `29-onedrive-custom-rt-refresh-sends-secret.mjs` | Custom OneDrive refresh sends `client_secret`.                              | Numeric file, but cloud/OAuth behavior; defer to fake-cloud or focused storage-oauth test.                                |
+| `37-backfill-source-instance-id.mjs`             | Pre-refactor `lastSeenOnSource` rows migrate to `lastSeenSourceInstanceId`. | Historical migration test; likely needs direct IDB setup or should be dropped if old DB versions are no longer supported. |
 
 ## Recommended Next Batch
 
-The next useful FS batch is the remaining cover/drop-classification work:
+The next useful FS batch is the remaining drop-classification work:
 
-- `16-cover-refresh.mjs`
 - `11-prune-cascades.mjs`
 - `23-open-placeholder-no-sync.mjs`
 - `37-backfill-source-instance-id.mjs`
 
-`16` is the only remaining likely UI-level FS behavior. `11`, `23`, and `37` need a deliberate keep/drop decision because their original value depends on historical internal fields or manufactured local-only placeholder state.
+`11`, `23`, and `37` need a deliberate keep/drop decision because their original value depends on historical internal fields or manufactured local-only placeholder state.
 
 ## Cloud / OAuth Work
 

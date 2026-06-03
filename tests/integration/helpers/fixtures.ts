@@ -13,12 +13,17 @@ import { navigateToManage, navigateToStatisticsSummary } from './navigation.ts';
 const NOT_A_ZIP_BOOK = 'not-a-zip-book';
 const NOT_AN_EPUB_BOOK = 'not-an-epub-book';
 
+export const COVER_REFRESH_BOOK = 'cover-refresh-book';
 export const LONG_BOOK = 'long-book';
 export const PLAIN_TEXT_BOOK = 'plain-text-book';
 export const VALID_BOOK = 'valid-book';
 export const INVALID_IMPORT_BOOKS = [NOT_A_ZIP_BOOK, NOT_AN_EPUB_BOOK] as const;
 
-export type LibraryBookFixture = typeof VALID_BOOK | typeof LONG_BOOK | typeof PLAIN_TEXT_BOOK;
+export type LibraryBookFixture =
+  | typeof COVER_REFRESH_BOOK
+  | typeof VALID_BOOK
+  | typeof LONG_BOOK
+  | typeof PLAIN_TEXT_BOOK;
 export type InvalidImportBookFixture = typeof NOT_A_ZIP_BOOK | typeof NOT_AN_EPUB_BOOK;
 export type BookFixture = LibraryBookFixture | InvalidImportBookFixture;
 
@@ -56,6 +61,14 @@ interface StatisticRowExpectation {
 
 const fixtureRoot = resolve(import.meta.dirname, '../fixtures/books');
 const fixtureMetadata = new Map<BookFixture, BookFixtureMetadata>([
+  [
+    COVER_REFRESH_BOOK,
+    {
+      title: 'Cover refresh book',
+      path: resolve(fixtureRoot, 'cover-refresh-book.epub'),
+      readerText: 'This book has a deterministic cover image.'
+    }
+  ],
   [
     VALID_BOOK,
     {
@@ -256,6 +269,15 @@ export function bookProgressBar(page: Page, fixture: LibraryBookFixture) {
   return bookCard(page, fixture).getByRole('progressbar', { name: /Reading progress/ });
 }
 
+export async function replaceBookCoverInSyncRoot(
+  page: Page,
+  fixture: LibraryBookFixture,
+  contents: Uint8Array<ArrayBuffer>,
+  options?: SyncRootOptions
+) {
+  await overwriteSyncRootFile(page, fixtureTitle(fixture), 'cover_', contents, options);
+}
+
 export async function bookmarkFixturePartway(page: Page, fixture: LibraryBookFixture) {
   await bookmarkFixtureAtTOCEntry(page, fixture, getPartwayBookmark(fixture));
 }
@@ -453,6 +475,9 @@ function getFixtureMetadata(fixture: BookFixture) {
 function libraryBookFixtures(fixtures: readonly BookFixture[]) {
   return fixtures.filter(
     (fixture): fixture is LibraryBookFixture =>
-      fixture === VALID_BOOK || fixture === LONG_BOOK || fixture === PLAIN_TEXT_BOOK
+      fixture === COVER_REFRESH_BOOK ||
+      fixture === VALID_BOOK ||
+      fixture === LONG_BOOK ||
+      fixture === PLAIN_TEXT_BOOK
   );
 }

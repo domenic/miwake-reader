@@ -140,9 +140,10 @@ export async function overwriteSyncRootFile(
   page: Page,
   directoryName: string,
   filenamePrefix: string,
-  contents: string,
+  contents: string | Uint8Array<ArrayBuffer>,
   { rootName = DEFAULT_SYNC_ROOT_NAME }: SyncRootOptions = {}
 ) {
+  const serializedContents = typeof contents === 'string' ? contents : [...contents];
   await page.evaluate(
     async ({ directoryName, filenamePrefix, contents, rootName }) => {
       const opfs = await navigator.storage.getDirectory();
@@ -154,14 +155,14 @@ export async function overwriteSyncRootFile(
 
         const fileHandle = handle as FileSystemFileHandle;
         const writer = await fileHandle.createWritable();
-        await writer.write(contents);
+        await writer.write(typeof contents === 'string' ? contents : new Uint8Array(contents));
         await writer.close();
         return;
       }
 
       throw new Error(`Unable to find ${filenamePrefix} file under ${directoryName}`);
     },
-    { directoryName, filenamePrefix, contents, rootName }
+    { directoryName, filenamePrefix, contents: serializedContents, rootName }
   );
 }
 
