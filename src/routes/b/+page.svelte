@@ -1058,8 +1058,6 @@
         await trackerElm.flushUpdates();
         flushReaderStatisticsReplication();
       }
-
-      dialogManager.dialogs$.next([]);
     } catch (error: any) {
       message = error.message;
     }
@@ -1071,7 +1069,11 @@
       messageDialog({ title: 'Error', message });
     }
 
-    goto(`${pagePath}${routeId}`);
+    await goto(`${pagePath}${routeId}`);
+
+    if (!message) {
+      dialogManager.dialogs$.next([]);
+    }
   }
 
   function handleSetCustomReadingPoint() {
@@ -1277,6 +1279,8 @@
   onclick={() => (showHeader = true)}
 ></button>
 <div
+  aria-label="Reader controls"
+  role="toolbar"
   class="elevation-4 writing-horizontal-tb fixed inset-x-0 top-0 z-10 w-full transform-gpu transition-[opacity,translate] duration-150 ease-in-out"
   inert={!showHeader}
   class:opacity-0={!showHeader}

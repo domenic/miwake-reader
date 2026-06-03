@@ -64,8 +64,19 @@ export async function newPageInTestContext(browser: Browser, testInfo: TestInfo)
   const context = await browser.newContext({
     baseURL: typeof baseURL === 'string' ? baseURL : undefined
   });
-  await installTestInitScripts(context);
-  return { context, page: await context.newPage() };
+  try {
+    await installTestInitScripts(context);
+    return {
+      context,
+      page: await context.newPage(),
+      async [Symbol.asyncDispose]() {
+        await context.close();
+      }
+    };
+  } catch (error) {
+    await context.close();
+    throw error;
+  }
 }
 
 async function installTestInitScripts(context: BrowserContext) {

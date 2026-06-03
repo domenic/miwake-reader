@@ -5,6 +5,7 @@ import {
   removeBooksFromSyncRoot,
   VALID_BOOK
 } from '../helpers/fixtures.ts';
+import { navigateToSettingsSync } from '../helpers/navigation.ts';
 import {
   forceFullResyncFromSettings,
   syncBookFixturesToSource,
@@ -16,7 +17,7 @@ test('force re-sync with "This device wins" restores a local book missing from t
 }) => {
   await syncBookFixturesToSource(page, [VALID_BOOK]);
 
-  await page.goto('/settings/sync');
+  await navigateToSettingsSync(page);
   await waitForSyncIdle(page);
   await removeBooksFromSyncRoot(page, [VALID_BOOK]);
   await expectSyncRoot(page, []);

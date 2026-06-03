@@ -4,10 +4,11 @@ import {
   SYNC_ASSERTION_TIMEOUT,
   type SyncRootOptions
 } from './harness.ts';
+import { navigateToSettingsStatistics, navigateToSettingsSync } from './navigation.ts';
 import { expectBooksInSyncRoot, importBookFixtures, type LibraryBookFixture } from './fixtures.ts';
 
 export async function connectFS(page: Page, options?: SyncRootOptions) {
-  await page.goto('/settings/sync');
+  await navigateToSettingsSync(page);
   if (options?.rootName) {
     await pickSyncRootOnNextPicker(page, options.rootName);
   }
@@ -17,12 +18,12 @@ export async function connectFS(page: Page, options?: SyncRootOptions) {
 }
 
 export async function signOutAndWipe(page: Page) {
-  await page.goto('/settings/sync');
+  await navigateToSettingsSync(page);
   await page.getByRole('button', { name: 'Sign out and wipe' }).click();
   const dialog = page.locator('dialog[open]');
   await expect(dialog.getByRole('heading')).toContainText('Sign out and wipe local data?');
   await Promise.all([
-    page.waitForURL('/'),
+    page.waitForURL('/manage'),
     dialog.getByRole('button', { name: 'Confirm' }).click()
   ]);
 }
@@ -46,7 +47,7 @@ export async function syncBookFixturesToSource(
 }
 
 export async function openDisconnectDialog(page: Page) {
-  await page.goto('/settings/sync');
+  await navigateToSettingsSync(page);
   await page.getByRole('button', { name: 'Disconnect' }).click();
 
   const dialog = page.locator('dialog[open]');
@@ -55,7 +56,7 @@ export async function openDisconnectDialog(page: Page) {
 }
 
 export async function openChangeFolderDialog(page: Page) {
-  await page.goto('/settings/sync');
+  await navigateToSettingsSync(page);
   await page.getByRole('button', { name: 'Change folder' }).click();
 
   const dialog = page.locator('dialog[open]');
@@ -71,13 +72,13 @@ export async function completeCurrentBook(page: Page) {
 }
 
 export async function setSyncDirection(page: Page, direction: 'Up only' | 'Down only' | 'Off') {
-  await page.goto('/settings/sync');
+  await navigateToSettingsSync(page);
   await page.getByText('Advanced').click();
   await page.getByRole('group', { name: 'Sync direction' }).getByLabel(direction).check();
 }
 
 export async function enableStatistics(page: Page, enabledHeading = 'Tracker Auto Pause') {
-  await page.goto('/settings/statistics');
+  await navigateToSettingsStatistics(page);
   const enableStatisticsSection = page.locator('section').filter({
     has: page.getByRole('heading', { name: 'Enable Statistics' })
   });
@@ -115,7 +116,7 @@ export async function forceFullResync(
   page: Page,
   direction: 'Keep newest' | 'This device wins' | 'Sync location wins' = 'Keep newest'
 ) {
-  await page.goto('/settings/sync');
+  await navigateToSettingsSync(page);
   await waitForSyncIdle(page);
   await forceFullResyncFromSettings(page, direction);
 }
@@ -123,11 +124,9 @@ export async function forceFullResync(
 /**
  * Drives the Force full re-sync dialog from an already-open Settings → Sync page.
  *
- * Most workflow helpers navigate to their owning route themselves. This lower-level helper exists
- * for source-deletion tests where a navigation would remount the app and run boot reconcile before
- * the test can choose "This device wins". In that state, boot reconcile correctly treats the source
- * listing as authoritative and can prune the local book that the local-wins resync is supposed to
- * push back up.
+ * Tests that mutate OPFS while already viewing this page use this lower-level helper so the next
+ * user action is the re-sync itself. That keeps the test focused on force re-sync instead of route
+ * changes or helper setup.
  */
 export async function forceFullResyncFromSettings(
   page: Page,
@@ -174,7 +173,7 @@ export async function exportBackup(
     readingGoals?: boolean;
   }
 ) {
-  await page.goto('/settings/sync');
+  await navigateToSettingsSync(page);
   await page.getByRole('button', { name: 'Export' }).click();
 
   const dialog = page.locator('dialog[open]');
@@ -208,7 +207,7 @@ export async function importBackup(
   path: string,
   { direction = 'Keep newest' }: { direction?: 'Keep newest' | 'ZIP wins' } = {}
 ) {
-  await page.goto('/settings/sync');
+  await navigateToSettingsSync(page);
 
   const [fileChooser] = await Promise.all([
     page.waitForEvent('filechooser'),
@@ -223,9 +222,7 @@ export async function importBackup(
     .getByLabel(direction)
     .check();
   await Promise.all([
-    page.waitForURL((url) => url.pathname === '/' || url.pathname === '/manage', {
-      timeout: 30_000
-    }),
+    page.waitForURL('/manage', { timeout: 30_000 }),
     dialog.getByRole('button', { name: 'Import' }).click()
   ]);
 }
@@ -243,7 +240,7 @@ export async function waitForSuccessfulSync(page: Page) {
 }
 
 async function openReadingGoals(page: Page) {
-  await page.goto('/settings/statistics');
+  await navigateToSettingsStatistics(page);
   const readingGoalsHeading = page.getByRole('heading', { name: 'Reading Goals' });
   if ((await readingGoalsHeading.count()) === 0) {
     await enableStatistics(page, 'Reading Goals');

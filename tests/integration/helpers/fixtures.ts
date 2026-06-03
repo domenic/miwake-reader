@@ -8,6 +8,7 @@ import {
   SYNC_ASSERTION_TIMEOUT,
   type SyncRootOptions
 } from './harness.ts';
+import { navigateToManage, navigateToStatisticsSummary } from './navigation.ts';
 
 const NOT_A_ZIP_BOOK = 'not-a-zip-book';
 const NOT_AN_EPUB_BOOK = 'not-an-epub-book';
@@ -110,7 +111,7 @@ export function fixtureDescription(fixture: BookFixture) {
 }
 
 export async function importBookFixtures(page: Page, fixtures: readonly BookFixture[]) {
-  await page.goto('/manage');
+  await navigateToManage(page);
   const importButton = page.getByRole('button', { name: 'Import Files' });
   await expect(importButton).toBeVisible();
   const [fileChooser] = await Promise.all([page.waitForEvent('filechooser'), importButton.click()]);
@@ -128,7 +129,7 @@ export async function expectBooksInManage(
   page: Page,
   { placeholders, downloaded }: ManageBookExpectations
 ) {
-  await page.goto('/manage');
+  await navigateToManage(page);
 
   const placeholderFixtures = new Set(placeholders);
   const downloadedFixtures = new Set(downloaded);
@@ -229,7 +230,7 @@ export async function deleteAllStatisticsFromSummary(page: Page) {
 }
 
 export async function openBookFromManage(page: Page, fixture: LibraryBookFixture) {
-  await page.goto('/manage');
+  await navigateToManage(page);
   await page.getByText(fixtureTitle(fixture), { exact: true }).click();
   await page.waitForURL((url) => url.pathname === '/b' && url.searchParams.has('id'));
 }
@@ -240,7 +241,7 @@ export async function expectBookReaderText(page: Page, fixture: LibraryBookFixtu
 }
 
 export async function deleteBookFromManage(page: Page, fixture: LibraryBookFixture) {
-  await page.goto('/manage');
+  await navigateToManage(page);
   const bookTitle = page.getByText(fixtureTitle(fixture), { exact: true });
   await expect(bookTitle).toBeVisible();
 
@@ -365,7 +366,7 @@ function bookPlaceholderIndicator(page: Page, fixture: LibraryBookFixture) {
 }
 
 async function showAllStatistics(page: Page) {
-  await page.goto('/statistics/summary');
+  await navigateToStatisticsSummary(page);
   const settings = await openStatisticsSettings(page);
   await settings.getByRole('button', { name: 'Set to All Time for selected Book Titles' }).click();
   await settings.getByTitle('Close statistics settings').click();
@@ -373,12 +374,20 @@ async function showAllStatistics(page: Page) {
 }
 
 async function openStatisticsSettings(page: Page) {
+  const settings = statisticsSettingsDialog(page);
+  if (await settings.isVisible()) {
+    return settings;
+  }
+
   await page.getByRole('button', { name: 'Statistics Settings', exact: true }).click();
-  const settings = page.locator('dialog.sidebar-overlay[open]').filter({
-    has: page.getByRole('button', { name: 'Delete All' })
-  });
   await expect(settings).toBeVisible({ timeout: SYNC_ASSERTION_TIMEOUT });
   return settings;
+}
+
+function statisticsSettingsDialog(page: Page) {
+  return page.locator('dialog.sidebar-overlay[open]').filter({
+    has: page.getByRole('button', { name: 'Delete All' })
+  });
 }
 
 async function listBookStatisticsInSyncRoot(
