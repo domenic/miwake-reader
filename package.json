@@ -15,7 +15,7 @@
     "check:types": "svelte-check --tsconfig ./tsconfig.json",
     "lint": "eslint --fix .",
     "format": "prettier --write .",
-    "test:integration": "playwright test",
+    "test": "playwright test",
     "generate-fixtures": "node scripts/generate-test-fixtures.mjs"
   },
   "devDependencies": {

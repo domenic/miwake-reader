@@ -138,6 +138,11 @@ export async function importBookFixtures(page: Page, fixtures: readonly BookFixt
   );
 }
 
+/**
+ * Asserts the complete `/manage` book-card state for known fixtures. Any fixture not listed in
+ * `placeholders` or `downloaded` is expected to be absent, so specs do not accidentally leave
+ * stale books around after sync or delete workflows.
+ */
 export async function expectBooksInManage(
   page: Page,
   { placeholders, downloaded }: ManageBookExpectations
@@ -310,6 +315,10 @@ async function bookmarkFixtureAtTOCEntry(
   await expect(page.getByRole('button', { name: 'Return to Bookmark' })).toBeVisible();
 }
 
+/**
+ * Asserts the top-level sync-source book folders only. Keep lower-level filename assertions out of
+ * specs unless `bookdata_*`, `progress_*`, or similar internal names are the behavior under test.
+ */
 export async function expectBooksInSyncRoot(
   page: Page,
   fixtures: readonly LibraryBookFixture[],
@@ -324,6 +333,10 @@ export async function expectBooksInSyncRoot(
     .toEqual(expectedEntries);
 }
 
+/**
+ * Source-side assertion for statistics propagation. It intentionally counts only statistics rows
+ * with positive reading time, matching the rows that can appear in the statistics summary UI.
+ */
 export async function expectBookStatisticsInSyncRoot(
   page: Page,
   fixture: LibraryBookFixture,

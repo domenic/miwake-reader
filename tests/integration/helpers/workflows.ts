@@ -239,12 +239,20 @@ export async function importBackup(
   ]);
 }
 
+/**
+ * Waits for sync work to drain. A connected source only proves the app has a handle or cloud
+ * account; it does not prove ambient pushes, boot reconcile, or force re-sync work has finished.
+ */
 export async function waitForSyncIdle(page: Page) {
   await expect(page.getByRole('button', { name: /^(Synced|Up to date)/ })).toBeVisible({
     timeout: SYNC_ASSERTION_TIMEOUT
   });
 }
 
+/**
+ * Waits for an explicitly successful sync state. Use this when the scenario needs a completed
+ * source operation, not merely an idle "Up to date" state with sync disabled or disconnected.
+ */
 export async function waitForSuccessfulSync(page: Page) {
   await expect(page.getByRole('button', { name: /^Synced/ })).toBeVisible({
     timeout: SYNC_ASSERTION_TIMEOUT

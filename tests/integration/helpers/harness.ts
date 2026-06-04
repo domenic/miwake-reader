@@ -54,6 +54,10 @@ export const test = base.extend({
   }
 });
 
+/**
+ * Creates an additional isolated browser profile with the same baseURL and init scripts as the
+ * main test context. Use `await using` so the extra context is always closed.
+ */
 export async function newPageInTestContext(browser: Browser, testInfo: TestInfo) {
   const baseURL = testInfo.project.use.baseURL;
   const context = await browser.newContext({
@@ -286,6 +290,8 @@ export async function setDocumentVisibility(page: Page, state: DocumentVisibilit
  * installs a narrow Page Visibility seam that tests can drive with `setDocumentVisibility()`.
  */
 function pickerInitScript() {
+  // Keep ambient sync assertions fast without changing production debounce timing. This script
+  // runs before app modules load, so the sync engine observes the test-only value at startup.
   window.__miwakeTestSyncPushDebounceMs = 50;
 
   FileSystemDirectoryHandle.prototype.queryPermission = async () =>
