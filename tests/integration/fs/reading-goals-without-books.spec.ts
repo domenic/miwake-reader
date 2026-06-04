@@ -1,7 +1,8 @@
-import { expect, expectSyncRoot, test } from '../helpers/harness.ts';
+import { expect, test } from '../helpers/harness.ts';
 import {
   connectFS,
   enableStatistics,
+  expectReadingGoalsInSyncRoot,
   signOutAndWipe,
   waitForSuccessfulSync
 } from '../helpers/workflows.ts';
@@ -24,12 +25,7 @@ test('sync pushes reading goals with no books to the source', async ({ page }) =
   await connectFS(page);
   await waitForSuccessfulSync(page);
 
-  await expectSyncRoot(page, [
-    {
-      kind: 'file',
-      name: expect.stringMatching(/^miwake-user-goals_\d+_\d+_\d+\.json$/)
-    }
-  ]);
+  await expectReadingGoalsInSyncRoot(page);
 
   await signOutAndWipe(page);
   await connectFS(page);

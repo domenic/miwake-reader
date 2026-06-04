@@ -104,7 +104,12 @@ function patchLocation(patch: Partial<SyncLocation>): void {
 }
 
 function markSynced(extra: Partial<SyncLocation> = {}): void {
-  patchLocation({ lastSyncedAt: Date.now(), ...extra });
+  const previous = syncState.location?.lastSyncedAt ?? 0;
+  // `lastSyncedAt` is also rendered as a machine-readable `<time datetime>` in Settings -> Sync.
+  // Make it monotonic so back-to-back no-op syncs still produce a distinct completion marker,
+  // even when they finish inside the same millisecond or a test clock is frozen.
+  const lastSyncedAt = Math.max(Date.now(), previous + 1);
+  patchLocation({ lastSyncedAt, ...extra });
   syncState.health = { status: 'ok' };
 }
 
@@ -406,13 +411,7 @@ function cancelBookPushes(titles: string[]): void {
  * Placeholders (no elementHtml) are skipped — they have nothing to
  * push.
  */
-async function pushAllLocalBooks({
-  immediate,
-  reason
-}: {
-  immediate: boolean;
-  reason: string;
-}): Promise<void> {
+async function pushAllLocalBooks(): Promise<void> {
   const db = await database.db;
   const all = await db.getAll('data');
   let queuedBooks = 0;
@@ -431,20 +430,13 @@ async function pushAllLocalBooks({
   // with zero downloaded books (or only placeholders) would never
   // mirror the user's goals up to the new source.
   pendingGoalsPush = true;
-  logger.debug(
-    `sync queue: ${reason}, full local mirror queued ` +
-      `${queuedBooks} book(s), immediate=${immediate}`
-  );
+  logger.debug(`sync queue: local-mirror, full local mirror queued ${queuedBooks} book(s)`);
   emitSyncingState();
-  if (immediate) {
-    if (pushTimer) {
-      clearTimeout(pushTimer);
-      pushTimer = null;
-    }
-    await runPendingPushes();
-  } else {
-    schedulePushRun(PUSH_DEBOUNCE_MS, reason);
+  if (pushTimer) {
+    clearTimeout(pushTimer);
+    pushTimer = null;
   }
+  await runPendingPushes();
 }
 
 /**
@@ -463,14 +455,16 @@ export async function syncAfterSourceConnected(): Promise<void> {
  * separate from `syncAfterSourceConnected()` because backup import
  * has already made local data authoritative and should push those
  * imported rows without first pulling source-level artifacts.
+ *
+ * This intentionally drains immediately instead of using the normal
+ * ambient debounce. Source connection and backup import are explicit
+ * workflows that can navigate/reload right after they finish; leaving
+ * the initial mirror in volatile queued state would make that upload
+ * easy to lose.
  */
-export async function mirrorLocalLibraryToSource({
-  immediate = false
-}: {
-  immediate?: boolean;
-} = {}): Promise<void> {
+export async function mirrorLocalLibraryToSource(): Promise<void> {
   if (!isPushAllowed()) return;
-  await pushAllLocalBooks({ immediate, reason: 'local-mirror' });
+  await pushAllLocalBooks();
 }
 
 function schedulePushRun(delayMs = PUSH_DEBOUNCE_MS, reason = 'local-mutation'): void {

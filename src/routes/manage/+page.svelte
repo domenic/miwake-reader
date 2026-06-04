@@ -96,9 +96,9 @@
   onDestroy(() => dialogManager.dialogs$.next([]));
 
   function bookmarkToProgress(b: BooksDbBookmarkData | undefined) {
-    return b?.progress
+    return b
       ? {
-          progress: typeof b.progress === 'string' ? +b.progress.slice(0, -1) : b.progress,
+          progress: typeof b.progress === 'string' ? +b.progress.slice(0, -1) : (b.progress ?? 0),
           completed: !!b.completed,
           lastBookmarkModified: b.lastBookmarkModified || 0
         }

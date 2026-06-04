@@ -6,7 +6,8 @@
 //
 import { mkdir, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import { TextReader, Uint8ArrayWriter, ZipWriter } from '@zip.js/zip.js';
+import { TextReader, Uint8ArrayReader, Uint8ArrayWriter, ZipWriter } from '@zip.js/zip.js';
+import { coverBitmapBytes } from '../tests/integration/fixtures/cover-bitmap.ts';
 
 const enc = new TextEncoder();
 
@@ -27,6 +28,44 @@ await writeOut(
       { title: '第三章', body: 'これはテスト用の第三章の本文です。' }
     ]
   })
+);
+
+await writeOut(
+  'long-test-book.epub',
+  await buildEPUB({
+    title: 'Long test book',
+    author: 'Test Author',
+    identifier: 'urn:uuid:00000000-0000-4000-8000-000000000002',
+    language: 'en',
+    chapters: Array.from({ length: 8 }, (_, i) => ({
+      title: `Chapter ${i + 1}`,
+      body: Array.from(
+        { length: 80 },
+        (_, j) =>
+          `This is paragraph ${j + 1} in chapter ${i + 1}. It gives the reader enough text for several page turns during integration tests.`
+      ).join('\n\n')
+    }))
+  })
+);
+
+await writeOut(
+  'cover-refresh-book.epub',
+  await buildEPUB({
+    title: 'Cover refresh book',
+    author: 'Test Author',
+    identifier: 'urn:uuid:00000000-0000-4000-8000-000000000003',
+    language: 'en',
+    coverColor: { red: 255, green: 0, blue: 0 },
+    chapters: [{ title: 'Chapter 1', body: 'This book has a deterministic cover image.' }]
+  })
+);
+
+await writeOut(
+  'plain-text-book.txt',
+  enc.encode(`This plain text fixture gives the library another real imported book.
+
+It is intentionally small; the integration tests only need a third user-importable title.
+`)
 );
 
 // "User renamed a text file to .epub" — fails at zip decoding ("End of central directory not
@@ -53,7 +92,7 @@ async function buildIncompleteEPUB() {
   return writer.getData();
 }
 
-async function buildEPUB({ title, author, identifier, language, chapters }) {
+async function buildEPUB({ title, author, identifier, language, chapters, coverColor }) {
   const writer = new Uint8ArrayWriter();
   const zip = new ZipWriter(writer);
 
@@ -68,9 +107,12 @@ async function buildEPUB({ title, author, identifier, language, chapters }) {
   await zip.add('META-INF/container.xml', new TextReader(containerXml()));
   await zip.add(
     'OEBPS/content.opf',
-    new TextReader(packageOpf({ title, author, identifier, language, chapters }))
+    new TextReader(packageOpf({ title, author, identifier, language, chapters, coverColor }))
   );
   await zip.add('OEBPS/nav.xhtml', new TextReader(navXhtml({ title, chapters })));
+  if (coverColor) {
+    await zip.add('OEBPS/cover.bmp', new Uint8ArrayReader(coverBitmapBytes(coverColor)));
+  }
 
   for (let i = 0; i < chapters.length; i++) {
     const c = chapters[i];
@@ -94,13 +136,16 @@ function containerXml() {
 `;
 }
 
-function packageOpf({ title, author, identifier, language, chapters }) {
+function packageOpf({ title, author, identifier, language, chapters, coverColor }) {
   const manifestItems = chapters
     .map(
       (_c, i) =>
         `    <item id="ch${i + 1}" href="chapter${i + 1}.xhtml" media-type="application/xhtml+xml"/>`
     )
     .join('\n');
+  const coverItem = coverColor
+    ? '\n    <item id="cover" href="cover.bmp" media-type="image/bmp" properties="cover-image"/>'
+    : '';
   const spineItems = chapters.map((_c, i) => `    <itemref idref="ch${i + 1}"/>`).join('\n');
   return `<?xml version="1.0" encoding="UTF-8"?>
 <package version="3.0" xmlns="http://www.idpf.org/2007/opf" unique-identifier="bookid">
@@ -113,7 +158,7 @@ function packageOpf({ title, author, identifier, language, chapters }) {
   </metadata>
   <manifest>
     <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
-${manifestItems}
+${manifestItems}${coverItem}
   </manifest>
   <spine>
 ${spineItems}

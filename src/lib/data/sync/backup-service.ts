@@ -336,7 +336,7 @@ export async function importBackup(
   // changed local library data, mirror it before the hard reload can
   // discard the in-memory ambient queue.
   if (booksImported > 0 || readingGoalsImported) {
-    await mirrorLocalLibraryToSource({ immediate: true });
+    await mirrorLocalLibraryToSource();
   }
 
   // localStorage-backed stores don't observe storage events, so we
@@ -345,7 +345,7 @@ export async function importBackup(
   // fresh state — cheaper than tracking down every component that
   // should refresh.
   if (booksImported > 0 || readingGoalsImported || appSettingsImported) {
-    setTimeout(() => window.location.replace(pagePath || '/'), 0);
+    setTimeout(() => window.location.replace(`${pagePath}/manage`), 0);
   }
 
   return {
@@ -380,5 +380,5 @@ export async function wipeAllStorage(): Promise<void> {
   await tx.done;
 
   localStorage.clear();
-  window.location.replace(pagePath || '/');
+  window.location.replace(`${pagePath}/manage`);
 }

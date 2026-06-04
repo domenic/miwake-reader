@@ -11,10 +11,11 @@
   } from '$lib/data/sync/sync-store.svelte';
   import { connectCloud, connectFs, disconnect } from '$lib/data/sync/source-manager';
   import { retryAfterReconnect } from '$lib/data/sync/sync-engine';
-  import { formatRelativeTimeLive, providerLabel } from '$lib/components/settings/sync/sync-utils';
+  import { providerLabel } from '$lib/components/settings/sync/sync-utils';
   import SyncAlert from '$lib/components/settings/sync/sync-alert.svelte';
   import SyncBadge from '$lib/components/settings/sync/sync-badge.svelte';
   import SyncButton from '$lib/components/settings/sync/sync-button.svelte';
+  import SyncLastSyncedTime from '$lib/components/settings/sync/sync-last-synced-time.svelte';
   import SyncRow from '$lib/components/settings/sync/sync-row.svelte';
   import SyncSection from '$lib/components/settings/sync/sync-section.svelte';
   import { showCustomOAuthDialog } from '$lib/components/settings/sync/custom-oauth-dialog.svelte';
@@ -318,9 +319,9 @@
           {#if activeCloud.lastSyncedAt === null}
             Not yet synced
           {:else if health.status === 'ok'}
-            Synced {formatRelativeTimeLive(activeCloud.lastSyncedAt)}
+            Synced <SyncLastSyncedTime timestamp={activeCloud.lastSyncedAt} />
           {:else}
-            Last successful sync {formatRelativeTimeLive(activeCloud.lastSyncedAt)}
+            Last successful sync <SyncLastSyncedTime timestamp={activeCloud.lastSyncedAt} />
           {/if}
           {#if activeCloud.bookCount !== null}
             · {activeCloud.bookCount} book{activeCloud.bookCount === 1 ? '' : 's'}
@@ -408,7 +409,7 @@
             {#if activeFs.lastSyncedAt === null}
               Not yet synced
             {:else}
-              Synced {formatRelativeTimeLive(activeFs.lastSyncedAt)}
+              Synced <SyncLastSyncedTime timestamp={activeFs.lastSyncedAt} />
             {/if}
           </div>
         {/if}

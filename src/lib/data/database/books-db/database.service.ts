@@ -243,6 +243,11 @@ export class DatabaseService {
         bookData = {
           ...data,
           id: oldData.id,
+          // Sync source membership is local bookkeeping, not part of exported book data. Preserve
+          // it when a pull hydrates/replaces an existing row so later source listings can still
+          // prune books that disappeared from that source.
+          lastSeenSourceInstanceId:
+            data.lastSeenSourceInstanceId ?? oldData.lastSeenSourceInstanceId,
           ...(skipTimestampFallback
             ? { lastBookModified: data.lastBookModified, lastBookOpen: data.lastBookOpen }
             : {

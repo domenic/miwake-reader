@@ -29,9 +29,7 @@
       objectUrl = '';
     }
     if (typeof value !== 'string') {
-      objectUrl = URL.createObjectURL(
-        value.type ? value : new Blob([value], { type: 'image/jpeg' })
-      );
+      objectUrl = URL.createObjectURL(value);
 
       return objectUrl;
     }
@@ -43,19 +41,8 @@
     let prevValue: string | Blob | undefined;
     let prevResponse: string | undefined;
 
-    const isEqual = (newValue: string | Blob) => {
-      if (!prevValue) return false;
-      if (prevValue instanceof Blob && newValue instanceof Blob) {
-        return prevValue.type === newValue.type && prevValue.size === newValue.size;
-      }
-      if (typeof prevValue !== 'object' || typeof newValue !== 'object') {
-        return prevValue === newValue;
-      }
-      return false;
-    };
-
     return (value: string | Blob) => {
-      if (isEqual(value)) return prevResponse as string;
+      if (value === prevValue) return prevResponse as string;
 
       prevValue = value;
       prevResponse = convertImagePath(value);
@@ -69,6 +56,12 @@
   let imageLoading = $state(true);
 
   let alt = $derived(`${title}_cover`);
+  let progressPercentage = $derived(completed ? 100 : Math.round(progress * 100));
+  let progressValueClasses = $derived(
+    completed
+      ? '[&::-webkit-progress-value]:rounded-none [&::-webkit-progress-value]:from-emerald-500 [&::-webkit-progress-value]:to-emerald-600 [&::-moz-progress-bar]:rounded-none [&::-moz-progress-bar]:from-emerald-500 [&::-moz-progress-bar]:to-emerald-600'
+      : '[&::-webkit-progress-value]:rounded-r-sm [&::-webkit-progress-value]:from-blue-500 [&::-webkit-progress-value]:to-blue-700 [&::-moz-progress-bar]:rounded-r-sm [&::-moz-progress-bar]:from-blue-500 [&::-moz-progress-bar]:to-blue-700'
+  );
 </script>
 
 <div tabindex="0" role="button" class="relative aspect-2/3" {onclick} {onkeyup}>
@@ -99,14 +92,12 @@
       >
         <span class="line-clamp-3">{title}</span>
       </div>
-      <div class="h-2.5 bg-gray-400/80">
-        <div
-          class="h-full bg-linear-to-b {completed
-            ? 'from-emerald-500 to-emerald-600'
-            : 'rounded-r-sm from-blue-500 to-blue-700'}"
-          style:width="{completed ? 100 : progress * 100}%"
-        ></div>
-      </div>
+      <progress
+        class={`block h-2.5 w-full appearance-none border-0 bg-gray-400/80 [&::-webkit-progress-bar]:bg-gray-400/80 [&::-webkit-progress-value]:bg-linear-to-b [&::-moz-progress-bar]:bg-linear-to-b ${progressValueClasses}`}
+        aria-label={`Reading progress for ${title}`}
+        value={progressPercentage}
+        max="100"
+      ></progress>
     </div>
   </div>
 </div>

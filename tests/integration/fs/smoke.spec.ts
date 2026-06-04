@@ -1,7 +1,8 @@
 import { expect, test } from '../helpers/harness.ts';
+import { navigateToSettingsReader } from '../helpers/navigation.ts';
 
 test('app boots and showDirectoryPicker returns the OPFS seed root', async ({ page }) => {
-  await page.goto('/settings');
+  await navigateToSettingsReader(page);
   await expect(page).toHaveTitle(/Miwake|Reader/i);
 
   const seedRootName = await page.evaluate(async () => {

@@ -40,7 +40,7 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: Integration tests
-        run: npm run test:integration
+        run: npm test
 
       - name: Upload Playwright report
         if: failure()

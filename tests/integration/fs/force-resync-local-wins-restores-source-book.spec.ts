@@ -1,10 +1,11 @@
-import { expectSyncRoot, test } from '../helpers/harness.ts';
+import { test } from '../helpers/harness.ts';
 import {
+  expectBooksInManage,
   expectBooksInSyncRoot,
-  expectBooksVisible,
   removeBooksFromSyncRoot,
   VALID_BOOK
 } from '../helpers/fixtures.ts';
+import { navigateToSettingsSync } from '../helpers/navigation.ts';
 import {
   forceFullResyncFromSettings,
   syncBookFixturesToSource,
@@ -16,14 +17,13 @@ test('force re-sync with "This device wins" restores a local book missing from t
 }) => {
   await syncBookFixturesToSource(page, [VALID_BOOK]);
 
-  await page.goto('/settings/sync');
+  await navigateToSettingsSync(page);
   await waitForSyncIdle(page);
   await removeBooksFromSyncRoot(page, [VALID_BOOK]);
-  await expectSyncRoot(page, []);
+  await expectBooksInSyncRoot(page, []);
 
   await forceFullResyncFromSettings(page, 'This device wins');
 
   await expectBooksInSyncRoot(page, [VALID_BOOK]);
-  await page.goto('/manage');
-  await expectBooksVisible(page, [VALID_BOOK]);
+  await expectBooksInManage(page, { placeholders: [], downloaded: [VALID_BOOK] });
 });

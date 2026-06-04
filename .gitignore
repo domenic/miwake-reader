@@ -18,3 +18,4 @@ tests/integration/test-results/
 tests/integration/playwright-report/
 tests/integration/cloud/.auth/
 tests/integration/fixtures/books/*.epub
+tests/integration/fixtures/books/*.txt

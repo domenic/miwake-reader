@@ -1,21 +1,30 @@
 import { expect, type Page } from '@playwright/test';
-import { SYNC_ASSERTION_TIMEOUT } from './harness.ts';
+import {
+  listSyncRoot,
+  pickSyncRootOnNextPicker,
+  SYNC_ASSERTION_TIMEOUT,
+  type SyncRootOptions
+} from './harness.ts';
+import { navigateToSettingsStatistics, navigateToSettingsSync } from './navigation.ts';
 import { expectBooksInSyncRoot, importBookFixtures, type LibraryBookFixture } from './fixtures.ts';
 
-export async function connectFS(page: Page) {
-  await page.goto('/settings/sync');
+export async function connectFS(page: Page, options?: SyncRootOptions) {
+  await navigateToSettingsSync(page);
+  if (options?.rootName) {
+    await pickSyncRootOnNextPicker(page, options.rootName);
+  }
   await page.getByRole('button', { name: 'Choose folder' }).click();
   await expect(page.getByText('Connected')).toBeVisible();
   await waitForSyncIdle(page);
 }
 
 export async function signOutAndWipe(page: Page) {
-  await page.goto('/settings/sync');
+  await navigateToSettingsSync(page);
   await page.getByRole('button', { name: 'Sign out and wipe' }).click();
   const dialog = page.locator('dialog[open]');
   await expect(dialog.getByRole('heading')).toContainText('Sign out and wipe local data?');
   await Promise.all([
-    page.waitForURL('/'),
+    page.waitForURL('/manage'),
     dialog.getByRole('button', { name: 'Confirm' }).click()
   ]);
 }
@@ -30,15 +39,16 @@ export async function signOutAndWipe(page: Page) {
  */
 export async function syncBookFixturesToSource(
   page: Page,
-  fixtures: readonly LibraryBookFixture[]
+  fixtures: readonly LibraryBookFixture[],
+  options?: SyncRootOptions
 ) {
   await importBookFixtures(page, fixtures);
-  await connectFS(page);
-  await expectBooksInSyncRoot(page, fixtures);
+  await connectFS(page, options);
+  await expectBooksInSyncRoot(page, fixtures, options);
 }
 
 export async function openDisconnectDialog(page: Page) {
-  await page.goto('/settings/sync');
+  await navigateToSettingsSync(page);
   await page.getByRole('button', { name: 'Disconnect' }).click();
 
   const dialog = page.locator('dialog[open]');
@@ -46,14 +56,30 @@ export async function openDisconnectDialog(page: Page) {
   return dialog;
 }
 
+export async function openChangeFolderDialog(page: Page) {
+  await navigateToSettingsSync(page);
+  await page.getByRole('button', { name: 'Change folder' }).click();
+
+  const dialog = page.locator('dialog[open]');
+  await expect(dialog.getByRole('heading')).toContainText('Switch to your sync folder?');
+  return dialog;
+}
+
+export async function completeCurrentBook(page: Page) {
+  await page.getByRole('button', { name: 'Show reader header' }).click();
+  await page.getByRole('button', { name: 'Complete Book' }).click();
+  await page.locator('dialog[open]').getByRole('button', { name: 'Confirm' }).click();
+  await expect(page.getByRole('button', { name: 'Undo Complete' })).toBeVisible();
+}
+
 export async function setSyncDirection(page: Page, direction: 'Up only' | 'Down only' | 'Off') {
-  await page.goto('/settings/sync');
+  await navigateToSettingsSync(page);
   await page.getByText('Advanced').click();
   await page.getByRole('group', { name: 'Sync direction' }).getByLabel(direction).check();
 }
 
 export async function enableStatistics(page: Page, enabledHeading = 'Tracker Auto Pause') {
-  await page.goto('/settings/statistics');
+  await navigateToSettingsStatistics(page);
   const enableStatisticsSection = page.locator('section').filter({
     has: page.getByRole('heading', { name: 'Enable Statistics' })
   });
@@ -64,28 +90,62 @@ export async function enableStatistics(page: Page, enabledHeading = 'Tracker Aut
   });
 }
 
+export async function setReadingGoal(
+  page: Page,
+  { timeGoal, startDate }: { timeGoal: string; startDate: string }
+) {
+  const { timeGoal: timeGoalInput, startDate: startDateInput } = await openReadingGoals(page);
+  await page.getByRole('button', { name: 'Edit' }).click();
+  await timeGoalInput.fill(timeGoal);
+  await startDateInput.fill(startDate);
+  await page.getByRole('button', { name: 'Save' }).click();
+  await expect(page.getByRole('button', { name: 'Edit' })).toBeVisible();
+  await expect(timeGoalInput).toHaveValue(timeGoal);
+  await expect(startDateInput).toHaveValue(startDate);
+}
+
+export async function expectReadingGoal(
+  page: Page,
+  { timeGoal, startDate }: { timeGoal: string; startDate: string }
+) {
+  const { timeGoal: timeGoalInput, startDate: startDateInput } = await openReadingGoals(page);
+  await expect(timeGoalInput).toHaveValue(timeGoal);
+  await expect(startDateInput).toHaveValue(startDate);
+}
+
+export async function expectReadingGoalsInSyncRoot(page: Page, options?: SyncRootOptions) {
+  await expect
+    .poll(() => listSyncRoot(page, options), { timeout: SYNC_ASSERTION_TIMEOUT })
+    .toEqual([
+      {
+        kind: 'file',
+        name: expect.stringMatching(/^miwake-user-goals_\d+_\d+_\d+\.json$/)
+      }
+    ]);
+}
+
 export async function forceFullResync(
   page: Page,
   direction: 'Keep newest' | 'This device wins' | 'Sync location wins' = 'Keep newest'
 ) {
-  await page.goto('/settings/sync');
+  await navigateToSettingsSync(page);
+  await waitForSyncIdle(page);
   await forceFullResyncFromSettings(page, direction);
 }
 
 /**
  * Drives the Force full re-sync dialog from an already-open Settings → Sync page.
  *
- * Most workflow helpers navigate to their owning route themselves. This lower-level helper exists
- * for source-deletion tests where a navigation would remount the app and run boot reconcile before
- * the test can choose "This device wins". In that state, boot reconcile correctly treats the source
- * listing as authoritative and can prune the local book that the local-wins resync is supposed to
- * push back up.
+ * Tests that mutate OPFS while already viewing this page use this lower-level helper so the next
+ * user action is the re-sync itself. That keeps the test focused on force re-sync instead of route
+ * changes or helper setup.
  */
 export async function forceFullResyncFromSettings(
   page: Page,
   direction: 'Keep newest' | 'This device wins' | 'Sync location wins' = 'Keep newest'
 ) {
-  await expect(page).toHaveURL(/\/settings\/sync(?:$|[?#])/);
+  await expect(page).toHaveURL('/settings/sync');
+  const previousLastSyncedAt = await syncLocationLastSyncedDateTime(page);
   await page.getByRole('button', { name: 'Re-sync' }).click();
 
   const dialog = page.locator('dialog[open]');
@@ -102,22 +162,46 @@ export async function forceFullResyncFromSettings(
         ? 'Push over'
         : 'Pull over';
   await dialog.getByRole('button', { name: confirmLabel }).click();
+  await expect(dialog).toHaveCount(0);
+  // Settings -> Sync renders the exact last-sync time as `<time datetime>`. Waiting for that
+  // value to advance gives the test a durable completion marker, unlike the fleeting "Syncing..."
+  // label that fast no-op syncs may never paint.
+  await expect
+    .poll(() => syncLocationLastSyncedDateTime(page), {
+      timeout: SYNC_ASSERTION_TIMEOUT
+    })
+    .not.toBe(previousLastSyncedAt);
   await waitForSuccessfulSync(page);
 }
 
 export async function exportBackup(
   page: Page,
   path: string,
-  selection: { allBooks?: boolean; appSettings?: boolean }
+  selection: {
+    allBooks?: boolean;
+    allBookmarks?: boolean;
+    allStatistics?: boolean;
+    appSettings?: boolean;
+    readingGoals?: boolean;
+  }
 ) {
-  await page.goto('/settings/sync');
+  await navigateToSettingsSync(page);
   await page.getByRole('button', { name: 'Export' }).click();
 
   const dialog = page.locator('dialog[open]');
   await expect(dialog.getByRole('heading', { name: 'Export backup' })).toBeVisible();
 
+  if (selection.readingGoals) {
+    await dialog.getByLabel('Reading goals').check();
+  }
   if (selection.allBooks) {
     await dialog.getByLabel('Select all').check();
+  }
+  if (selection.allBookmarks) {
+    await dialog.getByLabel('All bookmarks').check();
+  }
+  if (selection.allStatistics) {
+    await dialog.getByLabel('All statistics').check();
   }
   if (selection.appSettings) {
     await dialog.getByLabel('App settings').check();
@@ -130,8 +214,12 @@ export async function exportBackup(
   await download.saveAs(path);
 }
 
-export async function importBackup(page: Page, path: string) {
-  await page.goto('/settings/sync');
+export async function importBackup(
+  page: Page,
+  path: string,
+  { direction = 'Keep newest' }: { direction?: 'Keep newest' | 'ZIP wins' } = {}
+) {
+  await navigateToSettingsSync(page);
 
   const [fileChooser] = await Promise.all([
     page.waitForEvent('filechooser'),
@@ -141,22 +229,56 @@ export async function importBackup(page: Page, path: string) {
 
   const dialog = page.locator('dialog[open]');
   await expect(dialog.getByRole('heading', { name: 'Import backup' })).toBeVisible();
+  await dialog
+    .getByRole('group', { name: 'When the ZIP and this device disagree' })
+    .getByLabel(direction)
+    .check();
   await Promise.all([
-    page.waitForURL((url) => url.pathname === '/' || url.pathname === '/manage', {
-      timeout: 30_000
-    }),
+    page.waitForURL('/manage', { timeout: 30_000 }),
     dialog.getByRole('button', { name: 'Import' }).click()
   ]);
 }
 
+/**
+ * Waits for sync work to drain. A connected source only proves the app has a handle or cloud
+ * account; it does not prove ambient pushes, boot reconcile, or force re-sync work has finished.
+ */
 export async function waitForSyncIdle(page: Page) {
   await expect(page.getByRole('button', { name: /^(Synced|Up to date)/ })).toBeVisible({
     timeout: SYNC_ASSERTION_TIMEOUT
   });
 }
 
+/**
+ * Waits for an explicitly successful sync state. Use this when the scenario needs a completed
+ * source operation, not merely an idle "Up to date" state with sync disabled or disconnected.
+ */
 export async function waitForSuccessfulSync(page: Page) {
   await expect(page.getByRole('button', { name: /^Synced/ })).toBeVisible({
     timeout: SYNC_ASSERTION_TIMEOUT
   });
+}
+
+async function openReadingGoals(page: Page) {
+  await navigateToSettingsStatistics(page);
+  const readingGoalsHeading = page.getByRole('heading', { name: 'Reading Goals' });
+  if ((await readingGoalsHeading.count()) === 0) {
+    await enableStatistics(page, 'Reading Goals');
+  }
+
+  await expect(readingGoalsHeading).toBeVisible({ timeout: SYNC_ASSERTION_TIMEOUT });
+  return {
+    timeGoal: page.getByText('Time Goal (Min)', { exact: true }).locator('input[type="number"]'),
+    startDate: page.getByText('Start Date', { exact: true }).locator('input[type="date"]')
+  };
+}
+
+async function syncLocationLastSyncedDateTime(page: Page) {
+  const syncLocationSection = page.locator('section').filter({
+    has: page.getByRole('heading', { name: 'Sync location' })
+  });
+  const lastSyncedTime = syncLocationSection.locator('time[datetime]').first();
+  if ((await lastSyncedTime.count()) === 0) return null;
+
+  return lastSyncedTime.getAttribute('datetime');
 }

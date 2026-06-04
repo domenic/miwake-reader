@@ -19,6 +19,10 @@ const HOUR = 60 * MINUTE;
 const DAY = 24 * HOUR;
 
 const rtf = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' });
+const exactTimeFormat = new Intl.DateTimeFormat(undefined, {
+  dateStyle: 'medium',
+  timeStyle: 'medium'
+});
 
 /**
  * Format `timestamp` relative to `now` using Intl.RelativeTimeFormat,
@@ -41,4 +45,8 @@ export function formatRelativeTime(timestamp: number, now = Date.now()): string 
  */
 export function formatRelativeTimeLive(timestamp: number): string {
   return formatRelativeTime(timestamp, wallClock.now);
+}
+
+export function formatExactTime(timestamp: number): string {
+  return exactTimeFormat.format(new Date(timestamp));
 }
