@@ -5,13 +5,13 @@ This file is the durable handoff for migrating `~/miwake-harness/` scenarios int
 ## Current State
 
 - Source harness files on disk: 46 numeric FS-ish scenarios (`00-*.mjs` through `46-*.mjs`, with no `25-*`) and 15 `cloud-*.mjs` scenarios.
-- In-tree Playwright FS specs: 38 files, 39 tests under `tests/integration/fs/`.
+- In-tree Playwright FS specs: 39 files, 40 tests under `tests/integration/fs/`.
 - Test command: `npm run test:integration`.
 - Main harness: `tests/integration/helpers/harness.ts`.
 - User workflow helpers: `tests/integration/helpers/workflows.ts`.
 - Book fixture helpers: `tests/integration/helpers/fixtures.ts`.
 - Generated book fixtures: `tests/integration/fixtures/books/*`, produced by `npm run generate-fixtures` / `prepare` and gitignored.
-- Latest verification: `npm run check` and `npx playwright test tests/integration/fs/cover-refresh.spec.ts` passed after the cover-refresh port.
+- Latest verification: `npm run check` and a targeted Playwright run covering the prune-cascade spec plus the sync-root assertion cleanup passed after the prune-cascade port.
 
 ## Migration Rules
 
@@ -63,6 +63,7 @@ This file is the durable handoff for migrating `~/miwake-harness/` scenarios int
 | `08-force-resync.mjs`                                    | `fs/force-resync.spec.ts`                                                                                                               | Keep-newest happy path keeps a downloaded book available.                                                       |
 | `09-prune-unreachable-on-boot.mjs`                       | `fs/cross-device-delete-prunes-downloaded.spec.ts`, `fs/cross-context-source-reconcile.spec.ts`                                         | Boot reconcile prunes deleted source books.                                                                     |
 | `10-force-resync-remote-only.mjs`                        | `fs/cross-context-source-reconcile.spec.ts`                                                                                             | Manual source-wins force re-sync picks up source-side additions.                                                |
+| `11-prune-cascades.mjs`                                  | `fs/prune-cascades-last-item.spec.ts`                                                                                                   | Boot pruning a source-deleted placeholder clears the stale last-opened pointer.                                 |
 | `12-change-folder.mjs`                                   | `fs/source-switch-replaces-placeholders.spec.ts`                                                                                        | Changing folders replaces source-only placeholders with the new source listing.                                 |
 | `13-force-resync-prunes.mjs`                             | `fs/force-resync-prunes-source-deleted-placeholders.spec.ts`                                                                            | Force re-sync prunes source-deleted placeholders without requiring a reload.                                    |
 | `14-switch-listing-fails.mjs`                            | `fs/source-switch-listing-failure.spec.ts`                                                                                              | A listing failure during folder switch shows an error and leaves the current connection/library.                |
@@ -96,10 +97,9 @@ This file is the durable handoff for migrating `~/miwake-harness/` scenarios int
 
 ## Partial Coverage
 
-| Harness scenario                  | Covered part                                      | Missing part                                                                                                                               |
-| --------------------------------- | ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| `11-prune-cascades.mjs`           | Source deletion/pruning is covered.               | The old `lastItem` cascade assertion is not directly covered. Prefer a UI-observable resume/last-book assertion if this is still valuable. |
-| `23-open-placeholder-no-sync.mjs` | The sync-connected placeholder branch is covered. | The no-sync placeholder state is stale/manufactured. Treat as D-class unless there is a supported UI path to create it.                    |
+| Harness scenario                  | Covered part                                      | Missing part                                                                                                            |
+| --------------------------------- | ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `23-open-placeholder-no-sync.mjs` | The sync-connected placeholder branch is covered. | The no-sync placeholder state is stale/manufactured. Treat as D-class unless there is a supported UI path to create it. |
 
 ## Uncovered FS / Numeric Harness Scenarios
 
@@ -115,11 +115,10 @@ These remain to port, drop, or explicitly classify.
 
 The next useful FS batch is the remaining drop-classification work:
 
-- `11-prune-cascades.mjs`
 - `23-open-placeholder-no-sync.mjs`
 - `37-backfill-source-instance-id.mjs`
 
-`11`, `23`, and `37` need a deliberate keep/drop decision because their original value depends on historical internal fields or manufactured local-only placeholder state.
+`23` and `37` need a deliberate keep/drop decision because their original value depends on historical internal fields or manufactured local-only placeholder state.
 
 ## Cloud / OAuth Work
 

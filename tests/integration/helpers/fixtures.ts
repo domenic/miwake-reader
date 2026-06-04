@@ -1,7 +1,7 @@
 import { resolve } from 'node:path';
 import { expect, type Page } from '@playwright/test';
 import {
-  expectSyncRoot,
+  listSyncRoot,
   listRemoveEntryLog,
   overwriteSyncRootFile,
   removeSyncRootEntry,
@@ -315,13 +315,13 @@ export async function expectBooksInSyncRoot(
   fixtures: readonly LibraryBookFixture[],
   options?: SyncRootOptions
 ) {
-  await expectSyncRoot(
-    page,
-    fixtures
-      .map((fixture) => ({ kind: 'directory', name: fixtureTitle(fixture) }))
-      .sort((a, b) => a.name.localeCompare(b.name)),
-    options
-  );
+  const expectedEntries = fixtures
+    .map((fixture) => ({ kind: 'directory', name: fixtureTitle(fixture) }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  await expect
+    .poll(() => listSyncRoot(page, options), { timeout: SYNC_ASSERTION_TIMEOUT })
+    .toEqual(expectedEntries);
 }
 
 export async function expectBookStatisticsInSyncRoot(

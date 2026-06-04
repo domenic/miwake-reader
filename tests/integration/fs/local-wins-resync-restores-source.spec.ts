@@ -1,4 +1,4 @@
-import { expectSyncRoot, test } from '../helpers/harness.ts';
+import { test } from '../helpers/harness.ts';
 import {
   expectBooksInManage,
   expectBooksInSyncRoot,
@@ -20,7 +20,7 @@ test('force re-sync with "This device wins" restores a local book missing from t
   await navigateToSettingsSync(page);
   await waitForSyncIdle(page);
   await removeBooksFromSyncRoot(page, [VALID_BOOK]);
-  await expectSyncRoot(page, []);
+  await expectBooksInSyncRoot(page, []);
 
   await forceFullResyncFromSettings(page, 'This device wins');
 

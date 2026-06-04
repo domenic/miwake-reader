@@ -1,5 +1,6 @@
 import { expect, type Page } from '@playwright/test';
 import {
+  listSyncRoot,
   pickSyncRootOnNextPicker,
   SYNC_ASSERTION_TIMEOUT,
   type SyncRootOptions
@@ -112,6 +113,17 @@ export async function expectReadingGoal(
   await expect(startDateInput).toHaveValue(startDate);
 }
 
+export async function expectReadingGoalsInSyncRoot(page: Page, options?: SyncRootOptions) {
+  await expect
+    .poll(() => listSyncRoot(page, options), { timeout: SYNC_ASSERTION_TIMEOUT })
+    .toEqual([
+      {
+        kind: 'file',
+        name: expect.stringMatching(/^miwake-user-goals_\d+_\d+_\d+\.json$/)
+      }
+    ]);
+}
+
 export async function forceFullResync(
   page: Page,
   direction: 'Keep newest' | 'This device wins' | 'Sync location wins' = 'Keep newest'
@@ -132,7 +144,7 @@ export async function forceFullResyncFromSettings(
   page: Page,
   direction: 'Keep newest' | 'This device wins' | 'Sync location wins' = 'Keep newest'
 ) {
-  await expect(page).toHaveURL(/\/settings\/sync(?:$|[?#])/);
+  await expect(page).toHaveURL('/settings/sync');
   const previousLastSyncedAt = await syncLocationLastSyncedDateTime(page);
   await page.getByRole('button', { name: 'Re-sync' }).click();
 

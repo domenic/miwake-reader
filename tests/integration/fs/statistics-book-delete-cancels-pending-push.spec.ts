@@ -1,4 +1,4 @@
-import { expectSyncRoot, test } from '../helpers/harness.ts';
+import { test } from '../helpers/harness.ts';
 import {
   deleteBookFromManage,
   expectBooksInManage,
@@ -26,5 +26,5 @@ test('deleting a book cancels pending statistics pushes', async ({ page }) => {
   await page.clock.runFor(60_000);
 
   await expectBooksInManage(page, { placeholders: [], downloaded: [] });
-  await expectSyncRoot(page, []);
+  await expectBooksInSyncRoot(page, []);
 });

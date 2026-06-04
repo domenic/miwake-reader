@@ -15,14 +15,9 @@ interface RemoveEntryCall {
   recursive: boolean;
 }
 
-interface SyncRootEntry {
+export interface SyncRootEntry {
   kind: string;
   name: string;
-}
-
-interface ExpectedSyncRootEntry {
-  kind: string | Record<string, any>;
-  name: string | Record<string, any>;
 }
 
 export interface SyncRootOptions {
@@ -83,7 +78,7 @@ async function installTestInitScripts(context: BrowserContext) {
   await context.addInitScript(pickerInitScript);
 }
 
-async function listSyncRoot(
+export async function listSyncRoot(
   page: Page,
   { rootName = DEFAULT_SYNC_ROOT_NAME }: SyncRootOptions = {}
 ): Promise<SyncRootEntry[]> {
@@ -101,14 +96,6 @@ async function listSyncRoot(
     },
     { rootName }
   );
-}
-
-export async function expectSyncRoot(
-  page: Page,
-  entries: ExpectedSyncRootEntry[],
-  { rootName, timeout = SYNC_ASSERTION_TIMEOUT }: SyncRootOptions & { timeout?: number } = {}
-) {
-  await expect.poll(() => listSyncRoot(page, { rootName }), { timeout }).toEqual(entries);
 }
 
 export async function clearRemoveEntryLog(page: Page) {

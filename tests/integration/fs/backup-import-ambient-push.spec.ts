@@ -1,4 +1,4 @@
-import { expectSyncRoot, test } from '../helpers/harness.ts';
+import { test } from '../helpers/harness.ts';
 import {
   expectBooksInManage,
   expectBooksInSyncRoot,
@@ -23,7 +23,7 @@ test('restoring a book backup while FS sync is connected pushes book data to OPF
   await signOutAndWipe(page);
 
   await connectFS(page);
-  await expectSyncRoot(page, []);
+  await expectBooksInSyncRoot(page, []);
 
   await importBackup(page, backupPath);
   await expectBooksInManage(page, { placeholders: [], downloaded: [VALID_BOOK] });

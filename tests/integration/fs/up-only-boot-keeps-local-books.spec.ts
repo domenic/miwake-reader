@@ -1,5 +1,10 @@
-import { expectSyncRoot, test } from '../helpers/harness.ts';
-import { expectBooksInManage, removeBooksFromSyncRoot, VALID_BOOK } from '../helpers/fixtures.ts';
+import { test } from '../helpers/harness.ts';
+import {
+  expectBooksInManage,
+  expectBooksInSyncRoot,
+  removeBooksFromSyncRoot,
+  VALID_BOOK
+} from '../helpers/fixtures.ts';
 import {
   setSyncDirection,
   syncBookFixturesToSource,
@@ -11,7 +16,7 @@ test('boot with "Up only" sync preserves local books missing from the source', a
 
   await setSyncDirection(page, 'Up only');
   await removeBooksFromSyncRoot(page, [VALID_BOOK]);
-  await expectSyncRoot(page, []);
+  await expectBooksInSyncRoot(page, []);
 
   await page.reload();
   await waitForSyncIdle(page);
