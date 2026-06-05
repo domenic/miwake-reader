@@ -993,7 +993,7 @@
             dateString,
             `${secondsToMinutes(dayData.readingTime)} min`,
             `${dayData.charactersRead} characters`,
-            pluralize(dayData.titles.size, 'title')
+            pluralize(dayData.titles.size, 'book')
           ],
           readingTime: dayData.readingTime
         }
@@ -1003,7 +1003,7 @@
           heatmapRow,
           heatmapColumn,
           color: '',
-          dayDetails: [dateString, `0 min`, `0 characters`, `0 titles`],
+          dayDetails: [dateString, `0 min`, `0 characters`, `0 books`],
           readingTime: 0
         };
 
@@ -1067,7 +1067,7 @@
                 currentReadingGoalWindow.readingGoalEndDate
               )
             ]),
-        pluralize(currentReadingGoalWindow.titles.size, 'title'),
+        pluralize(currentReadingGoalWindow.titles.size, 'book'),
         ...(currentReadingGoalWindow.timeGoal
           ? [
               `${secondsToMinutes(currentReadingGoalWindow.readingTime)} / ${secondsToMinutes(

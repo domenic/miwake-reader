@@ -66,7 +66,7 @@ export const readingSpeedDataSources: StatisticsDataSource[] = [
 
 export const dateDataSources: StatisticsDataSource[] = [{ key: 'dateKey', label: 'Date' }];
 
-export const titleDataSources: StatisticsDataSource[] = [{ key: 'title', label: 'Title' }];
+export const titleDataSources: StatisticsDataSource[] = [{ key: 'title', label: 'Book' }];
 
 export const copyStatisticsData$ = new Subject<keyof BookStatistic>();
 

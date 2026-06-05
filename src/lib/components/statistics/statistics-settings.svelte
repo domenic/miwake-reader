@@ -11,6 +11,7 @@
     charactersDataSources,
     readingSpeedDataSources,
     statisticsDataAggregrationModes,
+    StatisticsReadingDataAggregationMode,
     exportStatisticsData$,
     statisticsActionInProgress$,
     deleteStatisticsData$,
@@ -157,7 +158,7 @@
     class="text-left mt-3 hover:text-red-500"
     onclick={() => setStatisticsDatesToAllTime$.next()}
   >
-    Set to All Time for selected Book Titles
+    Set to all time for the selected books
   </button>
   <div class="flex flex-wrap justify-between mt-4">
     <div class="flex flex-col my-2 w-full sm:w-[initial]">
@@ -232,7 +233,9 @@
     >
       {#each statisticsDataAggregrationModes as statisticsDataAggregrationMode (statisticsDataAggregrationMode)}
         <option value={statisticsDataAggregrationMode}>
-          {statisticsDataAggregrationMode}
+          {statisticsDataAggregrationMode === StatisticsReadingDataAggregationMode.TITLE
+            ? 'Book'
+            : statisticsDataAggregrationMode}
         </option>
       {/each}
     </select>

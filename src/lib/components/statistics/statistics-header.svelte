@@ -59,7 +59,7 @@
         <div class={headerDividerClasses}></div>
         <HeaderButton
           faIcon={faFilter}
-          title="Open title filter menu"
+          title="Open book filter menu"
           label="Filter"
           disabled={!$statisticsTitleFilterEnabled$}
           onclick={() => {
