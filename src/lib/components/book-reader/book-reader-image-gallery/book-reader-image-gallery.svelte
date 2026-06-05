@@ -177,7 +177,7 @@
               class="spoiler-label"
               onclick={() => toggleGalleryPictureSpoiler(readerImageGalleryPicture.url)}
             >
-              ネタバレ
+              <span lang="ja">ネタバレ</span>
             </button>
           {/if}
         </div>
@@ -209,7 +209,7 @@
               aria-label={`Reveal gallery image ${selectedImageIndex + 1}`}
               onclick={() => toggleGalleryPictureSpoiler(selectedImage.url)}
             >
-              ネタバレ
+              <span lang="ja">ネタバレ</span>
             </button>
           {/if}
         </div>

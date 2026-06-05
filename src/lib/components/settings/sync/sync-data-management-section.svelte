@@ -2,7 +2,7 @@
   import { showBackupExportDialog } from '$lib/components/backup/backup-export-dialog.svelte';
   import { showBackupImportDialog } from '$lib/components/backup/backup-import-dialog.svelte';
   import type { BackupCatalog } from '$lib/components/backup/backup-types';
-  import { confirmDialog, messageDialog } from '$lib/data/simple-dialogs';
+  import { confirmDialog, messageDialog } from '$lib/components/simple-dialogs';
   import { syncState } from '$lib/data/sync/sync-store.svelte';
   import SyncButton from '$lib/components/settings/sync/sync-button.svelte';
   import SyncSection from '$lib/components/settings/sync/sync-section.svelte';

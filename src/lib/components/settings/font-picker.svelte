@@ -15,7 +15,7 @@
   import { userFonts$ } from '$lib/data/store';
   import { logger } from '$lib/data/logger';
   import { parseFontName } from '$lib/functions/parse-font-name';
-  import { messageDialog } from '$lib/data/simple-dialogs';
+  import { messageDialog } from '$lib/components/simple-dialogs';
   import Fa from 'svelte-fa';
   import { onMount } from 'svelte';
 
@@ -198,7 +198,7 @@
     <div class="min-w-0">
       <div class="truncate text-sm font-medium">{displayName(selectedFont)}</div>
       <div class="truncate text-xs text-gray-400">
-        Preview: <span style:font-family="{selectedFont}, {group}"
+        Preview: <span lang="ja" style:font-family="{selectedFont}, {group}"
           >永遠のノベルをＡＩが3秒で書く</span
         >
       </div>
@@ -255,7 +255,9 @@
                   class:opacity-60={font === selectedFont}
                   class:text-gray-400={font !== selectedFont}
                 >
-                  <span style:font-family="{font}, {group}">永遠のノベルをＡＩが3秒で書く</span>
+                  <span lang="ja" style:font-family="{font}, {group}"
+                    >永遠のノベルをＡＩが3秒で書く</span
+                  >
                 </div>
               </div>
               {#if font === selectedFont}
@@ -302,7 +304,7 @@
                     class:opacity-60={userFont.name === selectedFont}
                     class:text-gray-400={userFont.name !== selectedFont}
                   >
-                    <span style:font-family="{userFont.name}, {group}"
+                    <span lang="ja" style:font-family="{userFont.name}, {group}"
                       >永遠のノベルをＡＩが3秒で書く</span
                     >
                   </div>
@@ -414,7 +416,11 @@
 
         <div class="mb-4 rounded-lg border border-gray-300 p-3">
           <div class="mb-1.5 text-[9px] uppercase tracking-widest text-gray-400">Preview</div>
-          <div class="text-[15px] leading-relaxed" style:font-family="{systemFontName}, {group}">
+          <div
+            class="text-[15px] leading-relaxed"
+            style:font-family="{systemFontName}, {group}"
+            lang="ja"
+          >
             永遠のノベルをＡＩが3秒で書く
           </div>
         </div>

@@ -1,6 +1,6 @@
 <script module lang="ts">
   import LogReportDialogContent from '$lib/components/log-report-dialog-content.svelte';
-  import { showDialog, type DialogClosedBy } from '$lib/data/simple-dialogs';
+  import { showDialog, type DialogClosedBy } from '$lib/components/simple-dialogs';
 
   export function showErrorDialogWithLogReport({
     title,

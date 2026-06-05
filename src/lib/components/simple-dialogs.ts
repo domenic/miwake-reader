@@ -3,6 +3,7 @@ import ConfirmDialogContent from '$lib/components/confirm-dialog-content.svelte'
 import MessageDialogContent from '$lib/components/message-dialog-content.svelte';
 import NumberDialogContent from '$lib/components/number-dialog-content.svelte';
 import { dialogSurfaceClasses } from '$lib/css-classes';
+import type { SimpleDialogContent } from '$lib/components/simple-dialog-content';
 
 export type DialogClosedBy = 'any' | 'closerequest' | 'none';
 
@@ -37,26 +38,18 @@ export function showDialog<T>(
   });
 }
 
-export function confirmDialog({ title, message }: { title: string; message: string }) {
-  return showDialog(
-    ConfirmDialogContent,
-    { title, message },
-    {
-      closedBy: 'any',
-      resolveResult: (returnValue) => returnValue !== 'confirm'
-    }
-  );
+export function confirmDialog(content: SimpleDialogContent) {
+  return showDialog(ConfirmDialogContent, content, {
+    closedBy: 'any',
+    resolveResult: (returnValue) => returnValue !== 'confirm'
+  });
 }
 
-export function messageDialog({ title, message }: { title: string; message: string }) {
-  return showDialog(
-    MessageDialogContent,
-    { title, message },
-    {
-      closedBy: 'closerequest',
-      resolveResult: () => undefined
-    }
-  );
+export function messageDialog(content: SimpleDialogContent) {
+  return showDialog(MessageDialogContent, content, {
+    closedBy: 'closerequest',
+    resolveResult: () => undefined
+  });
 }
 
 export function numberDialog({

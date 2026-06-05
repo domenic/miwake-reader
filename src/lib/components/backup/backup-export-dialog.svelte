@@ -1,6 +1,6 @@
 <script module lang="ts">
   import BackupExportDialog from '$lib/components/backup/backup-export-dialog.svelte';
-  import { showDialog } from '$lib/data/simple-dialogs';
+  import { showDialog } from '$lib/components/simple-dialogs';
   import type { BackupCatalog, BackupSelection } from '$lib/components/backup/backup-types';
 
   export function showBackupExportDialog(params: {

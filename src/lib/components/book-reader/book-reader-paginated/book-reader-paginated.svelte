@@ -758,7 +758,7 @@
     touchAction: 'pan-y'
   }))}
 >
-  <div class="book-content-container" id={currentSectionId || null} bind:this={contentEl}>
+  <div class="book-content-container" id={currentSectionId || null} bind:this={contentEl} lang="ja">
     <!-- eslint-disable-next-line svelte/no-at-html-tags -->
     {@html displayedHtml}
   </div>

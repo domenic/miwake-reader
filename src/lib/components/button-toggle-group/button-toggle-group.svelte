@@ -50,7 +50,7 @@
         style={mapToStyleString(option.style)}
         onclick={() => (selectedOptionId = option.id)}
       >
-        {option.text}
+        <span lang={option.textLang}>{option.text}</span>
       </button>
       {#if option.showIcons && option.id === selectedOptionId && !availableThemes.has(option.id)}
         <div class="flex flex-col justify-around mr-2">

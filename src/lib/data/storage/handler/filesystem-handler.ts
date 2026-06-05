@@ -14,7 +14,7 @@ import type { BookCardProps } from '$lib/components/book-card/book-card-props';
 import { isRemoteContext } from '$lib/data/storage/storage-source-types';
 import { NeedsPermissionGrantError } from '$lib/data/storage/errors';
 import { SyncEndpointType } from '$lib/data/storage/storage-types';
-import { confirmDialog } from '$lib/data/simple-dialogs';
+import { confirmDialog } from '$lib/components/simple-dialogs';
 import pLimit from 'p-limit';
 import type { ReplicationContext } from '$lib/functions/replication/replication-progress';
 

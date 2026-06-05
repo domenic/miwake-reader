@@ -3,6 +3,7 @@
   import { faImage } from '@fortawesome/free-regular-svg-icons';
   import { onDestroy } from 'svelte';
   import Fa from 'svelte-fa';
+  import { japaneseLangIfNeeded } from '$lib/functions/japanese-language';
 
   interface Props {
     imagePath: string | Blob;
@@ -14,6 +15,8 @@
   }
 
   let { imagePath, title, progress, completed, onclick, onkeyup }: Props = $props();
+
+  const componentId = $props.id();
 
   let objectUrl = '';
 
@@ -55,7 +58,9 @@
 
   let imageLoading = $state(true);
 
-  let alt = $derived(`${title}_cover`);
+  let titleId = $derived(`${componentId}-title`);
+  let titleLang = $derived(japaneseLangIfNeeded(title));
+  let progressLabelId = $derived(`${componentId}-progress-label`);
   let progressPercentage = $derived(completed ? 100 : Math.round(progress * 100));
   let progressValueClasses = $derived(
     completed
@@ -79,7 +84,7 @@
           class="book-cover relative size-full object-cover transition delay-150 duration-700 ease-out"
           class:blur={imageLoading}
           src={mapImagePath(imagePath)}
-          {alt}
+          alt=""
           onload={() => (imageLoading = false)}
           onerror={() => (imageLoading = false)}
         />
@@ -90,11 +95,12 @@
       <div
         class="sm:h-21 h-16 bg-gray-800/80 p-0.5 px-1.5 text-justify text-sm text-white sm:p-1.5 sm:text-base"
       >
-        <span class="line-clamp-3">{title}</span>
+        <span id={titleId} class="line-clamp-3" lang={titleLang}>{title}</span>
       </div>
+      <span id={progressLabelId} class="sr-only">Reading progress</span>
       <progress
         class={`block h-2.5 w-full appearance-none border-0 bg-gray-400/80 [&::-webkit-progress-bar]:bg-gray-400/80 [&::-webkit-progress-value]:bg-linear-to-b [&::-moz-progress-bar]:bg-linear-to-b ${progressValueClasses}`}
-        aria-label={`Reading progress for ${title}`}
+        aria-labelledby={`${titleId} ${progressLabelId}`}
         value={progressPercentage}
         max="100"
       ></progress>

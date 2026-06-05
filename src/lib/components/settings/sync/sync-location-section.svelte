@@ -1,7 +1,7 @@
 <script lang="ts">
   import { browser } from '$app/environment';
   import { appName } from '$lib/data/env';
-  import { messageDialog } from '$lib/data/simple-dialogs';
+  import { messageDialog } from '$lib/components/simple-dialogs';
   import { SyncEndpointType } from '$lib/data/storage/storage-types';
   import { database } from '$lib/data/store';
   import {
