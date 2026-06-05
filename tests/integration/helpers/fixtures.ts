@@ -403,7 +403,7 @@ function bookPlaceholderIndicator(page: Page, fixture: LibraryBookFixture) {
 async function showAllStatistics(page: Page) {
   await navigateToStatisticsSummary(page);
   const settings = await openStatisticsSettings(page);
-  await settings.getByRole('button', { name: 'Set to All Time for selected Book Titles' }).click();
+  await settings.getByRole('button', { name: 'Set to all time for the selected books' }).click();
   await settings.getByTitle('Close statistics settings').click();
   await expect(settings).toHaveCount(0, { timeout: SYNC_ASSERTION_TIMEOUT });
 }

@@ -68,7 +68,7 @@
                 bind:this={headerCheckbox}
               />
             </th>
-            <th class="py-2 text-left font-semibold">Book title</th>
+            <th class="py-2 text-left font-semibold">Book</th>
           </tr>
         </thead>
         <tbody>
