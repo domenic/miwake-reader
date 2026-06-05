@@ -11,7 +11,6 @@
   } from '$lib/components/log-report-dialog-content.svelte';
   import { pxScreen } from '$lib/css-classes';
   import type { BooksDbBookmarkData } from '$lib/data/database/books-db/versions/books-db';
-  import { dialogManager } from '$lib/data/dialog-manager';
   import { appName } from '$lib/data/env';
   import { userDeleteBooks, userDeleteStatisticEntries, userImportBooks } from '$lib/data/library';
   import { logger } from '$lib/data/logger';
@@ -37,7 +36,7 @@
   import { pluralize } from '$lib/functions/utils';
   import pLimit from 'p-limit';
   import { combineLatest, map, Observable, share, Subject, takeUntil } from 'rxjs';
-  import { onDestroy, tick } from 'svelte';
+  import { tick } from 'svelte';
   import Fa from 'svelte-fa';
 
   const booksAreLoading$ = database.listLoading$.pipe(map((isLoading) => isLoading));
@@ -91,8 +90,6 @@
       selectedBookIds = new Set();
     }
   });
-
-  onDestroy(() => dialogManager.dialogs$.next([]));
 
   function bookmarkToProgress(b: BooksDbBookmarkData | undefined) {
     return b

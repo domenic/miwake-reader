@@ -122,7 +122,6 @@
     type BooksDbBookmarkData,
     type BooksDbStatistic
   } from '$lib/data/database/books-db/versions/books-db';
-  import { dialogManager } from '$lib/data/dialog-manager';
   import { DB_VERSION, PAGE_CHANGE, SKIPKEYLISTENER, SYNCED } from '$lib/data/events';
   import { fullscreenManager } from '$lib/data/fullscreen-manager';
   import { logger } from '$lib/data/logger';
@@ -177,6 +176,7 @@
 
   let showSpinner = $state(true);
   let showHeader = $state(false);
+  let readerActionPending = $state(false);
   let isBookmarkScreen = $state(false);
   let showFooter = $state(true);
   let exploredCharCount = $state(0);
@@ -209,7 +209,6 @@
   let showReaderImageGallery = $state(false);
   let wasTocOpen = $state(false);
   let wasTrackerMenuOpen = $state(false);
-  let dismissDialogs = true;
   let syncedResolver: () => void;
   let lastReaderStatisticsSyncAt = 0;
   let readerStatisticsSyncDirty = false;
@@ -607,10 +606,6 @@
     }
 
     readerImageGalleryPictures$.next([]);
-
-    if (dismissDialogs) {
-      dialogManager.dialogs$.next([]);
-    }
   });
 
   function handleUnload(event: BeforeUnloadEvent) {
@@ -628,7 +623,6 @@
       return;
     }
 
-    dialogManager.dialogs$.next([]);
     toggleTrackerPauseByUser();
   }
 
@@ -670,49 +664,42 @@
   }
 
   async function completeBook() {
-    if (!$rawBookData$) {
+    if (!$rawBookData$ || !beginReaderAction()) {
       return;
     }
-
-    const wasAutoscrollerEnabled = autoScroller?.wasAutoScrollerEnabled$.getValue();
-    showHeader = false;
-    autoScroller?.off();
-
-    if ($statisticsEnabled$) {
-      pauseTrackerFor('completion');
-    }
-
-    const diffToComplete =
-      $statisticsEnabled$ && $addCharactersOnCompletion$
-        ? Math.max(0, bookCharCount - exploredCharCount)
-        : 0;
-    const wasCanceled = await confirmDialog({
-      title: 'Complete book',
-      message: `Would you like to complete this book${
-        diffToComplete ? ` and capture ${diffToComplete} characters read` : ''
-      }?`
-    });
-
-    if (wasCanceled) {
-      if ($statisticsEnabled$) {
-        resumeTrackerFor('completion');
-      }
-
-      if (wasAutoscrollerEnabled) {
-        autoScroller?.toggle();
-      }
-
-      return;
-    }
-
-    dialogManager.dialogs$.next([
-      {
-        component: '<div/>',
-        disableCloseOnClick: true
-      }
-    ]);
 
     try {
+      const wasAutoscrollerEnabled = autoScroller?.wasAutoScrollerEnabled$.getValue();
+      showHeader = false;
+      autoScroller?.off();
+
+      if ($statisticsEnabled$) {
+        pauseTrackerFor('completion');
+      }
+
+      const diffToComplete =
+        $statisticsEnabled$ && $addCharactersOnCompletion$
+          ? Math.max(0, bookCharCount - exploredCharCount)
+          : 0;
+      const wasCanceled = await confirmDialog({
+        title: 'Complete book',
+        message: `Would you like to complete this book${
+          diffToComplete ? ` and capture ${diffToComplete} characters read` : ''
+        }?`
+      });
+
+      if (wasCanceled) {
+        if ($statisticsEnabled$) {
+          resumeTrackerFor('completion');
+        }
+
+        if (wasAutoscrollerEnabled) {
+          autoScroller?.toggle();
+        }
+
+        return;
+      }
+
       if (diffToComplete) {
         await trackerElm.processStatistics(diffToComplete);
       }
@@ -788,13 +775,11 @@
       }
 
       if ($statisticsEnabled$ && $openTrackerOnCompletion$) {
-        dialogManager.dialogs$.next([]);
         confettiWidthModifier = 36;
         confettiMaxRuns = 0;
         bookCompleted = window.matchMedia('(min-width: 900px)').matches;
         openTrackerMenu();
       } else {
-        dialogManager.dialogs$.next([]);
         confettiWidthModifier = 0;
         confettiMaxRuns = 3;
         bookCompleted = true;
@@ -805,24 +790,34 @@
             bookCompleted = false;
           });
       }
-    } catch ({ message }: any) {
-      messageDialog({ title: 'Error', message: `Error completing book: ${message}` });
+    } catch (error: any) {
+      messageDialog({ title: 'Error', message: `Error completing book: ${error.message}` });
+    } finally {
+      endReaderAction();
     }
   }
 
   async function uncompleteBook() {
-    const bookId = getBookIdSync();
-    const ctx = bookReplicationContext();
-    if (!bookId || !bookmarkManager || !ctx) return;
+    if (!beginReaderAction()) {
+      return;
+    }
 
-    const data = {
-      ...bookmarkManager.formatBookmarkData(bookId, customReadingPointScrollOffset),
-      completed: false
-    };
+    try {
+      const bookId = getBookIdSync();
+      const ctx = bookReplicationContext();
+      if (!bookId || !bookmarkManager || !ctx) return;
 
-    await userSaveBookmark(data, ctx);
+      const data = {
+        ...bookmarkManager.formatBookmarkData(bookId, customReadingPointScrollOffset),
+        completed: false
+      };
 
-    bookmarkData = Promise.resolve(data);
+      await userSaveBookmark(data, ctx);
+
+      bookmarkData = Promise.resolve(data);
+    } finally {
+      endReaderAction();
+    }
   }
 
   function getCurrentChapterProgress(sectionData: SectionWithProgress[]) {
@@ -888,6 +883,7 @@
 
   function onKeydown(ev: KeyboardEvent) {
     if (
+      readerActionPending ||
       $skipKeyDownListener$ ||
       ev.altKey ||
       ev.ctrlKey ||
@@ -925,6 +921,19 @@
     let bookId: number | undefined;
     bookId$.subscribe((x) => (bookId = x)).unsubscribe();
     return bookId;
+  }
+
+  function beginReaderAction() {
+    if (readerActionPending) {
+      return false;
+    }
+
+    readerActionPending = true;
+    return true;
+  }
+
+  function endReaderAction() {
+    readerActionPending = false;
   }
 
   async function bookmarkPage() {
@@ -1015,68 +1024,60 @@
     nextChapter$.next(nextChapter.reference);
   }
 
-  function openActionBackdrop() {
-    dialogManager.dialogs$.next([
-      {
-        component: '<div/>',
-        disableCloseOnClick: true
-      }
-    ]);
-  }
-
   async function leaveReader(routeId: ReaderExitRoute, deleteLastItem = true) {
+    if (!beginReaderAction()) {
+      return;
+    }
+
     let message;
 
     try {
-      await tick();
+      try {
+        await tick();
 
-      autoScroller?.off();
-      pauseTrackerFor('leaving-reader');
+        autoScroller?.off();
+        pauseTrackerFor('leaving-reader');
 
-      if ($confirmClose$ && storedExploredCharacter !== exploredCharCount) {
-        const wasCanceled = await confirmDialog({
-          title: 'Confirm exit',
-          message: 'Your current location was not bookmarked. Continue leaving?'
-        });
+        if ($confirmClose$ && storedExploredCharacter !== exploredCharCount) {
+          const wasCanceled = await confirmDialog({
+            title: 'Confirm exit',
+            message: 'Your current location was not bookmarked. Continue leaving?'
+          });
 
-        if (wasCanceled) {
-          resumeTrackerFor('leaving-reader');
-          return;
+          if (wasCanceled) {
+            resumeTrackerFor('leaving-reader');
+            return;
+          }
+
+          await tick();
         }
 
-        await tick();
+        if (deleteLastItem) {
+          await database.deleteLastItem();
+        }
+
+        if (!$manualBookmark$) {
+          await bookmarkPage();
+        }
+
+        if ($statisticsEnabled$ && trackerElm) {
+          // Sync trigger rides the tracker's onstatisticssaved callback.
+          await trackerElm.flushUpdates();
+          flushReaderStatisticsReplication();
+        }
+      } catch (error: any) {
+        message = error.message;
       }
 
-      openActionBackdrop();
+      if (message) {
+        logger.error(message);
 
-      if (deleteLastItem) {
-        await database.deleteLastItem();
+        messageDialog({ title: 'Error', message });
       }
 
-      if (!$manualBookmark$) {
-        await bookmarkPage();
-      }
-
-      if ($statisticsEnabled$ && trackerElm) {
-        // Sync trigger rides the tracker's onstatisticssaved callback.
-        await trackerElm.flushUpdates();
-        flushReaderStatisticsReplication();
-      }
-    } catch (error: any) {
-      message = error.message;
-    }
-
-    if (message) {
-      logger.error(message);
-
-      dismissDialogs = false;
-      messageDialog({ title: 'Error', message });
-    }
-
-    await goto(resolve(routeId));
-
-    if (!message) {
-      dialogManager.dialogs$.next([]);
+      await goto(resolve(routeId));
+    } finally {
+      endReaderAction();
     }
   }
 
@@ -1279,13 +1280,18 @@
 <button
   class="fixed inset-x-0 top-0 z-10 h-8 w-full"
   aria-label="Show reader header"
-  onclick={() => (showHeader = true)}
+  disabled={readerActionPending}
+  onclick={() => {
+    if (!readerActionPending) {
+      showHeader = true;
+    }
+  }}
 ></button>
 <div
   aria-label="Reader controls"
   role="toolbar"
   class="elevation-4 writing-horizontal-tb fixed inset-x-0 top-0 z-10 w-full transform-gpu transition-[opacity,translate] duration-150 ease-in-out"
-  inert={!showHeader}
+  inert={!showHeader || readerActionPending}
   class:opacity-0={!showHeader}
   style:translate={showHeader ? undefined : '0 -100%'}
   use:clickOutside={() => (showHeader = false)}
