@@ -8,16 +8,14 @@
     faTrash
   } from '@fortawesome/free-solid-svg-icons';
   import { ReadingGoalFrequency } from '$lib/components/book-reader/book-reading-tracker/tracker-domain';
-  import SettingsReadingGoalsMerge from '$lib/components/settings/settings-reading-goals-merge.svelte';
+  import { showSettingsReadingGoalsMergeDialog } from '$lib/components/settings/settings-reading-goals-merge.svelte';
   import { buttonClasses } from '$lib/css-classes';
   import { confirmDialog, messageDialog } from '$lib/data/simple-dialogs';
   import type { BooksDbReadingGoal } from '$lib/data/database/books-db/versions/books-db';
-  import { dialogManager } from '$lib/data/dialog-manager';
   import {
     getCurrentReadingGoal,
     getDateRangeLabel,
-    type ReadingGoal,
-    type ReadingGoalSaveResult
+    type ReadingGoal
   } from '$lib/data/reading-goal';
   import { database, readingGoal$, startDayHoursForTracker$ } from '$lib/data/store';
   import { userSaveReadingGoals, userDeleteReadingGoal } from '$lib/data/library';
@@ -144,14 +142,10 @@
         readingGoalsToDelete.push($readingGoal$.goalStartDate);
       } else if (initialExistingReadingGoals.length) {
         ({ readingGoalsToDelete, readingGoalsToInsert, error } =
-          await new Promise<ReadingGoalSaveResult>((resolver) => {
-            dialogManager.dialogs$.next([
-              {
-                component: SettingsReadingGoalsMerge,
-                props: { newReadingGoal, resolver },
-                disableCloseOnClick: true
-              }
-            ]);
+          await showSettingsReadingGoalsMergeDialog({
+            currentReadingGoal: $readingGoal$,
+            newReadingGoal,
+            startDayHoursForTracker: $startDayHoursForTracker$
           }));
       } else {
         readingGoalsToInsert.push({ ...newReadingGoal, goalEndDate: '', goalOriginalEndDate: '' });
@@ -205,7 +199,7 @@
     }
 
     const wasCanceled = await confirmDialog({
-      title: 'Data Deletion',
+      title: 'Data deletion',
       message: dialogMessage
     });
 

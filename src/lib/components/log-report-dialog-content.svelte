@@ -20,7 +20,7 @@
 
   export function showBugReportDialog() {
     return showLogReportDialog({
-      title: 'Bug Report',
+      title: 'Bug report',
       message: 'Please include the attached log file with your report.',
       closedBy: 'any'
     });

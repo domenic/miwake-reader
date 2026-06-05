@@ -242,7 +242,7 @@ export async function deleteAllStatisticsFromSummary(page: Page) {
   await settings.getByRole('button', { name: 'Delete All' }).click();
 
   const dialog = page.locator('dialog[open]');
-  await expect(dialog.getByRole('heading', { name: 'Delete Data' })).toBeVisible();
+  await expect(dialog.getByRole('heading', { name: 'Delete data' })).toBeVisible();
   await dialog.getByRole('button', { name: 'Confirm' }).click();
   await expect(page.getByText(/No Data found/)).toBeVisible({ timeout: SYNC_ASSERTION_TIMEOUT });
 }
@@ -386,7 +386,7 @@ export async function expectImportFailedForFixture(page: Page, fixture: InvalidI
   const { importFailureText } = getFixtureMetadata(fixture);
 
   const dialog = page.locator('dialog[open]');
-  await expect(dialog).toContainText('Book Import Failed');
+  await expect(dialog).toContainText('Book import failed');
   await expect(dialog).toContainText(importFailureText);
 }
 

@@ -262,7 +262,7 @@
 
     const supportedExtRegex = /\.(?:htmlz|epub|txt)$/;
     const files = Array.from(fileList).filter((f) => supportedExtRegex.test(f.name));
-    const errorTitle = 'Book Import Failed';
+    const errorTitle = 'Book import failed';
 
     if (!files.length) {
       showError(errorTitle, 'Imported files must be in EPUB, TXT, or HTMLZ format.');
@@ -314,7 +314,7 @@
     try {
       await userDeleteBooks(titlesToDelete, signal, $keepLocalStatisticsOnDeletion$);
     } catch (err: any) {
-      showError('Deletion Failed', err.message, 'An error occurred during book deletion.');
+      showError('Deletion failed', err.message, 'An error occurred during book deletion.');
     } finally {
       resetProgress();
       await tick();
@@ -342,7 +342,7 @@
 
     if ($confirmStatisticsDeletion$) {
       wasCanceled = await confirmDialog({
-        title: 'Delete Data',
+        title: 'Delete data',
         message: `This will delete all statistics for the selected ${pluralize(
           titles.length,
           'book',
@@ -385,7 +385,7 @@
     resetProgress();
 
     if (failed) {
-      showError('Deletion Failed', `Unable to delete statistics for ${pluralize(failed, 'book')}.`);
+      showError('Deletion failed', `Unable to delete statistics for ${pluralize(failed, 'book')}.`);
     }
   }
 </script>
