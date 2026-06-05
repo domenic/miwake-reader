@@ -160,6 +160,7 @@
   bind:open={showStatisticsSettings}
   side="right"
   class="overflow-hidden bg-gray-700 text-white"
+  closeTitle="Close statistics settings"
 >
   <StatisticsSettings onstatisticsDateChange={handleSelectedStatisticsDateChange} />
 </SidebarOverlay>

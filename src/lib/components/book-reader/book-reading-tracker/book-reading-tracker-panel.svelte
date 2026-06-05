@@ -11,7 +11,6 @@
     faTrash,
     type IconDefinition
   } from '@fortawesome/free-solid-svg-icons';
-  import DialogFormButton from '$lib/components/dialog-form-button.svelte';
   import type { TrackingHistory } from '$lib/components/book-reader/book-reading-tracker/tracker-domain';
   import {
     getChapterData,
@@ -205,34 +204,30 @@
   }
 </script>
 
-<div class="flex items-center justify-between min-h-[60px] px-4">
-  <div class="mr-4">
-    {#if hadError}
-      Last Update failed
-    {/if}
-  </div>
-  <div class="hover:text-red-500">
-    <DialogFormButton title="Close tracker menu" class="flex items-center md:items-center" />
-  </div>
-</div>
-<div class="flex flex-1 flex-col overflow-auto p-4">
+{#if hadError}
+  <div class="p-4 pr-12">Last Update failed</div>
+{/if}
+<div class="flex flex-1 flex-col overflow-auto p-4 pr-12">
   {#if currentReadingGoal}
-    <div class="mb-6">
+    <div class="mb-6 flex flex-col gap-4">
       {#if currentReadingGoal.timeGoal}
         {@const timeGoalPercentage = caluclatePercentage(
           currentTimeGoal,
           currentReadingGoal.timeGoal
         )}
         <div>
-          {secondsToMinutes(currentTimeGoal)} / {secondsToMinutes(currentReadingGoal.timeGoal)} Min ({timeGoalPercentage}%)
-        </div>
-        <!-- eslint-disable-next-line svelte/no-unknown-style-directive-property -->
-        <div class="w-full rounded-full h-2.5" style:background-Color={fontColor}>
-          <div
-            class="h-2.5 rounded-full opacity-70"
-            style:width={`${Math.min(100, timeGoalPercentage)}%`}
-            style:background-color={backgroundColor}
-          ></div>
+          <div>
+            {secondsToMinutes(currentTimeGoal)} / {secondsToMinutes(currentReadingGoal.timeGoal)} Min
+            ({timeGoalPercentage}%)
+          </div>
+          <!-- eslint-disable-next-line svelte/no-unknown-style-directive-property -->
+          <div class="w-full rounded-full h-2.5" style:background-Color={fontColor}>
+            <div
+              class="h-2.5 rounded-full opacity-70"
+              style:width={`${Math.min(100, timeGoalPercentage)}%`}
+              style:background-color={backgroundColor}
+            ></div>
+          </div>
         </div>
       {/if}
       {#if currentReadingGoal.characterGoal}
@@ -240,21 +235,23 @@
           currentCharacterGoal,
           currentReadingGoal.characterGoal
         )}
-        <div class="mt-4">
-          {currentCharacterGoal} / {currentReadingGoal.characterGoal} Characters ({characterGoalPercentage}%)
-        </div>
-        <!-- eslint-disable-next-line svelte/no-unknown-style-directive-property -->
-        <div class="w-full rounded-full h-2.5" style:background-Color={fontColor}>
-          <!-- eslint-disable svelte/no-unknown-style-directive-property -->
-          <div
-            class="h-2.5 rounded-full opacity-70"
-            style:width={`${Math.min(100, characterGoalPercentage)}%`}
-            style:background-Color={backgroundColor}
-          ></div>
-          <!-- eslint-enable svelte/no-unknown-style-directive-property -->
+        <div>
+          <div>
+            {currentCharacterGoal} / {currentReadingGoal.characterGoal} Characters ({characterGoalPercentage}%)
+          </div>
+          <!-- eslint-disable-next-line svelte/no-unknown-style-directive-property -->
+          <div class="w-full rounded-full h-2.5" style:background-Color={fontColor}>
+            <!-- eslint-disable svelte/no-unknown-style-directive-property -->
+            <div
+              class="h-2.5 rounded-full opacity-70"
+              style:width={`${Math.min(100, characterGoalPercentage)}%`}
+              style:background-Color={backgroundColor}
+            ></div>
+            <!-- eslint-enable svelte/no-unknown-style-directive-property -->
+          </div>
         </div>
       {/if}
-      <div class="grid grid-cols-[max-content_auto] gap-x-4 gap-y-2 mt-4">
+      <div class="grid grid-cols-[max-content_auto] gap-x-4 gap-y-2">
         <div>Current Reading Goal:</div>
         <div class="flex flex-col sm:block">
           <span>{currentReadingGoalStart}</span>

@@ -1,5 +1,4 @@
 <script lang="ts">
-  import DialogFormButton from '$lib/components/dialog-form-button.svelte';
   import ToggleSwitch from '$lib/components/toggle-switch.svelte';
   import { lastStatisticsFilterDateRangeOnly$ } from '$lib/data/store';
 
@@ -41,10 +40,7 @@
   }
 </script>
 
-<div class="flex items-center p-4">
-  <DialogFormButton title="Close book filter" />
-</div>
-<div class="flex flex-col flex-1 px-4 min-h-0">
+<div class="flex flex-col flex-1 px-4 pt-12 min-h-0">
   <div class="flex items-center gap-4">
     <input
       type="search"

@@ -1,7 +1,6 @@
 <script lang="ts">
   import { faCircleQuestion, faLeftLong, faRightLong } from '@fortawesome/free-solid-svg-icons';
   import ButtonToggleGroup from '$lib/components/button-toggle-group/button-toggle-group.svelte';
-  import DialogFormButton from '$lib/components/dialog-form-button.svelte';
   import { optionsForToggle } from '$lib/components/button-toggle-group/toggle-option';
   import Popover from '$lib/components/popover/popover.svelte';
   import SettingsItemGroup from '$lib/components/settings/settings-item-group.svelte';
@@ -69,20 +68,17 @@
   }
 </script>
 
-<div class="flex items-center p-4">
-  <DialogFormButton title="Close statistics settings" />
-  <div class="flex flex-1 justify-end">
-    <button class="mr-2 sm:mr-4 hover:text-red-500" onclick={() => exportStatisticsData(false)}>
-      Export Selection
-    </button>
-    <button class="mr-2 sm:mr-4 hover:text-red-500" onclick={() => deleteStatisticsData(false)}>
-      Delete Selection
-    </button>
-    <button class="mr-2 sm:mr-4 hover:text-red-500" onclick={() => exportStatisticsData()}>
-      Export All
-    </button>
-    <button class="hover:text-red-500" onclick={() => deleteStatisticsData()}>Delete All</button>
-  </div>
+<div class="flex items-center justify-end p-4 pl-12">
+  <button class="mr-2 sm:mr-4 hover:text-red-500" onclick={() => exportStatisticsData(false)}>
+    Export Selection
+  </button>
+  <button class="mr-2 sm:mr-4 hover:text-red-500" onclick={() => deleteStatisticsData(false)}>
+    Delete Selection
+  </button>
+  <button class="mr-2 sm:mr-4 hover:text-red-500" onclick={() => exportStatisticsData()}>
+    Export All
+  </button>
+  <button class="hover:text-red-500" onclick={() => deleteStatisticsData()}>Delete All</button>
 </div>
 <div class="flex-1 p-4 overflow-auto">
   <div class="flex flex-col mb-6">

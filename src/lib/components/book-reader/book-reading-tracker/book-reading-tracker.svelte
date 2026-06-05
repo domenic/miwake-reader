@@ -783,6 +783,7 @@
   onclose={closeTrackerMenu}
   side="left"
   class="z-60 max-w-xl"
+  closeTitle="Close tracker menu"
   style={`color: ${fontColor}; background-color: ${backgroundColor};`}
 >
   <BookReadingTrackerPanel
