@@ -82,6 +82,7 @@
     availableThemes.map(({ theme, option }) => ({
       id: theme,
       text: 'ぁあ',
+      textLang: 'ja',
       style: {
         color: option.fontColor,
         'background-color': option.backgroundColor

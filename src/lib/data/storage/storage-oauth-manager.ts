@@ -20,7 +20,7 @@ import {
 } from '$lib/data/storage/storage-source-types';
 import { StorageSourceDefault, SyncEndpointType } from '$lib/data/storage/storage-types';
 import { database } from '$lib/data/store';
-import { messageDialog } from '$lib/data/simple-dialogs';
+import { messageDialog } from '$lib/components/simple-dialogs';
 import { convertAuthErrorResponse } from '$lib/functions/replication/error-handler';
 import { isMobile } from '$lib/functions/utils';
 

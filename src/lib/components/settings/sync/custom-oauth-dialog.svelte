@@ -1,6 +1,6 @@
 <script module lang="ts">
   import CustomOAuthDialog from '$lib/components/settings/sync/custom-oauth-dialog.svelte';
-  import { showDialog } from '$lib/data/simple-dialogs';
+  import { showDialog } from '$lib/components/simple-dialogs';
   import type { CloudProviderType, CustomOAuthCredentials } from '$lib/data/sync/sync-store.svelte';
 
   export type CustomOAuthDialogResult =

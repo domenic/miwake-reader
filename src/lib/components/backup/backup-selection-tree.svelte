@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { japaneseLangIfNeeded } from '$lib/functions/japanese-language';
   import type { BackupBook, BackupCatalog, BackupSelection } from './backup-types';
 
   interface Props {
@@ -202,6 +203,7 @@
           {@const selected = isBookSelected(book)}
           {@const entry = selection.perBook.get(book.id)}
           {@const disabled = disabledItems.books?.has(book.id) ?? false}
+          {@const bookTitleLang = japaneseLangIfNeeded(book.title)}
           <li class="py-2">
             <label class="flex items-center gap-3">
               <input
@@ -216,7 +218,8 @@
               <span
                 class="flex-1 truncate text-sm"
                 class:text-gray-400={disabled}
-                title={book.title}>{book.title}</span
+                title={book.title}
+                lang={bookTitleLang}>{book.title}</span
               >
             </label>
             {#if selected && (book.hasBookmark || book.hasStatistics)}

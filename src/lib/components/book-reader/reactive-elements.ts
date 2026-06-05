@@ -58,10 +58,13 @@ function spoilerImageListener(document: Document) {
     const elements = Array.from(contentEl.querySelectorAll('[data-miwake-spoiler-img]'));
     const obs$ = elements.map((el) => {
       const spoilerLabelEl = document.createElement('span');
+      const spoilerLabelTextEl = document.createElement('span');
       spoilerLabelEl.title = 'Show Image';
       spoilerLabelEl.classList.add('spoiler-label');
       spoilerLabelEl.setAttribute('aria-hidden', 'true');
-      spoilerLabelEl.innerText = 'ネタバレ';
+      spoilerLabelTextEl.lang = 'ja';
+      spoilerLabelTextEl.textContent = 'ネタバレ';
+      spoilerLabelEl.append(spoilerLabelTextEl);
       el.appendChild(spoilerLabelEl);
 
       const imageElement = el.querySelector('img,image');

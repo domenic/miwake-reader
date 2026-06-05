@@ -14,7 +14,7 @@
   import { appName } from '$lib/data/env';
   import { userDeleteBooks, userDeleteStatisticEntries, userImportBooks } from '$lib/data/library';
   import { logger } from '$lib/data/logger';
-  import { confirmDialog, messageDialog } from '$lib/data/simple-dialogs';
+  import { confirmDialog, messageDialog } from '$lib/components/simple-dialogs';
   import { SortDirection, type SortOption } from '$lib/data/sort-types';
   import {
     booklistSortOptions$,

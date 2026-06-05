@@ -737,6 +737,7 @@
   class:ttu-apply-justification={enableTextJustification}
   class:ttu-text-wrap-pretty={enableTextWrapPretty}
   class="book-content m-auto"
+  lang="ja"
 >
   <!-- eslint-disable-next-line svelte/no-at-html-tags -->
   {@html htmlContent}

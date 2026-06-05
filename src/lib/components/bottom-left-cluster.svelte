@@ -25,7 +25,7 @@
     trackerStatus
   } from '$lib/components/book-reader/book-reading-tracker/tracker-state.svelte';
   import Popover from '$lib/components/popover/popover.svelte';
-  import { messageDialog } from '$lib/data/simple-dialogs';
+  import { messageDialog } from '$lib/components/simple-dialogs';
   import { autoReplication$, isOnline$, statisticsEnabled$ } from '$lib/data/store';
   import { connectCloud } from '$lib/data/sync/source-manager';
   import { retryAfterReconnect } from '$lib/data/sync/sync-engine';

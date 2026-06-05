@@ -8,6 +8,7 @@
   } from '$lib/components/book-reader/book-toc/book-toc';
   import { PAGE_CHANGE } from '$lib/data/events';
   import { statisticsEnabled$ } from '$lib/data/store';
+  import { japaneseLangIfNeeded } from '$lib/functions/japanese-language';
   import { dummyFn, getWeightedAverage } from '$lib/functions/utils';
   import { debounceTime, fromEvent, merge, take } from 'rxjs';
   import Fa from 'svelte-fa';
@@ -25,6 +26,8 @@
     verticalMode,
     resumeTrackerAfterTocCloses
   }: Props = $props();
+
+  const componentId = $props.id();
 
   let chapters: SectionWithProgress[] = $state([]);
   let currentChapter: SectionWithProgress = $state(undefined as any);
@@ -116,12 +119,16 @@
   <div>Chapter Progress: {currentChapterCharacterProgress} ({currentChapterProgress}%)</div>
 </div>
 <div class="flex-1 overflow-auto p-4">
-  {#each chapters as chapter (chapter.reference)}
+  {#each chapters as chapter, chapterIndex (chapter.reference)}
+    {@const chapterActionId = `${componentId}-chapter-action-${chapterIndex}`}
+    {@const chapterLabelId = `${componentId}-chapter-label-${chapterIndex}`}
+    {@const chapterLabelLang = japaneseLangIfNeeded(chapter.label)}
     <div class="my-6 flex justify-between">
       <div
         tabindex="0"
         role="button"
         title={`Go to ${chapter.label}`}
+        aria-labelledby={`${chapterActionId} ${chapterLabelId}`}
         id={`for${chapter.reference}`}
         class="mr-4"
         class:opacity-30={chapter.progress === 100 && chapter.reference !== currentChapterReference}
@@ -132,7 +139,8 @@
         onclick={() => goToChapter(chapter.reference, true)}
         onkeyup={dummyFn}
       >
-        {chapter.label}
+        <span id={chapterActionId} class="sr-only">Go to chapter</span>
+        <span id={chapterLabelId} lang={chapterLabelLang}>{chapter.label}</span>
       </div>
       <div
         class:opacity-30={chapter.progress === 100 && chapter.reference !== currentChapterReference}

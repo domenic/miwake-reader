@@ -29,7 +29,7 @@
     trackerPopupDetection$,
     trackerSkipThresholdAction$
   } from '$lib/data/store';
-  import { messageDialog } from '$lib/data/simple-dialogs';
+  import { messageDialog } from '$lib/components/simple-dialogs';
   import { formatPageTitle } from '$lib/functions/format-page-title';
   import { secondsToMinutes } from '$lib/functions/statistic-util';
   import Fa from 'svelte-fa';

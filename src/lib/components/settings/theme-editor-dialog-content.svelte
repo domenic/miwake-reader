@@ -1,6 +1,6 @@
 <script module lang="ts">
   import ThemeEditorDialogContent from '$lib/components/settings/theme-editor-dialog-content.svelte';
-  import { showDialog } from '$lib/data/simple-dialogs';
+  import { showDialog } from '$lib/components/simple-dialogs';
 
   export function showThemeEditorDialog(params: {
     selectedTheme?: string;
@@ -270,6 +270,7 @@
       <p
         bind:this={previewTextEl}
         style="font-family: 'Noto Serif JP', Georgia, serif; font-size: 15px; line-height: 1.8"
+        lang="ja"
       >
         <ruby>彼女<rt>かのじょ</rt></ruby>は<ruby>図書館<rt>としょかん</rt></ruby>で<ruby
           >静<rt>しず</rt></ruby

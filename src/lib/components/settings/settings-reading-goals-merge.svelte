@@ -1,6 +1,6 @@
 <script module lang="ts">
   import SettingsReadingGoalsMerge from '$lib/components/settings/settings-reading-goals-merge.svelte';
-  import { showDialog } from '$lib/data/simple-dialogs';
+  import { showDialog } from '$lib/components/simple-dialogs';
   import type { ReadingGoal, ReadingGoalSaveResult } from '$lib/data/reading-goal';
 
   export function showSettingsReadingGoalsMergeDialog(params: {

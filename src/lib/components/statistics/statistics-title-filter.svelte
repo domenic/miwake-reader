@@ -1,6 +1,7 @@
 <script lang="ts">
   import ToggleSwitch from '$lib/components/toggle-switch.svelte';
   import { lastStatisticsFilterDateRangeOnly$ } from '$lib/data/store';
+  import { japaneseLangIfNeeded } from '$lib/functions/japanese-language';
 
   interface Props {
     titleFilterSelections: [string, boolean][];
@@ -73,6 +74,7 @@
         </thead>
         <tbody>
           {#each filteredSelections as item (item[0])}
+            {@const titleLang = japaneseLangIfNeeded(item[0])}
             <tr>
               <td class="py-2 pr-4">
                 <input type="checkbox" bind:checked={item[1]} />
@@ -80,6 +82,7 @@
               <td
                 class="py-2 line-clamp-3"
                 class:opacity-50={!titlesInStatisticsDateRange.has(item[0])}
+                lang={titleLang}
               >
                 {item[0]}
               </td>

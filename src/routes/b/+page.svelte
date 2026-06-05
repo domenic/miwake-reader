@@ -112,7 +112,7 @@
     type SectionWithProgress
   } from '$lib/components/book-reader/book-toc/book-toc';
   import BookToc from '$lib/components/book-reader/book-toc/book-toc.svelte';
-  import { numberDialog } from '$lib/data/simple-dialogs';
+  import { numberDialog } from '$lib/components/simple-dialogs';
   import { mergeEntries } from '$lib/components/merged-header-icon/merged-entries';
   import SidebarOverlay from '$lib/components/sidebar-overlay.svelte';
   import { preFilteredTitlesForStatistics$ } from '$lib/components/statistics/statistics-types';
@@ -125,7 +125,7 @@
   import { DB_VERSION, PAGE_CHANGE, SKIPKEYLISTENER, SYNCED } from '$lib/data/events';
   import { fullscreenManager } from '$lib/data/fullscreen-manager';
   import { logger } from '$lib/data/logger';
-  import { confirmDialog, messageDialog } from '$lib/data/simple-dialogs';
+  import { confirmDialog, messageDialog } from '$lib/components/simple-dialogs';
   import {
     markBookOpened,
     openBook,
@@ -298,10 +298,6 @@
           if (wasNew) {
             scheduleReplication(StorageDataType.STATISTICS);
           }
-        }
-
-        if (bookData.language) {
-          document.documentElement.lang = bookData.language;
         }
       } catch (error: any) {
         const message = `Error loading book: ${error.message}`;
@@ -602,7 +598,6 @@
 
     if (browser) {
       document.removeEventListener('miwake-action', handleAction, false);
-      document.documentElement.lang = 'ja';
     }
 
     readerImageGalleryPictures$.next([]);

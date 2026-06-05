@@ -1,6 +1,7 @@
 export interface ToggleOption<T> {
   id: T;
   text: string;
+  textLang?: string;
   style?: Record<string, string>;
   thickBorders?: boolean;
   showIcons?: boolean;

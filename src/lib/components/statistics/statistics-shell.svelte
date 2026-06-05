@@ -27,7 +27,7 @@
     BooksDbReadingGoal,
     BooksDbStatistic
   } from '$lib/data/database/books-db/versions/books-db';
-  import { confirmDialog, messageDialog } from '$lib/data/simple-dialogs';
+  import { confirmDialog, messageDialog } from '$lib/components/simple-dialogs';
   import { logger } from '$lib/data/logger';
   import { getDateRangeLabel } from '$lib/data/reading-goal';
   import { getSyncEndpoint } from '$lib/data/storage/storage-handler-factory';
@@ -48,6 +48,8 @@
   import { reduceToEmptyString } from '$lib/functions/rxjs/reduce-to-empty-string';
   import { getNumberFromObject, secondsToMinutes } from '$lib/functions/statistic-util';
   import { pluralize } from '$lib/functions/utils';
+  import { escapeHTML } from '$lib/functions/escape-html';
+  import { japaneseLangIfNeeded } from '$lib/functions/japanese-language';
   import pLimit from 'p-limit';
   import { tap } from 'rxjs';
   import { onMount, untrack, type Snippet } from 'svelte';
@@ -101,6 +103,11 @@
     }),
     reduceToEmptyString()
   );
+
+  function formatJapaneseHTML(value: string) {
+    const escapedValue = escapeHTML(value);
+    return japaneseLangIfNeeded(value) ? `<span lang="ja">${escapedValue}</span>` : escapedValue;
+  }
 
   const exportStatisticsDataHandler$ = exportStatisticsData$.pipe(
     tap(async (exportAllData) => {
@@ -346,13 +353,15 @@
     let wasCanceled = false;
 
     if ($confirmStatisticsDeletion$) {
+      const dateRangeMessage = startDate ? ` from ${getDateRangeLabel(startDate, endDate)}` : '';
+
       wasCanceled = await confirmDialog({
         title: 'Delete data',
-        message: `This will delete data ${
-          startDate ? `from ${getDateRangeLabel(startDate, endDate)}` : ''
-        }  for ${titleLabel}, which may include start and/or completion data.\n\nDeletion syncs to connected sources when upward sync is enabled.\n\n${titleLabel}:\n${[
-          ...titlesToDelete
-        ].join('\n\n')}`
+        messageHTML: `This will delete data${dateRangeMessage} for ${escapeHTML(
+          titleLabel
+        )}, which may include start and/or completion data.\n\nDeletion syncs to connected sources when upward sync is enabled.\n\n${escapeHTML(
+          titleLabel
+        )}:\n${[...titlesToDelete].map(formatJapaneseHTML).join('\n\n')}`
       });
     }
 
@@ -463,17 +472,19 @@
 
     const wasCanceled = await confirmDialog({
       title: 'Update data',
-      message: `This will update the data for ${title} on ${dateKey}.\n\nTime: ${secondsToMinutes(
-        statistic.readingTime
-      )} min => ${secondsToMinutes(newReadingTime)} min\nCharacters: ${
-        statistic.charactersRead
-      } => ${newCharactersRead}\nSpeed: ${statistic.lastReadingSpeed} / h => ${
-        newStatistic.lastReadingSpeed
-      } / h\nMin Speed: ${statistic.minReadingSpeed} / h => ${
-        newStatistic.minReadingSpeed
-      } / h\nAlt Min Speed: ${statistic.altMinReadingSpeed} / h => ${
-        newStatistic.altMinReadingSpeed
-      } / h\nMax Speed: ${statistic.maxReadingSpeed} / h => ${newStatistic.maxReadingSpeed} / h`
+      messageHTML: `This will update the data for ${formatJapaneseHTML(title)} on ${escapeHTML(
+        dateKey
+      )}.\n\nTime: ${secondsToMinutes(statistic.readingTime)} min => ${secondsToMinutes(
+        newReadingTime
+      )} min\nCharacters: ${statistic.charactersRead} => ${newCharactersRead}\nSpeed: ${
+        statistic.lastReadingSpeed
+      } / h => ${newStatistic.lastReadingSpeed} / h\nMin Speed: ${
+        statistic.minReadingSpeed
+      } / h => ${newStatistic.minReadingSpeed} / h\nAlt Min Speed: ${
+        statistic.altMinReadingSpeed
+      } / h => ${newStatistic.altMinReadingSpeed} / h\nMax Speed: ${
+        statistic.maxReadingSpeed
+      } / h => ${newStatistic.maxReadingSpeed} / h`
     });
 
     if (wasCanceled) {

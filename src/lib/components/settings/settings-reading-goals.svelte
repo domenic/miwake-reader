@@ -10,7 +10,7 @@
   import { ReadingGoalFrequency } from '$lib/components/book-reader/book-reading-tracker/tracker-domain';
   import { showSettingsReadingGoalsMergeDialog } from '$lib/components/settings/settings-reading-goals-merge.svelte';
   import { buttonClasses } from '$lib/css-classes';
-  import { confirmDialog, messageDialog } from '$lib/data/simple-dialogs';
+  import { confirmDialog, messageDialog } from '$lib/components/simple-dialogs';
   import type { BooksDbReadingGoal } from '$lib/data/database/books-db/versions/books-db';
   import {
     getCurrentReadingGoal,

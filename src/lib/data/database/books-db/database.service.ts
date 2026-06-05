@@ -28,7 +28,7 @@ import type { BookStatistic } from '$lib/components/statistics/statistics-types'
 import type { BooksDb } from '$lib/data/database/books-db/versions/books-db';
 import type { IDBPDatabase } from 'idb';
 import { showErrorDialogWithLogReport } from '$lib/components/log-report-dialog-content.svelte';
-import { messageDialog } from '$lib/data/simple-dialogs';
+import { messageDialog } from '$lib/components/simple-dialogs';
 import type { MergeMode } from '$lib/data/merge-mode';
 import { ReplicationSaveBehavior } from '$lib/functions/replication/replication-options';
 import { getDefaultStatistic } from '$lib/components/book-reader/book-reading-tracker/tracker-domain';
