@@ -1,3 +1,7 @@
+<script lang="ts">
+  import { resolve } from '$app/paths';
+</script>
+
 <div class="mx-auto max-w-2xl p-8">
   <h1 class="mb-6 text-2xl font-bold">Terms of Service</h1>
 
@@ -15,7 +19,7 @@
   <p class="mb-4">
     For the boring details about what data the app touches and where it goes, see the <a
       class="underline"
-      href="/privacy">Privacy Policy</a
+      href={resolve('/privacy')}>Privacy Policy</a
     >. That one is written a bit more carefully.
   </p>
 

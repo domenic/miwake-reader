@@ -36,4 +36,4 @@ export const mergeEntries = {
     icon: faBoxOpen,
     title: 'Restore a backup ZIP file'
   }
-};
+} as const;

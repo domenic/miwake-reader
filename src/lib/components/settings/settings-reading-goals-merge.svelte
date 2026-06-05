@@ -21,6 +21,7 @@
   } from '$lib/functions/statistic-util';
   import { pluralize } from '$lib/functions/utils';
   import { onMount, tick, untrack } from 'svelte';
+  import { SvelteSet } from 'svelte/reactivity';
   import Fa from 'svelte-fa';
 
   interface Props {
@@ -121,7 +122,7 @@
 
     await tick();
 
-    const goalsToDelete = new Set<string>();
+    const goalsToDelete = new SvelteSet<string>();
 
     readingGoalsToReplace.forEach((goal) => goalsToDelete.add(goal.goalStartDate));
 
@@ -275,7 +276,7 @@
 
 {#if showSpinner}
   <div class="tap-highlight-transparent absolute inset-0 bg-black/20"></div>
-  <div class="fixed inset-0 flex h-full w-full items-center justify-center text-7xl">
+  <div class="fixed inset-0 flex size-full items-center justify-center text-7xl">
     <Fa icon={faSpinner} spin />
   </div>
 {/if}

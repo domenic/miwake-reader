@@ -66,9 +66,9 @@
 
 <div tabindex="0" role="button" class="relative aspect-2/3" {onclick} {onkeyup}>
   <div class="inline">
-    <div class="h-full w-full text-5xl sm:text-7xl">
+    <div class="size-full text-5xl sm:text-7xl">
       {#if imageLoading}
-        <Fa class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" icon={faImage} />
+        <Fa class="absolute top-1/2 left-1/2 -translate-1/2 " icon={faImage} />
       {/if}
 
       {#if imagePath}
@@ -76,7 +76,7 @@
           decoding="async"
           loading="lazy"
           referrerpolicy="no-referrer"
-          class="book-cover relative h-full w-full object-cover transition delay-150 duration-700 ease-out"
+          class="book-cover relative size-full object-cover transition delay-150 duration-700 ease-out"
           class:blur={imageLoading}
           src={mapImagePath(imagePath)}
           {alt}

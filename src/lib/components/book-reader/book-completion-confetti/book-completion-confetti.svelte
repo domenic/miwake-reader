@@ -111,7 +111,7 @@
 </script>
 
 <canvas
-  class="flex fixed top-0 right-0 h-full w-full"
+  class="flex fixed top-0 right-0 size-full"
   style={`max-width: calc(100vw - ${confettiWidthModifier}rem);`}
   bind:this={confettiCanvasElement}
 ></canvas>

@@ -51,7 +51,7 @@
   {/snippet}
   {#snippet content()}
     <div class="inline-flex flex-col bg-gray-700">
-      {#each items as menuItem}
+      {#each items as menuItem (menuItem)}
         {#if item}
           {@render item(menuItem, closeMenu)}
         {:else}

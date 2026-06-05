@@ -47,16 +47,12 @@
     statisticsTabKeybindMap$
   } from '$lib/data/store';
   import { reduceToEmptyString } from '$lib/functions/rxjs/reduce-to-empty-string';
-  import {
-    getDateString,
-    getNumberFromObject,
-    getStartHoursDate,
-    secondsToMinutes
-  } from '$lib/functions/statistic-util';
+  import { getNumberFromObject, secondsToMinutes } from '$lib/functions/statistic-util';
   import { pluralize } from '$lib/functions/utils';
   import pLimit from 'p-limit';
   import { tap } from 'rxjs';
   import { onDestroy, onMount, untrack, type Snippet } from 'svelte';
+  import { SvelteMap, SvelteSet } from 'svelte/reactivity';
   import Fa from 'svelte-fa';
 
   interface StatisticsShellViewProps {
@@ -82,28 +78,16 @@
           ? aggregatedStatistics
           : getAggregatedStatistics(StatisticsReadingDataAggregationMode.TITLE);
 
-      let logKey = '';
-
-      switch (dataKeyToCopy) {
-        case 'readingTime':
-          logKey = 'readtime';
-          break;
-        default:
-          logKey = 'reading';
-          break;
-      }
+      const logKey = dataKeyToCopy === 'readingTime' ? 'readtime' : 'reading';
 
       const dataLines = [`Reading Data for ${statisticsDateRangeLabel}\n`];
 
       for (let index = 0, { length } = statistics; index < length; index += 1) {
         const statistic = statistics[index];
-        let loggedValue = 0;
-
-        if (dataKeyToCopy === 'readingTime') {
-          loggedValue = Math.floor(secondsToMinutes(statistic.readingTime));
-        } else {
-          loggedValue = getNumberFromObject(statistic, dataKeyToCopy);
-        }
+        const loggedValue =
+          dataKeyToCopy === 'readingTime'
+            ? Math.floor(secondsToMinutes(statistic.readingTime))
+            : getNumberFromObject(statistic, dataKeyToCopy);
 
         if (loggedValue) {
           dataLines.push(`.log ${logKey} ${loggedValue} ${statistic.title}`);
@@ -122,7 +106,7 @@
   const exportStatisticsDataHandler$ = exportStatisticsData$.pipe(
     tap(async (exportAllData) => {
       try {
-        const statisticsDataToExport = new Map<string, BooksDbStatistic[]>();
+        const statisticsDataToExport = new SvelteMap<string, BooksDbStatistic[]>();
 
         for (let index = 0; index < statisticsData.length; index += 1) {
           const {
@@ -272,7 +256,6 @@
   );
 
   let isLoading = $state(true);
-  let todayKey = $state(getDateString(getStartHoursDate($startDayHoursForTracker$)));
   let titleFilterSelections: [string, boolean][] = $state([]);
   let statisticsTitleFilters = $derived(new Map(titleFilterSelections));
   let titlesInStatisticsDateRange = $state(new Set<string>());
@@ -286,13 +269,15 @@
   );
 
   $effect(() => {
+    const startDayHoursForTracker = $startDayHoursForTracker$;
+
     if (
       statisticsTitleFilters &&
       $lastPrimaryReadingDataAggregationMode$ &&
       $lastStatisticsStartDate$ &&
-      $lastStatisticsEndDate$
+      $lastStatisticsEndDate$ &&
+      startDayHoursForTracker !== undefined
     ) {
-      todayKey = getDateString(getStartHoursDate($startDayHoursForTracker$));
       untrack(() => updateStatisticsData());
     }
   });
@@ -334,7 +319,7 @@
     titlesToCheck,
     takeAsIs
   }: StatisticsDeleteRequest) {
-    let titlesToDelete = new Set<string>();
+    let titlesToDelete: Set<string> = new SvelteSet<string>();
 
     $statisticsActionInProgress$ = true;
 
@@ -389,8 +374,8 @@
       messageDialog({ title: 'Error', message: `Failed to delete data: ${error}` });
       $statisticsActionInProgress$ = false;
     } else {
-      const filterMap = new Map<string, boolean>();
-      const notDeletedMap = new Map<string, boolean>();
+      const filterMap = new SvelteMap<string, boolean>();
+      const notDeletedMap = new SvelteMap<string, boolean>();
 
       statisticsData = statisticsData.filter((statistic) => {
         if (titlesToDelete.has(statistic.title)) {
@@ -414,7 +399,7 @@
 
       const filteredEntries = [...filterMap.entries()];
       const titleFilters = [...notDeletedMap.entries()];
-      const newStatisticsTitleFilterData = new Map<string, boolean>();
+      const newStatisticsTitleFilterData = new SvelteMap<string, boolean>();
 
       for (let index = 0, { length } = filteredEntries; index < length; index += 1) {
         const [title, hasData] = filteredEntries[index];
@@ -539,7 +524,7 @@
     try {
       const db = await database.db;
       const hasPrefilteredTitlesForStatistics = !!$preFilteredTitlesForStatistics$.size;
-      const initialTitleFilterSelections = new Map<string, boolean>();
+      const initialTitleFilterSelections = new SvelteMap<string, boolean>();
 
       [statisticsData, readingGoals] = await Promise.all([
         db.getAllFromIndex('statistic', 'dateKey'),
@@ -602,7 +587,7 @@
         statisticsDataAggegrationMode === StatisticsReadingDataAggregationMode.DATE
           ? 'dateKey'
           : 'title';
-      const aggregrationMap = new Map<string, BookStatistic[]>();
+      const aggregrationMap = new SvelteMap<string, BookStatistic[]>();
 
       for (let index = 0, { length } = statisticsForSelection; index < length; index += 1) {
         const entry = statisticsForSelection[index];
@@ -714,7 +699,7 @@
 {$setStatisticsDatesToAllTimeHandler$ ?? ''}
 <svelte:window onkeyup={onKeyUp} />
 {#if isLoading}
-  <div class="fixed inset-0 flex h-full w-full items-center justify-center text-7xl">
+  <div class="fixed inset-0 flex size-full items-center justify-center text-7xl">
     <Fa icon={faSpinner} spin />
   </div>
 {:else}
@@ -738,7 +723,7 @@
 </SidebarOverlay>
 {#if $statisticsActionInProgress$}
   <div class="tap-highlight-transparent fixed inset-0 z-70 bg-black/20"></div>
-  <div class="fixed inset-0 flex h-full w-full items-center justify-center text-7xl">
+  <div class="fixed inset-0 flex size-full items-center justify-center text-7xl">
     <Fa icon={faSpinner} spin />
   </div>
 {/if}

@@ -1,3 +1,4 @@
+import { resolve } from '$app/paths';
 import type { BooksDbStorageSource } from '$lib/data/database/books-db/versions/books-db';
 import {
   gDriveAuthEndpoint,
@@ -8,8 +9,7 @@ import {
   oneDriveAuthEndpoint,
   oneDriveClientId,
   oneDriveScope,
-  oneDriveTokenEndpoint,
-  pagePath
+  oneDriveTokenEndpoint
 } from '$lib/data/env';
 import { logger } from '$lib/data/logger';
 import { NeedsInteractiveAuthError } from '$lib/data/storage/errors';
@@ -184,10 +184,10 @@ export class StorageOAuthManager {
         // Cross-origin or closed popup — give up on the pre-copy and
         // rely on the popup's own (possibly empty) sessionStorage.
       }
-      this.authWindow.location.assign(`${pagePath}/auth?miwake-init-auth=1`);
+      this.authWindow.location.assign(resolve('/auth?miwake-init-auth=1'));
     } else {
       this.authWindow = StorageOAuthManager.createWindow(
-        `${pagePath}/auth?miwake-init-auth=1`,
+        resolve('/auth?miwake-init-auth=1'),
         'auth',
         Math.min(Math.max(this.parentWindow.innerWidth, 300), 560),
         Math.min(Math.max(this.parentWindow.innerHeight, 300), 560),
@@ -207,7 +207,7 @@ export class StorageOAuthManager {
         window,
         storageSourceName,
         StorageOAuthManager.createWindow(
-          `${pagePath}/auth?miwake-init-wait=1`,
+          resolve('/auth?miwake-init-wait=1'),
           'auth',
           Math.min(Math.max(this.parentWindow.innerWidth, 300), 560),
           Math.min(Math.max(this.parentWindow.innerHeight, 300), 560),

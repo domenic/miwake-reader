@@ -2,6 +2,7 @@
   import type { RouteId } from '$app/types';
   import { browser } from '$app/environment';
   import { goto } from '$app/navigation';
+  import { resolve } from '$app/paths';
   import { page } from '$app/state';
   import type { Snippet } from 'svelte';
   import { onDestroy, tick } from 'svelte';
@@ -18,7 +19,6 @@
     type StatisticsDateChange
   } from '$lib/components/statistics/statistics-types';
   import { pxScreen } from '$lib/css-classes';
-  import { pagePath } from '$lib/data/env';
   import {
     lastStartDayOfWeek$,
     lastStatisticsEndDate$,
@@ -142,13 +142,13 @@
       return;
     }
 
-    goto(`${pagePath}${href}`, { keepFocus: true, noScroll: true });
+    goto(resolve(href), { keepFocus: true, noScroll: true });
   }
 </script>
 
 <StatisticsHeader
-  bind:showStatisticsSettings
   {activeRouteId}
+  onopensettings={() => (showStatisticsSettings = true)}
   onselecttab={navigateToStatisticsTab}
 />
 

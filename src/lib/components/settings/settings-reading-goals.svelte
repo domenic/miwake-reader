@@ -58,11 +58,7 @@
     !!((currentTimeGoal || currentCharacterGoal) && !currentReadingGoalStartDate)
   );
 
-  let currentTimeGoalInMin = $state(0);
-
-  $effect(() => {
-    currentTimeGoalInMin = secondsToMinutes(currentTimeGoal);
-  });
+  let currentTimeGoalInMin = $derived(secondsToMinutes(currentTimeGoal));
 
   let currentHistoryIndex = $derived(Math.max(0, historyIndex * itemsPerPage));
 
@@ -185,7 +181,7 @@
   }
 
   async function deleteReadingGoals(readingGoalToDelete?: ReadingGoal, dateRangeLabel?: string) {
-    let dialogMessage = '';
+    let dialogMessage: string;
 
     if (readingGoalToDelete) {
       const isCurrentReadingGoal =

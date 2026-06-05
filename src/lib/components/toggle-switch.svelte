@@ -16,7 +16,7 @@
   >
     <input type="checkbox" class="sr-only" bind:checked />
     <span
-      class="absolute top-1 left-1 w-4 h-4 rounded-full bg-white transition-transform"
+      class="absolute top-1 left-1 size-4 rounded-full bg-white transition-transform"
       class:translate-x-4={checked}
     ></span>
   </span>

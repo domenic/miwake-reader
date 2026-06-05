@@ -1,15 +1,21 @@
 <script lang="ts">
+  import type { RouteId } from '$app/types';
   import { goto } from '$app/navigation';
+  import { resolve } from '$app/paths';
   import { page } from '$app/state';
   import { faBookOpen, faChartLine, faCog, faSignOutAlt } from '@fortawesome/free-solid-svg-icons';
+  import type { IconDefinition } from '@fortawesome/free-solid-svg-icons';
   import HeaderButton from '$lib/components/header-button.svelte';
-  import { pagePath } from '$lib/data/env';
   import { database } from '$lib/data/store';
   import { map, share } from 'rxjs';
 
+  type HeaderRouteId = Extract<RouteId, '/b' | '/statistics' | '/settings' | '/manage'>;
+  type HeaderRouteWithQuery = HeaderRouteId | `${HeaderRouteId}?${string}`;
+  type QueryString = `?${string}` | '';
+
   interface Props {
     disableNavigation?: boolean;
-    onnavigate?: (routeId: string) => void;
+    onnavigate?: (routeId: HeaderRouteId) => void;
   }
 
   let { disableNavigation = false, onnavigate }: Props = $props();
@@ -23,18 +29,22 @@
     { routeId: '/statistics', label: 'Statistics', icon: faChartLine },
     { routeId: '/settings', label: 'Settings', icon: faCog },
     { routeId: '/manage', label: 'Manager', icon: faSignOutAlt }
-  ];
+  ] satisfies { routeId: HeaderRouteId; label: string; icon: IconDefinition }[];
 
-  function isSelectedRoute(routeId: string) {
+  function isSelectedRoute(routeId: HeaderRouteId) {
     return page.route.id === routeId || page.route.id?.startsWith(`${routeId}/`);
   }
 
-  function handleClick(routeId: string, query = '') {
+  function handleClick(routeId: HeaderRouteId, query: QueryString = '') {
     onnavigate?.(routeId);
 
     if (!disableNavigation) {
-      goto(`${pagePath}${routeId}${query}`);
+      goto(resolve(getRouteWithQuery(routeId, query)));
     }
+  }
+
+  function getRouteWithQuery(routeId: HeaderRouteId, query: QueryString): HeaderRouteWithQuery {
+    return query ? `${routeId}${query}` : routeId;
   }
 </script>
 

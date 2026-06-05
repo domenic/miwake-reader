@@ -44,14 +44,12 @@
     { id: TrackerSkipThresholdAction.IGNORE, text: 'Ignore' },
     { id: TrackerSkipThresholdAction.PAUSE, text: 'Pause Tracker' }
   ];
+  const startOfDayHoursTooltip =
+    'Determines at which time a new day starts.\nData before this point will be counted towards the previous day';
 
   let showSpinner = $state(false);
   let startOfDayHours = $derived(`${`${$startDayHoursForTracker$}`.padStart(2, '0')}:00`);
-  let trackerIdleTimeInMin = $state(secondsToMinutes($trackerIdleTime$));
-
-  $effect(() => {
-    trackerIdleTimeInMin = secondsToMinutes($trackerIdleTime$);
-  });
+  let trackerIdleTimeInMin = $derived(secondsToMinutes($trackerIdleTime$));
 
   let trackerAutoPauseTooltip = $derived.by(() => {
     switch ($trackerAutoPause$) {
@@ -72,7 +70,7 @@
 <div class="grid grid-cols-1 items-center sm:grid-cols-2 sm:gap-6 lg:gap-8 lg:grid-cols-3">
   <SettingsItemGroup
     title="Keep Local Data on Deletion"
-    tooltip={'Determines if local statistics will be deleted or not when removing a local book copy'}
+    tooltip="Determines if local statistics will be deleted or not when removing a local book copy"
   >
     <div class="flex items-center">
       <ButtonToggleGroup
@@ -101,17 +99,14 @@
   </SettingsItemGroup>
   <SettingsItemGroup
     title="Overwrite Book Completion"
-    tooltip={`Determines if only the first Book Completion will be tracked or if it always updates to the latest one`}
+    tooltip="Determines if only the first Book Completion will be tracked or if it always updates to the latest one"
   >
     <ButtonToggleGroup
       options={optionsForToggle}
       bind:selectedOptionId={$overwriteBookCompletion$}
     />
   </SettingsItemGroup>
-  <SettingsItemGroup
-    title={`Start Day Hours: ${startOfDayHours}`}
-    tooltip={'Determines at which time a new day starts.\nData before this point will be counted towards the previous day'}
-  >
+  <SettingsItemGroup title={`Start Day Hours: ${startOfDayHours}`} tooltip={startOfDayHoursTooltip}>
     <input
       type="range"
       step="1"
@@ -142,7 +137,7 @@
     </SettingsItemGroup>
     <SettingsItemGroup
       title="Update on Completion"
-      tooltip={`Determines if the missing amount of characters between the current position and the book total will be added to the statistics or not`}
+      tooltip="Determines if the missing amount of characters between the current position and the book total will be added to the statistics or not"
     >
       <ButtonToggleGroup
         options={optionsForToggle}
@@ -151,7 +146,7 @@
     </SettingsItemGroup>
     <SettingsItemGroup
       title="Autostart tracker (sec)"
-      tooltip={'Time in seconds without a change to the character count after which the tracker will initially auto start (0 = disabled, higher value recommended to avoid race conditions)'}
+      tooltip="Time in seconds without a change to the character count after which the tracker will initially auto start (0 = disabled, higher value recommended to avoid race conditions)"
     >
       <input
         type="number"
@@ -170,7 +165,7 @@
     </SettingsItemGroup>
     <SettingsItemGroup
       title="Idle Time (min)"
-      tooltip={'Time in minutes after which the tracker will auto pause without page interaction (0 = disabled, max 12h)'}
+      tooltip="Time in minutes after which the tracker will auto pause without page interaction (0 = disabled, max 12h)"
     >
       <input
         type="number"
@@ -191,7 +186,7 @@
     </SettingsItemGroup>
     <SettingsItemGroup
       title="Forward Skip Threshold"
-      tooltip={'Amount of positive characters passed between a tick after which a threshold action is triggered (0 = disabled)'}
+      tooltip="Amount of positive characters passed between a tick after which a threshold action is triggered (0 = disabled)"
     >
       <input
         type="number"
@@ -210,7 +205,7 @@
     </SettingsItemGroup>
     <SettingsItemGroup
       title="Backward Skip Threshold"
-      tooltip={'Amount of negative characters passed between a tick after which a threshold action is triggered (0 = disabled)'}
+      tooltip="Amount of negative characters passed between a tick after which a threshold action is triggered (0 = disabled)"
     >
       <input
         type="number"
@@ -231,7 +226,7 @@
     {#if $trackerForwardSkipThreshold$ || $trackerBackwardSkipThreshold$}
       <SettingsItemGroup
         title="Threshold Action"
-        tooltip={`Determines what action will be executed in case a skip threshold was triggered`}
+        tooltip="Determines what action will be executed in case a skip threshold was triggered"
       >
         <ButtonToggleGroup
           options={optionsForTrackerSkipThresholdAction}
@@ -242,7 +237,7 @@
     {#if $trackerAutoPause$ !== TrackerAutoPause.OFF}
       <SettingsItemGroup
         title="Dictionary Detection"
-        tooltip={`If enabled auto pause is skipped if open yomitan/jpdb-browser-reader was detected - yomitan requires disabled 'Secure Container' settings`}
+        tooltip="If enabled auto pause is skipped if open yomitan/jpdb-browser-reader was detected - yomitan requires disabled 'Secure Container' settings"
       >
         <ButtonToggleGroup
           options={optionsForToggle}
@@ -253,7 +248,7 @@
     {#if $trackerIdleTime$ > 0}
       <SettingsItemGroup
         title="Rollback Statistics on Idle"
-        tooltip={`If enabled attempts to rollback statistics by subtracting the idled time value back from the session`}
+        tooltip="If enabled attempts to rollback statistics by subtracting the idled time value back from the session"
       >
         <ButtonToggleGroup
           options={optionsForToggle}
@@ -265,7 +260,7 @@
   {/if}
   {#if showSpinner}
     <div class="tap-highlight-transparent fixed inset-0 bg-black/20"></div>
-    <div class="fixed inset-0 flex h-full w-full items-center justify-center text-7xl">
+    <div class="fixed inset-0 flex size-full items-center justify-center text-7xl">
       <Fa icon={faSpinner} spin />
     </div>
   {/if}

@@ -143,7 +143,7 @@
     {:else if stage.kind === 'importing'}
       <div class="py-10 text-center text-sm text-gray-600">Importing</div>
     {:else if stage.kind === 'done'}
-      <div class="rounded-md bg-green-50 px-3 py-3 text-sm text-green-900">
+      <div class="rounded-md bg-green-50 p-3 text-sm text-green-900">
         <div class="font-medium">Import complete.</div>
         <ul class="mt-1 list-inside list-disc text-xs">
           {#if stage.result.appSettings}<li>App settings imported.</li>{/if}

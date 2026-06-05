@@ -21,11 +21,11 @@
 
   interface Props {
     activeRouteId?: RouteId | null;
-    showStatisticsSettings: boolean;
+    onopensettings?: () => void;
     onselecttab?: (href: StatisticsRoute) => void;
   }
 
-  let { activeRouteId, showStatisticsSettings = $bindable(), onselecttab }: Props = $props();
+  let { activeRouteId, onopensettings, onselecttab }: Props = $props();
 
   const copyStatisticsDataItems: StatisticsDataSource[] = [
     { key: 'readingTime', label: 'Reading Time' },
@@ -72,7 +72,7 @@
           faIcon={faSliders}
           title="Open statistics settings"
           label="Statistics Settings"
-          onclick={() => (showStatisticsSettings = true)}
+          onclick={onopensettings}
         />
       </div>
       <div class="flex">

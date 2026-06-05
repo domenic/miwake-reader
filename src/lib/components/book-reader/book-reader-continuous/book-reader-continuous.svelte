@@ -39,6 +39,7 @@
     timer
   } from 'rxjs';
   import { onDestroy, onMount, untrack } from 'svelte';
+  import { SvelteMap } from 'svelte/reactivity';
   import Fa from 'svelte-fa';
   import type { AutoScroller, BookmarkManager, PageManager } from '../types';
   import { AutoScrollerContinuous } from './auto-scroller-continuous';
@@ -169,9 +170,9 @@
 
   const destroy$ = new Subject<void>();
 
-  const sectionToElement = new Map<string, HTMLElement>();
+  const sectionToElement = new SvelteMap<string, HTMLElement>();
 
-  const sectionData = new Map<string, SectionWithProgress>();
+  const sectionData = new SvelteMap<string, SectionWithProgress>();
 
   let scrollAdjustment = 0;
 
@@ -616,7 +617,7 @@
     prevIntendedCharCount = exploredCharCount;
     onbookcharcountchange?.(calculator.charCount);
 
-    let fontLoaded = false;
+    let fontLoaded: boolean;
 
     try {
       fontLoaded = document.fonts.check(`${fontSize}px ${fontFamilyGroupOne || 'Noto Serif JP'}`);
@@ -737,6 +738,7 @@
   class:ttu-text-wrap-pretty={enableTextWrapPretty}
   class="book-content m-auto"
 >
+  <!-- eslint-disable-next-line svelte/no-at-html-tags -->
   {@html htmlContent}
 </div>
 
@@ -781,7 +783,7 @@
 
 {#if !allowDisplay}
   <div
-    class="fixed inset-0 flex h-full w-full items-center justify-center text-7xl"
+    class="fixed inset-0 flex size-full items-center justify-center text-7xl"
     style:color={fontColor}
     style:background-color={backgroundColor}
   >

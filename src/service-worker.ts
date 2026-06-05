@@ -2,12 +2,12 @@
 
 import { build, files, prerendered, version } from '$service-worker';
 
-import { pagePath } from '$lib/data/env';
 import { toSearchParams } from '$lib/functions/to-search-params';
 import { userFontsCacheName } from '$lib/data/fonts';
 
 const worker = self as unknown as ServiceWorkerGlobalScope;
 const BUILD_CACHE_NAME = `build:${version}`;
+const base = import.meta.env.VITE_PAGE_PATH || '';
 
 const prerenderedSet = new Set(prerendered);
 
@@ -130,11 +130,13 @@ async function networkFirstRaceCache(
 
 function selfHostParameterizedUrlResponse(request: Request) {
   const url = new URL(request.url);
+  const appPathname =
+    base && url.pathname.startsWith(`${base}/`) ? url.pathname.slice(base.length) : url.pathname;
 
   const readerRegex = /\/b\/(?<id>\d+)\/?(\?|$)/;
-  const readerRegexResult = readerRegex.exec(url.pathname);
+  const readerRegexResult = readerRegex.exec(appPathname);
   if (readerRegexResult?.groups) {
-    return createRedirectResponse(`${[[pagePath]]}/b?${toSearchParams(readerRegexResult.groups)}`);
+    return createRedirectResponse(`${base}/b?${toSearchParams(readerRegexResult.groups)}`);
   }
   return undefined;
 }

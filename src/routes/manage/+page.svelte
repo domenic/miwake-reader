@@ -1,5 +1,6 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
+  import { resolve } from '$app/paths';
   import { faUpload } from '@fortawesome/free-solid-svg-icons';
   import BookCardList from '$lib/components/book-card/book-card-list.svelte';
   import type { BookCardProps } from '$lib/components/book-card/book-card-props';
@@ -8,16 +9,14 @@
     showBugReportDialog,
     showErrorDialogWithLogReport
   } from '$lib/components/log-report-dialog-content.svelte';
-  import { preFilteredTitlesForStatistics$ } from '$lib/components/statistics/statistics-types';
   import { pxScreen } from '$lib/css-classes';
   import type { BooksDbBookmarkData } from '$lib/data/database/books-db/versions/books-db';
   import { dialogManager } from '$lib/data/dialog-manager';
-  import { appName, pagePath } from '$lib/data/env';
+  import { appName } from '$lib/data/env';
   import { userDeleteBooks, userDeleteStatisticEntries, userImportBooks } from '$lib/data/library';
   import { logger } from '$lib/data/logger';
   import { confirmDialog, messageDialog } from '$lib/data/simple-dialogs';
   import { SortDirection, type SortOption } from '$lib/data/sort-types';
-  import { SyncEndpointType } from '$lib/data/storage/storage-types';
   import {
     booklistSortOptions$,
     confirmStatisticsDeletion$,
@@ -38,7 +37,7 @@
   import { pluralize } from '$lib/functions/utils';
   import pLimit from 'p-limit';
   import { combineLatest, map, Observable, share, Subject, takeUntil } from 'rxjs';
-  import { onDestroy, onMount, tick } from 'svelte';
+  import { onDestroy, tick } from 'svelte';
   import Fa from 'svelte-fa';
 
   const booksAreLoading$ = database.listLoading$.pipe(map((isLoading) => isLoading));
@@ -114,7 +113,7 @@
     const card1Prop = card1[sortProp.property] || (isTitleSort ? '' : 0);
     const card2Prop = card2[sortProp.property] || (isTitleSort ? '' : 0);
 
-    let sortDiff = 0;
+    let sortDiff: number;
 
     if (sortProp.direction === SortDirection.ASC) {
       sortDiff = isTitleSort
@@ -255,7 +254,7 @@
   }
 
   async function gotoBook(id: number) {
-    await goto(`${pagePath}/b?id=${id}`);
+    await goto(resolve(`/b?id=${id}`));
   }
 
   async function onFilesChange(fileList: FileList | File[]) {
@@ -462,7 +461,7 @@
         />
       </label>
       <div class="mt-auto pb-4 text-xs text-gray-400">
-        <a href="{pagePath}/privacy" class="underline">Privacy Policy</a>
+        <a href={resolve('/privacy')} class="underline">Privacy Policy</a>
       </div>
     </div>
   {/if}

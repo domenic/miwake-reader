@@ -20,9 +20,12 @@
     tap,
     timer
   } from 'rxjs';
+  import { SvelteMap } from 'svelte/reactivity';
   import { browser } from '$app/environment';
   import { page } from '$app/state';
   import { goto } from '$app/navigation';
+  import { resolve } from '$app/paths';
+  import type { RouteId } from '$app/types';
   import { faSpinner } from '@fortawesome/free-solid-svg-icons';
   import BookReader from '$lib/components/book-reader/book-reader.svelte';
   import type {
@@ -120,7 +123,6 @@
     type BooksDbStatistic
   } from '$lib/data/database/books-db/versions/books-db';
   import { dialogManager } from '$lib/data/dialog-manager';
-  import { pagePath } from '$lib/data/env';
   import { DB_VERSION, PAGE_CHANGE, SKIPKEYLISTENER, SYNCED } from '$lib/data/events';
   import { fullscreenManager } from '$lib/data/fullscreen-manager';
   import { logger } from '$lib/data/logger';
@@ -132,7 +134,7 @@
     userSaveStatistics
   } from '$lib/data/library';
   import { BaseStorageHandler } from '$lib/data/storage/handler/base-handler';
-  import { StorageDataType, SyncEndpointType } from '$lib/data/storage/storage-types';
+  import { StorageDataType } from '$lib/data/storage/storage-types';
   import { availableThemes } from '$lib/data/theme-option';
   import { ViewMode } from '$lib/data/view-mode';
   import loadBookData from '$lib/functions/book-data-loader/load-book-data';
@@ -168,6 +170,8 @@
     getReferencePoints,
     pulseElement
   } from '$lib/functions/range-util';
+
+  type ReaderExitRoute = Extract<RouteId, '/manage' | '/settings' | '/statistics'>;
 
   const READER_STATISTICS_SYNC_THROTTLE_MS = 60_000;
 
@@ -213,7 +217,7 @@
   const syncedPromise = new Promise<void>((resolver) => {
     syncedResolver = resolver;
   });
-  const queuedReaderImageGalleryPictures = new Map<string, boolean>();
+  const queuedReaderImageGalleryPictures = new SvelteMap<string, boolean>();
   const fontFeatureSettings = [
     $enableVerticalFontKerning$ && '"vkrn"',
     $enableFontVPAL$ && '"vpal"'
@@ -326,7 +330,7 @@
   const leaveIfBookMissing$ = rawBookData$.pipe(
     tap((data) => {
       if (!data) {
-        goto(`${pagePath}${mergeEntries.MANAGE.routeId}`);
+        goto(resolve(mergeEntries.MANAGE.routeId));
       }
     }),
     reduceToEmptyString()
@@ -612,7 +616,7 @@
   function handleUnload(event: BeforeUnloadEvent) {
     if ($confirmClose$ && (isSyncingOrPending() || storedExploredCharacter !== exploredCharCount)) {
       event.preventDefault();
-      // eslint-disable-next-line no-param-reassign
+
       return (event.returnValue = 'Are you sure you want to exit?');
     }
 
@@ -1020,7 +1024,7 @@
     ]);
   }
 
-  async function leaveReader(routeId: string, deleteLastItem = true) {
+  async function leaveReader(routeId: ReaderExitRoute, deleteLastItem = true) {
     let message;
 
     try {
@@ -1069,7 +1073,7 @@
       messageDialog({ title: 'Error', message });
     }
 
-    await goto(`${pagePath}${routeId}`);
+    await goto(resolve(routeId));
 
     if (!message) {
       dialogManager.dialogs$.next([]);
@@ -1111,7 +1115,6 @@
     } = getReferencePoints(window, contentEl, $verticalMode$, firstDimensionMargin);
 
     merge(fromEvent(document, 'pointerup'), fromEvent(document, 'pointermove'))
-      // eslint-disable-next-line rxjs/no-ignored-takewhile-value
       .pipe(takeWhile(() => isSelectingCustomReadingPoint))
       .subscribe((event: Event) => {
         if (!(event instanceof PointerEvent)) {
@@ -1135,7 +1138,7 @@
             if (isPaginated) {
               customReadingPointRange = result?.range;
             } else {
-              let newPercentage = 0;
+              let newPercentage: number;
 
               if ($verticalMode$) {
                 newPercentage = Math.ceil(
@@ -1410,7 +1413,7 @@
     bind:customReadingPointLeft
     bind:customReadingPointScrollOffset
     bind:customReadingPointRange
-    bind:showCustomReadingPoint
+    onhideCustomReadingPoint={() => (showCustomReadingPoint = false)}
     onpagemanagerchange={(pm) => (pageManager = pm)}
     onbookmarkmanagerchange={(bm) => (bookmarkManager = bm)}
     onautoscrollerchange={(as) => (autoScroller = as)}
@@ -1477,7 +1480,7 @@
 {/if}
 
 {#if showSpinner}
-  <div class="fixed inset-0 flex h-full w-full items-center justify-center text-7xl">
+  <div class="fixed inset-0 flex size-full items-center justify-center text-7xl">
     <Fa icon={faSpinner} spin />
   </div>
 {/if}

@@ -69,7 +69,7 @@
     customReadingPointLeft: number;
     customReadingPointScrollOffset: number;
     customReadingPointRange: Range | undefined;
-    showCustomReadingPoint: boolean;
+    onhideCustomReadingPoint?: () => void;
     onpagemanagerchange?: (pm: PageManager | undefined) => void;
     onbookmarkmanagerchange?: (bm: BookmarkManager | undefined) => void;
     onautoscrollerchange?: (as: AutoScroller | undefined) => void;
@@ -117,7 +117,7 @@
     customReadingPointLeft = $bindable(),
     customReadingPointScrollOffset = $bindable(),
     customReadingPointRange = $bindable(),
-    showCustomReadingPoint = $bindable(),
+    onhideCustomReadingPoint,
     onpagemanagerchange,
     onbookmarkmanagerchange,
     onautoscrollerchange,
@@ -373,7 +373,7 @@
       {bookmarkData}
       bind:exploredCharCount
       bind:customReadingPointRange
-      bind:showCustomReadingPoint
+      {onhideCustomReadingPoint}
       {onpagemanagerchange}
       {onbookmarkmanagerchange}
       {onbookcharcountchange}

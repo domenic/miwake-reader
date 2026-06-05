@@ -288,7 +288,7 @@
 
   <!-- Color sections -->
   <div class="space-y-4">
-    {#each colorAttributes as section}
+    {#each colorAttributes as section (section.heading)}
       <div>
         <h3 class="mb-2 font-medium">{section.heading}</h3>
         <div
@@ -305,7 +305,7 @@
               popovertarget={popoverId}
             >
               <div
-                class="swatch h-7 w-7 shrink-0 rounded-full border border-black/15"
+                class="swatch size-7 shrink-0 rounded-full border border-black/15"
                 style:--swatch-color={toRgbaString(customTheme[attribute])}
               ></div>
               <div class="min-w-0">

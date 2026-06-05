@@ -4,10 +4,10 @@ import type {
   BackupImportDirection,
   BackupSelection
 } from '$lib/components/backup/backup-types';
+import { resolve } from '$app/paths';
 import { BlobReader, ZipReader } from '@zip.js/zip.js';
 import { database, lastReadingGoalsModified$ } from '$lib/data/store';
 import { localStoragePreferences } from '$lib/data/internal/writable-storage-subject';
-import { pagePath } from '$lib/data/env';
 import { BackupStorageHandler } from '$lib/data/storage/handler/backup-handler';
 import { BaseStorageHandler } from '$lib/data/storage/handler/base-handler';
 import { getLocalEndpoint, getSyncEndpoint } from '$lib/data/storage/storage-handler-factory';
@@ -345,7 +345,7 @@ export async function importBackup(
   // fresh state — cheaper than tracking down every component that
   // should refresh.
   if (booksImported > 0 || readingGoalsImported || appSettingsImported) {
-    setTimeout(() => window.location.replace(`${pagePath}/manage`), 0);
+    setTimeout(() => window.location.replace(resolve('/manage')), 0);
   }
 
   return {
@@ -380,5 +380,5 @@ export async function wipeAllStorage(): Promise<void> {
   await tx.done;
 
   localStorage.clear();
-  window.location.replace(`${pagePath}/manage`);
+  window.location.replace(resolve('/manage'));
 }

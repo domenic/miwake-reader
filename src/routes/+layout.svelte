@@ -20,7 +20,7 @@
 
   let { children }: Props = $props();
 
-  let path = $state('');
+  let path = $derived(page.url.pathname);
   let dialogs: Dialog[] = $state([]);
   let clickOnCloseDisabled = $state(false);
   let zIndex = $state('');
@@ -43,7 +43,6 @@
   }
 
   if (clearConsoleOnReload && import.meta.hot) {
-    // eslint-disable-next-line no-console
     import.meta.hot.on('vite:beforeUpdate', () => console.clear());
   }
 
@@ -95,10 +94,6 @@
     zIndex = d[0]?.zIndex ?? '';
     dialogs = d;
   });
-
-  $effect(() => {
-    path = page.url.pathname;
-  });
 </script>
 
 <svelte:window bind:online={$isOnline$} />
@@ -124,7 +119,7 @@
 <BottomLeftCluster />
 
 {#if dialogs.length > 0}
-  <div class="writing-horizontal-tb fixed inset-0 z-50 h-full w-full" style:z-index={zIndex}>
+  <div class="writing-horizontal-tb fixed inset-0 z-50 size-full" style:z-index={zIndex}>
     <div
       tabindex="0"
       role="button"
@@ -137,11 +132,10 @@
       onkeyup={dummyFn}
     ></div>
 
-    <div
-      class="relative top-1/2 left-1/2 inline-block max-w-[80vw] -translate-x-1/2 -translate-y-1/2"
-    >
-      {#each dialogs as dialog}
+    <div class="relative top-1/2 left-1/2 inline-block max-w-[80vw] -translate-1/2">
+      {#each dialogs as dialog (dialog)}
         {#if typeof dialog.component === 'string'}
+          <!-- eslint-disable-next-line svelte/no-at-html-tags -->
           {@html dialog.component}
         {:else}
           <dialog.component {...dialog.props} onclose={closeAllDialogs} />
