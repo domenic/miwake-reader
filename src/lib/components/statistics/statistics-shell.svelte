@@ -349,7 +349,7 @@
 
     if ($confirmStatisticsDeletion$) {
       wasCanceled = await confirmDialog({
-        title: 'Delete Data',
+        title: 'Delete data',
         message: `This will delete data ${
           startDate ? `from ${getDateRangeLabel(startDate, endDate)}` : ''
         }  for ${titleLabel}, which may include start and/or completion data.\n\nDeletion syncs to connected sources when upward sync is enabled.\n\n${titleLabel}:\n${[
@@ -464,7 +464,7 @@
     }
 
     const wasCanceled = await confirmDialog({
-      title: 'Update Data',
+      title: 'Update data',
       message: `This will update the data for ${title} on ${dateKey}.\n\nTime: ${secondsToMinutes(
         statistic.readingTime
       )} min => ${secondsToMinutes(newReadingTime)} min\nCharacters: ${

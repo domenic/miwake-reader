@@ -1,17 +1,53 @@
+<script module lang="ts">
+  import SettingsReadingGoalsMerge from '$lib/components/settings/settings-reading-goals-merge.svelte';
+  import { showDialog } from '$lib/data/simple-dialogs';
+  import type { ReadingGoal, ReadingGoalSaveResult } from '$lib/data/reading-goal';
+
+  export function showSettingsReadingGoalsMergeDialog(params: {
+    currentReadingGoal: ReadingGoal;
+    newReadingGoal: ReadingGoal;
+    startDayHoursForTracker: number;
+  }): Promise<ReadingGoalSaveResult> {
+    let result = emptyReadingGoalSaveResult();
+
+    return showDialog<ReadingGoalSaveResult>(
+      SettingsReadingGoalsMerge,
+      {
+        ...params,
+        captureResult: (nextResult: ReadingGoalSaveResult) => {
+          result = nextResult;
+        }
+      },
+      {
+        closedBy: 'closerequest',
+        resolveResult: (returnValue) =>
+          returnValue === 'confirm' || returnValue === 'error'
+            ? result
+            : emptyReadingGoalSaveResult()
+      }
+    );
+  }
+
+  function emptyReadingGoalSaveResult(error = ''): ReadingGoalSaveResult {
+    return {
+      readingGoalsToDelete: [],
+      readingGoalsToInsert: [],
+      error
+    };
+  }
+</script>
+
 <script lang="ts">
   import { faSpinner } from '@fortawesome/free-solid-svg-icons';
-  import DialogTemplate from '$lib/components/dialog-template.svelte';
-  import { ripple } from '$lib/components/ripple';
-  import { buttonClasses } from '$lib/css-classes';
+  import SyncButton from '$lib/components/settings/sync/sync-button.svelte';
+  import { inputClasses } from '$lib/css-classes';
   import type { BooksDbReadingGoal } from '$lib/data/database/books-db/versions/books-db';
   import {
     getDateRangeLabel,
     getReadingGoalWindow,
-    type ReadingGoal,
-    type ReadingGoalArchivalOption,
-    type ReadingGoalSaveResult
+    type ReadingGoalArchivalOption
   } from '$lib/data/reading-goal';
-  import { database, readingGoal$, startDayHoursForTracker$ } from '$lib/data/store';
+  import { database } from '$lib/data/store';
   import {
     advanceDateDays,
     getDate,
@@ -19,243 +55,190 @@
     getPreviousDayKey,
     secondsToMinutes
   } from '$lib/functions/statistic-util';
-  import { pluralize } from '$lib/functions/utils';
   import { onMount, tick, untrack } from 'svelte';
   import { SvelteSet } from 'svelte/reactivity';
   import Fa from 'svelte-fa';
 
-  interface Props {
-    newReadingGoal: ReadingGoal;
-    resolver: (arg0: ReadingGoalSaveResult) => void;
-    onclose?: () => void;
+  interface ArchiveOption extends ReadingGoalArchivalOption {
+    id: string;
+    description?: string;
   }
 
-  let { newReadingGoal, resolver, onclose }: Props = $props();
+  interface Props {
+    currentReadingGoal: ReadingGoal;
+    newReadingGoal: ReadingGoal;
+    startDayHoursForTracker: number;
+    captureResult: (result: ReadingGoalSaveResult) => void;
+  }
 
-  let showSpinner = $state(true);
-  let newStartDate = $state(untrack(() => newReadingGoal.goalStartDate));
+  let { currentReadingGoal, newReadingGoal, startDayHoursForTracker, captureResult }: Props =
+    $props();
+
+  const initial = untrack(() => ({
+    currentReadingGoal,
+    newReadingGoal,
+    startDayHoursForTracker
+  }));
+
+  let rootElement = $state<HTMLDivElement>();
+  let isLoading = $state(true);
+  let newStartDate = $state(initial.newReadingGoal.goalStartDate);
   let archiveReadingGoal = $state(false);
-  let archiveDateEditable = $state(false);
-  let archivalOptions: ReadingGoalArchivalOption[] = $state([]);
-  let selectedArchiveOption = $state('');
-  let archivalMaxDate: string;
+  let archivalOptions: ArchiveOption[] = $state([]);
+  let selectedArchiveOptionId = $state('');
+  let archivalMaxDate = $state('');
   let archivalStartDate = $state('');
   let archivalEndDate = $state('');
-  let archivalOriginalEndDate = '';
+  let archivalOriginalEndDate = $state('');
   let error = $state('');
   let existingReadingGoals: BooksDbReadingGoal[] = $state([]);
 
-  let selectedArchiveOptionObject = $derived(
-    archivalOptions.find((opt) => opt.label === selectedArchiveOption)
+  let selectedArchiveOption = $derived(
+    archivalOptions.find((option) => option.id === selectedArchiveOptionId)
   );
+
+  let archiveDateEditable = $derived(selectedArchiveOption?.editable ?? false);
 
   let readingGoalsToReplace = $derived(
     existingReadingGoals.filter(
-      (readingGoal) => readingGoal.goalStartDate !== $readingGoal$.goalStartDate
+      (readingGoal) => readingGoal.goalStartDate !== initial.currentReadingGoal.goalStartDate
     )
   );
 
   let readingGoalToReplaceMessage = $derived(
     readingGoalsToReplace.length
-      ? `${pluralize(readingGoalsToReplace.length, 'Item')} will be replaced`
+      ? `${getHistoryEntryCountLabel(readingGoalsToReplace.length)} will be replaced`
       : ''
   );
 
-  $effect(() => {
-    if (selectedArchiveOptionObject) {
-      ({ archivalStartDate, archivalEndDate } = selectedArchiveOptionObject);
-      archiveDateEditable = selectedArchiveOptionObject.editable;
-      updateNextReadingGoalStartDate();
-    }
-  });
-
-  $effect(() => {
-    if (newReadingGoal.goalStartDate) {
-      if (!archiveReadingGoal) {
-        newStartDate = newReadingGoal.goalStartDate;
-        archivalStartDate = $readingGoal$.goalStartDate;
-      } else {
-        updateNextReadingGoalStartDate();
-      }
-    }
-  });
-
   onMount(init);
-
-  async function checkDates() {
-    try {
-      showSpinner = true;
-
-      if (!archivalStartDate || !archivalEndDate) {
-        archivalStartDate = $readingGoal$.goalStartDate;
-        archivalEndDate = archivalMaxDate;
-      } else if (archivalEndDate < archivalStartDate) {
-        const oldStartDate = archivalStartDate;
-        const oldEndStartDate = archivalEndDate;
-
-        archivalStartDate = oldEndStartDate;
-        archivalEndDate = oldStartDate;
-      }
-
-      await updateExistingReadingGoals();
-
-      showSpinner = false;
-    } catch ({ message }: any) {
-      error = `Failed to refresh reading goals: ${message}`;
-      closeDialog();
-    }
-  }
-
-  async function closeDialog(wasCanceled = false) {
-    const exitEarly = wasCanceled || error;
-
-    const resultObject: ReadingGoalSaveResult = {
-      readingGoalsToDelete: [],
-      readingGoalsToInsert: [],
-      error
-    };
-
-    if (exitEarly) {
-      resolver(resultObject);
-      onclose?.();
-    }
-
-    await tick();
-
-    const goalsToDelete = new SvelteSet<string>();
-
-    readingGoalsToReplace.forEach((goal) => goalsToDelete.add(goal.goalStartDate));
-
-    if ($readingGoal$.goalStartDate) {
-      goalsToDelete.add($readingGoal$.goalStartDate);
-    }
-
-    if (archiveReadingGoal) {
-      resultObject.readingGoalsToInsert.push({
-        ...$readingGoal$,
-        ...{
-          goalStartDate: archivalStartDate,
-          goalEndDate: archivalEndDate,
-          goalOriginalEndDate: archivalOriginalEndDate
-        }
-      });
-    }
-
-    resultObject.readingGoalsToDelete = [...goalsToDelete];
-    resultObject.readingGoalsToInsert = [
-      ...resultObject.readingGoalsToInsert,
-      ...(newReadingGoal.goalStartDate
-        ? [
-            {
-              ...newReadingGoal,
-              ...{ goalStartDate: newStartDate, goalEndDate: '', goalOriginalEndDate: '' }
-            }
-          ]
-        : [])
-    ];
-
-    resolver(resultObject);
-    onclose?.();
-  }
-
-  function updateNextReadingGoalStartDate() {
-    if (!newReadingGoal.goalStartDate) {
-      return;
-    }
-
-    if (!archiveReadingGoal || newReadingGoal.goalStartDate > archivalEndDate) {
-      newStartDate = newReadingGoal.goalStartDate;
-    } else {
-      ({ dateString: newStartDate } = advanceDateDays(
-        getDate(archivalEndDate, $startDayHoursForTracker$)
-      ));
-    }
-  }
 
   async function init() {
     try {
-      const todayKey = getDateKey($startDayHoursForTracker$);
+      const todayKey = getDateKey(initial.startDayHoursForTracker);
 
-      if ($readingGoal$.goalStartDate && todayKey >= $readingGoal$.goalStartDate) {
-        const yesterDayKey = getPreviousDayKey($startDayHoursForTracker$);
+      if (
+        initial.currentReadingGoal.goalStartDate &&
+        todayKey >= initial.currentReadingGoal.goalStartDate
+      ) {
+        const yesterdayKey = getPreviousDayKey(initial.startDayHoursForTracker);
         const [readingGoalStart, readingGoalEnd] = getReadingGoalWindow(
           todayKey,
-          $startDayHoursForTracker$,
-          $readingGoal$
+          initial.startDayHoursForTracker,
+          initial.currentReadingGoal
         );
         const previousReadingGoalEnd = getPreviousDayKey(
-          $startDayHoursForTracker$,
-          getDate(readingGoalStart, $startDayHoursForTracker$)
+          initial.startDayHoursForTracker,
+          getDate(readingGoalStart, initial.startDayHoursForTracker)
         );
 
         archivalMaxDate = readingGoalEnd;
+        archivalOriginalEndDate = readingGoalEnd;
+        archiveReadingGoal = true;
 
-        archivalOptions.push({
-          label: 'Custom',
-          archivalStartDate: $readingGoal$.goalStartDate,
-          archivalEndDate: readingGoalEnd,
-          editable: true
-        });
-
-        if (
-          previousReadingGoalEnd > $readingGoal$.goalStartDate &&
-          yesterDayKey !== previousReadingGoalEnd &&
-          todayKey !== previousReadingGoalEnd
-        ) {
-          archivalOptions.push({
-            label: 'Close previous nearest End',
-            archivalStartDate: $readingGoal$.goalStartDate,
-            archivalEndDate: previousReadingGoalEnd,
-            editable: false
-          });
-        }
-
-        if (yesterDayKey >= $readingGoal$.goalStartDate) {
-          archivalOptions.push({
-            label: 'Close Yesterday',
-            archivalStartDate: $readingGoal$.goalStartDate,
-            archivalEndDate: yesterDayKey,
-            editable: false
-          });
-        }
-
-        if (todayKey >= $readingGoal$.goalStartDate) {
-          archivalOptions.push({
-            label: 'Close Today',
-            archivalStartDate: $readingGoal$.goalStartDate,
+        const options: ArchiveOption[] = [
+          {
+            id: 'today',
+            label: 'Today',
+            archivalStartDate: initial.currentReadingGoal.goalStartDate,
             archivalEndDate: todayKey,
+            editable: false
+          }
+        ];
+
+        if (yesterdayKey >= initial.currentReadingGoal.goalStartDate) {
+          options.push({
+            id: 'yesterday',
+            label: 'Yesterday',
+            description: getArchiveRangeDescription(
+              initial.currentReadingGoal.goalStartDate,
+              yesterdayKey
+            ),
+            archivalStartDate: initial.currentReadingGoal.goalStartDate,
+            archivalEndDate: yesterdayKey,
             editable: false
           });
         }
 
         if (readingGoalEnd !== todayKey) {
-          archivalOptions.push({
-            label: 'Close nearest End',
-            archivalStartDate: $readingGoal$.goalStartDate,
+          options.push({
+            id: 'current-period-end',
+            label: 'Current goal period',
+            description: getArchiveRangeDescription(
+              initial.currentReadingGoal.goalStartDate,
+              readingGoalEnd
+            ),
+            archivalStartDate: initial.currentReadingGoal.goalStartDate,
             archivalEndDate: readingGoalEnd,
             editable: false
           });
         }
 
-        archiveReadingGoal = true;
-        selectedArchiveOption = archivalOptions[0].label;
-        archivalOptions = [...archivalOptions];
-        archivalOriginalEndDate = readingGoalEnd;
+        if (
+          previousReadingGoalEnd > initial.currentReadingGoal.goalStartDate &&
+          yesterdayKey !== previousReadingGoalEnd &&
+          todayKey !== previousReadingGoalEnd
+        ) {
+          options.push({
+            id: 'previous-period-end',
+            label: 'Previous goal period',
+            description: getArchiveRangeDescription(
+              initial.currentReadingGoal.goalStartDate,
+              previousReadingGoalEnd
+            ),
+            archivalStartDate: initial.currentReadingGoal.goalStartDate,
+            archivalEndDate: previousReadingGoalEnd,
+            editable: false
+          });
+        }
+
+        options.push({
+          id: 'custom',
+          label: 'Custom',
+          archivalStartDate: initial.currentReadingGoal.goalStartDate,
+          archivalEndDate: readingGoalEnd,
+          editable: true
+        });
+
+        archivalOptions = options;
+        applyArchiveOption(options[0]);
       }
 
       await updateExistingReadingGoals();
+      isLoading = false;
+    } catch (err) {
+      await closeWithError(`Failed to prepare reading goals: ${getErrorMessage(err)}`);
+    }
+  }
 
-      showSpinner = false;
-    } catch ({ message }: any) {
-      error = `Failed to set Context (${message})`;
-      closeDialog();
+  async function checkDates() {
+    try {
+      isLoading = true;
+      normalizeArchiveDates();
+      await updateExistingReadingGoals();
+      isLoading = false;
+    } catch (err) {
+      await closeWithError(`Failed to refresh reading goals: ${getErrorMessage(err)}`);
+    }
+  }
+
+  function normalizeArchiveDates() {
+    if (!archiveReadingGoal) {
+      return;
+    }
+
+    if (!archivalStartDate || !archivalEndDate) {
+      archivalStartDate = initial.currentReadingGoal.goalStartDate;
+      archivalEndDate = archivalMaxDate;
+    } else if (archivalEndDate < archivalStartDate) {
+      const previousStartDate = archivalStartDate;
+      archivalStartDate = archivalEndDate;
+      archivalEndDate = previousStartDate;
     }
   }
 
   async function updateExistingReadingGoals() {
     updateNextReadingGoalStartDate();
-
-    await tick();
 
     if (archiveReadingGoal) {
       existingReadingGoals = await database.getReadingGoalsForDateWindow(
@@ -263,99 +246,281 @@
         newStartDate,
         archivalEndDate
       );
-    } else if (newReadingGoal.goalStartDate) {
+    } else if (initial.newReadingGoal.goalStartDate) {
       existingReadingGoals = await database.getReadingGoalsForDateWindow(
-        newReadingGoal.goalStartDate,
+        initial.newReadingGoal.goalStartDate,
         newStartDate
       );
     } else {
       existingReadingGoals = [];
     }
   }
+
+  function updateNextReadingGoalStartDate() {
+    if (!initial.newReadingGoal.goalStartDate) {
+      return;
+    }
+
+    if (!archiveReadingGoal || initial.newReadingGoal.goalStartDate > archivalEndDate) {
+      newStartDate = initial.newReadingGoal.goalStartDate;
+      return;
+    }
+
+    ({ dateString: newStartDate } = advanceDateDays(
+      getDate(archivalEndDate, initial.startDayHoursForTracker)
+    ));
+  }
+
+  async function handleArchiveToggle(event: Event) {
+    archiveReadingGoal = (event.currentTarget as HTMLInputElement).checked;
+    await checkDates();
+  }
+
+  async function selectArchiveOption(option: ArchiveOption) {
+    applyArchiveOption(option);
+    await checkDates();
+  }
+
+  function applyArchiveOption(option: ArchiveOption) {
+    selectedArchiveOptionId = option.id;
+    archivalStartDate = option.archivalStartDate;
+    archivalEndDate = option.archivalEndDate;
+    updateNextReadingGoalStartDate();
+  }
+
+  function getArchiveRangeDescription(startDate: string, endDate: string) {
+    return startDate === endDate ? startDate : `${startDate} through ${endDate}`;
+  }
+
+  function getHistoryEntryDateRange(startDate: string, endDate: string) {
+    return startDate === endDate ? `for ${startDate}` : `from ${startDate} through ${endDate}`;
+  }
+
+  function getHistoryEntryCountLabel(count: number) {
+    return `${count} history ${count === 1 ? 'entry' : 'entries'}`;
+  }
+
+  function buildResult(): ReadingGoalSaveResult {
+    const readingGoalsToDelete = new SvelteSet<string>();
+    const readingGoalsToInsert: BooksDbReadingGoal[] = [];
+
+    for (const readingGoal of readingGoalsToReplace) {
+      readingGoalsToDelete.add(readingGoal.goalStartDate);
+    }
+
+    if (initial.currentReadingGoal.goalStartDate) {
+      readingGoalsToDelete.add(initial.currentReadingGoal.goalStartDate);
+    }
+
+    if (archiveReadingGoal && initial.currentReadingGoal.goalStartDate) {
+      readingGoalsToInsert.push({
+        ...initial.currentReadingGoal,
+        goalStartDate: archivalStartDate,
+        goalEndDate: archivalEndDate,
+        goalOriginalEndDate: archivalOriginalEndDate
+      });
+    }
+
+    if (initial.newReadingGoal.goalStartDate) {
+      readingGoalsToInsert.push({
+        ...initial.newReadingGoal,
+        goalStartDate: newStartDate,
+        goalEndDate: '',
+        goalOriginalEndDate: ''
+      });
+    }
+
+    return {
+      readingGoalsToDelete: [...readingGoalsToDelete],
+      readingGoalsToInsert,
+      error: ''
+    };
+  }
+
+  function handleSubmit(event: SubmitEvent) {
+    const submitter = event.submitter as HTMLButtonElement | null;
+
+    if (submitter?.value === 'confirm') {
+      captureResult(buildResult());
+    }
+  }
+
+  async function closeWithError(message: string) {
+    error = message;
+    isLoading = false;
+    captureResult(emptyReadingGoalSaveResult(error));
+
+    await tick();
+    rootElement?.closest('dialog')?.close('error');
+  }
+
+  function getErrorMessage(err: unknown) {
+    if (err instanceof Error) {
+      return err.message;
+    }
+
+    if (err && typeof err === 'object' && 'message' in err) {
+      return String(err.message);
+    }
+
+    return String(err);
+  }
 </script>
 
-{#if showSpinner}
-  <div class="tap-highlight-transparent absolute inset-0 bg-black/20"></div>
-  <div class="fixed inset-0 flex size-full items-center justify-center text-7xl">
-    <Fa icon={faSpinner} spin />
-  </div>
-{/if}
-<DialogTemplate>
-  {#snippet header()}
-    Save Reading Goal
-  {/snippet}
-  {#snippet content()}
-    {#if newReadingGoal.goalStartDate}
-      <div>
-        <span>New Reading Goal starts from</span>
-        <input
-          disabled
-          class="mb-4 sm:ml-1"
-          type="date"
-          min={newReadingGoal.goalStartDate}
-          bind:value={newStartDate}
-        />
+<div bind:this={rootElement} class="w-[560px] max-w-full">
+  <header class="border-b border-black/10 pb-4">
+    <h2 class="text-xl font-medium">Save reading goal</h2>
+    <p class="mt-1 text-sm text-gray-600">
+      Review how this save will update your reading goal history.
+    </p>
+  </header>
+
+  <div class="py-4">
+    {#if isLoading}
+      <div class="flex items-center justify-center gap-3 py-8 text-sm text-gray-600">
+        <Fa icon={faSpinner} spin />
+        <span>Checking reading goals...</span>
       </div>
-    {/if}
-    {#if archivalOptions.length}
-      <input type="checkbox" bind:checked={archiveReadingGoal} onchange={checkDates} />
-      <span class:opacity-50={!archiveReadingGoal}>
-        <span class="mr-2">Archive Reading Goal from</span>
-        <input
-          class="w-full mt-2 sm:mt-0 md:w-[initial]"
-          type="date"
-          disabled={!archiveReadingGoal || !archiveDateEditable}
-          bind:value={archivalStartDate}
-          onchange={checkDates}
-        />
-        <span class="mx-2">-</span>
-        <input
-          class="w-full md:w-[initial]"
-          type="date"
-          disabled={!archiveReadingGoal || !archiveDateEditable}
-          bind:value={archivalEndDate}
-          onchange={checkDates}
-        />
-      </span>
-      <div
-        class="flex flex-col justify-between mt-2 md:flex-row"
-        class:md:flex-col={archivalOptions?.length > 3}
-      >
-        {#each archivalOptions as archivalOption (archivalOption.label)}
-          <div class="flex items-center">
+    {:else if error}
+      <div class="rounded-md bg-red-50 px-3 py-2 text-sm text-red-900">
+        {error}
+      </div>
+    {:else}
+      <div class="space-y-4 text-sm text-gray-700">
+        {#if archivalOptions.length}
+          <label class="flex items-start gap-3 rounded p-2 hover:bg-gray-400/15">
             <input
-              type="radio"
-              name="action"
-              class="my-2 mr-1"
-              class:cursor-not-allowed={!archiveReadingGoal}
-              disabled={!archiveReadingGoal}
-              value={archivalOption.label}
-              bind:group={selectedArchiveOption}
-              onchange={checkDates}
+              type="checkbox"
+              class="mt-1"
+              checked={archiveReadingGoal}
+              onchange={(event) => void handleArchiveToggle(event)}
             />
-            <span class:opacity-50={!archiveReadingGoal}>{archivalOption.label}</span>
-          </div>
-        {/each}
+            <span>Archive current goal in history</span>
+          </label>
+
+          {#if archiveReadingGoal}
+            <fieldset>
+              <legend class="mb-1 text-base font-medium">End current goal</legend>
+              <div class="space-y-1">
+                {#each archivalOptions as archivalOption (archivalOption.id)}
+                  <label class="flex items-start gap-3 rounded p-2 hover:bg-gray-400/15">
+                    <input
+                      type="radio"
+                      name="reading-goal-archive-option"
+                      class="mt-1"
+                      value={archivalOption.id}
+                      checked={selectedArchiveOptionId === archivalOption.id}
+                      onchange={() => void selectArchiveOption(archivalOption)}
+                    />
+                    <span>
+                      <span class="block">{archivalOption.label}</span>
+                      {#if archivalOption.description}
+                        <span class="block text-xs text-gray-600">
+                          {archivalOption.description}
+                        </span>
+                      {/if}
+                    </span>
+                  </label>
+                {/each}
+              </div>
+            </fieldset>
+
+            {#if archiveDateEditable}
+              <div class="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <label for="reading-goal-archive-start" class="block text-sm text-gray-600">
+                    From
+                  </label>
+                  <input
+                    id="reading-goal-archive-start"
+                    type="date"
+                    class={inputClasses}
+                    bind:value={archivalStartDate}
+                    onchange={() => void checkDates()}
+                  />
+                </div>
+                <div>
+                  <label for="reading-goal-archive-end" class="block text-sm text-gray-600">
+                    Through
+                  </label>
+                  <input
+                    id="reading-goal-archive-end"
+                    type="date"
+                    class={inputClasses}
+                    bind:value={archivalEndDate}
+                    onchange={() => void checkDates()}
+                  />
+                </div>
+              </div>
+            {/if}
+          {/if}
+        {/if}
+
+        <section class="px-2">
+          <div class="font-medium">After saving</div>
+          <ul class="mt-1 space-y-1 text-gray-700">
+            {#if archiveReadingGoal && initial.currentReadingGoal.goalStartDate}
+              <li class="flex gap-2">
+                <span aria-hidden="true">•</span>
+                <span>
+                  Current goal will become a history entry {getHistoryEntryDateRange(
+                    archivalStartDate,
+                    archivalEndDate
+                  )}.
+                </span>
+              </li>
+            {:else if initial.currentReadingGoal.goalStartDate}
+              <li class="flex gap-2">
+                <span aria-hidden="true">•</span>
+                <span>Current goal will be discarded instead of becoming a history entry.</span>
+              </li>
+            {/if}
+            {#if initial.newReadingGoal.goalStartDate}
+              <li class="flex gap-2">
+                <span aria-hidden="true">•</span>
+                <span>New goal will start {newStartDate}.</span>
+              </li>
+            {:else}
+              <li class="flex gap-2">
+                <span aria-hidden="true">•</span>
+                <span>No new current goal will be created.</span>
+              </li>
+            {/if}
+            {#if readingGoalToReplaceMessage}
+              <li class="flex gap-2">
+                <span aria-hidden="true">•</span>
+                <span>{readingGoalToReplaceMessage}.</span>
+              </li>
+            {/if}
+          </ul>
+        </section>
+
+        {#if readingGoalToReplaceMessage}
+          <details class="max-h-40 overflow-auto px-2">
+            <summary class="cursor-pointer font-medium">
+              Show {getHistoryEntryCountLabel(readingGoalsToReplace.length)} affected by this save
+            </summary>
+            <ul class="mt-2 space-y-2">
+              {#each readingGoalsToReplace as goalToReplace (goalToReplace.goalStartDate)}
+                <li>
+                  {getDateRangeLabel(goalToReplace.goalStartDate, goalToReplace.goalEndDate)} /
+                  {secondsToMinutes(goalToReplace.timeGoal)} min /
+                  {goalToReplace.characterGoal} characters / {goalToReplace.goalFrequency}
+                </li>
+              {/each}
+            </ul>
+          </details>
+        {/if}
       </div>
     {/if}
-    {#if readingGoalToReplaceMessage}
-      <details class="cursor-pointer max-h-24 sm:max-h-40 overflow-auto mt-4">
-        <summary>{readingGoalToReplaceMessage}</summary>
-        {#each readingGoalsToReplace as goalToReplace (goalToReplace.goalStartDate)}
-          <div class="my-2 p-1">
-            {getDateRangeLabel(goalToReplace.goalStartDate, goalToReplace.goalEndDate)} / {secondsToMinutes(
-              goalToReplace.timeGoal
-            )} min / {goalToReplace.characterGoal}
-            characters / {goalToReplace.goalFrequency}
-          </div>
-        {/each}
-      </details>
-    {/if}
-  {/snippet}
-  {#snippet footer()}
-    <div class="flex grow justify-between">
-      <button use:ripple class={buttonClasses} onclick={() => closeDialog(true)}>Cancel</button>
-      <button use:ripple class={buttonClasses} onclick={() => closeDialog()}>Confirm</button>
-    </div>
-  {/snippet}
-</DialogTemplate>
+  </div>
+
+  <footer class="flex items-center justify-end gap-2 border-t border-black/10 pt-4">
+    <form method="dialog" class="m-0 flex gap-2" onsubmit={handleSubmit}>
+      <SyncButton type="submit" value="cancel" disabled={isLoading}>Cancel</SyncButton>
+      <SyncButton type="submit" value="confirm" variant="primary" disabled={isLoading || !!error}>
+        Confirm
+      </SyncButton>
+    </form>
+  </footer>
+</div>

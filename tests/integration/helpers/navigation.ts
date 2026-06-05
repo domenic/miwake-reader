@@ -155,14 +155,14 @@ async function assertExpectedReaderExitDialog(
   expectation: NonNullable<NavigationOptions['readerExitDialog']>
 ) {
   const dialog = page.locator('dialog[open]').filter({
-    has: page.getByRole('heading', { name: 'Confirm Exit' })
+    has: page.getByRole('heading', { name: 'Confirm exit' })
   });
   if (expectation === 'none') {
     await expect(dialog).toHaveCount(0, { timeout: 500 });
     return;
   }
 
-  await expect(dialog.getByRole('heading', { name: 'Confirm Exit' })).toBeVisible({
+  await expect(dialog.getByRole('heading', { name: 'Confirm exit' })).toBeVisible({
     timeout: SYNC_ASSERTION_TIMEOUT
   });
   await dialog.getByRole('button', { name: 'Confirm' }).click();

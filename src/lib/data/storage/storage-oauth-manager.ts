@@ -199,7 +199,7 @@ export class StorageOAuthManager {
       // Popup blocked. Surface the message dialog (a user gesture) and
       // retry by pre-opening a wait-window during the click.
       await messageDialog({
-        title: 'Login Required',
+        title: 'Login required',
         message: 'Log in to your cloud storage account when prompted.'
       });
 

@@ -309,7 +309,7 @@
 
         logger.warn(message);
 
-        messageDialog({ title: 'Load Error', message });
+        messageDialog({ title: 'Load error', message });
         return undefined;
       } finally {
         logger.debug(
@@ -643,7 +643,7 @@
     skipKeyDownListener$.next(true);
 
     const target = await numberDialog({
-      title: 'Jump to Character',
+      title: 'Jump to character',
       actionLabel: 'Jump',
       minValue: 1,
       maxValue: bookCharCount || 1
@@ -687,7 +687,7 @@
         ? Math.max(0, bookCharCount - exploredCharCount)
         : 0;
     const wasCanceled = await confirmDialog({
-      title: 'Complete Book',
+      title: 'Complete book',
       message: `Would you like to complete this book${
         diffToComplete ? ` and capture ${diffToComplete} characters read` : ''
       }?`
@@ -1035,7 +1035,7 @@
 
       if ($confirmClose$ && storedExploredCharacter !== exploredCharCount) {
         const wasCanceled = await confirmDialog({
-          title: 'Confirm Exit',
+          title: 'Confirm exit',
           message: 'Your current location was not bookmarked. Continue leaving?'
         });
 
