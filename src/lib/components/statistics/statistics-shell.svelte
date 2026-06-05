@@ -28,7 +28,6 @@
     BooksDbStatistic
   } from '$lib/data/database/books-db/versions/books-db';
   import { confirmDialog, messageDialog } from '$lib/data/simple-dialogs';
-  import { dialogManager } from '$lib/data/dialog-manager';
   import { logger } from '$lib/data/logger';
   import { getDateRangeLabel } from '$lib/data/reading-goal';
   import { getSyncEndpoint } from '$lib/data/storage/storage-handler-factory';
@@ -51,7 +50,7 @@
   import { pluralize } from '$lib/functions/utils';
   import pLimit from 'p-limit';
   import { tap } from 'rxjs';
-  import { onDestroy, onMount, untrack, type Snippet } from 'svelte';
+  import { onMount, untrack, type Snippet } from 'svelte';
   import { SvelteMap, SvelteSet } from 'svelte/reactivity';
   import Fa from 'svelte-fa';
 
@@ -283,7 +282,6 @@
   });
 
   onMount(init);
-  onDestroy(() => dialogManager.dialogs$.next([]));
 
   function onKeyUp(ev: KeyboardEvent) {
     if (

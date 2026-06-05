@@ -3,14 +3,13 @@
   import { browser } from '$app/environment';
   import { page } from '$app/state';
   import { appName, basePath, clearConsoleOnReload } from '$lib/data/env';
-  import { dialogManager, type Dialog } from '$lib/data/dialog-manager';
   import BottomLeftCluster from '$lib/components/bottom-left-cluster.svelte';
   import { userFontsCacheName, type UserFont } from '$lib/data/fonts';
   import { reconcileUserFontCache } from '$lib/functions/reconcile-user-font-cache';
   import { loadConnectionsFromDb } from '$lib/data/sync/source-manager';
   import { syncEngineStart } from '$lib/data/sync/sync-engine';
   import { fontFamilyGroupOne$, isOnline$, userFonts$ } from '$lib/data/store';
-  import { dummyFn, isMobile, isMobile$ } from '$lib/functions/utils';
+  import { isMobile, isMobile$ } from '$lib/functions/utils';
   import { MetaTags } from 'svelte-meta-tags';
   import '../app.css';
 
@@ -21,9 +20,6 @@
   let { children }: Props = $props();
 
   let path = $derived(page.url.pathname);
-  let dialogs: Dialog[] = $state([]);
-  let clickOnCloseDisabled = $state(false);
-  let zIndex = $state('');
 
   $effect(() => {
     if (browser) {
@@ -82,18 +78,6 @@
       document.head.append(styleElement);
     }
   }
-
-  function closeAllDialogs() {
-    dialogManager.dialogs$.next([]);
-    clickOnCloseDisabled = false;
-    zIndex = '';
-  }
-
-  dialogManager.dialogs$.subscribe((d) => {
-    clickOnCloseDisabled = d[0]?.disableCloseOnClick ?? false;
-    zIndex = d[0]?.zIndex ?? '';
-    dialogs = d;
-  });
 </script>
 
 <svelte:window bind:online={$isOnline$} />
@@ -117,32 +101,5 @@
 {@render children?.()}
 
 <BottomLeftCluster />
-
-{#if dialogs.length > 0}
-  <div class="writing-horizontal-tb fixed inset-0 z-50 size-full" style:z-index={zIndex}>
-    <div
-      tabindex="0"
-      role="button"
-      class="tap-highlight-transparent absolute inset-0 bg-black/32"
-      onclick={() => {
-        if (!clickOnCloseDisabled) {
-          closeAllDialogs();
-        }
-      }}
-      onkeyup={dummyFn}
-    ></div>
-
-    <div class="relative top-1/2 left-1/2 inline-block max-w-[80vw] -translate-1/2">
-      {#each dialogs as dialog (dialog)}
-        {#if typeof dialog.component === 'string'}
-          <!-- eslint-disable-next-line svelte/no-at-html-tags -->
-          {@html dialog.component}
-        {:else}
-          <dialog.component {...dialog.props} onclose={closeAllDialogs} />
-        {/if}
-      {/each}
-    </div>
-  </div>
-{/if}
 
 <span style={`font-family: ${$fontFamilyGroupOne$ || 'Noto Serif JP'}`}></span>
