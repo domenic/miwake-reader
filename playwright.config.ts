@@ -21,6 +21,6 @@ export default defineConfig({
       ? 'npm run preview -- --port 5174 --strictPort'
       : 'npm run dev -- --port 5174 --strictPort',
     url: baseURL,
-    reuseExistingServer: !process.env.CI
+    reuseExistingServer: false
   }
 });
