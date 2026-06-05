@@ -59,10 +59,10 @@
 >
   {#if options.length > 1 && !hasRowInEdit}
     <Popover
-      placement={'bottom-start'}
+      placement="bottom-start"
       fallbackPlacements={['top']}
-      innerContainerStyles={'width: 100%'}
-      containerStyles={'flex: 1;'}
+      innerContainerStyles="width: 100%"
+      containerStyles="flex: 1;"
       bind:this={summaryHeaderPopover}
     >
       <div {title}>{selectedOption.label}</div>

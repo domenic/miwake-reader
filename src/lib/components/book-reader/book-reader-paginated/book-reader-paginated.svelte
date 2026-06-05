@@ -72,7 +72,7 @@
     autoBookmarkTime: number;
     exploredCharCount?: number;
     customReadingPointRange?: Range | undefined;
-    showCustomReadingPoint?: boolean;
+    onhideCustomReadingPoint?: () => void;
     onpagemanagerchange?: (pm: PageManager) => void;
     onbookmarkmanagerchange?: (bm: BookmarkManager) => void;
     onbookcharcountchange?: (count: number) => void;
@@ -113,7 +113,7 @@
     autoBookmarkTime,
     exploredCharCount = $bindable(0),
     customReadingPointRange = $bindable(),
-    showCustomReadingPoint = $bindable(false),
+    onhideCustomReadingPoint,
     onpagemanagerchange,
     onbookmarkmanagerchange,
     onbookcharcountchange,
@@ -443,7 +443,7 @@
     if (!calculator) return;
 
     if (!isResizing) {
-      showCustomReadingPoint = false;
+      onhideCustomReadingPoint?.();
 
       pulseElement(customReadingPointRange?.endContainer?.parentElement, 'remove', 1);
 
@@ -545,7 +545,7 @@
     previousIntendedCount = 0;
     onbookcharcountchange?.(calculator.charCount);
 
-    let fontLoaded = false;
+    let fontLoaded: boolean;
 
     try {
       fontLoaded = document.fonts.check(`${fontSize}px ${fontFamilyGroupOne || 'Noto Serif JP'}`);
@@ -759,13 +759,14 @@
   }))}
 >
   <div class="book-content-container" id={currentSectionId || null} bind:this={contentEl}>
+    <!-- eslint-disable-next-line svelte/no-at-html-tags -->
     {@html displayedHtml}
   </div>
 </div>
 
 {#if !allowDisplay}
   <div
-    class="fixed inset-0 flex h-full w-full items-center justify-center text-7xl"
+    class="fixed inset-0 flex size-full items-center justify-center text-7xl"
     style:color={fontColor}
     style:background-color={backgroundColor}
   >
@@ -775,7 +776,7 @@
 
 {#if isBookmarkScreen}
   <div
-    class="fixed h-3 w-3 text-base opacity-25 sm:text-xl"
+    class="fixed size-3 text-base opacity-25 sm:text-xl"
     style:color={fontColor}
     style:top={bookmarkTopAdjustment}
     style:left={bookmarkLeftAdjustment}

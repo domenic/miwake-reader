@@ -1,5 +1,4 @@
 export const basePath = import.meta.env.VITE_BASE_PATH || 'https://reader.miwake.app';
-export const pagePath = import.meta.env.VITE_PAGE_PATH || '';
 export const appName = import.meta.env.VITE_APP_NAME || 'Miwake Reader';
 export const clearConsoleOnReload = !!import.meta.env.VITE_CLEAR_ON_RELOAD || false;
 export const storageRootName = import.meta.env.VITE_STORAGE_ROOT_NAME || appName;

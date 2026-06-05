@@ -34,7 +34,7 @@
 </script>
 
 <div class="-m-1 flex flex-wrap">
-  {#each options as option}
+  {#each options as option (option.id)}
     <div class="flex">
       <button
         use:ripple

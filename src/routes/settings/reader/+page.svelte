@@ -1,7 +1,6 @@
 <script lang="ts">
   import { browser } from '$app/environment';
   import { faPlus } from '@fortawesome/free-solid-svg-icons';
-  import { TrackerAutoPause } from '$lib/components/book-reader/book-reading-tracker/tracker-domain';
   import ButtonToggleGroup from '$lib/components/button-toggle-group/button-toggle-group.svelte';
   import {
     optionsForToggle,
@@ -285,7 +284,7 @@
   </SettingsItemGroup>
   <SettingsItemGroup
     title="Swipe Threshold"
-    tooltip={'Distance which you need to swipe in order trigger a navigation'}
+    tooltip="Distance which you need to swipe in order trigger a navigation"
   >
     <input
       type="number"
@@ -301,7 +300,7 @@
     />
   </SettingsItemGroup>
   {#if $autoBookmark$}
-    <SettingsItemGroup title="Auto Bookmark Time" tooltip={'Time in s for Auto Bookmark'}>
+    <SettingsItemGroup title="Auto Bookmark Time" tooltip="Time in s for Auto Bookmark">
       <input
         type="number"
         step="1"
@@ -322,7 +321,7 @@
   {#if verticalMode}
     <SettingsItemGroup
       title="Enable Font Kerning"
-      tooltip={'Can lead to better visual balance for vertical spacing of text if font and browser supports it'}
+      tooltip="Can lead to better visual balance for vertical spacing of text if font and browser supports it"
     >
       <ButtonToggleGroup
         options={optionsForToggle}
@@ -331,7 +330,7 @@
     </SettingsItemGroup>
     <SettingsItemGroup
       title="Enable VPAL"
-      tooltip={'Can lead to more natural spacing for vertically laid-out text if font and browser supports it'}
+      tooltip="Can lead to more natural spacing for vertically laid-out text if font and browser supports it"
     >
       <ButtonToggleGroup options={optionsForToggle} bind:selectedOptionId={$enableFontVPAL$} />
     </SettingsItemGroup>
@@ -344,7 +343,7 @@
   {/if}
   <SettingsItemGroup
     title="Prioritize Reader Styles"
-    tooltip={'When enabled the "important" declaration is added to certain rules like margins or justification which makes it more likely to be applied in case of conflicting book styles'}
+    tooltip="When enabled the &quot;important&quot; declaration is added to certain rules like margins or justification which makes it more likely to be applied in case of conflicting book styles"
   >
     <ButtonToggleGroup
       options={optionsForToggle}
@@ -353,7 +352,7 @@
   </SettingsItemGroup>
   <SettingsItemGroup
     title="Enable Text Justification"
-    tooltip={'When enabled the reader adds styles to justify text content of paragraphs'}
+    tooltip="When enabled the reader adds styles to justify text content of paragraphs"
   >
     <ButtonToggleGroup
       options={optionsForToggle}
@@ -362,13 +361,13 @@
   </SettingsItemGroup>
   <SettingsItemGroup
     title="Enable Pretty Text Wrap"
-    tooltip={'When enabled the reader adds the pretty text wrap style to supported browsers'}
+    tooltip="When enabled the reader adds the pretty text wrap style to supported browsers"
   >
     <ButtonToggleGroup options={optionsForToggle} bind:selectedOptionId={$enableTextWrapPretty$} />
   </SettingsItemGroup>
   <SettingsItemGroup
     title="Paragraph Margin Mode"
-    tooltip={'When set to manual it allows to specify a margin value which should be applied to paragraphs'}
+    tooltip="When set to manual it allows to specify a margin value which should be applied to paragraphs"
   >
     <ButtonToggleGroup
       options={optionsForTextMarginMode}
@@ -378,7 +377,7 @@
   {#if wakeLockSupported}
     <SettingsItemGroup
       title="Enable Screen Lock"
-      tooltip={'When enabled the reader site attempts to request a WakeLock that prevents device screens from dimming or locking'}
+      tooltip="When enabled the reader site attempts to request a WakeLock that prevents device screens from dimming or locking"
     >
       <ButtonToggleGroup
         options={optionsForToggle}
@@ -412,13 +411,13 @@
   </SettingsItemGroup>
   <SettingsItemGroup
     title="Close Confirmation"
-    tooltip={`When enabled asks for confirmation on closing/reloading a reader tab and unsaved changes were detected`}
+    tooltip="When enabled asks for confirmation on closing/reloading a reader tab and unsaved changes were detected"
   >
     <ButtonToggleGroup options={optionsForToggle} bind:selectedOptionId={$confirmClose$} />
   </SettingsItemGroup>
   <SettingsItemGroup
     title="Manual Bookmark"
-    tooltip={'If enabled current position will not be bookmarked when leaving the reader via menu elements'}
+    tooltip="If enabled current position will not be bookmarked when leaving the reader via menu elements"
   >
     <ButtonToggleGroup options={optionsForToggle} bind:selectedOptionId={$manualBookmark$} />
   </SettingsItemGroup>
@@ -445,7 +444,7 @@
   {#if $statisticsEnabled$}
     <SettingsItemGroup
       title="Custom Point pauses Tracker"
-      tooltip={'When enabled the tracker will auto pause and unpause while setting a custom reading point'}
+      tooltip="When enabled the tracker will auto pause and unpause while setting a custom reading point"
     >
       <ButtonToggleGroup
         options={optionsForToggle}
@@ -456,7 +455,7 @@
   {#if $viewMode$ === ViewMode.Continuous}
     <SettingsItemGroup
       title="Custom Reading Point"
-      tooltip={'Allows to set a persistent custom point in the reader from which the current progress and bookmark is calculated when enabled'}
+      tooltip="Allows to set a persistent custom point in the reader from which the current progress and bookmark is calculated when enabled"
     >
       <div class="flex items-center">
         <ButtonToggleGroup
@@ -491,7 +490,7 @@
     </SettingsItemGroup>
     <SettingsItemGroup
       title="Selection to Bookmark"
-      tooltip={'When enabled bookmarks will be placed to a near paragraph of current/previous selected text instead of page start'}
+      tooltip="When enabled bookmarks will be placed to a near paragraph of current/previous selected text instead of page start"
     >
       <ButtonToggleGroup
         options={optionsForToggle}

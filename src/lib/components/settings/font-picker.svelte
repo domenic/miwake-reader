@@ -230,7 +230,7 @@
         onkeydown={handleListboxKeydown}
       >
         <div role="group" aria-labelledby="{popoverId}-bundled">
-          <div id="{popoverId}-bundled" class="mb-1 mt-1 px-5 text-xs font-medium text-gray-500">
+          <div id="{popoverId}-bundled" class="my-1 px-5 text-xs font-medium text-gray-500">
             Bundled
           </div>
 
@@ -429,7 +429,7 @@
           >
         </div>
 
-        <div class="mt-4 border-t border-gray-300 pt-3 text-xs leading-relaxed text-gray-400">
+        <div class="mt-4 border-t border-gray-300 pt-3 text-xs/relaxed text-gray-400">
           Type the exact font family name as installed on your system. The preview updates live — if
           the text looks generic, the font wasn't found.
         </div>

@@ -3,6 +3,7 @@
   import { faSpinner } from '@fortawesome/free-solid-svg-icons';
   import { convertAuthErrorResponse } from '$lib/functions/replication/error-handler';
   import { SyncEndpointType } from '$lib/data/storage/storage-types';
+  import { SvelteURLSearchParams } from 'svelte/reactivity';
   import Fa from 'svelte-fa';
 
   const AUTH_CHANNEL = 'miwake-auth';
@@ -43,7 +44,7 @@
       const { clientId, clientSecret, tokenEndpoint, codeVerifier, needsRefreshToken } =
         JSON.parse(stored);
 
-      const params = new URLSearchParams();
+      const params = new SvelteURLSearchParams();
       params.append('grant_type', 'authorization_code');
       params.append('redirect_uri', redirectUri);
       params.append('client_id', clientId);
@@ -136,7 +137,7 @@
         return;
       }
 
-      const params = new URLSearchParams();
+      const params = new SvelteURLSearchParams();
       params.append('client_id', clientId);
       params.append('redirect_uri', redirectUri);
       params.append('scope', scope);
@@ -176,6 +177,6 @@
   }
 </script>
 
-<div class="fixed inset-0 flex h-full w-full items-center justify-center text-7xl">
+<div class="fixed inset-0 flex size-full items-center justify-center text-7xl">
   <Fa icon={faSpinner} spin />
 </div>

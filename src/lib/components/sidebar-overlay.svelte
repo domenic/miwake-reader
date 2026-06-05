@@ -96,7 +96,7 @@
 
 <dialog
   bind:this={dialogElement}
-  class="sidebar-overlay writing-horizontal-tb m-0 h-full w-full max-h-none max-w-xl border-none p-0 {className}"
+  class="sidebar-overlay writing-horizontal-tb m-0 size-full max-h-none max-w-xl border-none p-0 {className}"
   data-side={side}
   closedby="any"
   {style}

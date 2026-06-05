@@ -129,10 +129,7 @@
 </script>
 
 <svelte:window onkeydown={onKeyDown} />
-<div
-  class="flex h-full w-full writing-horizontal-tb fixed top-0 left-0 z-60"
-  style:color={fontColor}
->
+<div class="flex size-full writing-horizontal-tb fixed top-0 left-0 z-60" style:color={fontColor}>
   <div
     tabindex="-1"
     class="flex-1 flex-col justify-between overflow-auto lg:max-w-md"

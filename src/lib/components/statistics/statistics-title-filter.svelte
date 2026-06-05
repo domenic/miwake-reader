@@ -57,7 +57,7 @@
   <div class="grow mt-4 pl-1 overflow-auto">
     {#if filteredSelections.length}
       <table class="w-full">
-        <thead class="sticky top-0 z-10 bg-gray-700 shadow-[0_1px_0_theme(colors.gray.500)]">
+        <thead class="sticky top-0 z-10 bg-gray-700 shadow-[0_1px_0_var(--color-gray-500)]">
           <tr>
             <th class="w-0 py-2 pr-4">
               <input

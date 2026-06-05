@@ -49,6 +49,7 @@
   import { fireAndForget, filterNotNullAndNotUndefined } from '$lib/functions/utils';
   import { interval, NEVER, switchMap, tap } from 'rxjs';
   import { onDestroy, onMount, tick, untrack } from 'svelte';
+  import { SvelteMap, SvelteSet } from 'svelte/reactivity';
 
   interface Props {
     fontColor: string;
@@ -106,15 +107,13 @@
     todayKey = getDateKey($startDayHoursForTracker$, todayDate);
 
     if (overlappedDay || referenceDateKey !== todayKey) {
-      let otherDayTimeDiff = 0;
-
-      if (overlappedDay) {
-        otherDayTimeDiff = isNegativeTimeDiff
+      const otherDayTimeDiff = overlappedDay
+        ? isNegativeTimeDiff
           ? -(absoluteTimeDiff - secondsOnDay)
-          : absoluteTimeDiff - secondsOnDay;
-      } else {
-        otherDayTimeDiff = isNegativeTimeDiff ? -timeDiffForToday : timeDiffForToday;
-      }
+          : absoluteTimeDiff - secondsOnDay
+        : isNegativeTimeDiff
+          ? -timeDiffForToday
+          : timeDiffForToday;
 
       const otherDayKey = overlappedDay
         ? getPreviousDayKey($startDayHoursForTracker$, referenceDate)
@@ -217,7 +216,9 @@
       // Re-queue so the next flush retries; rethrow so operational
       // callers can decide whether to surface a dialog.
       hadError = true;
-      statisticsToStore = new Set([...statisticsToStore, ...toUpdate]);
+      for (const dateKey of toUpdate) {
+        statisticsToStore.add(dateKey);
+      }
       logger.error(`Error updating statistics: ${error.message}`);
       throw error;
     } finally {
@@ -263,7 +264,7 @@
   let currentReadingGoal = $state<ReadingGoal>();
   let currentTimeGoal = $state(0);
   let currentCharacterGoal = $state(0);
-  let statistics = new Map<string, BooksDbStatistic>();
+  let statistics = new SvelteMap<string, BooksDbStatistic>();
   // Snapshot initial values — these are session-start state that diverge as the user reads
   const initSnapshot = untrack(() => ({
     bookTitle,
@@ -289,7 +290,7 @@
   let historyIndex = 0;
   let autoScrollerStatistics = $state<BooksDbStatistic>();
   let lastExploredCharCountScroller = initSnapshot.exploredCharCount;
-  let statisticsToStore = $state(new Set<string>());
+  let statisticsToStore = new SvelteSet<string>();
   let lastTrackerTick = 0;
   let lastTrackerFlushTime = 0;
   let trackerIdleTime = 0;

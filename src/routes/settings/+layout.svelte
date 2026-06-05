@@ -1,12 +1,12 @@
 <script lang="ts">
   import type { RouteId } from '$app/types';
   import { goto } from '$app/navigation';
+  import { resolve } from '$app/paths';
   import { page } from '$app/state';
   import type { Snippet } from 'svelte';
   import SettingsHeader from '$lib/components/settings/settings-header.svelte';
   import type { SettingsRoute } from '$lib/components/settings/settings-route';
   import { pxScreen } from '$lib/css-classes';
-  import { pagePath } from '$lib/data/env';
 
   interface Props {
     children?: Snippet;
@@ -21,7 +21,7 @@
       return;
     }
 
-    goto(`${pagePath}${href}`, { keepFocus: true, noScroll: true });
+    goto(resolve(href), { keepFocus: true, noScroll: true });
   }
 </script>
 

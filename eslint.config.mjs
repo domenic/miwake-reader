@@ -1,5 +1,7 @@
 import eslint from '@eslint/js';
 import eslintPluginPrettierRecommended from 'eslint-plugin-prettier/recommended';
+import betterTailwindcss from 'eslint-plugin-better-tailwindcss';
+import globals from 'globals';
 import rxjs from 'eslint-plugin-rxjs';
 import tseslint from 'typescript-eslint';
 import eslintPluginSvelte from 'eslint-plugin-svelte';
@@ -21,6 +23,9 @@ export default tseslint.config(
   },
   {
     languageOptions: {
+      globals: {
+        ...globals.browser
+      },
       parserOptions: {
         parser: '@typescript-eslint/parser',
         ecmaVersion: 2020,
@@ -42,7 +47,13 @@ export default tseslint.config(
     },
     name: 'root',
     plugins: {
+      'better-tailwindcss': betterTailwindcss,
       rxjs
+    },
+    settings: {
+      'better-tailwindcss': {
+        entryPoint: './src/app.css'
+      }
     },
     rules: {
       'no-return-assign': ['error', 'except-parens'],
@@ -54,7 +65,8 @@ export default tseslint.config(
         {
           endOfLine: 'auto'
         }
-      ]
+      ],
+      'better-tailwindcss/enforce-canonical-classes': 'error'
     }
   },
   {
@@ -91,9 +103,9 @@ export default tseslint.config(
       '@typescript-eslint/no-require-imports': 'off'
     }
   },
+  ...eslintPluginSvelte.configs['flat/recommended'],
   {
-    ...eslintPluginSvelte.configs['flat/recommended'],
-    files: ['*.svelte'],
+    files: ['**/*.svelte'],
     languageOptions: {
       parserOptions: { parser: '@typescript-eslint/parser' }
     },

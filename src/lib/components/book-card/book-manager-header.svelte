@@ -130,7 +130,7 @@
           onclick={() => (selectMode = hasBooks && !selectMode)}
         >
           {#snippet icon()}
-            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5">
+            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" class="size-3.5">
               <path
                 class="fill-current"
                 d="M20,4v12H8V4H20 M20,2H8C6.9,2,6,2.9,6,4v12c0,1.1,0.9,2,2,2h12c1.1,0,2-0.9,2-2V4C22,2.9,21.1,2,20,2L20,2z M12.47,14 L9,10.5l1.4-1.41l2.07,2.08L17.6,6L19,7.41L12.47,14z M4,6H2v14c0,1.1,0.9,2,2,2h14v-2H4V6z"
@@ -170,7 +170,7 @@
         {:else}
           <HeaderButton title="Select all books" label="All" onclick={() => onselectAllClick?.()}>
             {#snippet icon()}
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="h-3.5 w-3.5">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="size-3.5">
                 <path
                   class="fill-current"
                   d="M18 7l-1.41-1.41-6.34 6.34 1.41 1.41L18 7zm4.24-1.41L11.66 16.17 7.48 12l-1.41 1.41L11.66 19l12-12-1.42-1.41zM.41 13.41L6 19l1.41-1.41L1.83 12 .41 13.41z"
@@ -265,7 +265,7 @@
           {#if showLoadCount}
             <button
               type="button"
-              style:color={!!$fileCountData$ ? 'red' : null}
+              style:color={$fileCountData$ ? 'red' : null}
               onclick={() => countImportElm?.click()}>C</button
             >
           {/if}
@@ -278,7 +278,7 @@
       title="Cancel operation"
       class="mx-auto flex h-full items-center justify-center px-4 max-w-6xl"
     >
-      <Popover contentText={cancelTooltip} contentStyles={'padding: 0.75rem'} eventType="pointer">
+      <Popover contentText={cancelTooltip} contentStyles="padding: 0.75rem" eventType="pointer">
         <button type="button" onclick={() => oncancelReplication?.()}>
           <Fa icon={faCircleXmark} />
         </button>

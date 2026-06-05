@@ -1,4 +1,5 @@
-import { gDriveClientId, oneDriveClientId, pagePath } from '$lib/data/env';
+import { resolve } from '$app/paths';
+import { gDriveClientId, oneDriveClientId } from '$lib/data/env';
 import type { BooksDbStorageSource } from '$lib/data/database/books-db/versions/books-db';
 import { getSyncEndpoint } from '$lib/data/storage/storage-handler-factory';
 import {
@@ -113,7 +114,7 @@ export async function connectCloud(
     current.usesCustomCredentials === useCustom;
 
   const authWindow = StorageOAuthManager.createWindow(
-    `${pagePath}/auth?miwake-init-wait=1`,
+    resolve('/auth?miwake-init-wait=1'),
     'auth',
     Math.min(Math.max(window.innerWidth, 300), 560),
     Math.min(Math.max(window.innerHeight, 300), 560),

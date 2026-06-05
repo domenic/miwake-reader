@@ -52,6 +52,7 @@
   import { caluclatePercentage, dummyFn, limitToRange, pluralize } from '$lib/functions/utils';
   import { debounceTime, fromEvent, tap } from 'rxjs';
   import { onMount, tick, untrack } from 'svelte';
+  import { SvelteDate, SvelteMap, SvelteSet } from 'svelte/reactivity';
   import Fa from 'svelte-fa';
 
   interface Props {
@@ -87,16 +88,19 @@
   let dayElementSize = $state(heatmapDayElementSize);
   let heatmapYear = $state(getStartHoursDate($startDayHoursForTracker$).getFullYear());
   let globalHeatmapData: StatisticsHeatmapData | ReadingGoalsHeatmapData = $state()!;
-  const globalHeatmapDayData = new Map<
+  const globalHeatmapDayData = new SvelteMap<
     string,
     HeatmapGlobalDayData | ReadingGoalHeatmapGlobalDayData
   >();
-  const heatmapDataByYear = new Map<number, StatisticsHeatmapData | ReadingGoalsHeatmapData>();
+  const heatmapDataByYear = new SvelteMap<
+    number,
+    StatisticsHeatmapData | ReadingGoalsHeatmapData
+  >();
   let currentHeatmapData: StatisticsHeatmapData | ReadingGoalsHeatmapData = $state()!;
   let currentHeatmapDays: StatisticsHeatmapDayData[] = $state([]);
   let popoverDetails: string[] = $state([]);
   let selectedStreak = $state(HeatmapStreakType.NONE);
-  let selectedStreakDates: Set<string> = $state(new Set());
+  const selectedStreakDates = new SvelteSet<string>();
 
   let heatmapLabel = $derived(
     `Reading ${heatmapType === HeatmapType.STATISTICS ? '' : 'Goals '}Data for ${heatmapYear}`
@@ -112,7 +116,7 @@
     if (heatmapAggregration) {
       untrack(() => {
         selectedStreak = HeatmapStreakType.NONE;
-        selectedStreakDates = new Set();
+        selectedStreakDates.clear();
       });
     }
   });
@@ -134,7 +138,7 @@
     if (statisticsTitleFilters && statisticsData) {
       untrack(() => {
         selectedStreak = HeatmapStreakType.NONE;
-        selectedStreakDates = new Set();
+        selectedStreakDates.clear();
 
         updateHeatmapDataAfterFilterChange();
       });
@@ -168,7 +172,7 @@
 
     if (heatmapAggregration === HeatmapDataAggregration.YEAR) {
       selectedStreak = HeatmapStreakType.NONE;
-      selectedStreakDates = new Set();
+      selectedStreakDates.clear();
     }
 
     heatmapYear += modifier;
@@ -219,7 +223,7 @@
     }
 
     selectedStreak = selectedStreak === streakToSelect ? HeatmapStreakType.NONE : streakToSelect;
-    selectedStreakDates = new Set<string>();
+    selectedStreakDates.clear();
 
     if (selectedStreak !== HeatmapStreakType.NONE) {
       for (let index = 0, { length } = streaks; index < length; index += 1) {
@@ -291,7 +295,7 @@
   }
 
   function updateHeatmapDataForStatistics(newYear: number) {
-    const daysRead = new Set<string>();
+    const daysRead = new SvelteSet<string>();
     let maxReadingTime = 0;
     let minReadingTime = 0;
     let firstReadingDay;
@@ -482,7 +486,7 @@
     heatmapYear = newYear;
 
     if (!globalDataObject.size) {
-      const groupsedStatisticsData = new Map<string, HeatmapGlobalDayData>();
+      const groupsedStatisticsData = new SvelteMap<string, HeatmapGlobalDayData>();
       const streaks: HeatmapStreak[] = [];
 
       let lastDayString = todayKey;
@@ -756,17 +760,9 @@
   }
 
   function getDaysReadLabel(allDaysReadCount: number, daysRead: Set<string>) {
-    let daysReadLabel = '';
-
-    if (allDaysReadCount) {
-      daysReadLabel = `${daysRead.size} / ${pluralize(allDaysReadCount, 'day')} (${
-        allDaysReadCount ? caluclatePercentage(daysRead.size, allDaysReadCount) : 0
-      }%)`;
-    } else {
-      daysReadLabel = '0 / 0 days (0%)';
-    }
-
-    return daysReadLabel;
+    return allDaysReadCount
+      ? `${daysRead.size} / ${pluralize(allDaysReadCount, 'day')} (${caluclatePercentage(daysRead.size, allDaysReadCount)}%)`
+      : '0 / 0 days (0%)';
   }
 
   function getLongestStreaks(streaks: HeatmapStreak[]) {
@@ -830,7 +826,7 @@
 
   function colorByRating(
     colorStart: string,
-    colorEnd: String,
+    colorEnd: string,
     minValue: number,
     maxValue: number,
     value: number
@@ -872,9 +868,8 @@
     const mapDays: StatisticsHeatmapDayData[] = [];
 
     let year = heatmapYear;
-    const dateObject = new Date(year, 0, 1, 0, 0, 0, 0);
+    const dateObject = new SvelteDate(year, 0, 1, 0, 0, 0, 0);
     const dayIndex = dateObject.getDay();
-    let dateString = '';
     let daysToFill = 0;
     let dayNumber = 1;
     let heatmapRow = 2;
@@ -914,7 +909,7 @@
     while (year === heatmapYear) {
       const monthIndex = dateObject.getMonth();
 
-      dateString = getDateString(dateObject);
+      const dateString = getDateString(dateObject);
 
       if (!monthLabels[monthIndex].heatmapColumn) {
         monthLabels[monthIndex] = {
@@ -1154,25 +1149,25 @@
     {#each monthLabels as label (label.monthLabel)}
       <div
         class="flex h-full items-end text-xs leading-none md:text-sm"
-        style:grid-row={'1/2'}
+        style:grid-row="1/2"
         style:grid-column={`${label.heatmapColumn}`}
-        style:padding-bottom={'3px'}
+        style:padding-bottom="3px"
       >
         {label.monthLabel}
       </div>
     {/each}
     <div
       class="sticky left-0"
-      style:grid-row={'1/2'}
-      style:grid-column={`1/3`}
-      style:background-color={'var(--background-color)'}
+      style:grid-row="1/2"
+      style:grid-column="1/3"
+      style:background-color="var(--background-color)"
     ></div>
     {#each dayLabels as dayLabel, index (dayLabel)}
       <div
         class="sticky left-0 text-xs sm:text-sm"
         style:grid-row={`${index + 2}/${index + 2}`}
-        style:grid-column={`1/3`}
-        style:background-color={'var(--background-color)'}
+        style:grid-column="1/3"
+        style:background-color="var(--background-color)"
       >
         {dayLabel}
       </div>

@@ -43,17 +43,9 @@
     return { day, index: index + 1 };
   });
 
-  let selectedStatisticsStartDate = $state($lastStatisticsStartDate$);
+  let selectedStatisticsStartDate = $derived($lastStatisticsStartDate$);
 
-  let selectedStatisticsEndDate = $state($lastStatisticsEndDate$);
-
-  $effect(() => {
-    selectedStatisticsStartDate = $lastStatisticsStartDate$;
-  });
-
-  $effect(() => {
-    selectedStatisticsEndDate = $lastStatisticsEndDate$;
-  });
+  let selectedStatisticsEndDate = $derived($lastStatisticsEndDate$);
 
   async function exportStatisticsData(exportAllStatisticsData = true) {
     $statisticsActionInProgress$ = true;
@@ -170,7 +162,7 @@
   <div class="flex flex-wrap justify-between mt-4">
     <div class="flex flex-col my-2 w-full sm:w-[initial]">
       <Popover
-        contentText={'Reading Time Attribute which should be used for the Summary Tab'}
+        contentText="Reading Time Attribute which should be used for the Summary Tab"
         contentStyles="padding: 0.5rem;"
       >
         {#snippet icon()}
@@ -188,7 +180,7 @@
     </div>
     <div class="flex flex-col my-2 w-full sm:w-[initial]">
       <Popover
-        contentText={'Characters Read Attribute which should be used for the Summary Tab'}
+        contentText="Characters Read Attribute which should be used for the Summary Tab"
         contentStyles="padding: 0.5rem; max-width: 20rem;"
       >
         {#snippet icon()}
@@ -206,7 +198,7 @@
     </div>
     <div class="flex flex-col my-2 w-full sm:w-[initial]">
       <Popover
-        contentText={'Reading Speed Attribute which should be used for the Summary Tab'}
+        contentText="Reading Speed Attribute which should be used for the Summary Tab"
         contentStyles="padding: 0.5rem;"
       >
         {#snippet icon()}
@@ -225,7 +217,7 @@
   </div>
   <div class="flex flex-col mt-4">
     <Popover
-      contentText={'Determines on which primary Attribute the Data will be grouped for the Summary Tab'}
+      contentText="Determines on which primary Attribute the Data will be grouped for the Summary Tab"
       contentStyles="padding: 0.5rem;"
     >
       {#snippet icon()}

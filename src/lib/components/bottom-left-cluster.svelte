@@ -4,6 +4,7 @@
   // it. The sync pill stays anchored at bottom-3 left-3 across every
   // route so users always know where to find it.
   import { goto } from '$app/navigation';
+  import { resolve } from '$app/paths';
   import { page } from '$app/state';
   import Fa from 'svelte-fa';
   import {
@@ -24,7 +25,6 @@
     trackerStatus
   } from '$lib/components/book-reader/book-reading-tracker/tracker-state.svelte';
   import Popover from '$lib/components/popover/popover.svelte';
-  import { pagePath } from '$lib/data/env';
   import { messageDialog } from '$lib/data/simple-dialogs';
   import { autoReplication$, isOnline$, statisticsEnabled$ } from '$lib/data/store';
   import { connectCloud } from '$lib/data/sync/source-manager';
@@ -106,9 +106,7 @@
         indicator.kind === 'idle')
   );
 
-  let isReaderRoute = $derived(
-    page.url.pathname === `${pagePath}/b` || page.url.pathname.startsWith(`${pagePath}/b/`)
-  );
+  let isReaderRoute = $derived(page.route.id === '/b');
 
   let showTrackerButtons = $derived(
     isReaderRoute && $statisticsEnabled$ && trackerStatus.available
@@ -136,8 +134,8 @@
     }
     await goto(
       indicator.kind === 'off'
-        ? `${pagePath}/settings/sync#sync-direction`
-        : `${pagePath}/settings/sync`
+        ? resolve('/settings/sync#sync-direction')
+        : resolve('/settings/sync')
     );
   }
 

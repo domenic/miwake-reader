@@ -67,7 +67,7 @@
         {#if bookCard.isPlaceholder}
           <div
             title={placeholderTooltip}
-            class="pointer-events-none absolute top-2 right-2 flex h-7 w-7 items-center justify-center rounded-full bg-white/90 text-gray-700 shadow"
+            class="pointer-events-none absolute top-2 right-2 flex size-7 items-center justify-center rounded-full bg-white/90 text-gray-700 shadow"
           >
             <Fa icon={placeholderIcon} />
           </div>
@@ -114,7 +114,7 @@
         <div
           tabindex="0"
           role="button"
-          class="mdc-elevation--z2 hover:mdc-elevation--z8 mdc-elevation-transition absolute -top-2 -right-2 h-6 w-6 rounded-full bg-red-400"
+          class="mdc-elevation--z2 hover:mdc-elevation--z8 mdc-elevation-transition absolute -top-2 -right-2 size-6 rounded-full bg-red-400"
           onclick={() => onremoveBookClick?.({ id: bookCard.id })}
           onkeyup={dummyFn}
         >

@@ -105,7 +105,6 @@
     `PAGE ${currentStatisticsSummaryPage} / ${statisticsSummaryMaxPages}`
   );
 
-  // eslint-disable-next-line prefer-spread
   let statisticsSummaryPages = $derived(
     Array.apply(null, Array(statisticsSummaryMaxPages)).map((_, index) => index + 1)
   );
@@ -272,7 +271,7 @@
     const row1Prop = row1[$lastStatisticsSummarySortProperty$] || (isTitleSort ? '' : 0);
     const row2Prop = row2[$lastStatisticsSummarySortProperty$] || (isTitleSort ? '' : 0);
 
-    let sortDiff = 0;
+    let sortDiff: number;
 
     if ($lastStatisticsSummarySortDirection$ === SortDirection.ASC) {
       if (isTitleSort) {
@@ -342,10 +341,10 @@
     <div
       class="grid grid-cols-[0.75fr_1fr] gap-x-8 items-center"
       class:md:grid-cols-[0.31fr_0.6fr_0.77fr_0.74fr_0.6fr_0.57fr]={isNoneAggregation}
-      class:lg:grid-cols-[0.14fr_0.26fr_0.85fr_repeat(2,_0.59fr)_0.45fr]={isNoneAggregation}
+      class:lg:grid-cols-[0.14fr_0.26fr_0.85fr_repeat(2,0.59fr)_0.45fr]={isNoneAggregation}
       class:md:grid-cols-[0.1fr_0.6fr_1fr_1.1fr_0.85fr]={isDateAggregation}
       class:lg:grid-cols-[0.1fr_repeat(4,1fr)]={isDateAggregation}
-      class:md:grid-cols-[0.1fr_1fr_repeat(3,_0.45fr)]={isTitleAggregation}
+      class:md:grid-cols-[0.1fr_1fr_repeat(3,0.45fr)]={isTitleAggregation}
       class:lg:grid-cols-[0.1fr_0.93fr_0.35fr_0.42fr_0.3fr]={isTitleAggregation}
       style:grid-auto-rows={`${statisticsSummaryBaseRowRem}rem`}
       style:row-gap={`${statisticsSummaryBaseRowGap}rem`}
@@ -379,7 +378,7 @@
         selectionKey={$lastReadingTimeDataSource$}
         hasRowInEdit={rowInEdit !== undefined}
         gridRow={renderFullStatisticsSummaryTable ? undefined : 4 - statisticsSummaryGridRowMod}
-        title={'Switch between Reading Time Attributes'}
+        title="Switch between Reading Time Attributes"
         onpropertyChange={handlePropertyChange}
       />
       <StatisticsSummaryHeader
@@ -388,7 +387,7 @@
         selectionKey={$lastCharactersDataSource$}
         hasRowInEdit={rowInEdit !== undefined}
         gridRow={renderFullStatisticsSummaryTable ? undefined : 5 - statisticsSummaryGridRowMod}
-        title={'Switch between Character Attributes'}
+        title="Switch between Character Attributes"
         onpropertyChange={handlePropertyChange}
       />
       <StatisticsSummaryHeader
@@ -397,7 +396,7 @@
         selectionKey={$lastReadingSpeedDataSource$}
         hasRowInEdit={rowInEdit !== undefined}
         gridRow={renderFullStatisticsSummaryTable ? undefined : 6 - statisticsSummaryGridRowMod}
-        title={'Switch between Reading Speed Attributes'}
+        title="Switch between Reading Speed Attributes"
         onpropertyChange={handlePropertyChange}
       />
       {#each currentStatisticsSummaryRows as currentStatisticsSummaryRow (currentStatisticsSummaryRow.id)}
