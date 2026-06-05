@@ -732,6 +732,7 @@
   bind:open={$statisticsTitleFilterIsOpen$}
   side="right"
   class="overflow-hidden bg-gray-700 text-white"
+  closeTitle="Close book filter"
 >
   <StatisticsTitleFilter bind:titleFilterSelections {titlesInStatisticsDateRange} />
 </SidebarOverlay>

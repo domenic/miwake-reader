@@ -1427,6 +1427,7 @@
   bind:open={$tocIsOpen$}
   side="left"
   class="overflow-hidden bg-background-color text-(--font-color)"
+  closeTitle="Close table of contents"
   style={`color: ${$themeOption$?.fontColor}; background-color: ${$backgroundColor$};`}
 >
   {#if $sectionData$}

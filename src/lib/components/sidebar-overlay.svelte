@@ -6,6 +6,7 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
   import { browser } from '$app/environment';
+  import DialogFormButton from '$lib/components/dialog-form-button.svelte';
   import { skipKeyDownListener$ } from '$lib/data/store';
   import { onDestroy } from 'svelte';
 
@@ -13,6 +14,7 @@
     open: boolean;
     side?: 'left' | 'right';
     class?: string;
+    closeTitle?: string;
     style?: string;
     onclose?: () => void;
     children?: Snippet;
@@ -22,6 +24,7 @@
     open = $bindable(),
     side = 'right',
     class: className = '',
+    closeTitle,
     style,
     onclose,
     children
@@ -29,6 +32,9 @@
 
   let dialogElement = $state<HTMLDialogElement>();
   let wasOpen = $state(false);
+  const closeButtonClasses = $derived(
+    `absolute top-4 z-10 flex items-center transition-colors hover:text-red-500 focus-visible:text-red-500 ${side === 'left' ? 'right-4' : 'left-4'}`
+  );
 
   function startSkipKeyDownListener() {
     if (openOverlayCount === 0) {
@@ -99,6 +105,10 @@
     onclose?.();
   }}
 >
+  {#if closeTitle}
+    <DialogFormButton title={closeTitle} class={closeButtonClasses} />
+  {/if}
+
   {@render children?.()}
 </dialog>
 
