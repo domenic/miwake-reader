@@ -11,9 +11,10 @@ Hosted on <https://reader.miwake.app/>.
 ### Refreshed interface
 
 - All top-bar menus have been redesigned to no longer just be cryptic icons, but instead be labeled and grouped.
-- Dialogs, menus, and sidebars throughout the app have been rebuilt using native browser primitives, making them more consistent and behaviorally reasonable. For example, the <kbd>Esc</kbd> key always closes them. (This work is still ongoing; track progress in [issue #11](https://github.com/domenic/miwake-reader/issues/11).)
+- Dialogs, menus, and sidebars throughout the app have been rebuilt using native browser primitives, making them more consistent and behaviorally reasonable. For example, the <kbd>Esc</kbd> key always closes them.
 - The Settings page's old "Data" tab has been replaced with a "Sync" tab that gathers sync location, backup, and advanced options into one place.
 - A new theme editor makes it easier to customize your reading colors, with live preview.
+- A new reading goals save dialog makes it clearer how editing reading goals impacts existing goals.
 - The font picker has been redesigned as a unified popover with font previews, bundled/uploaded/system font support, and automatic font name detection from uploaded files.
 - The statistics title filter sidebar has been redesigned for clarity.
 - A welcome screen introduces new users to the app.
@@ -42,17 +43,19 @@ The sync system has been rebuilt around a single-destination model. From the new
 - Books in the book manager show improved progress bars.
 - Furigana display settings have been simplified and combined.
 - Settings and statistics sub-pages now have their own individual URLs.
+- Books are always referred to as books, instead of sometimes as books and sometimes as "titles".
 
 ### Bug fixes
 
 - Books are now reliably marked as completed, even when auto-bookmark is turned on.
 - The "Import Folder" button now appears on all capable browsers, not just desktops. (It was previously hidden on mobile devices and on touch-screen desktop devices.)
+- The app's primary language is declared as English, instead of Japanese, which should prevent automatic browser translation.
 
 ### Under the hood
 
 - Upgraded to Svelte 5, Tailwind CSS v4, TypeScript v6, and other modern tooling.
 - Removed unfinished audiobook and subtitle features that were never completed upstream.
-- Added a [privacy policy](https://reader.miwake.app/privacy).
+- Added a [privacy policy](https://reader.miwake.app/privacy) and [terms of service](https://reader.miwake.app/terms).
 
 ## Migrating from ッツ Ebook Reader
 
