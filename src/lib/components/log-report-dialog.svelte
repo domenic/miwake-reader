@@ -1,19 +1,23 @@
 <script module lang="ts">
   import LogReportDialog from '$lib/components/log-report-dialog.svelte';
   import { showDialog, type DialogClosedBy } from '$lib/components/dialog/show-dialog';
+  import { logger as errorDialogLogger } from '$lib/data/logger';
 
-  export function showErrorDialogWithLogReport({
-    title,
-    message
-  }: {
-    title: string;
-    message: string;
-  }) {
+  export function showErrorDialog({ title, error }: { title: string; error: unknown }) {
+    const thrown = error as { message?: unknown; name?: unknown };
+
+    if (thrown?.name === 'AbortError') {
+      return Promise.resolve();
+    }
+
+    const message = String(thrown?.message || error);
+
+    errorDialogLogger.error(error instanceof Error ? error : message);
+
     return showLogReportDialog({
       title,
-      message:
-        message +
-        ' Consider filing a bug report. If you do so, please include the attached log file with your report.',
+      message,
+      showErrorGuidance: true,
       closedBy: 'closerequest'
     });
   }
@@ -22,6 +26,7 @@
     return showLogReportDialog({
       title: 'Bug report',
       message: 'Please include the attached log file with your report.',
+      showErrorGuidance: false,
       closedBy: 'any'
     });
   }
@@ -29,15 +34,17 @@
   function showLogReportDialog({
     title,
     message,
+    showErrorGuidance,
     closedBy
   }: {
     title?: string;
     message: string;
+    showErrorGuidance: boolean;
     closedBy: DialogClosedBy;
   }) {
     return showDialog(
       LogReportDialog,
-      { title, message },
+      { title, message, showErrorGuidance },
       {
         closedBy,
         resolveResult: () => undefined
@@ -119,9 +126,10 @@
   interface Props {
     title: string;
     message: string;
+    showErrorGuidance: boolean;
   }
 
-  let { title, message }: Props = $props();
+  let { title, message, showErrorGuidance }: Props = $props();
 
   const encodedLog = encodeURIComponent(
     JSON.stringify(
@@ -209,6 +217,12 @@
 
 <DialogContentShell {title}>
   <p>{message}</p>
+  {#if showErrorGuidance}
+    <p class="mt-3">
+      Consider filing a bug report. If you do so, please include the attached log file with your
+      report.
+    </p>
+  {/if}
 
   {#snippet actions()}
     <a

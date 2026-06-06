@@ -24,7 +24,7 @@
     trackerStatus
   } from '$lib/components/book-reader/book-reading-tracker/tracker-state.svelte';
   import Popover from '$lib/components/popover/popover.svelte';
-  import { showMessageDialog } from '$lib/components/message-dialog.svelte';
+  import { showErrorDialog } from '$lib/components/log-report-dialog.svelte';
   import { autoReplication$, isOnline$, statisticsEnabled$ } from '$lib/data/store';
   import { connectCloud } from '$lib/data/sync/source-manager';
   import { retryAfterReconnect } from '$lib/data/sync/sync-engine';
@@ -122,10 +122,7 @@
         });
         await retryAfterReconnect();
       } catch (err) {
-        await showMessageDialog({
-          title: "Couldn't reconnect",
-          message: err instanceof Error ? err.message : String(err)
-        });
+        await showErrorDialog({ title: 'Error reconnecting to sync location', error: err });
       } finally {
         reconnecting = false;
       }

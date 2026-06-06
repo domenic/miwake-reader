@@ -52,7 +52,9 @@ test('fresh-device placeholders preserve varied UI-created progress and surface 
 
   await openBookFromManage(page, PLAIN_TEXT_BOOK);
   const dialog = page.locator('dialog[open]');
-  await expect(dialog.getByRole('heading', { name: 'Load error' })).toBeVisible();
+  await expect(dialog.getByRole('heading', { name: 'Error loading book' })).toBeVisible();
   await expect(dialog).toContainText('Force re-sync');
   await expect(dialog).not.toContainText('Connect its sync location');
+  await expect(dialog.getByRole('link', { name: 'Open Issue Tracker' })).toBeVisible();
+  await expect(dialog.getByRole('link', { name: 'Download Logs' })).toBeVisible();
 });

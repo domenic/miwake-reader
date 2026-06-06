@@ -31,10 +31,12 @@ test('failed sync folder switch leaves the current source and library state inta
 
   const errorDialog = page.locator('dialog[open]');
   await expect(
-    errorDialog.getByRole('heading', { name: "Couldn't connect to your sync folder" })
+    errorDialog.getByRole('heading', { name: 'Error connecting to your sync folder' })
   ).toBeVisible();
   await expect(errorDialog).toContainText(listingFailureMessage);
-  await errorDialog.getByRole('button', { name: 'OK' }).click();
+  await expect(errorDialog.getByRole('link', { name: 'Open Issue Tracker' })).toBeVisible();
+  await expect(errorDialog.getByRole('link', { name: 'Download Logs' })).toBeVisible();
+  await errorDialog.getByRole('button', { name: 'Close' }).click();
 
   await expect(page.getByText('Connected')).toBeVisible();
   await expectBooksInManage(page, { placeholders: [VALID_BOOK], downloaded: [] });

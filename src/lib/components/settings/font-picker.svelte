@@ -13,8 +13,8 @@
   import { ripple } from '$lib/components/ripple';
   import { buttonClasses } from '$lib/css-classes';
   import { userFonts$ } from '$lib/data/store';
-  import { logger } from '$lib/data/logger';
   import { parseFontName } from '$lib/functions/parse-font-name';
+  import { showErrorDialog } from '$lib/components/log-report-dialog.svelte';
   import { showMessageDialog } from '$lib/components/message-dialog.svelte';
   import Fa from 'svelte-fa';
   import { onMount } from 'svelte';
@@ -100,8 +100,8 @@
       if ('caches' in window) {
         fontCache = await caches.open(userFontsCacheName);
       }
-    } catch (error: any) {
-      logger.error(`Error loading font cache: ${error.message}`);
+    } catch (error) {
+      showErrorDialog({ title: 'Error loading font cache', error });
     }
   });
 
@@ -125,26 +125,26 @@
       return;
     }
 
-    let name = await parseFontName(file);
-
-    if ($userFonts$.some((uf) => uf.name === name)) {
-      selectFont(name);
-      return;
-    }
-
-    if (reservedFontNames.has(name)) {
-      name = file.name.replace(/\.[^.]+$/, '');
-    }
-
-    if (reservedFontNames.has(name) || $userFonts$.some((uf) => uf.name === name)) {
-      showMessageDialog({
-        title: 'Name conflict',
-        message: `A font named "${name}" already exists.`
-      });
-      return;
-    }
-
     try {
+      let name = await parseFontName(file);
+
+      if ($userFonts$.some((uf) => uf.name === name)) {
+        selectFont(name);
+        return;
+      }
+
+      if (reservedFontNames.has(name)) {
+        name = file.name.replace(/\.[^.]+$/, '');
+      }
+
+      if (reservedFontNames.has(name) || $userFonts$.some((uf) => uf.name === name)) {
+        showMessageDialog({
+          title: 'Name conflict',
+          message: `A font named "${name}" already exists.`
+        });
+        return;
+      }
+
       const path = `/userfonts/${encodeURIComponent(file.name)}`;
       await fontCache.put(
         path,
@@ -157,9 +157,8 @@
       );
       $userFonts$ = [...$userFonts$, { name, path, fileName: file.name }];
       selectFont(name);
-    } catch (error: any) {
-      logger.error(`Error uploading font: ${error.message}`);
-      showMessageDialog({ title: 'Upload failed', message: error.message });
+    } catch (error) {
+      showErrorDialog({ title: 'Error uploading font', error });
     }
   }
 
@@ -171,8 +170,8 @@
       if (selectedFont === userFont.name) {
         selectedFont = defaultFonts[group];
       }
-    } catch (error: any) {
-      logger.error(`Error deleting font: ${error.message}`);
+    } catch (error) {
+      showErrorDialog({ title: 'Error deleting font', error });
     }
   }
 

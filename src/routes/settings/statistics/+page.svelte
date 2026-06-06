@@ -29,7 +29,7 @@
     trackerPopupDetection$,
     trackerSkipThresholdAction$
   } from '$lib/data/store';
-  import { showMessageDialog } from '$lib/components/message-dialog.svelte';
+  import { showErrorDialog } from '$lib/components/log-report-dialog.svelte';
   import { formatPageTitle } from '$lib/functions/format-page-title';
   import { secondsToMinutes } from '$lib/functions/statistic-util';
   import Fa from 'svelte-fa';
@@ -61,6 +61,17 @@
         return 'Tracker will auto pause on certain reader events and when the reader tab loses focus';
     }
   });
+
+  async function clearZombieStatistics() {
+    showSpinner = true;
+    try {
+      await database.clearZombieStatistics();
+    } catch (error) {
+      showErrorDialog({ title: 'Error clearing zombie statistics', error });
+    } finally {
+      showSpinner = false;
+    }
+  }
 </script>
 
 <svelte:head>
@@ -77,22 +88,7 @@
         options={optionsForToggle}
         bind:selectedOptionId={$keepLocalStatisticsOnDeletion$}
       />
-      <button
-        type="button"
-        class="ml-4 hover:underline"
-        onclick={() => {
-          showSpinner = true;
-          database
-            .clearZombieStatistics()
-            .catch(({ message }) =>
-              showMessageDialog({
-                title: 'Error',
-                message: `Error clearing zombie statistics: ${message}`
-              })
-            )
-            .finally(() => (showSpinner = false));
-        }}
-      >
+      <button type="button" class="ml-4 hover:underline" onclick={clearZombieStatistics}>
         Clear Zombie Statistics
       </button>
     </div>

@@ -18,7 +18,5 @@ test('opening a source-only placeholder downloads the book into the reader', asy
   await openBookFromManage(page, VALID_BOOK);
 
   await expectBookReaderText(page, VALID_BOOK);
-  await expect(
-    page.locator('dialog[open]').getByRole('heading', { name: 'Load error' })
-  ).toHaveCount(0);
+  await expect(page.locator('dialog[open]')).toHaveCount(0);
 });
