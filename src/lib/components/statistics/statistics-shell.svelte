@@ -27,7 +27,8 @@
     BooksDbReadingGoal,
     BooksDbStatistic
   } from '$lib/data/database/books-db/versions/books-db';
-  import { confirmDialog, messageDialog } from '$lib/components/simple-dialogs';
+  import { showConfirmDialog } from '$lib/components/confirm-dialog.svelte';
+  import { showMessageDialog } from '$lib/components/message-dialog.svelte';
   import { logger } from '$lib/data/logger';
   import { getDateRangeLabel } from '$lib/data/reading-goal';
   import { getSyncEndpoint } from '$lib/data/storage/storage-handler-factory';
@@ -350,22 +351,24 @@
     }
 
     const titleLabel = pluralize(titlesToDelete.size, 'book');
-    let wasCanceled = false;
+    let confirmed = true;
 
     if ($confirmStatisticsDeletion$) {
       const dateRangeMessage = startDate ? ` from ${getDateRangeLabel(startDate, endDate)}` : '';
 
-      wasCanceled = await confirmDialog({
+      confirmed = await showConfirmDialog({
         title: 'Delete data',
         messageHTML: `This will delete data${dateRangeMessage} for ${escapeHTML(
           titleLabel
         )}, which may include start and/or completion data.\n\nDeletion syncs to connected sources when upward sync is enabled.\n\n${escapeHTML(
           titleLabel
-        )}:\n${[...titlesToDelete].map(formatJapaneseHTML).join('\n\n')}`
+        )}:\n${[...titlesToDelete].map(formatJapaneseHTML).join('\n\n')}`,
+        confirmLabel: 'Delete',
+        danger: true
       });
     }
 
-    if (wasCanceled) {
+    if (!confirmed) {
       $statisticsActionInProgress$ = false;
       return;
     }
@@ -378,7 +381,7 @@
     ).catch(({ message }) => message);
 
     if (error) {
-      messageDialog({ title: 'Error', message: `Failed to delete data: ${error}` });
+      showMessageDialog({ title: 'Error', message: `Failed to delete data: ${error}` });
       $statisticsActionInProgress$ = false;
     } else {
       const filterMap = new SvelteMap<string, boolean>();
@@ -470,7 +473,7 @@
           : newStatistic.lastReadingSpeed;
     }
 
-    const wasCanceled = await confirmDialog({
+    const confirmed = await showConfirmDialog({
       title: 'Update data',
       messageHTML: `This will update the data for ${formatJapaneseHTML(title)} on ${escapeHTML(
         dateKey
@@ -484,10 +487,11 @@
         statistic.altMinReadingSpeed
       } / h => ${newStatistic.altMinReadingSpeed} / h\nMax Speed: ${
         statistic.maxReadingSpeed
-      } / h => ${newStatistic.maxReadingSpeed} / h`
+      } / h => ${newStatistic.maxReadingSpeed} / h`,
+      confirmLabel: 'Update'
     });
 
-    if (wasCanceled) {
+    if (!confirmed) {
       $statisticsActionInProgress$ = false;
       return;
     }
@@ -497,7 +501,7 @@
       statisticsData[statisticIndex] = { ...statistic, ...newStatistic };
       updateStatisticsData();
     } catch ({ message }: any) {
-      messageDialog({ title: 'Error', message: `Update failed: ${message}` });
+      showMessageDialog({ title: 'Error', message: `Update failed: ${message}` });
     } finally {
       $statisticsActionInProgress$ = false;
     }
@@ -567,7 +571,7 @@
       titleFilterSelections = [...initialTitleFilterSelections.entries()];
       updateStatisticsData();
     } catch ({ message }: any) {
-      messageDialog({ title: 'Error', message: `Error getting data: ${message}` });
+      showMessageDialog({ title: 'Error', message: `Error getting data: ${message}` });
     } finally {
       isLoading = false;
       $statisticsTitleFilterEnabled$ = true;

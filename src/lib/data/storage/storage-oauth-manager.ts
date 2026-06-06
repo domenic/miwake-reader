@@ -20,7 +20,7 @@ import {
 } from '$lib/data/storage/storage-source-types';
 import { StorageSourceDefault, SyncEndpointType } from '$lib/data/storage/storage-types';
 import { database } from '$lib/data/store';
-import { messageDialog } from '$lib/components/simple-dialogs';
+import { showMessageDialog } from '$lib/components/message-dialog.svelte';
 import { convertAuthErrorResponse } from '$lib/functions/replication/error-handler';
 import { isMobile } from '$lib/functions/utils';
 
@@ -198,7 +198,7 @@ export class StorageOAuthManager {
     if (!this.authWindow) {
       // Popup blocked. Surface the message dialog (a user gesture) and
       // retry by pre-opening a wait-window during the click.
-      await messageDialog({
+      await showMessageDialog({
         title: 'Login required',
         message: 'Log in to your cloud storage account when prompted.'
       });

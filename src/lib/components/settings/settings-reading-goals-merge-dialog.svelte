@@ -1,6 +1,6 @@
 <script module lang="ts">
-  import SettingsReadingGoalsMerge from '$lib/components/settings/settings-reading-goals-merge.svelte';
-  import { showDialog } from '$lib/components/simple-dialogs';
+  import SettingsReadingGoalsMergeDialog from '$lib/components/settings/settings-reading-goals-merge-dialog.svelte';
+  import { showDialog } from '$lib/components/dialog/show-dialog';
   import type { ReadingGoal, ReadingGoalSaveResult } from '$lib/data/reading-goal';
 
   export function showSettingsReadingGoalsMergeDialog(params: {
@@ -11,7 +11,7 @@
     let result = emptyReadingGoalSaveResult();
 
     return showDialog<ReadingGoalSaveResult>(
-      SettingsReadingGoalsMerge,
+      SettingsReadingGoalsMergeDialog,
       {
         ...params,
         captureResult: (nextResult: ReadingGoalSaveResult) => {
@@ -39,7 +39,9 @@
 
 <script lang="ts">
   import { faSpinner } from '@fortawesome/free-solid-svg-icons';
-  import SyncButton from '$lib/components/settings/sync/sync-button.svelte';
+  import DialogButton from '$lib/components/dialog/dialog-button.svelte';
+  import DialogContentShell from '$lib/components/dialog/dialog-content-shell.svelte';
+  import { useDialogController } from '$lib/components/dialog/show-dialog';
   import { inputClasses } from '$lib/css-classes';
   import type { BooksDbReadingGoal } from '$lib/data/database/books-db/versions/books-db';
   import {
@@ -80,7 +82,7 @@
     startDayHoursForTracker
   }));
 
-  let rootElement = $state<HTMLDivElement>();
+  const dialogController = useDialogController();
   let isLoading = $state(true);
   let newStartDate = $state(initial.newReadingGoal.goalStartDate);
   let archiveReadingGoal = $state(false);
@@ -351,7 +353,7 @@
     captureResult(emptyReadingGoalSaveResult(error));
 
     await tick();
-    rootElement?.closest('dialog')?.close('error');
+    dialogController.close('error');
   }
 
   function getErrorMessage(err: unknown) {
@@ -367,160 +369,147 @@
   }
 </script>
 
-<div bind:this={rootElement} class="w-[560px] max-w-full">
-  <header class="border-b border-black/10 pb-4">
-    <h2 class="text-xl font-medium">Save reading goal</h2>
-    <p class="mt-1 text-sm text-gray-600">
-      Review how this save will update your reading goal history.
-    </p>
-  </header>
+<DialogContentShell
+  title="Save reading goal"
+  description="Review how this save will update your reading goal history."
+  onsubmit={handleSubmit}
+>
+  {#if isLoading}
+    <div class="flex items-center justify-center gap-3 py-8 text-gray-600">
+      <Fa icon={faSpinner} spin />
+      <span>Checking reading goals...</span>
+    </div>
+  {:else if error}
+    <div class="rounded-md bg-red-50 px-3 py-2 text-red-900">
+      {error}
+    </div>
+  {:else}
+    <div class="space-y-4">
+      {#if archivalOptions.length}
+        <label class="flex items-start gap-3 rounded hover:bg-gray-400/15">
+          <input
+            type="checkbox"
+            class="mt-1"
+            checked={archiveReadingGoal}
+            onchange={(event) => void handleArchiveToggle(event)}
+          />
+          <span>Archive current goal in history</span>
+        </label>
 
-  <div class="py-4">
-    {#if isLoading}
-      <div class="flex items-center justify-center gap-3 py-8 text-sm text-gray-600">
-        <Fa icon={faSpinner} spin />
-        <span>Checking reading goals...</span>
-      </div>
-    {:else if error}
-      <div class="rounded-md bg-red-50 px-3 py-2 text-sm text-red-900">
-        {error}
-      </div>
-    {:else}
-      <div class="space-y-4 text-sm text-gray-700">
-        {#if archivalOptions.length}
-          <label class="flex items-start gap-3 rounded p-2 hover:bg-gray-400/15">
-            <input
-              type="checkbox"
-              class="mt-1"
-              checked={archiveReadingGoal}
-              onchange={(event) => void handleArchiveToggle(event)}
-            />
-            <span>Archive current goal in history</span>
-          </label>
-
-          {#if archiveReadingGoal}
-            <fieldset>
-              <legend class="mb-1 text-base font-medium">End current goal</legend>
-              <div class="space-y-1">
-                {#each archivalOptions as archivalOption (archivalOption.id)}
-                  <label class="flex items-start gap-3 rounded p-2 hover:bg-gray-400/15">
-                    <input
-                      type="radio"
-                      name="reading-goal-archive-option"
-                      class="mt-1"
-                      value={archivalOption.id}
-                      checked={selectedArchiveOptionId === archivalOption.id}
-                      onchange={() => void selectArchiveOption(archivalOption)}
-                    />
-                    <span>
-                      <span class="block">{archivalOption.label}</span>
-                      {#if archivalOption.description}
-                        <span class="block text-xs text-gray-600">
-                          {archivalOption.description}
-                        </span>
-                      {/if}
-                    </span>
-                  </label>
-                {/each}
-              </div>
-            </fieldset>
-
-            {#if archiveDateEditable}
-              <div class="grid gap-3 sm:grid-cols-2">
-                <div>
-                  <label for="reading-goal-archive-start" class="block text-sm text-gray-600">
-                    From
-                  </label>
+        {#if archiveReadingGoal}
+          <fieldset>
+            <legend class="mb-1 text-base font-medium">End current goal</legend>
+            <div class="space-y-1">
+              {#each archivalOptions as archivalOption (archivalOption.id)}
+                <label class="flex items-start gap-3 rounded hover:bg-gray-400/15">
                   <input
-                    id="reading-goal-archive-start"
-                    type="date"
-                    class={inputClasses}
-                    bind:value={archivalStartDate}
-                    onchange={() => void checkDates()}
+                    type="radio"
+                    name="reading-goal-archive-option"
+                    class="mt-1"
+                    value={archivalOption.id}
+                    checked={selectedArchiveOptionId === archivalOption.id}
+                    onchange={() => void selectArchiveOption(archivalOption)}
                   />
-                </div>
-                <div>
-                  <label for="reading-goal-archive-end" class="block text-sm text-gray-600">
-                    Through
-                  </label>
-                  <input
-                    id="reading-goal-archive-end"
-                    type="date"
-                    class={inputClasses}
-                    bind:value={archivalEndDate}
-                    onchange={() => void checkDates()}
-                  />
-                </div>
+                  <span>
+                    <span class="block">{archivalOption.label}</span>
+                    {#if archivalOption.description}
+                      <span class="block text-xs text-gray-600">
+                        {archivalOption.description}
+                      </span>
+                    {/if}
+                  </span>
+                </label>
+              {/each}
+            </div>
+          </fieldset>
+
+          {#if archiveDateEditable}
+            <div class="grid gap-3 sm:grid-cols-2">
+              <div>
+                <label for="reading-goal-archive-start" class="block text-gray-600"> From </label>
+                <input
+                  id="reading-goal-archive-start"
+                  type="date"
+                  class={inputClasses}
+                  bind:value={archivalStartDate}
+                  onchange={() => void checkDates()}
+                />
               </div>
-            {/if}
+              <div>
+                <label for="reading-goal-archive-end" class="block text-gray-600"> Through </label>
+                <input
+                  id="reading-goal-archive-end"
+                  type="date"
+                  class={inputClasses}
+                  bind:value={archivalEndDate}
+                  onchange={() => void checkDates()}
+                />
+              </div>
+            </div>
           {/if}
         {/if}
+      {/if}
 
-        <section class="px-2">
-          <div class="font-medium">After saving</div>
-          <ul class="mt-1 space-y-1 text-gray-700">
-            {#if archiveReadingGoal && initial.currentReadingGoal.goalStartDate}
-              <li class="flex gap-2">
-                <span aria-hidden="true">•</span>
-                <span>
-                  Current goal will become a history entry {getHistoryEntryDateRange(
-                    archivalStartDate,
-                    archivalEndDate
-                  )}.
-                </span>
+      <section>
+        <div class="font-medium">After saving</div>
+        <ul class="mt-1 space-y-1">
+          {#if archiveReadingGoal && initial.currentReadingGoal.goalStartDate}
+            <li class="flex gap-2">
+              <span aria-hidden="true">•</span>
+              <span>
+                Current goal will become a history entry {getHistoryEntryDateRange(
+                  archivalStartDate,
+                  archivalEndDate
+                )}.
+              </span>
+            </li>
+          {:else if initial.currentReadingGoal.goalStartDate}
+            <li class="flex gap-2">
+              <span aria-hidden="true">•</span>
+              <span>Current goal will be discarded instead of becoming a history entry.</span>
+            </li>
+          {/if}
+          {#if initial.newReadingGoal.goalStartDate}
+            <li class="flex gap-2">
+              <span aria-hidden="true">•</span>
+              <span>New goal will start {newStartDate}.</span>
+            </li>
+          {:else}
+            <li class="flex gap-2">
+              <span aria-hidden="true">•</span>
+              <span>No new current goal will be created.</span>
+            </li>
+          {/if}
+          {#if readingGoalToReplaceMessage}
+            <li class="flex gap-2">
+              <span aria-hidden="true">•</span>
+              <span>{readingGoalToReplaceMessage}.</span>
+            </li>
+          {/if}
+        </ul>
+      </section>
+
+      {#if readingGoalToReplaceMessage}
+        <details>
+          <summary class="cursor-pointer font-medium">
+            Show {getHistoryEntryCountLabel(readingGoalsToReplace.length)} affected by this save
+          </summary>
+          <ul class="mt-2 space-y-2">
+            {#each readingGoalsToReplace as goalToReplace (goalToReplace.goalStartDate)}
+              <li>
+                {getDateRangeLabel(goalToReplace.goalStartDate, goalToReplace.goalEndDate)} /
+                {secondsToMinutes(goalToReplace.timeGoal)} min /
+                {goalToReplace.characterGoal} characters / {goalToReplace.goalFrequency}
               </li>
-            {:else if initial.currentReadingGoal.goalStartDate}
-              <li class="flex gap-2">
-                <span aria-hidden="true">•</span>
-                <span>Current goal will be discarded instead of becoming a history entry.</span>
-              </li>
-            {/if}
-            {#if initial.newReadingGoal.goalStartDate}
-              <li class="flex gap-2">
-                <span aria-hidden="true">•</span>
-                <span>New goal will start {newStartDate}.</span>
-              </li>
-            {:else}
-              <li class="flex gap-2">
-                <span aria-hidden="true">•</span>
-                <span>No new current goal will be created.</span>
-              </li>
-            {/if}
-            {#if readingGoalToReplaceMessage}
-              <li class="flex gap-2">
-                <span aria-hidden="true">•</span>
-                <span>{readingGoalToReplaceMessage}.</span>
-              </li>
-            {/if}
+            {/each}
           </ul>
-        </section>
+        </details>
+      {/if}
+    </div>
+  {/if}
 
-        {#if readingGoalToReplaceMessage}
-          <details class="max-h-40 overflow-auto px-2">
-            <summary class="cursor-pointer font-medium">
-              Show {getHistoryEntryCountLabel(readingGoalsToReplace.length)} affected by this save
-            </summary>
-            <ul class="mt-2 space-y-2">
-              {#each readingGoalsToReplace as goalToReplace (goalToReplace.goalStartDate)}
-                <li>
-                  {getDateRangeLabel(goalToReplace.goalStartDate, goalToReplace.goalEndDate)} /
-                  {secondsToMinutes(goalToReplace.timeGoal)} min /
-                  {goalToReplace.characterGoal} characters / {goalToReplace.goalFrequency}
-                </li>
-              {/each}
-            </ul>
-          </details>
-        {/if}
-      </div>
-    {/if}
-  </div>
-
-  <footer class="flex items-center justify-end gap-2 border-t border-black/10 pt-4">
-    <form method="dialog" class="m-0 flex gap-2" onsubmit={handleSubmit}>
-      <SyncButton type="submit" value="cancel" disabled={isLoading}>Cancel</SyncButton>
-      <SyncButton type="submit" value="confirm" variant="primary" disabled={isLoading || !!error}>
-        Confirm
-      </SyncButton>
-    </form>
-  </footer>
-</div>
+  {#snippet actions()}
+    <DialogButton value="cancel" disabled={isLoading}>Cancel</DialogButton>
+    <DialogButton value="confirm" disabled={isLoading || !!error}>Confirm</DialogButton>
+  {/snippet}
+</DialogContentShell>

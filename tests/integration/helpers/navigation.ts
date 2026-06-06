@@ -165,7 +165,7 @@ async function assertExpectedReaderExitDialog(
   await expect(dialog.getByRole('heading', { name: 'Confirm exit' })).toBeVisible({
     timeout: SYNC_ASSERTION_TIMEOUT
   });
-  await dialog.getByRole('button', { name: 'Confirm' }).click();
+  await dialog.getByRole('button', { name: 'Continue' }).click();
 }
 
 async function expectPath(page: Page, path: AppPath) {

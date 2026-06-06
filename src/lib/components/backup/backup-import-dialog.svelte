@@ -1,6 +1,6 @@
 <script module lang="ts">
   import BackupImportDialog from '$lib/components/backup/backup-import-dialog.svelte';
-  import { showDialog } from '$lib/components/simple-dialogs';
+  import { showDialog } from '$lib/components/dialog/show-dialog';
   import type {
     BackupCatalog,
     BackupImportDirection,
@@ -34,7 +34,8 @@
 
 <script lang="ts">
   import BackupSelectionTree from '$lib/components/backup/backup-selection-tree.svelte';
-  import SyncButton from '$lib/components/settings/sync/sync-button.svelte';
+  import DialogButton from '$lib/components/dialog/dialog-button.svelte';
+  import DialogContentShell from '$lib/components/dialog/dialog-content-shell.svelte';
   import SyncRadioGroup from '$lib/components/settings/sync/sync-radio-group.svelte';
   import { isEmptySelection } from '$lib/components/backup/backup-types';
   import { untrack } from 'svelte';
@@ -116,16 +117,9 @@
   }
 </script>
 
-<div class="w-[560px] max-w-full">
-  <header class="border-b border-black/10 pb-4">
-    <h2 class="text-xl font-medium">Import backup</h2>
-    <p class="mt-1 text-sm text-gray-600">
-      From <span class="font-mono">{fileName}</span>
-    </p>
-  </header>
-
-  <div class="py-4">
-    {#if stage.kind === 'select'}
+<DialogContentShell title="Import backup" description={`From ${fileName}`}>
+  {#if stage.kind === 'select'}
+    <div class="space-y-4">
       <BackupSelectionTree {catalog} {selection} onchange={(next) => (selection = next)} />
       <SyncRadioGroup
         heading="When the ZIP and this device disagree"
@@ -134,47 +128,42 @@
         selected={direction}
         onchange={(value) => (direction = value)}
       />
-      {#if errorMessage}
-        <div class="mt-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-900">
-          <div class="font-medium">Import failed</div>
-          <div class="mt-0.5 text-xs">{errorMessage}</div>
-        </div>
-      {/if}
-    {:else if stage.kind === 'importing'}
-      <div class="py-10 text-center text-sm text-gray-600">Importing</div>
-    {:else if stage.kind === 'done'}
-      <div class="rounded-md bg-green-50 p-3 text-sm text-green-900">
-        <div class="font-medium">Import complete.</div>
-        <ul class="mt-1 list-inside list-disc text-xs">
-          {#if stage.result.appSettings}<li>App settings imported.</li>{/if}
-          {#if stage.result.readingGoals}<li>Reading goals imported.</li>{/if}
-          {#if stage.result.books > 0}<li>{stage.result.books} book(s) imported.</li>{/if}
-          {#if stage.result.bookmarks > 0}<li>
-              {stage.result.bookmarks} bookmark(s) imported.
-            </li>{/if}
-          {#if stage.result.statistics > 0}<li>
-              {stage.result.statistics} book statistic set(s) imported.
-            </li>{/if}
-        </ul>
+    </div>
+    {#if errorMessage}
+      <div class="mt-3 rounded-md bg-red-50 px-3 py-2 text-red-900">
+        <div class="font-medium">Import failed</div>
+        <div class="mt-0.5 text-xs">{errorMessage}</div>
       </div>
     {/if}
-  </div>
+  {:else if stage.kind === 'importing'}
+    <div class="py-10 text-center text-gray-600">Importing</div>
+  {:else if stage.kind === 'done'}
+    <div class="rounded-md bg-green-50 p-3 text-green-900">
+      <div class="font-medium">Import complete.</div>
+      <ul class="mt-1 list-inside list-disc text-xs">
+        {#if stage.result.appSettings}<li>App settings imported.</li>{/if}
+        {#if stage.result.readingGoals}<li>Reading goals imported.</li>{/if}
+        {#if stage.result.books > 0}<li>{stage.result.books} book(s) imported.</li>{/if}
+        {#if stage.result.bookmarks > 0}<li>
+            {stage.result.bookmarks} bookmark(s) imported.
+          </li>{/if}
+        {#if stage.result.statistics > 0}<li>
+            {stage.result.statistics} book statistic set(s) imported.
+          </li>{/if}
+      </ul>
+    </div>
+  {/if}
 
-  <footer class="flex items-center justify-end gap-2 border-t border-black/10 pt-4">
-    <form method="dialog" class="m-0 flex gap-2">
-      {#if stage.kind === 'select'}
-        <SyncButton type="submit" value="cancel">Cancel</SyncButton>
-        <SyncButton
-          type="button"
-          variant="primary"
-          disabled={isEmptySelection(selection)}
-          onclick={submit}>Import</SyncButton
-        >
-      {:else if stage.kind === 'done'}
-        <SyncButton type="submit" value="done" variant="primary">Close</SyncButton>
-      {:else}
-        <SyncButton type="submit" value="cancel">Cancel</SyncButton>
-      {/if}
-    </form>
-  </footer>
-</div>
+  {#snippet actions()}
+    {#if stage.kind === 'select'}
+      <DialogButton value="cancel">Cancel</DialogButton>
+      <DialogButton type="button" disabled={isEmptySelection(selection)} onclick={submit}
+        >Import</DialogButton
+      >
+    {:else if stage.kind === 'done'}
+      <DialogButton value="done">Close</DialogButton>
+    {:else}
+      <DialogButton value="cancel">Cancel</DialogButton>
+    {/if}
+  {/snippet}
+</DialogContentShell>

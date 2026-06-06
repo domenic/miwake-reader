@@ -14,7 +14,7 @@ import type { BookCardProps } from '$lib/components/book-card/book-card-props';
 import { isRemoteContext } from '$lib/data/storage/storage-source-types';
 import { NeedsPermissionGrantError } from '$lib/data/storage/errors';
 import { SyncEndpointType } from '$lib/data/storage/storage-types';
-import { confirmDialog } from '$lib/components/simple-dialogs';
+import { showConfirmDialog } from '$lib/components/confirm-dialog.svelte';
 import pLimit from 'p-limit';
 import type { ReplicationContext } from '$lib/functions/replication/replication-progress';
 
@@ -230,13 +230,14 @@ export class FilesystemStorageHandler extends BaseStorageHandler {
 
       if (isPermissionError) {
         if (askForStorageUnlock) {
-          const wasCanceled = await confirmDialog({
+          const confirmed = await showConfirmDialog({
             title: 'Filesystem access required',
             message:
-              'You are trying to access data on your filesystem. Please grant permissions in the next dialog.'
+              'You are trying to access data on your filesystem. Please grant permissions in the next dialog.',
+            confirmLabel: 'Grant access'
           });
 
-          if (wasCanceled) {
+          if (!confirmed) {
             throw new NeedsPermissionGrantError(this.storageSourceName);
           }
 

@@ -127,83 +127,87 @@
     {/if}
   </p>
 
-  <SyncRadioGroup
-    id="sync-direction"
-    heading="Sync direction"
-    name="sync-direction"
-    options={directionOptions}
-    selected={$autoReplication$}
-    onchange={(value) => ($autoReplication$ = value)}
-  />
+  <div class="space-y-5">
+    <SyncRadioGroup
+      id="sync-direction"
+      heading="Sync direction"
+      name="sync-direction"
+      options={directionOptions}
+      selected={$autoReplication$}
+      onchange={(value) => ($autoReplication$ = value)}
+    />
 
-  <SyncRadioGroup
-    heading="How to combine reading statistics"
-    name="sync-statistics-merge"
-    options={statisticsMergeOptions}
-    selected={$statisticsMergeMode$}
-    onchange={(value) => ($statisticsMergeMode$ = value)}
-  />
+    <SyncRadioGroup
+      heading="How to combine reading statistics"
+      name="sync-statistics-merge"
+      options={statisticsMergeOptions}
+      selected={$statisticsMergeMode$}
+      onchange={(value) => ($statisticsMergeMode$ = value)}
+    />
 
-  <SyncRadioGroup
-    heading="How to combine reading goals"
-    name="sync-goals-merge"
-    options={goalsMergeOptions}
-    selected={$readingGoalsMergeMode$}
-    onchange={(value) => ($readingGoalsMergeMode$ = value)}
-  />
+    <SyncRadioGroup
+      heading="How to combine reading goals"
+      name="sync-goals-merge"
+      options={goalsMergeOptions}
+      selected={$readingGoalsMergeMode$}
+      onchange={(value) => ($readingGoalsMergeMode$ = value)}
+    />
 
-  <div class="mt-5">
-    <div class="mb-1 text-base font-medium">Cache remote file list</div>
-    <label class="flex items-start gap-3 rounded p-2 hover:bg-gray-400/15">
-      <input type="checkbox" class="mt-1" bind:checked={$cacheStorageData$} />
-      <div>
-        <div class="font-medium">Cache the remote file list in memory</div>
-        <div class="text-sm text-gray-600">
-          When on, the app remembers the list of files at your sync location for the rest of the
-          session. This saves network traffic, but edits made from other devices won't appear until
-          you reload the page or open a new tab. Off by default because the trade-off favors
-          freshness for most users.
+    <div>
+      <div class="mb-1 text-base font-medium">Cache remote file list</div>
+      <label class="flex items-start gap-3 rounded hover:bg-gray-400/15">
+        <input type="checkbox" class="mt-1" bind:checked={$cacheStorageData$} />
+        <div>
+          <div class="font-medium">Cache the remote file list in memory</div>
+          <div class="text-sm text-gray-600">
+            When on, the app remembers the list of files at your sync location for the rest of the
+            session. This saves network traffic, but edits made from other devices won't appear
+            until you reload the page or open a new tab. Off by default because the trade-off favors
+            freshness for most users.
+          </div>
         </div>
-      </div>
-    </label>
-  </div>
-
-  <SyncRadioGroup
-    heading="EPUB import fixes"
-    name="sync-import-html-fix"
-    options={importHTMLFixOptions}
-    selected={$importHTMLFixMode$}
-    onchange={(value) => ($importHTMLFixMode$ = value)}
-  />
-
-  {#if $importHTMLFixMode$ !== ImportHTMLFixMode.OFF}
-    <label class="ml-2 flex items-start gap-3 rounded p-2 hover:bg-gray-400/15">
-      <input type="checkbox" class="mt-1" bind:checked={$restrictImportFixToAnchor$} />
-      <div>
-        <div class="font-medium">Restrict self-closing-tag fixes to links</div>
-        <div class="text-sm text-gray-600">
-          When on, the self-closing-element fix only touches anchor tags, leaving other elements as
-          the EPUB had them. Useful if Standard / Extended is over-correcting.
-        </div>
-      </div>
-    </label>
-  {/if}
-
-  <div class="mt-5">
-    <div class="mb-1 text-base font-medium">
-      {storageQuota ? `Local storage status · ${storageQuota}` : 'Local storage status'}
+      </label>
     </div>
-    <div class="rounded p-2 text-sm text-gray-700">
-      {#if storagePersisted === null}
-        Checking…
-      {:else if storagePersisted}
-        Persistent. Your browser has marked this site's local data as durable — it won't be evicted
-        under disk pressure.
-      {:else}
-        Temporary. Your browser may evict this site's local data if it runs low on disk. The reader
-        re-asks for persistence on every sync; browsers grant it once you've used the site enough,
-        bookmarked it, or installed it as a PWA.
+
+    <div class="space-y-2">
+      <SyncRadioGroup
+        heading="EPUB import fixes"
+        name="sync-import-html-fix"
+        options={importHTMLFixOptions}
+        selected={$importHTMLFixMode$}
+        onchange={(value) => ($importHTMLFixMode$ = value)}
+      />
+
+      {#if $importHTMLFixMode$ !== ImportHTMLFixMode.OFF}
+        <label class="ml-2 flex items-start gap-3 rounded hover:bg-gray-400/15">
+          <input type="checkbox" class="mt-1" bind:checked={$restrictImportFixToAnchor$} />
+          <div>
+            <div class="font-medium">Restrict self-closing-tag fixes to links</div>
+            <div class="text-sm text-gray-600">
+              When on, the self-closing-element fix only touches anchor tags, leaving other elements
+              as the EPUB had them. Useful if Standard / Extended is over-correcting.
+            </div>
+          </div>
+        </label>
       {/if}
+    </div>
+
+    <div>
+      <div class="mb-1 text-base font-medium">
+        {storageQuota ? `Local storage status · ${storageQuota}` : 'Local storage status'}
+      </div>
+      <div class="rounded text-sm text-gray-700">
+        {#if storagePersisted === null}
+          Checking…
+        {:else if storagePersisted}
+          Persistent. Your browser has marked this site's local data as durable — it won't be
+          evicted under disk pressure.
+        {:else}
+          Temporary. Your browser may evict this site's local data if it runs low on disk. The
+          reader re-asks for persistence on every sync; browsers grant it once you've used the site
+          enough, bookmarked it, or installed it as a PWA.
+        {/if}
+      </div>
     </div>
   </div>
 </details>

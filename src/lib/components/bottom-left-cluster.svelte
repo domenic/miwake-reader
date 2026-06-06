@@ -25,7 +25,7 @@
     trackerStatus
   } from '$lib/components/book-reader/book-reading-tracker/tracker-state.svelte';
   import Popover from '$lib/components/popover/popover.svelte';
-  import { messageDialog } from '$lib/components/simple-dialogs';
+  import { showMessageDialog } from '$lib/components/message-dialog.svelte';
   import { autoReplication$, isOnline$, statisticsEnabled$ } from '$lib/data/store';
   import { connectCloud } from '$lib/data/sync/source-manager';
   import { retryAfterReconnect } from '$lib/data/sync/sync-engine';
@@ -123,7 +123,7 @@
         });
         await retryAfterReconnect();
       } catch (err) {
-        await messageDialog({
+        await showMessageDialog({
           title: "Couldn't reconnect",
           message: err instanceof Error ? err.message : String(err)
         });

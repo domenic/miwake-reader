@@ -8,13 +8,14 @@
   import {
     showBugReportDialog,
     showErrorDialogWithLogReport
-  } from '$lib/components/log-report-dialog-content.svelte';
+  } from '$lib/components/log-report-dialog.svelte';
   import { pxScreen } from '$lib/css-classes';
   import type { BooksDbBookmarkData } from '$lib/data/database/books-db/versions/books-db';
   import { appName } from '$lib/data/env';
   import { userDeleteBooks, userDeleteStatisticEntries, userImportBooks } from '$lib/data/library';
   import { logger } from '$lib/data/logger';
-  import { confirmDialog, messageDialog } from '$lib/components/simple-dialogs';
+  import { showConfirmDialog } from '$lib/components/confirm-dialog.svelte';
+  import { showMessageDialog } from '$lib/components/message-dialog.svelte';
   import { SortDirection, type SortOption } from '$lib/data/sort-types';
   import {
     booklistSortOptions$,
@@ -174,7 +175,7 @@
       } catch (error: any) {
         const message = `Can't open book: ${error.message}`;
         logger.warn(message);
-        messageDialog({ title: 'Error', message });
+        showMessageDialog({ title: 'Error', message });
         return;
       }
     }
@@ -286,7 +287,7 @@
     if (showReport) {
       showErrorDialogWithLogReport({ title, message: fallbackMessage });
     } else {
-      messageDialog({ title, message });
+      showMessageDialog({ title, message });
     }
   }
 
@@ -335,20 +336,22 @@
       .filter((card) => selectedBookIds.has(card.id))
       .map((book) => book.title);
 
-    let wasCanceled = false;
+    let confirmed = true;
 
     if ($confirmStatisticsDeletion$) {
-      wasCanceled = await confirmDialog({
+      confirmed = await showConfirmDialog({
         title: 'Delete data',
         message: `This will delete all statistics for the selected ${pluralize(
           titles.length,
           'book',
           false
-        )} (which may include start and/or completion data). The deletion will sync to your other devices.`
+        )} (which may include start and/or completion data). The deletion will sync to your other devices.`,
+        confirmLabel: 'Delete',
+        danger: true
       });
     }
 
-    if (wasCanceled) return;
+    if (!confirmed) return;
 
     cancelTooltip = 'Cancels the current process';
     initializeReplicationProgressData();

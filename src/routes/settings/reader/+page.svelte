@@ -7,7 +7,7 @@
     type ToggleOption
   } from '$lib/components/button-toggle-group/toggle-option';
   import { ripple } from '$lib/components/ripple';
-  import { showThemeEditorDialog } from '$lib/components/settings/theme-editor-dialog-content.svelte';
+  import { showThemeEditorDialog } from '$lib/components/settings/theme-editor-dialog.svelte';
   import FontPicker from '$lib/components/settings/font-picker.svelte';
   import SettingsDimensionPopover from '$lib/components/settings/settings-dimension-popover.svelte';
   import SettingsItemGroup from '$lib/components/settings/settings-item-group.svelte';

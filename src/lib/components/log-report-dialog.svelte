@@ -1,6 +1,6 @@
 <script module lang="ts">
-  import LogReportDialogContent from '$lib/components/log-report-dialog-content.svelte';
-  import { showDialog, type DialogClosedBy } from '$lib/components/simple-dialogs';
+  import LogReportDialog from '$lib/components/log-report-dialog.svelte';
+  import { showDialog, type DialogClosedBy } from '$lib/components/dialog/show-dialog';
 
   export function showErrorDialogWithLogReport({
     title,
@@ -36,7 +36,7 @@
     closedBy: DialogClosedBy;
   }) {
     return showDialog(
-      LogReportDialogContent,
+      LogReportDialog,
       { title, message },
       {
         closedBy,
@@ -47,8 +47,10 @@
 </script>
 
 <script lang="ts">
+  import DialogButton from '$lib/components/dialog/dialog-button.svelte';
+  import DialogContentShell from '$lib/components/dialog/dialog-content-shell.svelte';
   import { ripple } from '$lib/components/ripple';
-  import { buttonClasses, dialogActionsClasses, dialogTitleClasses } from '$lib/css-classes';
+  import { buttonClasses } from '$lib/css-classes';
   import { logger } from '$lib/data/logger';
   import {
     theme$,
@@ -205,16 +207,18 @@
   const downloadableLog = `data:text/json;charset=utf-8,${encodedLog}`;
 </script>
 
-<h2 class={dialogTitleClasses}>{title}</h2>
-<p>{message}</p>
-<form method="dialog" class={dialogActionsClasses}>
-  <a
-    use:ripple
-    class={buttonClasses}
-    href="https://github.com/domenic/miwake-reader/issues"
-    target="_blank"
-    rel="noreferrer">Open Issue Tracker</a
-  >
-  <a use:ripple class={buttonClasses} href={downloadableLog} download="log.json">Download Logs</a>
-  <button use:ripple class={buttonClasses} value="close" type="submit">Close</button>
-</form>
+<DialogContentShell {title}>
+  <p>{message}</p>
+
+  {#snippet actions()}
+    <a
+      use:ripple
+      class={buttonClasses}
+      href="https://github.com/domenic/miwake-reader/issues"
+      target="_blank"
+      rel="noreferrer">Open Issue Tracker</a
+    >
+    <a use:ripple class={buttonClasses} href={downloadableLog} download="log.json">Download Logs</a>
+    <DialogButton value="close">Close</DialogButton>
+  {/snippet}
+</DialogContentShell>

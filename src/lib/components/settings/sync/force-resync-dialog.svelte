@@ -1,6 +1,6 @@
 <script module lang="ts">
   import ForceResyncDialog from '$lib/components/settings/sync/force-resync-dialog.svelte';
-  import { showDialog } from '$lib/components/simple-dialogs';
+  import { showDialog } from '$lib/components/dialog/show-dialog';
   import type { SyncLocation } from '$lib/data/sync/sync-store.svelte';
 
   export type ForceResyncDirection = 'newest' | 'local-wins' | 'remote-wins';
@@ -33,7 +33,8 @@
 </script>
 
 <script lang="ts">
-  import SyncButton from '$lib/components/settings/sync/sync-button.svelte';
+  import DialogButton from '$lib/components/dialog/dialog-button.svelte';
+  import DialogContentShell from '$lib/components/dialog/dialog-content-shell.svelte';
   import SyncRadioGroup from '$lib/components/settings/sync/sync-radio-group.svelte';
   import { describeSyncLocation } from '$lib/components/settings/sync/sync-utils';
 
@@ -76,16 +77,11 @@
   });
 </script>
 
-<div class="w-120 max-w-full">
-  <header class="border-b border-black/10 pb-4">
-    <h2 class="text-xl font-medium">Force full re-sync</h2>
-    <p class="mt-1 text-sm text-gray-600">
-      Walks every book, bookmark, reading statistic, and reading goal in your library to check for
-      differences between {locationLabel} and this device.
-    </p>
-  </header>
-
-  <div class="py-2">
+<DialogContentShell
+  title="Force full re-sync"
+  description={`Walks every book, bookmark, reading statistic, and reading goal in your library to check for differences between ${locationLabel} and this device.`}
+>
+  <div class="space-y-2">
     <SyncRadioGroup
       heading="Direction"
       name="force-resync-direction"
@@ -93,16 +89,14 @@
       selected={direction}
       onchange={(value) => (direction = value)}
     />
-    <p class="mt-2 px-2 text-xs text-gray-600">
+    <p class="text-xs text-gray-600">
       Reading statistics and reading goals also respect the merge-mode settings in Advanced, which
       govern how entries combine at the destination on top of the direction above.
     </p>
   </div>
 
-  <footer class="flex items-center justify-end gap-2 border-t border-black/10 pt-4">
-    <form method="dialog" class="m-0 flex gap-2">
-      <SyncButton type="submit" value="cancel">Cancel</SyncButton>
-      <SyncButton type="submit" value="confirm" variant="primary">{confirmLabel}</SyncButton>
-    </form>
-  </footer>
-</div>
+  {#snippet actions()}
+    <DialogButton value="cancel">Cancel</DialogButton>
+    <DialogButton value="confirm">{confirmLabel}</DialogButton>
+  {/snippet}
+</DialogContentShell>

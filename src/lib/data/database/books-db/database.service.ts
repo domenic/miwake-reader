@@ -27,8 +27,8 @@ import { BaseStorageHandler } from '$lib/data/storage/handler/base-handler';
 import type { BookStatistic } from '$lib/components/statistics/statistics-types';
 import type { BooksDb } from '$lib/data/database/books-db/versions/books-db';
 import type { IDBPDatabase } from 'idb';
-import { showErrorDialogWithLogReport } from '$lib/components/log-report-dialog-content.svelte';
-import { messageDialog } from '$lib/components/simple-dialogs';
+import { showErrorDialogWithLogReport } from '$lib/components/log-report-dialog.svelte';
+import { showMessageDialog } from '$lib/components/message-dialog.svelte';
 import type { MergeMode } from '$lib/data/merge-mode';
 import { ReplicationSaveBehavior } from '$lib/functions/replication/replication-options';
 import { getDefaultStatistic } from '$lib/components/book-reader/book-reading-tracker/tracker-domain';
@@ -69,7 +69,10 @@ export class DatabaseService {
               if (showReport) {
                 showErrorDialogWithLogReport({ title: 'Failure', message: 'Errors occurred.' });
               } else {
-                messageDialog({ title: 'Error', message: `An error occured: ${error.message}` });
+                showMessageDialog({
+                  title: 'Error',
+                  message: `An error occured: ${error.message}`
+                });
               }
             }
             return [[]];
@@ -642,7 +645,7 @@ export class DatabaseService {
 
       await this.deleteStatistics(statisticsToDelete, [...lastModifiedItemsToDelete]);
     } catch (error: any) {
-      messageDialog({
+      showMessageDialog({
         title: 'Error',
         message: `An error occurred during deletion: ${error.message}`
       });
