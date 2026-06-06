@@ -27,8 +27,7 @@ import { BaseStorageHandler } from '$lib/data/storage/handler/base-handler';
 import type { BookStatistic } from '$lib/components/statistics/statistics-types';
 import type { BooksDb } from '$lib/data/database/books-db/versions/books-db';
 import type { IDBPDatabase } from 'idb';
-import { showErrorDialogWithLogReport } from '$lib/components/log-report-dialog.svelte';
-import { showMessageDialog } from '$lib/components/message-dialog.svelte';
+import { showErrorDialog } from '$lib/components/log-report-dialog.svelte';
 import type { MergeMode } from '$lib/data/merge-mode';
 import { ReplicationSaveBehavior } from '$lib/functions/replication/replication-options';
 import { getDefaultStatistic } from '$lib/components/book-reader/book-reading-tracker/tracker-domain';
@@ -63,18 +62,7 @@ export class DatabaseService {
       switchMap(() =>
         from(this.fetchBookCards()).pipe(
           catchError((error: unknown) => {
-            if (error instanceof Error) {
-              const showReport = logger.errorCount > 1;
-              logger.warn(error.message);
-              if (showReport) {
-                showErrorDialogWithLogReport({ title: 'Failure', message: 'Errors occurred.' });
-              } else {
-                showMessageDialog({
-                  title: 'Error',
-                  message: `An error occured: ${error.message}`
-                });
-              }
-            }
+            showErrorDialog({ title: 'Error loading books', error });
             return [[]];
           })
         )
@@ -618,38 +606,31 @@ export class DatabaseService {
   }
 
   async clearZombieStatistics() {
-    try {
-      const db = await this.db;
-      const books = await db.getAll('data');
-      const titles = new Set(books.map((book) => book.title));
-      const statistics = await db.getAll('statistic');
-      const lastModifiedForStatistics = await db.getAll('lastModified');
-      const statisticsToDelete: BooksDbStatistic[] = [];
-      const lastModifiedItemsToDelete = new Set<string>();
+    const db = await this.db;
+    const books = await db.getAll('data');
+    const titles = new Set(books.map((book) => book.title));
+    const statistics = await db.getAll('statistic');
+    const lastModifiedForStatistics = await db.getAll('lastModified');
+    const statisticsToDelete: BooksDbStatistic[] = [];
+    const lastModifiedItemsToDelete = new Set<string>();
 
-      for (let index = 0, { length } = statistics; index < length; index += 1) {
-        const entry = statistics[index];
+    for (let index = 0, { length } = statistics; index < length; index += 1) {
+      const entry = statistics[index];
 
-        if (!titles.has(entry.title)) {
-          statisticsToDelete.push(entry);
-        }
+      if (!titles.has(entry.title)) {
+        statisticsToDelete.push(entry);
       }
-
-      for (let index = 0, { length } = lastModifiedForStatistics; index < length; index += 1) {
-        const entry = lastModifiedForStatistics[index];
-
-        if (!titles.has(entry.title)) {
-          lastModifiedItemsToDelete.add(entry.title);
-        }
-      }
-
-      await this.deleteStatistics(statisticsToDelete, [...lastModifiedItemsToDelete]);
-    } catch (error: any) {
-      showMessageDialog({
-        title: 'Error',
-        message: `An error occurred during deletion: ${error.message}`
-      });
     }
+
+    for (let index = 0, { length } = lastModifiedForStatistics; index < length; index += 1) {
+      const entry = lastModifiedForStatistics[index];
+
+      if (!titles.has(entry.title)) {
+        lastModifiedItemsToDelete.add(entry.title);
+      }
+    }
+
+    await this.deleteStatistics(statisticsToDelete, [...lastModifiedItemsToDelete]);
   }
 
   async deleteStatistics(statistics: BooksDbStatistic[], lastModifiedTitlesToDelete: string[]) {

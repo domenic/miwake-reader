@@ -3,6 +3,7 @@
   import { showBackupImportDialog } from '$lib/components/backup/backup-import-dialog.svelte';
   import type { BackupCatalog } from '$lib/components/backup/backup-types';
   import { showConfirmDialog } from '$lib/components/confirm-dialog.svelte';
+  import { showErrorDialog } from '$lib/components/log-report-dialog.svelte';
   import { showMessageDialog } from '$lib/components/message-dialog.svelte';
   import { syncState } from '$lib/data/sync/sync-store.svelte';
   import SyncButton from '$lib/components/settings/sync/sync-button.svelte';
@@ -42,8 +43,8 @@
     let catalog: BackupCatalog;
     try {
       catalog = await parseBackupZip(file);
-    } catch (err: any) {
-      await showMessageDialog({ title: "Couldn't read this backup", message: err.message });
+    } catch (error) {
+      await showErrorDialog({ title: 'Error reading backup', error });
       return;
     }
 
@@ -89,8 +90,8 @@
 
     try {
       await wipeAllStorage();
-    } catch (err: any) {
-      await showMessageDialog({ title: "Couldn't fully wipe local data", message: err.message });
+    } catch (error) {
+      await showErrorDialog({ title: 'Error wiping local data', error });
     }
   }
 

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { browser } from '$app/environment';
   import { appName } from '$lib/data/env';
-  import { showMessageDialog } from '$lib/components/message-dialog.svelte';
+  import { showErrorDialog } from '$lib/components/log-report-dialog.svelte';
   import { SyncEndpointType } from '$lib/data/storage/storage-types';
   import { database } from '$lib/data/store';
   import {
@@ -96,14 +96,8 @@
           useCustomCredentials: !!$cloudCustomCredentials$[provider]
         });
       }
-    } catch (err: any) {
-      // Picker cancel is silent; other errors surface.
-      if (err.name !== 'AbortError') {
-        await showMessageDialog({
-          title: `Couldn't connect to ${targetLabel}`,
-          message: err instanceof Error ? err.message : String(err)
-        });
-      }
+    } catch (error) {
+      await showErrorDialog({ title: `Error connecting to ${targetLabel}`, error });
     } finally {
       busy = false;
     }
@@ -135,11 +129,8 @@
         useCustomCredentials: activeCloud.usesCustomCredentials
       });
       await retryAfterReconnect();
-    } catch (err) {
-      await showMessageDialog({
-        title: "Couldn't reconnect",
-        message: err instanceof Error ? err.message : String(err)
-      });
+    } catch (error) {
+      await showErrorDialog({ title: 'Error reconnecting to sync location', error });
     } finally {
       busy = false;
     }
@@ -151,13 +142,8 @@
     busy = true;
     try {
       await connectFs({ regrantCurrentSource: true });
-    } catch (err: any) {
-      if (err.name !== 'AbortError') {
-        await showMessageDialog({
-          title: "Couldn't grant folder access",
-          message: err instanceof Error ? err.message : String(err)
-        });
-      }
+    } catch (error) {
+      await showErrorDialog({ title: 'Error granting folder access', error });
     } finally {
       busy = false;
     }

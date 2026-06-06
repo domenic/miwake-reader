@@ -11,7 +11,7 @@
   import { showSettingsReadingGoalsMergeDialog } from '$lib/components/settings/settings-reading-goals-merge-dialog.svelte';
   import { buttonClasses } from '$lib/css-classes';
   import { showConfirmDialog } from '$lib/components/confirm-dialog.svelte';
-  import { showMessageDialog } from '$lib/components/message-dialog.svelte';
+  import { showErrorDialog } from '$lib/components/log-report-dialog.svelte';
   import type { BooksDbReadingGoal } from '$lib/data/database/books-db/versions/books-db';
   import {
     getCurrentReadingGoal,
@@ -22,7 +22,7 @@
   import { userSaveReadingGoals, userDeleteReadingGoal } from '$lib/data/library';
   import { pluralize } from '$lib/functions/utils';
   import { getDateKey, secondsToMinutes } from '$lib/functions/statistic-util';
-  import { onMount, tick } from 'svelte';
+  import { onMount } from 'svelte';
   import Fa from 'svelte-fa';
 
   interface Props {
@@ -159,13 +159,8 @@
       onspinner?.(true);
 
       await userSaveReadingGoals(readingGoalsToDelete, readingGoalsToInsert);
-    } catch (error: any) {
-      tick().then(() =>
-        showMessageDialog({
-          title: 'Error',
-          message: `Error updating reading goal(s): ${error.message}`
-        })
-      );
+    } catch (error) {
+      showErrorDialog({ title: 'Error updating reading goals', error });
     } finally {
       onspinner?.(false);
       isInEditMode = false;
@@ -215,8 +210,8 @@
     try {
       await userDeleteReadingGoal(readingGoalToDelete?.goalStartDate);
       await updateReadingGoalsData();
-    } catch ({ message }: any) {
-      showMessageDialog({ title: 'Error', message: `An error occurred: ${message}` });
+    } catch (error) {
+      showErrorDialog({ title: 'Error deleting reading goals', error });
     } finally {
       onspinner?.(false);
     }
@@ -226,11 +221,8 @@
     try {
       onspinner?.(true);
       await updateReadingGoalsData();
-    } catch (error: any) {
-      showMessageDialog({
-        title: 'Error',
-        message: `Error loading reading goals: ${error.message}`
-      });
+    } catch (error) {
+      showErrorDialog({ title: 'Error loading reading goals', error });
     } finally {
       onspinner?.(false);
     }

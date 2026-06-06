@@ -23,9 +23,11 @@ test('boot prune clears the last-opened pointer for a deleted placeholder', asyn
 
   await openBookFromManage(page, PLAIN_TEXT_BOOK);
   const loadErrorDialog = page.locator('dialog[open]');
-  await expect(loadErrorDialog.getByRole('heading', { name: 'Load error' })).toBeVisible();
+  await expect(loadErrorDialog.getByRole('heading', { name: 'Error loading book' })).toBeVisible();
   await expect(loadErrorDialog).toContainText('Force re-sync');
-  await loadErrorDialog.getByRole('button', { name: 'OK' }).click();
+  await expect(loadErrorDialog.getByRole('link', { name: 'Open Issue Tracker' })).toBeVisible();
+  await expect(loadErrorDialog.getByRole('link', { name: 'Download Logs' })).toBeVisible();
+  await loadErrorDialog.getByRole('button', { name: 'Close' }).click();
 
   await removeBooksFromSyncRoot(page, [PLAIN_TEXT_BOOK]);
   await expectBooksInSyncRoot(page, []);

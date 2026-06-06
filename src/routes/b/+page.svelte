@@ -127,7 +127,7 @@
   import { fullscreenManager } from '$lib/data/fullscreen-manager';
   import { logger } from '$lib/data/logger';
   import { showConfirmDialog } from '$lib/components/confirm-dialog.svelte';
-  import { showMessageDialog } from '$lib/components/message-dialog.svelte';
+  import { showErrorDialog } from '$lib/components/log-report-dialog.svelte';
   import {
     markBookOpened,
     openBook,
@@ -301,12 +301,8 @@
             scheduleReplication(StorageDataType.STATISTICS);
           }
         }
-      } catch (error: any) {
-        const message = `Error loading book: ${error.message}`;
-
-        logger.warn(message);
-
-        showMessageDialog({ title: 'Load error', message });
+      } catch (error) {
+        showErrorDialog({ title: 'Error loading book', error });
         return undefined;
       } finally {
         logger.debug(
@@ -789,8 +785,8 @@
             bookCompleted = false;
           });
       }
-    } catch (error: any) {
-      showMessageDialog({ title: 'Error', message: `Error completing book: ${error.message}` });
+    } catch (error) {
+      showErrorDialog({ title: 'Error completing book', error });
     } finally {
       endReaderAction();
     }
@@ -1028,8 +1024,6 @@
       return;
     }
 
-    let message;
-
     try {
       try {
         await tick();
@@ -1065,14 +1059,8 @@
           await trackerElm.flushUpdates();
           flushReaderStatisticsReplication();
         }
-      } catch (error: any) {
-        message = error.message;
-      }
-
-      if (message) {
-        logger.error(message);
-
-        showMessageDialog({ title: 'Error', message });
+      } catch (error) {
+        showErrorDialog({ title: 'Error saving reader state', error });
       }
 
       await goto(resolve(routeId));

@@ -386,8 +386,10 @@ export async function expectImportFailedForFixture(page: Page, fixture: InvalidI
   const { importFailureText } = getFixtureMetadata(fixture);
 
   const dialog = page.locator('dialog[open]');
-  await expect(dialog).toContainText('Book import failed');
+  await expect(dialog).toContainText('Error importing books');
   await expect(dialog).toContainText(importFailureText);
+  await expect(dialog.getByRole('link', { name: 'Open Issue Tracker' })).toBeVisible();
+  await expect(dialog.getByRole('link', { name: 'Download Logs' })).toBeVisible();
 }
 
 export function bookCard(page: Page, fixture: LibraryBookFixture) {

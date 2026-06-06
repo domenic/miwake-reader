@@ -28,7 +28,7 @@
     BooksDbStatistic
   } from '$lib/data/database/books-db/versions/books-db';
   import { showConfirmDialog } from '$lib/components/confirm-dialog.svelte';
-  import { showMessageDialog } from '$lib/components/message-dialog.svelte';
+  import { showErrorDialog } from '$lib/components/log-report-dialog.svelte';
   import { logger } from '$lib/data/logger';
   import { getDateRangeLabel } from '$lib/data/reading-goal';
   import { getSyncEndpoint } from '$lib/data/storage/storage-handler-factory';
@@ -199,8 +199,8 @@
         }
 
         await Promise.all(exportTasks).finally(() => backupHandler.clearData());
-      } catch ({ message }: any) {
-        logger.error(`Failed to Export Data: ${message}`);
+      } catch (error) {
+        showErrorDialog({ title: 'Error exporting statistics', error });
       } finally {
         $statisticsActionInProgress$ = false;
       }
@@ -373,62 +373,58 @@
       return;
     }
 
-    const error = await userDeleteStatisticEntries(
-      [...titlesToDelete],
-      false,
-      startDate,
-      endDate
-    ).catch(({ message }) => message);
-
-    if (error) {
-      showMessageDialog({ title: 'Error', message: `Failed to delete data: ${error}` });
+    try {
+      await userDeleteStatisticEntries([...titlesToDelete], false, startDate, endDate);
+    } catch (error) {
+      showErrorDialog({ title: 'Error deleting statistics', error });
       $statisticsActionInProgress$ = false;
-    } else {
-      const filterMap = new SvelteMap<string, boolean>();
-      const notDeletedMap = new SvelteMap<string, boolean>();
-
-      statisticsData = statisticsData.filter((statistic) => {
-        if (titlesToDelete.has(statistic.title)) {
-          const returnValue = startDate
-            ? !(statistic.dateKey >= startDate && statistic.dateKey <= endDate)
-            : false;
-
-          if (returnValue || !filterMap.get(statistic.title)) {
-            filterMap.set(statistic.title, returnValue);
-          }
-
-          return returnValue;
-        }
-
-        if (statistic.readingTime) {
-          notDeletedMap.set(statistic.title, statisticsTitleFilters.get(statistic.title) || false);
-        }
-
-        return true;
-      });
-
-      const filteredEntries = [...filterMap.entries()];
-      const titleFilters = [...notDeletedMap.entries()];
-      const newStatisticsTitleFilterData = new SvelteMap<string, boolean>();
-
-      for (let index = 0, { length } = filteredEntries; index < length; index += 1) {
-        const [title, hasData] = filteredEntries[index];
-
-        if (hasData) {
-          newStatisticsTitleFilterData.set(title, true);
-        }
-      }
-
-      for (let index = 0, { length } = titleFilters; index < length; index += 1) {
-        const [title, isDisplayed] = titleFilters[index];
-        newStatisticsTitleFilterData.set(title, isDisplayed);
-      }
-
-      titleFilterSelections = [...newStatisticsTitleFilterData.entries()];
-
-      updateStatisticsData();
-      $statisticsActionInProgress$ = false;
+      return;
     }
+
+    const filterMap = new SvelteMap<string, boolean>();
+    const notDeletedMap = new SvelteMap<string, boolean>();
+
+    statisticsData = statisticsData.filter((statistic) => {
+      if (titlesToDelete.has(statistic.title)) {
+        const returnValue = startDate
+          ? !(statistic.dateKey >= startDate && statistic.dateKey <= endDate)
+          : false;
+
+        if (returnValue || !filterMap.get(statistic.title)) {
+          filterMap.set(statistic.title, returnValue);
+        }
+
+        return returnValue;
+      }
+
+      if (statistic.readingTime) {
+        notDeletedMap.set(statistic.title, statisticsTitleFilters.get(statistic.title) || false);
+      }
+
+      return true;
+    });
+
+    const filteredEntries = [...filterMap.entries()];
+    const titleFilters = [...notDeletedMap.entries()];
+    const newStatisticsTitleFilterData = new SvelteMap<string, boolean>();
+
+    for (let index = 0, { length } = filteredEntries; index < length; index += 1) {
+      const [title, hasData] = filteredEntries[index];
+
+      if (hasData) {
+        newStatisticsTitleFilterData.set(title, true);
+      }
+    }
+
+    for (let index = 0, { length } = titleFilters; index < length; index += 1) {
+      const [title, isDisplayed] = titleFilters[index];
+      newStatisticsTitleFilterData.set(title, isDisplayed);
+    }
+
+    titleFilterSelections = [...newStatisticsTitleFilterData.entries()];
+
+    updateStatisticsData();
+    $statisticsActionInProgress$ = false;
   }
 
   async function handleEditRequest({
@@ -500,8 +496,8 @@
       await userUpdateStatistic(newStatistic);
       statisticsData[statisticIndex] = { ...statistic, ...newStatistic };
       updateStatisticsData();
-    } catch ({ message }: any) {
-      showMessageDialog({ title: 'Error', message: `Update failed: ${message}` });
+    } catch (error) {
+      showErrorDialog({ title: 'Error updating statistic', error });
     } finally {
       $statisticsActionInProgress$ = false;
     }
@@ -570,8 +566,8 @@
 
       titleFilterSelections = [...initialTitleFilterSelections.entries()];
       updateStatisticsData();
-    } catch ({ message }: any) {
-      showMessageDialog({ title: 'Error', message: `Error getting data: ${message}` });
+    } catch (error) {
+      showErrorDialog({ title: 'Error loading statistics', error });
     } finally {
       isLoading = false;
       $statisticsTitleFilterEnabled$ = true;

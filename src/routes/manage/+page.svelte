@@ -5,10 +5,7 @@
   import BookCardList from '$lib/components/book-card/book-card-list.svelte';
   import type { BookCardProps } from '$lib/components/book-card/book-card-props';
   import BookManagerHeader from '$lib/components/book-card/book-manager-header.svelte';
-  import {
-    showBugReportDialog,
-    showErrorDialogWithLogReport
-  } from '$lib/components/log-report-dialog.svelte';
+  import { showBugReportDialog, showErrorDialog } from '$lib/components/log-report-dialog.svelte';
   import { pxScreen } from '$lib/css-classes';
   import type { BooksDbBookmarkData } from '$lib/data/database/books-db/versions/books-db';
   import { appName } from '$lib/data/env';
@@ -130,22 +127,6 @@
     return sortDiff;
   }
 
-  /**
-   * Verify that some sync source is still connected before navigating
-   * to the reader on a placeholder; the reader owns the actual
-   * download. With at-most-one cloud + one fs there's no per-book
-   * routing — any connected source can satisfy.
-   */
-  async function ensurePlaceholderIsReachable(): Promise<void> {
-    const db = await database.db;
-    const sources = await db.getAll('storageSource');
-    if (sources.length === 0) {
-      throw new Error(
-        "This book's content isn't downloaded and no sync source is connected. Connect one from Settings → Sync to download."
-      );
-    }
-  }
-
   async function onBookClick(bookId: number) {
     if (!operationAllowed()) {
       return;
@@ -170,12 +151,15 @@
     if (!bookItem) return;
 
     if (bookItem.isPlaceholder) {
-      try {
-        await ensurePlaceholderIsReachable();
-      } catch (error: any) {
-        const message = `Can't open book: ${error.message}`;
-        logger.warn(message);
-        showMessageDialog({ title: 'Error', message });
+      const db = await database.db;
+      const sources = await db.getAll('storageSource');
+
+      if (sources.length === 0) {
+        showMessageDialog({
+          title: "Can't open book",
+          message:
+            "This book's content isn't downloaded and no sync source is connected. Connect one from Settings → Sync to download."
+        });
         return;
       }
     }
@@ -260,10 +244,13 @@
 
     const supportedExtRegex = /\.(?:htmlz|epub|txt)$/;
     const files = Array.from(fileList).filter((f) => supportedExtRegex.test(f.name));
-    const errorTitle = 'Book import failed';
+    const errorTitle = 'Error importing books';
 
     if (!files.length) {
-      showError(errorTitle, 'Imported files must be in EPUB, TXT, or HTMLZ format.');
+      showMessageDialog({
+        title: 'Unsupported import format',
+        message: 'Imported files must be in EPUB, TXT, or HTMLZ format.'
+      });
       return;
     }
 
@@ -272,22 +259,10 @@
 
     try {
       await userImportBooks(document, files, signal, $fileCountData$);
-    } catch (err: any) {
-      showError(errorTitle, err.message, 'An error occurred during book import.');
+    } catch (error) {
+      showErrorDialog({ title: errorTitle, error });
     } finally {
       resetProgress();
-    }
-  }
-
-  function showError(title: string, message: string, fallbackMessage: string = message) {
-    const showReport = logger.errorCount > 1;
-
-    logger.warn(message);
-
-    if (showReport) {
-      showErrorDialogWithLogReport({ title, message: fallbackMessage });
-    } else {
-      showMessageDialog({ title, message });
     }
   }
 
@@ -311,8 +286,8 @@
 
     try {
       await userDeleteBooks(titlesToDelete, signal, $keepLocalStatisticsOnDeletion$);
-    } catch (err: any) {
-      showError('Deletion failed', err.message, 'An error occurred during book deletion.');
+    } catch (error) {
+      showErrorDialog({ title: 'Error deleting books', error });
     } finally {
       resetProgress();
       await tick();
@@ -359,7 +334,7 @@
     const limiter = pLimit(1);
     const tasks: Promise<void>[] = [];
 
-    let failed = 0;
+    const errors: unknown[] = [];
 
     replicationProgress$.next({ progressBase: 1, maxProgress: titles.length });
 
@@ -374,18 +349,24 @@
             handleErrorDuringReplication(error, `Error on deleting statistics for ${title}: `, [
               limiter
             ]);
-            failed += 1;
+            errors.push(error);
           }
         })
       );
     });
 
-    await Promise.all(tasks).catch(() => {});
-
-    resetProgress();
-
-    if (failed) {
-      showError('Deletion failed', `Unable to delete statistics for ${pluralize(failed, 'book')}.`);
+    try {
+      await Promise.all(tasks);
+      if (errors.length) {
+        throw errors[0];
+      }
+    } catch (error) {
+      showErrorDialog({
+        title: 'Error deleting statistics',
+        error
+      });
+    } finally {
+      resetProgress();
     }
   }
 </script>
