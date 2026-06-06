@@ -2,7 +2,8 @@
   import { showBackupExportDialog } from '$lib/components/backup/backup-export-dialog.svelte';
   import { showBackupImportDialog } from '$lib/components/backup/backup-import-dialog.svelte';
   import type { BackupCatalog } from '$lib/components/backup/backup-types';
-  import { confirmDialog, messageDialog } from '$lib/components/simple-dialogs';
+  import { showConfirmDialog } from '$lib/components/confirm-dialog.svelte';
+  import { showMessageDialog } from '$lib/components/message-dialog.svelte';
   import { syncState } from '$lib/data/sync/sync-store.svelte';
   import SyncButton from '$lib/components/settings/sync/sync-button.svelte';
   import SyncSection from '$lib/components/settings/sync/sync-section.svelte';
@@ -42,7 +43,7 @@
     try {
       catalog = await parseBackupZip(file);
     } catch (err: any) {
-      await messageDialog({ title: "Couldn't read this backup", message: err.message });
+      await showMessageDialog({ title: "Couldn't read this backup", message: err.message });
       return;
     }
 
@@ -55,7 +56,7 @@
 
   async function onForceResync() {
     if (!hasSyncLocation) {
-      await messageDialog({
+      await showMessageDialog({
         title: 'No sync location connected',
         message: 'Connect a cloud account or local folder before running a full re-sync.'
       });
@@ -77,17 +78,19 @@
   }
 
   async function onSignOutAndWipe() {
-    const cancelled = await confirmDialog({
+    const confirmed = await showConfirmDialog({
       title: 'Sign out and wipe local data?',
       message:
-        'This will disconnect all sync locations and remove all books, bookmarks, statistics, reading goals, and app settings from this device. Your data stored elsewhere will not be changed.'
+        'This will disconnect all sync locations and remove all books, bookmarks, statistics, reading goals, and app settings from this device. Your data stored elsewhere will not be changed.',
+      confirmLabel: 'Sign out and wipe',
+      danger: true
     });
-    if (cancelled) return;
+    if (!confirmed) return;
 
     try {
       await wipeAllStorage();
     } catch (err: any) {
-      await messageDialog({ title: "Couldn't fully wipe local data", message: err.message });
+      await showMessageDialog({ title: "Couldn't fully wipe local data", message: err.message });
     }
   }
 

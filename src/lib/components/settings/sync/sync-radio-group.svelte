@@ -19,7 +19,7 @@
   let { heading, id, subHeading, name, options, selected, onchange }: Props = $props();
 </script>
 
-<fieldset {id} class="mt-5">
+<fieldset {id}>
   <legend class="mb-1 text-base font-medium">{heading}</legend>
   {#if subHeading}
     <p class="mb-1 text-sm text-gray-600">{subHeading}</p>
@@ -27,7 +27,7 @@
   <div class="mt-1 space-y-1">
     {#each options as option (option.id)}
       {@const checked = selected === option.id}
-      <label class="flex items-start gap-3 rounded p-2 hover:bg-gray-400/15">
+      <label class="flex items-start gap-3 rounded hover:bg-gray-400/15">
         <input
           type="radio"
           {name}

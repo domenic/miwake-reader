@@ -1,6 +1,6 @@
 <script module lang="ts">
   import BackupExportDialog from '$lib/components/backup/backup-export-dialog.svelte';
-  import { showDialog } from '$lib/components/simple-dialogs';
+  import { showDialog } from '$lib/components/dialog/show-dialog';
   import type { BackupCatalog, BackupSelection } from '$lib/components/backup/backup-types';
 
   export function showBackupExportDialog(params: {
@@ -20,7 +20,9 @@
 
 <script lang="ts">
   import BackupSelectionTree from '$lib/components/backup/backup-selection-tree.svelte';
-  import SyncButton from '$lib/components/settings/sync/sync-button.svelte';
+  import DialogButton from '$lib/components/dialog/dialog-button.svelte';
+  import DialogContentShell from '$lib/components/dialog/dialog-content-shell.svelte';
+  import { useDialogController } from '$lib/components/dialog/show-dialog';
   import { isEmptySelection } from '$lib/components/backup/backup-types';
 
   interface Props {
@@ -38,6 +40,7 @@
 
   let exporting = $state(false);
   let errorMessage = $state<string | null>(null);
+  const dialogController = useDialogController();
 
   async function submit() {
     if (isEmptySelection(selection)) return;
@@ -45,9 +48,7 @@
     errorMessage = null;
     try {
       await onExport(selection);
-      // Close the dialog by submitting a form with value=done.
-      const form = document.getElementById('backup-export-form') as HTMLFormElement | null;
-      form?.requestSubmit();
+      dialogController.close('done');
     } catch (err) {
       errorMessage = err instanceof Error ? err.message : String(err);
     } finally {
@@ -56,35 +57,25 @@
   }
 </script>
 
-<div class="w-[560px] max-w-full">
-  <header class="border-b border-black/10 pb-4">
-    <h2 class="text-xl font-medium">Export backup</h2>
-    <p class="mt-1 text-sm text-gray-600">
-      Select what to include in the ZIP. Bookmarks and statistics can only be exported alongside
-      their book.
-    </p>
-  </header>
+<DialogContentShell
+  title="Export backup"
+  description="Select what to include in the ZIP. Bookmarks and statistics can only be exported alongside their book."
+>
+  <BackupSelectionTree {catalog} {selection} onchange={(next) => (selection = next)} />
+  {#if errorMessage}
+    <div class="mt-3 rounded-md bg-red-50 px-3 py-2 text-red-900">
+      {errorMessage}
+    </div>
+  {/if}
 
-  <div class="py-4">
-    <BackupSelectionTree {catalog} {selection} onchange={(next) => (selection = next)} />
-    {#if errorMessage}
-      <div class="mt-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-900">
-        {errorMessage}
-      </div>
-    {/if}
-  </div>
-
-  <footer class="flex items-center justify-end gap-2 border-t border-black/10 pt-4">
-    <form id="backup-export-form" method="dialog" class="m-0 flex gap-2">
-      <SyncButton type="submit" value="cancel" disabled={exporting}>Cancel</SyncButton>
-      <SyncButton
-        type="button"
-        variant="primary"
-        disabled={exporting || isEmptySelection(selection)}
-        onclick={submit}
-      >
-        {exporting ? 'Exporting' : 'Export'}
-      </SyncButton>
-    </form>
-  </footer>
-</div>
+  {#snippet actions()}
+    <DialogButton value="cancel" disabled={exporting}>Cancel</DialogButton>
+    <DialogButton
+      type="button"
+      disabled={exporting || isEmptySelection(selection)}
+      onclick={submit}
+    >
+      {exporting ? 'Exporting' : 'Export'}
+    </DialogButton>
+  {/snippet}
+</DialogContentShell>

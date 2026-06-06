@@ -29,7 +29,7 @@
     trackerPopupDetection$,
     trackerSkipThresholdAction$
   } from '$lib/data/store';
-  import { messageDialog } from '$lib/components/simple-dialogs';
+  import { showMessageDialog } from '$lib/components/message-dialog.svelte';
   import { formatPageTitle } from '$lib/functions/format-page-title';
   import { secondsToMinutes } from '$lib/functions/statistic-util';
   import Fa from 'svelte-fa';
@@ -85,7 +85,7 @@
           database
             .clearZombieStatistics()
             .catch(({ message }) =>
-              messageDialog({
+              showMessageDialog({
                 title: 'Error',
                 message: `Error clearing zombie statistics: ${message}`
               })

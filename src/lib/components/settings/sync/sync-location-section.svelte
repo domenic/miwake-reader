@@ -1,7 +1,7 @@
 <script lang="ts">
   import { browser } from '$app/environment';
   import { appName } from '$lib/data/env';
-  import { messageDialog } from '$lib/components/simple-dialogs';
+  import { showMessageDialog } from '$lib/components/message-dialog.svelte';
   import { SyncEndpointType } from '$lib/data/storage/storage-types';
   import { database } from '$lib/data/store';
   import {
@@ -99,7 +99,7 @@
     } catch (err: any) {
       // Picker cancel is silent; other errors surface.
       if (err.name !== 'AbortError') {
-        await messageDialog({
+        await showMessageDialog({
           title: `Couldn't connect to ${targetLabel}`,
           message: err instanceof Error ? err.message : String(err)
         });
@@ -136,7 +136,7 @@
       });
       await retryAfterReconnect();
     } catch (err) {
-      await messageDialog({
+      await showMessageDialog({
         title: "Couldn't reconnect",
         message: err instanceof Error ? err.message : String(err)
       });
@@ -153,7 +153,7 @@
       await connectFs({ regrantCurrentSource: true });
     } catch (err: any) {
       if (err.name !== 'AbortError') {
-        await messageDialog({
+        await showMessageDialog({
           title: "Couldn't grant folder access",
           message: err instanceof Error ? err.message : String(err)
         });

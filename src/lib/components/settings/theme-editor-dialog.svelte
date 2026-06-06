@@ -1,13 +1,13 @@
 <script module lang="ts">
-  import ThemeEditorDialogContent from '$lib/components/settings/theme-editor-dialog-content.svelte';
-  import { showDialog } from '$lib/components/simple-dialogs';
+  import ThemeEditorDialog from '$lib/components/settings/theme-editor-dialog.svelte';
+  import { showDialog } from '$lib/components/dialog/show-dialog';
 
   export function showThemeEditorDialog(params: {
     selectedTheme?: string;
     existingThemes: { id: string; text: string }[];
   }) {
     showDialog(
-      ThemeEditorDialogContent,
+      ThemeEditorDialog,
       {
         selectedTheme: params.selectedTheme,
         existingThemes: params.existingThemes
@@ -21,13 +21,9 @@
 </script>
 
 <script lang="ts">
-  import { ripple } from '$lib/components/ripple';
-  import {
-    buttonClasses,
-    dialogTitleClasses,
-    dialogActionsClasses,
-    inputClasses
-  } from '$lib/css-classes';
+  import DialogButton from '$lib/components/dialog/dialog-button.svelte';
+  import DialogContentShell from '$lib/components/dialog/dialog-content-shell.svelte';
+  import { inputClasses } from '$lib/css-classes';
   import { customThemes$, theme$ } from '$lib/data/store';
   import {
     FuriganaStyle,
@@ -202,26 +198,29 @@
   const popoverSuffix = Math.random().toString(36).slice(2, 10);
 </script>
 
-<div class="min-w-[min(24rem,85vw)]">
-  <div class="mb-4 flex items-center justify-between">
-    <h2 class={dialogTitleClasses} style="margin-bottom: 0">
-      {isEditMode ? 'Edit theme' : 'Create theme'}
-    </h2>
-    <select
-      class="cursor-pointer appearance-none bg-none rounded border border-gray-300 px-2 py-1 text-sm text-cyan-900"
-      onchange={(e) => {
-        const select = e.target as HTMLSelectElement;
-        const theme = availableThemes.get(select.value) || $customThemes$[select.value];
-        if (theme) customTheme = parseTheme(theme);
-        select.value = '';
-      }}
-    >
-      <option value="" disabled selected>Copy from...</option>
-      {#each init.existingThemes as theme (theme.id)}
-        <option value={theme.id}>{theme.id}</option>
-      {/each}
-    </select>
-  </div>
+<DialogContentShell
+  title={isEditMode ? 'Edit theme' : 'Create theme'}
+  onsubmit={(e) => {
+    const submitter = e.submitter as HTMLButtonElement | null;
+    if (submitter?.value === 'confirm' && !validateAndSave()) {
+      e.preventDefault();
+    }
+  }}
+>
+  <select
+    class="theme-copy-from cursor-pointer appearance-none bg-none rounded border border-gray-300 px-2 py-1 text-sm text-cyan-900"
+    onchange={(e) => {
+      const select = e.target as HTMLSelectElement;
+      const theme = availableThemes.get(select.value) || $customThemes$[select.value];
+      if (theme) customTheme = parseTheme(theme);
+      select.value = '';
+    }}
+  >
+    <option value="" disabled selected>Copy from...</option>
+    {#each init.existingThemes as theme (theme.id)}
+      <option value={theme.id}>{theme.id}</option>
+    {/each}
+  </select>
 
   <input
     type="text"
@@ -230,6 +229,7 @@
     placeholder="Theme name"
     bind:value={themeName}
     bind:this={themeNameElm}
+    oninput={() => themeNameElm?.setCustomValidity('')}
   />
 
   <!-- Preview panel -->
@@ -344,21 +344,12 @@
       </div>
     {/each}
   </div>
-</div>
 
-<form
-  method="dialog"
-  class={dialogActionsClasses}
-  onsubmit={(e) => {
-    const submitter = (e as SubmitEvent).submitter as HTMLButtonElement | null;
-    if (submitter?.value === 'confirm' && !validateAndSave()) {
-      e.preventDefault();
-    }
-  }}
->
-  <button use:ripple class={buttonClasses} value="cancel" type="submit">Cancel</button>
-  <button use:ripple class={buttonClasses} value="confirm" type="submit">Save theme</button>
-</form>
+  {#snippet actions()}
+    <DialogButton value="cancel" formnovalidate>Cancel</DialogButton>
+    <DialogButton value="confirm">Save theme</DialogButton>
+  {/snippet}
+</DialogContentShell>
 
 <style>
   /* Shared checkerboard for alpha visibility */
@@ -377,6 +368,20 @@
 
   .color-popover {
     position-area: bottom span-right;
+  }
+
+  .theme-copy-from {
+    position: absolute;
+    inset-block-start: 0;
+    inset-inline-end: 0;
+    z-index: 1;
+  }
+
+  @media (max-width: 34rem) {
+    .theme-copy-from {
+      position: static;
+      margin-block-end: 1rem;
+    }
   }
 
   .alpha-slider {

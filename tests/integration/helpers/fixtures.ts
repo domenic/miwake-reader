@@ -243,7 +243,7 @@ export async function deleteAllStatisticsFromSummary(page: Page) {
 
   const dialog = page.locator('dialog[open]');
   await expect(dialog.getByRole('heading', { name: 'Delete data' })).toBeVisible();
-  await dialog.getByRole('button', { name: 'Confirm' }).click();
+  await dialog.getByRole('button', { name: 'Delete', exact: true }).click();
   await expect(page.getByText(/No Data found/)).toBeVisible({ timeout: SYNC_ASSERTION_TIMEOUT });
 }
 

@@ -15,7 +15,7 @@
   import { userFonts$ } from '$lib/data/store';
   import { logger } from '$lib/data/logger';
   import { parseFontName } from '$lib/functions/parse-font-name';
-  import { messageDialog } from '$lib/components/simple-dialogs';
+  import { showMessageDialog } from '$lib/components/message-dialog.svelte';
   import Fa from 'svelte-fa';
   import { onMount } from 'svelte';
 
@@ -118,7 +118,7 @@
 
     const ext = file.name.split('.').pop()?.toLowerCase();
     if (!ext || !['woff2', 'woff', 'ttf', 'otf'].includes(ext)) {
-      messageDialog({
+      showMessageDialog({
         title: 'Unsupported format',
         message: 'Only .woff2, .woff, .ttf, and .otf fonts are supported.'
       });
@@ -137,7 +137,10 @@
     }
 
     if (reservedFontNames.has(name) || $userFonts$.some((uf) => uf.name === name)) {
-      messageDialog({ title: 'Name conflict', message: `A font named "${name}" already exists.` });
+      showMessageDialog({
+        title: 'Name conflict',
+        message: `A font named "${name}" already exists.`
+      });
       return;
     }
 
@@ -156,7 +159,7 @@
       selectFont(name);
     } catch (error: any) {
       logger.error(`Error uploading font: ${error.message}`);
-      messageDialog({ title: 'Upload failed', message: error.message });
+      showMessageDialog({ title: 'Upload failed', message: error.message });
     }
   }
 

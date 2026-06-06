@@ -1,6 +1,6 @@
 <script module lang="ts">
   import SyncLeaveDialog from '$lib/components/settings/sync/sync-leave-dialog.svelte';
-  import { showDialog } from '$lib/components/simple-dialogs';
+  import { showDialog } from '$lib/components/dialog/show-dialog';
   import type { SyncLocation } from '$lib/data/sync/sync-store.svelte';
 
   /**
@@ -47,7 +47,8 @@
 </script>
 
 <script lang="ts">
-  import SyncButton from '$lib/components/settings/sync/sync-button.svelte';
+  import DialogButton from '$lib/components/dialog/dialog-button.svelte';
+  import DialogContentShell from '$lib/components/dialog/dialog-content-shell.svelte';
   import { describeSyncLocation } from '$lib/components/settings/sync/sync-utils';
 
   interface Props {
@@ -118,57 +119,46 @@
   });
 </script>
 
-<div class="w-120 max-w-full">
-  <header class="border-b border-black/10 pb-4">
-    <h2 class="text-xl font-medium">{title}</h2>
-    <p class="mt-2 text-sm text-gray-700">{bodyText} {sourceUntouched}</p>
-  </header>
-
-  <div class="py-4">
-    {#if downloadedCount > 0 || placeholderCount > 0}
-      <div class="px-2 text-sm text-gray-700">What happens to your library on this device:</div>
-      <ul class="mt-2 ml-2 space-y-2 text-sm text-gray-700">
-        {#if downloadedFate()}
-          <li class="flex gap-2">
-            <span aria-hidden="true">•</span>
-            <span>{downloadedFate()}</span>
-          </li>
-        {/if}
-        {#if placeholderFate()}
-          <li class="flex gap-2">
-            <span aria-hidden="true">•</span>
-            <span>{placeholderFate()}</span>
-          </li>
-        {/if}
-      </ul>
-
-      {#if downloadedCount > 0}
-        <label class="mt-4 flex items-start gap-3 rounded p-2 text-sm hover:bg-gray-400/15">
-          <input type="checkbox" class="mt-1" bind:checked={clearLibrary} />
-          <div>
-            <div class="font-medium">
-              Also wipe my library on this device ({plural(downloadedCount, 'book', 'books')})
-            </div>
-            <div class="text-xs text-gray-600">
-              Deletes the downloaded books, bookmarks, and reading statistics from this device. Use
-              this for a clean slate{nextLabel === null ? '.' : ` at ${nextLabel}.`}
-            </div>
-          </div>
-        </label>
+<DialogContentShell {title} description={`${bodyText} ${sourceUntouched}`}>
+  {#if downloadedCount > 0 || placeholderCount > 0}
+    <div>What happens to your library on this device:</div>
+    <ul class="mt-2 ml-2 space-y-2">
+      {#if downloadedFate()}
+        <li class="flex gap-2">
+          <span aria-hidden="true">•</span>
+          <span>{downloadedFate()}</span>
+        </li>
       {/if}
-    {:else}
-      <p class="px-2 text-sm text-gray-600">
-        Your library is empty on this device — nothing to wipe.
-      </p>
-    {/if}
-  </div>
+      {#if placeholderFate()}
+        <li class="flex gap-2">
+          <span aria-hidden="true">•</span>
+          <span>{placeholderFate()}</span>
+        </li>
+      {/if}
+    </ul>
 
-  <footer class="flex items-center justify-end gap-2 border-t border-black/10 pt-4">
-    <form method="dialog" class="m-0 flex gap-2">
-      <SyncButton type="submit" value="cancel">Cancel</SyncButton>
-      <SyncButton type="submit" value="confirm" variant={clearLibrary ? 'danger' : 'primary'}>
-        {confirmLabel}{clearLibrary ? ' and wipe' : ''}
-      </SyncButton>
-    </form>
-  </footer>
-</div>
+    {#if downloadedCount > 0}
+      <label class="mt-4 flex items-start gap-3 rounded hover:bg-gray-400/15">
+        <input type="checkbox" class="mt-1" bind:checked={clearLibrary} />
+        <div>
+          <div class="font-medium">
+            Also wipe my library on this device ({plural(downloadedCount, 'book', 'books')})
+          </div>
+          <div class="text-xs text-gray-600">
+            Deletes the downloaded books, bookmarks, and reading statistics from this device. Use
+            this for a clean slate{nextLabel === null ? '.' : ` at ${nextLabel}.`}
+          </div>
+        </div>
+      </label>
+    {/if}
+  {:else}
+    <p class="text-gray-600">Your library is empty on this device — nothing to wipe.</p>
+  {/if}
+
+  {#snippet actions()}
+    <DialogButton value="cancel">Cancel</DialogButton>
+    <DialogButton value="confirm" danger={clearLibrary}>
+      {confirmLabel}{clearLibrary ? ' and wipe' : ''}
+    </DialogButton>
+  {/snippet}
+</DialogContentShell>

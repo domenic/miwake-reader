@@ -25,7 +25,7 @@ export async function signOutAndWipe(page: Page) {
   await expect(dialog.getByRole('heading')).toContainText('Sign out and wipe local data?');
   await Promise.all([
     page.waitForURL('/manage'),
-    dialog.getByRole('button', { name: 'Confirm' }).click()
+    dialog.getByRole('button', { name: 'Sign out and wipe' }).click()
   ]);
 }
 
@@ -68,7 +68,7 @@ export async function openChangeFolderDialog(page: Page) {
 export async function completeCurrentBook(page: Page) {
   await page.getByRole('button', { name: 'Show reader header' }).click();
   await page.getByRole('button', { name: 'Complete Book' }).click();
-  await page.locator('dialog[open]').getByRole('button', { name: 'Confirm' }).click();
+  await page.locator('dialog[open]').getByRole('button', { name: 'Complete' }).click();
   await expect(page.getByRole('button', { name: 'Undo Complete' })).toBeVisible();
 }
 

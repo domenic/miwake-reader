@@ -7,6 +7,3 @@ export const buttonClasses =
 export const baseIconClasses =
   'flex justify-center select-none items-center h-12 w-12 cursor-pointer text-xl p-2.5 opacity-60 hover:opacity-100 transition-opacity';
 export const headerDividerClasses = 'mx-1 h-6 w-px self-center bg-white/30';
-export const dialogSurfaceClasses = 'mdc-elevation--z24 rounded-sm bg-white p-6';
-export const dialogTitleClasses = 'weight-medium mb-5 text-xl';
-export const dialogActionsClasses = 'flex grow flex-wrap items-center justify-center gap-4 pt-5';

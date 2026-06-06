@@ -112,7 +112,7 @@
     type SectionWithProgress
   } from '$lib/components/book-reader/book-toc/book-toc';
   import BookToc from '$lib/components/book-reader/book-toc/book-toc.svelte';
-  import { numberDialog } from '$lib/components/simple-dialogs';
+  import { showNumberDialog } from '$lib/components/number-dialog.svelte';
   import { mergeEntries } from '$lib/components/merged-header-icon/merged-entries';
   import SidebarOverlay from '$lib/components/sidebar-overlay.svelte';
   import { preFilteredTitlesForStatistics$ } from '$lib/components/statistics/statistics-types';
@@ -125,7 +125,8 @@
   import { DB_VERSION, PAGE_CHANGE, SKIPKEYLISTENER, SYNCED } from '$lib/data/events';
   import { fullscreenManager } from '$lib/data/fullscreen-manager';
   import { logger } from '$lib/data/logger';
-  import { confirmDialog, messageDialog } from '$lib/components/simple-dialogs';
+  import { showConfirmDialog } from '$lib/components/confirm-dialog.svelte';
+  import { showMessageDialog } from '$lib/components/message-dialog.svelte';
   import {
     markBookOpened,
     openBook,
@@ -304,7 +305,7 @@
 
         logger.warn(message);
 
-        messageDialog({ title: 'Load error', message });
+        showMessageDialog({ title: 'Load error', message });
         return undefined;
       } finally {
         logger.debug(
@@ -631,8 +632,9 @@
     pauseTracker('jump');
     skipKeyDownListener$.next(true);
 
-    const target = await numberDialog({
+    const target = await showNumberDialog({
       title: 'Jump to character',
+      label: 'Character position',
       actionLabel: 'Jump',
       minValue: 1,
       maxValue: bookCharCount || 1
@@ -676,14 +678,15 @@
         $statisticsEnabled$ && $addCharactersOnCompletion$
           ? Math.max(0, bookCharCount - exploredCharCount)
           : 0;
-      const wasCanceled = await confirmDialog({
+      const confirmed = await showConfirmDialog({
         title: 'Complete book',
         message: `Would you like to complete this book${
           diffToComplete ? ` and capture ${diffToComplete} characters read` : ''
-        }?`
+        }?`,
+        confirmLabel: 'Complete'
       });
 
-      if (wasCanceled) {
+      if (!confirmed) {
         if ($statisticsEnabled$) {
           resumeTrackerFor('completion');
         }
@@ -786,7 +789,7 @@
           });
       }
     } catch (error: any) {
-      messageDialog({ title: 'Error', message: `Error completing book: ${error.message}` });
+      showMessageDialog({ title: 'Error', message: `Error completing book: ${error.message}` });
     } finally {
       endReaderAction();
     }
@@ -1034,12 +1037,13 @@
         pauseTrackerFor('leaving-reader');
 
         if ($confirmClose$ && storedExploredCharacter !== exploredCharCount) {
-          const wasCanceled = await confirmDialog({
+          const confirmed = await showConfirmDialog({
             title: 'Confirm exit',
-            message: 'Your current location was not bookmarked. Continue leaving?'
+            message: 'Your current location was not bookmarked. Continue leaving?',
+            confirmLabel: 'Continue'
           });
 
-          if (wasCanceled) {
+          if (!confirmed) {
             resumeTrackerFor('leaving-reader');
             return;
           }
@@ -1067,7 +1071,7 @@
       if (message) {
         logger.error(message);
 
-        messageDialog({ title: 'Error', message });
+        showMessageDialog({ title: 'Error', message });
       }
 
       await goto(resolve(routeId));
