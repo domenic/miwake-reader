@@ -1,8 +1,7 @@
 <script lang="ts">
   // Bottom-left controls cluster — always shows the sync status pill;
   // in reader mode, stacks a play/pause and a stats-menu button above
-  // it. The sync pill stays anchored at bottom-3 left-3 across every
-  // route so users always know where to find it.
+  // it. The sync pill stays anchored in the lower-left corner across every route so users always know where to find it.
   import { goto } from '$app/navigation';
   import { resolve } from '$app/paths';
   import { page } from '$app/state';
@@ -139,11 +138,10 @@
     );
   }
 
-  // 32px hit target, 16-18px icon. Hover dabs a faint translucent
-  // backdrop in so users get a "this is interactive" affordance
-  // without a permanent button surface.
+  // The hit target size comes from the shared sync-indicator CSS variables.
+  // Hover dabs a faint translucent backdrop in so users get a "this is interactive" affordance without a permanent button surface.
   const buttonClass =
-    'flex h-8 w-8 items-center justify-center rounded-full text-base sm:text-lg transition-colors hover:bg-black/5';
+    'sync-indicator-size flex items-center justify-center rounded-full text-base transition-colors hover:bg-black/5 sm:text-lg';
 </script>
 
 {#snippet clusterButton(
@@ -179,7 +177,7 @@
   </Popover>
 {/snippet}
 
-<div class="writing-horizontal-tb fixed bottom-3 left-3 z-40 flex flex-col-reverse gap-2">
+<div class="sync-indicator-inset writing-horizontal-tb fixed z-40 flex flex-col-reverse gap-2">
   {@render clusterButton(syncLabel, icons[indicator.kind], {
     onClick: onSyncClick,
     clickable: syncClickable,

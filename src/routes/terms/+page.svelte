@@ -2,7 +2,7 @@
   import { resolve } from '$app/paths';
 </script>
 
-<div class="mx-auto max-w-2xl p-8">
+<div class="sync-safe-px mx-auto max-w-2xl py-8">
   <h1 class="mb-6 text-2xl font-bold">Terms of Service</h1>
 
   <p class="mb-4">
