@@ -57,6 +57,7 @@
     showFooterChapterCharacterCounter$,
     showFooterChapterPercentage$,
     textIndentation$,
+    textMarginMode$,
     textMarginValue$,
     theme$,
     trackerAutostartTime$,
@@ -1399,6 +1400,7 @@
     fontSize={$fontSize$}
     lineHeight={$lineHeight$}
     textIndentation={$textIndentation$}
+    textMarginMode={$textMarginMode$}
     textMarginValue={$textMarginValue$}
     hideSpoilerImage={$hideSpoilerImage$}
     furiganaStyle={$furiganaStyle$}

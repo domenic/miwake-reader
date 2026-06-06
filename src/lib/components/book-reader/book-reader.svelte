@@ -19,6 +19,7 @@
   import { pxReader } from '$lib/components/book-reader/css-classes';
   import type { BooksDbBookmarkData } from '$lib/data/database/books-db/versions/books-db';
   import { FuriganaStyle } from '$lib/data/furigana-style';
+  import type { TextMarginMode } from '$lib/data/text-margin-mode';
   import { ViewMode } from '$lib/data/view-mode';
   import { iffBrowser } from '$lib/functions/rxjs/iff-browser';
   import { reduceToEmptyString } from '$lib/functions/rxjs/reduce-to-empty-string';
@@ -42,6 +43,7 @@
     enableTextJustification: boolean;
     enableTextWrapPretty: boolean;
     textIndentation: number;
+    textMarginMode: TextMarginMode;
     textMarginValue: number;
     fontColor: string;
     backgroundColor: string;
@@ -90,6 +92,7 @@
     enableTextJustification,
     enableTextWrapPretty,
     textIndentation,
+    textMarginMode,
     textMarginValue,
     fontColor,
     backgroundColor,
@@ -317,6 +320,7 @@
       {fontSize}
       {lineHeight}
       {textIndentation}
+      {textMarginMode}
       {textMarginValue}
       {hideSpoilerImage}
       {furiganaStyle}
@@ -361,6 +365,7 @@
       {fontSize}
       {lineHeight}
       {textIndentation}
+      {textMarginMode}
       {textMarginValue}
       {hideSpoilerImage}
       {furiganaStyle}
