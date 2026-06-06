@@ -6,6 +6,7 @@
   import { isStoredFont } from '$lib/data/fonts';
   import { FuriganaStyle } from '$lib/data/furigana-style';
   import { logger } from '$lib/data/logger';
+  import type { TextMarginMode } from '$lib/data/text-margin-mode';
   import {
     disableWheelNavigation$,
     firstDimensionMargin$,
@@ -60,6 +61,7 @@
     fontSize: number;
     lineHeight: number;
     textIndentation: number;
+    textMarginMode: TextMarginMode;
     textMarginValue: number;
     hideSpoilerImage: boolean;
     furiganaStyle: FuriganaStyle;
@@ -101,6 +103,7 @@
     fontSize,
     lineHeight,
     textIndentation,
+    textMarginMode,
     textMarginValue,
     hideSpoilerImage,
     furiganaStyle,
@@ -750,6 +753,7 @@
   class:book-content--furigana-style-toggle={furiganaStyle === FuriganaStyle.Toggle}
   class:ttu-apply-important={prioritizeReaderStyles}
   class:ttu-apply-justification={enableTextJustification}
+  class:ttu-margin-manual={textMarginMode === 'manual'}
   class:ttu-text-wrap-pretty={enableTextWrapPretty}
   class="book-content m-auto"
   {...useSwipe(onSwipe, () => ({
