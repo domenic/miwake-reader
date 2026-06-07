@@ -1196,7 +1196,7 @@
         style:grid-column={`${heatmapDay.heatmapColumn}/${heatmapDay.heatmapColumn}`}
         style:background-color={heatmapDay.color || null}
         style:border-width={`${isSelected || isToday ? '3' : '1'}px`}
-        title={`${heatmapDay.isCurrentYear ? `${heatmapDay.dayDetails.join('\n')}` : ''}`}
+        aria-label={heatmapDay.isCurrentYear ? heatmapDay.dayDetails.join(', ') : undefined}
         data-date={heatmapDay.dateString}
         onclick={(event) => {
           if (!heatmapDay.isCurrentYear) {
