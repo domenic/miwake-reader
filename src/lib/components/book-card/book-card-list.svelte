@@ -62,11 +62,15 @@
         class:rounded-tl-xl={bookCard.id === currentBookId}
         class:mdc-elevation--z4={selectedBookIds.has(bookCard.id) || bookCard.id === currentBookId}
       >
-        <BookCard {...bookCard} onclick={() => onBookCardClick(bookCard.id)} />
+        <BookCard
+          {...bookCard}
+          tooltip={bookCard.isPlaceholder ? placeholderTooltip : undefined}
+          onclick={() => onBookCardClick(bookCard.id)}
+        />
 
         {#if bookCard.isPlaceholder}
           <div
-            title={placeholderTooltip}
+            aria-hidden="true"
             class="pointer-events-none absolute top-2 right-2 flex size-7 items-center justify-center rounded-full bg-white/90 text-gray-700 shadow"
           >
             <Fa icon={placeholderIcon} />

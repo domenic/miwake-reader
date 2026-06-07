@@ -41,7 +41,7 @@
   } from '$lib/data/store';
   import { getNumberFromObject, secondsToMinutes } from '$lib/functions/statistic-util';
   import { reduceToEmptyString } from '$lib/functions/rxjs/reduce-to-empty-string';
-  import { convertRemToPixels, dummyFn, getFullHeight, limitToRange } from '$lib/functions/utils';
+  import { convertRemToPixels, getFullHeight, limitToRange } from '$lib/functions/utils';
   import { debounceTime, fromEvent, tap } from 'rxjs';
   import { tick, untrack } from 'svelte';
   import Fa from 'svelte-fa';
@@ -70,7 +70,6 @@
   const statisticsSummaryPageRefs: HTMLButtonElement[] = $state([]);
   let statisticsSummaryPagesContainer = $state<HTMLElement>();
   let statisticsSummaryPopoverDetails: string[] = $state([]);
-  let statisticsSummaryPopoverDetailsLang = $state<string>();
   let rowInEdit = $state<BookStatistic>();
   let rowInEditTime = $state(0);
   let rowInEditCharacters = $state(0);
@@ -446,27 +445,14 @@
             </button>
           {/if}
         </div>
-        <div class:hidden={isTitleAggregation}>
+        <div class="whitespace-nowrap" class:hidden={isTitleAggregation}>
           {currentStatisticsSummaryRow.dateKey}
         </div>
         <div
-          tabindex="0"
-          role="button"
           class="line-clamp-2"
           class:hidden={isDateAggregation}
           title={currentStatisticsSummaryRow.title}
           lang={titleLang}
-          onclick={(event) => {
-            statisticsSummaryPopoverDetails = [currentStatisticsSummaryRow.title];
-            statisticsSummaryPopoverDetailsLang = titleLang;
-
-            tick().then(() => {
-              if (event.target instanceof HTMLElement) {
-                statisticsSummaryPopover?.toggleOpen(event.target);
-              }
-            });
-          }}
-          onkeyup={dummyFn}
         >
           {currentStatisticsSummaryRow.title}
         </div>
@@ -486,7 +472,6 @@
             class="text-left"
             class:blur={$lastBlurredTrackerItems$.has('readingTime')}
             onclick={(event) => {
-              statisticsSummaryPopoverDetailsLang = undefined;
               statisticsSummaryPopoverDetails = [
                 `Time: ${secondsToMinutes(currentStatisticsSummaryRow.readingTime)} min`,
                 `Average Time: ${secondsToMinutes(
@@ -525,7 +510,6 @@
             class="text-left"
             class:blur={$lastBlurredTrackerItems$.has('charactersRead')}
             onclick={(event) => {
-              statisticsSummaryPopoverDetailsLang = undefined;
               statisticsSummaryPopoverDetails = [
                 `Characters: ${currentStatisticsSummaryRow.charactersRead}`,
                 `Average Characters: ${currentStatisticsSummaryRow.averageCharactersRead}`,
@@ -552,7 +536,6 @@
             class="text-left"
             class:blur={$lastBlurredTrackerItems$.has('lastReadingSpeed')}
             onclick={(event) => {
-              statisticsSummaryPopoverDetailsLang = undefined;
               statisticsSummaryPopoverDetails = [
                 `Speed: ${currentStatisticsSummaryRow.lastReadingSpeed}`,
                 `Min Speed: ${currentStatisticsSummaryRow.minReadingSpeed}`,
@@ -582,13 +565,14 @@
         {#snippet content()}
           <div class="p-4">
             <button
+              title="Close details"
               class="flex w-full justify-end absolute top-1 right-2"
               onclick={() => (statisticsSummaryPopoverDetails = [])}
             >
               <Fa icon={faClose} />
             </button>
             {#each statisticsSummaryPopoverDetails as popoverDetail, index (`${popoverDetail}-${index}`)}
-              <div class="mb-2 last:mb-0" lang={statisticsSummaryPopoverDetailsLang}>
+              <div class="mb-2 last:mb-0">
                 {popoverDetail}
               </div>
             {/each}

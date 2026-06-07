@@ -10,11 +10,12 @@
     title: string;
     progress: number;
     completed: boolean;
+    tooltip?: string;
     onclick?: MouseEventHandler<HTMLDivElement>;
     onkeyup?: KeyboardEventHandler<HTMLDivElement>;
   }
 
-  let { imagePath, title, progress, completed, onclick, onkeyup }: Props = $props();
+  let { imagePath, title, progress, completed, tooltip, onclick, onkeyup }: Props = $props();
 
   const componentId = $props.id();
 
@@ -69,7 +70,7 @@
   );
 </script>
 
-<div tabindex="0" role="button" class="relative aspect-2/3" {onclick} {onkeyup}>
+<div tabindex="0" role="button" class="relative aspect-2/3" title={tooltip} {onclick} {onkeyup}>
   <div class="inline">
     <div class="size-full text-5xl sm:text-7xl">
       {#if imageLoading}

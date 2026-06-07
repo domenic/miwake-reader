@@ -219,9 +219,9 @@ export async function expectStatisticsInSummary(
       await expect(page.getByText(dateKey, { exact: true })).toBeVisible({
         timeout: SYNC_ASSERTION_TIMEOUT
       });
-      await expect(
-        page.getByRole('button', { name: fixtureTitle(fixture), exact: true }).first()
-      ).toBeVisible({ timeout: SYNC_ASSERTION_TIMEOUT });
+      await expect(page.getByText(fixtureTitle(fixture), { exact: true }).first()).toBeVisible({
+        timeout: SYNC_ASSERTION_TIMEOUT
+      });
     }),
     ...absent.map(async ({ dateKey }) => {
       await expect(page.getByText(dateKey, { exact: true })).toHaveCount(0, {
