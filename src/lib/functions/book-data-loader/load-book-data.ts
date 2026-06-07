@@ -8,10 +8,9 @@ export default function loadBookData(
   bookData: BooksDbBookData,
   parentSelector: string,
   document: Document,
-  isPaginated: boolean,
   blurMode: BlurMode
 ) {
-  return formatBookDataHtml(bookData, document, isPaginated, blurMode).pipe(
+  return formatBookDataHtml(bookData, document, blurMode).pipe(
     map((htmlContent) => ({
       htmlContent,
       styleSheet: formatStyleSheet(bookData, parentSelector)

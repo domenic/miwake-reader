@@ -20,7 +20,6 @@
     tap,
     timer
   } from 'rxjs';
-  import { SvelteMap } from 'svelte/reactivity';
   import { browser } from '$app/environment';
   import { page } from '$app/state';
   import { goto } from '$app/navigation';
@@ -88,11 +87,7 @@
   } from '$lib/data/store';
   import BookCompletionConfetti from '$lib/components/book-reader/book-completion-confetti/book-completion-confetti.svelte';
   import BookReaderHeader from '$lib/components/book-reader/book-reader-header.svelte';
-  import {
-    readerImageGalleryPictures$,
-    toggleImageGalleryPictureSpoiler$,
-    updateImageGalleryPictureSpoilers$
-  } from '$lib/components/book-reader/book-reader-image-gallery/book-reader-image-gallery';
+  import { readerImageGallery } from '$lib/components/book-reader/book-reader-image-gallery/book-reader-image-gallery-state.svelte';
   import BookReaderImageGallery from '$lib/components/book-reader/book-reader-image-gallery/book-reader-image-gallery.svelte';
   import { getDefaultStatistic } from '$lib/components/book-reader/book-reading-tracker/tracker-domain';
   import {
@@ -218,7 +213,6 @@
   const syncedPromise = new Promise<void>((resolver) => {
     syncedResolver = resolver;
   });
-  const queuedReaderImageGalleryPictures = new SvelteMap<string, boolean>();
   const fontFeatureSettings = [
     $enableVerticalFontKerning$ && '"vkrn"',
     $enableFontVPAL$ && '"vpal"'
@@ -346,13 +340,7 @@
         `reader/bookData$: loadBookData start (sections=${rawBookData.sections?.length ?? 0}, htmlLen=${rawBookData.elementHtml?.length ?? 0})`
       );
 
-      return loadBookData(
-        rawBookData,
-        '.book-content',
-        document,
-        $viewMode$ === ViewMode.Paginated,
-        $hideSpoilerImageMode$
-      );
+      return loadBookData(rawBookData, '.book-content', document, $hideSpoilerImageMode$);
     }),
     tap((loaded) => {
       logger.debug(
@@ -388,36 +376,6 @@
   );
 
   const backgroundColor$ = themeOption$.pipe(map((o) => o.backgroundColor));
-
-  const collectReaderImageGallerySpoilerToggles$ = toggleImageGalleryPictureSpoiler$.pipe(
-    tap((readerImageGalleryPicture) => {
-      queuedReaderImageGalleryPictures.set(
-        readerImageGalleryPicture.url,
-        readerImageGalleryPicture.unspoilered
-      );
-
-      updateImageGalleryPictureSpoilers$.next();
-    }),
-    reduceToEmptyString()
-  );
-
-  const handleUpdateImageGalleryPictureSpoilers$ = updateImageGalleryPictureSpoilers$.pipe(
-    debounceTime(250),
-    tap(() => {
-      $readerImageGalleryPictures$ = $readerImageGalleryPictures$.map((galleryPicture) => {
-        const picture = galleryPicture;
-
-        if (queuedReaderImageGalleryPictures.has(picture.url)) {
-          picture.unspoilered = queuedReaderImageGalleryPictures.get(picture.url)!;
-        }
-
-        return picture;
-      });
-
-      queuedReaderImageGalleryPictures.clear();
-    }),
-    reduceToEmptyString()
-  );
 
   const backgroundStyleName = 'background-color';
   const setBackgroundColor$ = backgroundColor$.pipe(
@@ -598,7 +556,7 @@
       document.removeEventListener('miwake-action', handleAction, false);
     }
 
-    readerImageGalleryPictures$.next([]);
+    readerImageGallery.clear();
   });
 
   function handleUnload(event: BeforeUnloadEvent) {
@@ -1263,8 +1221,6 @@
   <title>{formatPageTitle($rawBookData$?.title ?? '')}</title>
 </svelte:head>
 
-{$collectReaderImageGallerySpoilerToggles$ ?? ''}
-{$handleUpdateImageGalleryPictureSpoilers$ ?? ''}
 <button
   class="fixed inset-x-0 top-0 z-10 h-8 w-full"
   aria-label="Show reader header"

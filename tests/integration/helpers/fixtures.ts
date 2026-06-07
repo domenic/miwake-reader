@@ -16,6 +16,7 @@ const NOT_AN_EPUB_BOOK = 'not-an-epub-book';
 export const COVER_REFRESH_BOOK = 'cover-refresh-book';
 export const LONG_BOOK = 'long-book';
 export const PLAIN_TEXT_BOOK = 'plain-text-book';
+export const SPOILER_IMAGE_GALLERY_BOOK = 'spoiler-image-gallery-book';
 export const VALID_BOOK = 'valid-book';
 export const INVALID_IMPORT_BOOKS = [NOT_A_ZIP_BOOK, NOT_AN_EPUB_BOOK] as const;
 
@@ -23,6 +24,7 @@ export type LibraryBookFixture =
   | typeof COVER_REFRESH_BOOK
   | typeof VALID_BOOK
   | typeof LONG_BOOK
+  | typeof SPOILER_IMAGE_GALLERY_BOOK
   | typeof PLAIN_TEXT_BOOK;
 export type InvalidImportBookFixture = typeof NOT_A_ZIP_BOOK | typeof NOT_AN_EPUB_BOOK;
 export type BookFixture = LibraryBookFixture | InvalidImportBookFixture;
@@ -67,6 +69,14 @@ const fixtureMetadata = new Map<BookFixture, BookFixtureMetadata>([
       title: 'Cover refresh book',
       path: resolve(fixtureRoot, 'cover-refresh-book.epub'),
       readerText: 'This book has a deterministic cover image.'
+    }
+  ],
+  [
+    SPOILER_IMAGE_GALLERY_BOOK,
+    {
+      title: 'Spoiler image gallery book',
+      path: resolve(fixtureRoot, 'spoiler-image-gallery-book.epub'),
+      readerText: 'The second illustration should start hidden too.'
     }
   ],
   [
@@ -493,6 +503,7 @@ function libraryBookFixtures(fixtures: readonly BookFixture[]) {
       fixture === COVER_REFRESH_BOOK ||
       fixture === VALID_BOOK ||
       fixture === LONG_BOOK ||
+      fixture === SPOILER_IMAGE_GALLERY_BOOK ||
       fixture === PLAIN_TEXT_BOOK
   );
 }

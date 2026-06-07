@@ -61,6 +61,57 @@ await writeOut(
 );
 
 await writeOut(
+  'spoiler-image-gallery-book.epub',
+  await buildEPUB({
+    title: 'Spoiler image gallery book',
+    author: 'Test Author',
+    identifier: 'urn:uuid:00000000-0000-4000-8000-000000000004',
+    language: 'en',
+    images: {
+      'images/cover-before-toc.bmp': bitmapBytes({ red: 45, green: 95, blue: 210 }),
+      'images/inline-marker.bmp': bitmapBytes({ red: 65, green: 165, blue: 80 }),
+      'images/spoiler-illustration-one.bmp': bitmapBytes({ red: 230, green: 80, blue: 70 }),
+      'images/spoiler-illustration-two.bmp': bitmapBytes({ red: 240, green: 190, blue: 55 })
+    },
+    chapters: [
+      {
+        title: 'Cover',
+        bodyHTML: `
+  <figure>
+    <img src="images/cover-before-toc.bmp" alt="Cover before spoilers" />
+  </figure>`
+      },
+      {
+        title: 'Table of Contents',
+        bodyHTML: `
+  <nav>
+    <ol>
+      <li><a href="chapter3.xhtml">Chapter with images</a></li>
+      <li><a href="chapter3.xhtml#second-spoiler">Second spoiler image</a></li>
+    </ol>
+  </nav>`
+      },
+      {
+        title: 'Chapter with images',
+        bodyHTML: `
+  <p>
+    This chapter has an inline marker
+    <img src="images/inline-marker.bmp" alt="Inline marker" />
+    that should not appear in the gallery.
+  </p>
+  <figure>
+    <img src="images/spoiler-illustration-one.bmp" alt="Spoiler illustration one" />
+  </figure>
+  <p id="second-spoiler">The second illustration should start hidden too.</p>
+  <figure>
+    <img src="images/spoiler-illustration-two.bmp" alt="Spoiler illustration two" />
+  </figure>`
+      }
+    ]
+  })
+);
+
+await writeOut(
   'plain-text-book.txt',
   enc.encode(`This plain text fixture gives the library another real imported book.
 
@@ -92,7 +143,7 @@ async function buildIncompleteEPUB() {
   return writer.getData();
 }
 
-async function buildEPUB({ title, author, identifier, language, chapters, coverColor }) {
+async function buildEPUB({ title, author, identifier, language, chapters, coverColor, images }) {
   const writer = new Uint8ArrayWriter();
   const zip = new ZipWriter(writer);
 
@@ -107,19 +158,21 @@ async function buildEPUB({ title, author, identifier, language, chapters, coverC
   await zip.add('META-INF/container.xml', new TextReader(containerXml()));
   await zip.add(
     'OEBPS/content.opf',
-    new TextReader(packageOpf({ title, author, identifier, language, chapters, coverColor }))
+    new TextReader(
+      packageOpf({ title, author, identifier, language, chapters, coverColor, images })
+    )
   );
   await zip.add('OEBPS/nav.xhtml', new TextReader(navXhtml({ title, chapters })));
   if (coverColor) {
     await zip.add('OEBPS/cover.bmp', new Uint8ArrayReader(coverBitmapBytes(coverColor)));
   }
+  for (const [href, bytes] of Object.entries(images ?? {})) {
+    await zip.add(`OEBPS/${href}`, new Uint8ArrayReader(bytes));
+  }
 
   for (let i = 0; i < chapters.length; i++) {
     const c = chapters[i];
-    await zip.add(
-      `OEBPS/chapter${i + 1}.xhtml`,
-      new TextReader(chapterXhtml(c.title, c.body, language))
-    );
+    await zip.add(`OEBPS/chapter${i + 1}.xhtml`, new TextReader(chapterXhtml(c, language)));
   }
 
   await zip.close();
@@ -136,7 +189,7 @@ function containerXml() {
 `;
 }
 
-function packageOpf({ title, author, identifier, language, chapters, coverColor }) {
+function packageOpf({ title, author, identifier, language, chapters, coverColor, images }) {
   const manifestItems = chapters
     .map(
       (_c, i) =>
@@ -146,19 +199,24 @@ function packageOpf({ title, author, identifier, language, chapters, coverColor 
   const coverItem = coverColor
     ? '\n    <item id="cover" href="cover.bmp" media-type="image/bmp" properties="cover-image"/>'
     : '';
+  const imageItems = Object.keys(images ?? {})
+    .map(
+      (href, i) => `    <item id="image${i + 1}" href="${escapeXML(href)}" media-type="image/bmp"/>`
+    )
+    .join('\n');
   const spineItems = chapters.map((_c, i) => `    <itemref idref="ch${i + 1}"/>`).join('\n');
   return `<?xml version="1.0" encoding="UTF-8"?>
 <package version="3.0" xmlns="http://www.idpf.org/2007/opf" unique-identifier="bookid">
   <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
-    <dc:identifier id="bookid">${escapeXml(identifier)}</dc:identifier>
-    <dc:title>${escapeXml(title)}</dc:title>
-    <dc:creator>${escapeXml(author)}</dc:creator>
-    <dc:language>${escapeXml(language)}</dc:language>
+    <dc:identifier id="bookid">${escapeXML(identifier)}</dc:identifier>
+    <dc:title>${escapeXML(title)}</dc:title>
+    <dc:creator>${escapeXML(author)}</dc:creator>
+    <dc:language>${escapeXML(language)}</dc:language>
     <meta property="dcterms:modified">2024-01-01T00:00:00Z</meta>
   </metadata>
   <manifest>
     <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
-${manifestItems}${coverItem}
+${manifestItems}${coverItem}${imageItems ? `\n${imageItems}` : ''}
   </manifest>
   <spine>
 ${spineItems}
@@ -169,12 +227,12 @@ ${spineItems}
 
 function navXhtml({ title, chapters }) {
   const items = chapters
-    .map((c, i) => `      <li><a href="chapter${i + 1}.xhtml">${escapeXml(c.title)}</a></li>`)
+    .map((c, i) => `      <li><a href="chapter${i + 1}.xhtml">${escapeXML(c.title)}</a></li>`)
     .join('\n');
   return `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE html>
 <html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
-<head><title>${escapeXml(title)}</title></head>
+<head><title>${escapeXML(title)}</title></head>
 <body>
   <nav epub:type="toc" id="toc">
     <h1>Table of Contents</h1>
@@ -187,20 +245,55 @@ ${items}
 `;
 }
 
-function chapterXhtml(title, body, language) {
+function chapterXhtml(chapter, language) {
+  const bodyContent = chapter.bodyHTML ?? `  <p>${escapeXML(chapter.body)}</p>`;
+
   return `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE html>
-<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="${escapeXml(language)}" lang="${escapeXml(language)}">
-<head><title>${escapeXml(title)}</title></head>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="${escapeXML(language)}" lang="${escapeXML(language)}">
+<head><title>${escapeXML(chapter.title)}</title></head>
 <body>
-  <h1>${escapeXml(title)}</h1>
-  <p>${escapeXml(body)}</p>
+  <h1>${escapeXML(chapter.title)}</h1>
+${bodyContent}
 </body>
 </html>
 `;
 }
 
-function escapeXml(s) {
+function bitmapBytes({ red, green, blue }, width = 96, height = 96) {
+  const bytesPerPixel = 3;
+  const rowSize = Math.ceil((width * bytesPerPixel) / 4) * 4;
+  const pixelBytes = rowSize * height;
+  const fileBytes = 54 + pixelBytes;
+  const bytes = new Uint8Array(fileBytes);
+  const view = new DataView(bytes.buffer);
+
+  bytes[0] = 0x42;
+  bytes[1] = 0x4d;
+  view.setUint32(2, fileBytes, true);
+  view.setUint32(10, 54, true);
+  view.setUint32(14, 40, true);
+  view.setInt32(18, width, true);
+  view.setInt32(22, height, true);
+  view.setUint16(26, 1, true);
+  view.setUint16(28, 24, true);
+  view.setUint32(34, pixelBytes, true);
+
+  for (let y = 0; y < height; y += 1) {
+    const rowOffset = 54 + y * rowSize;
+
+    for (let x = 0; x < width; x += 1) {
+      const offset = rowOffset + x * bytesPerPixel;
+      bytes[offset] = blue;
+      bytes[offset + 1] = green;
+      bytes[offset + 2] = red;
+    }
+  }
+
+  return bytes;
+}
+
+function escapeXML(s) {
   return s
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')

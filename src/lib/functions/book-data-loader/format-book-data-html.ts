@@ -6,14 +6,13 @@ import buildDummyBookImage from '$lib/functions/file-loaders/utils/build-dummy-b
 import { isElementGaiji } from '$lib/functions/is-element-gaiji';
 import { map } from 'rxjs/operators';
 import {
-  readerImageGalleryPictures$,
+  readerImageGallery,
   type ReaderImageGalleryPicture
-} from '$lib/components/book-reader/book-reader-image-gallery/book-reader-image-gallery';
+} from '$lib/components/book-reader/book-reader-image-gallery/book-reader-image-gallery-state.svelte';
 
 export default function formatBookDataHtml(
   bookData: BooksDbBookData,
   document: Document,
-  isPaginated: boolean,
   blurMode: BlurMode
 ) {
   return getHtmlWithImageSource(bookData).pipe(
@@ -26,7 +25,7 @@ export default function formatBookDataHtml(
       removeSvgDimensions(element);
       addSpoilerTags(element, document, blurMode);
       removeOldBrTagSolution(element);
-      publishImageGallery(element, objectUrls, urlIndexes, isPaginated);
+      publishImageGallery(element, objectUrls, urlIndexes);
 
       return element.innerHTML;
     })
@@ -71,19 +70,26 @@ function getHtmlWithImageSource(bookData: BooksDbBookData) {
 function publishImageGallery(
   el: HTMLElement,
   objectUrls: string[],
-  urlIndexes: Map<string, number>,
-  isPaginated: boolean
+  urlIndexes: Map<string, number>
 ) {
-  const inlineImageUrls = new Set<string>();
+  const inlineImageURLs = new Set<string>();
   for (const img of el.getElementsByTagName('img')) {
     if (isImageInline(img)) {
-      inlineImageUrls.add(img.src);
+      inlineImageURLs.add(img.src);
     }
   }
 
+  const spoilerImageURLs = new Set<string>();
+  for (const img of el.querySelectorAll(
+    '[data-miwake-spoiler-img] img, [data-miwake-spoiler-img] image'
+  )) {
+    const imageURL = getImageURL(img);
+    if (imageURL) spoilerImageURLs.add(imageURL);
+  }
+
   const readerImageGalleryPictures: ReaderImageGalleryPicture[] = objectUrls
-    .filter((url) => !inlineImageUrls.has(url))
-    .map((url) => ({ url, unspoilered: !isPaginated }));
+    .filter((url) => !inlineImageURLs.has(url))
+    .map((url) => ({ url, unspoilered: !spoilerImageURLs.has(url) }));
 
   readerImageGalleryPictures.sort((picture1, picture2) => {
     const index1 = urlIndexes.get(picture1.url) || 0;
@@ -92,7 +98,17 @@ function publishImageGallery(
     return index1 - index2;
   });
 
-  readerImageGalleryPictures$.next(readerImageGalleryPictures);
+  readerImageGallery.setPictures(readerImageGalleryPictures);
+}
+
+function getImageURL(imageElement: Element) {
+  if (imageElement instanceof HTMLImageElement) return imageElement.src;
+  const imageURL = imageElement.getAttribute('href') || imageElement.getAttribute('xlink:href');
+  if (imageURL) return imageURL;
+  if ('href' in imageElement) {
+    return (imageElement.href as SVGAnimatedString).baseVal;
+  }
+  return undefined;
 }
 
 function addImageContainerClass(el: HTMLElement) {

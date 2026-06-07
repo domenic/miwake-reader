@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onKeyDownReaderImageGallery } from '../../../../routes/b/on-keydown-reader';
   import { faChevronLeft, faChevronRight, faXmark } from '@fortawesome/free-solid-svg-icons';
-  import { readerImageGalleryPictures$ } from '$lib/components/book-reader/book-reader-image-gallery/book-reader-image-gallery';
+  import { readerImageGallery } from '$lib/components/book-reader/book-reader-image-gallery/book-reader-image-gallery-state.svelte';
   import {
     hideSpoilerImage$,
     readerImageGalleryKeybindMap$,
@@ -24,7 +24,7 @@
   let imageContainer: HTMLElement = $state(undefined as any);
   let selectedImageIndex = $state(window.matchMedia('(min-width: 1024px)').matches ? 0 : -1);
 
-  let selectedImage = $derived($readerImageGalleryPictures$[selectedImageIndex]);
+  let selectedImage = $derived(readerImageGallery.pictures[selectedImageIndex]);
 
   $effect(() => {
     if (imageContainer && selectedImage) {
@@ -83,18 +83,6 @@
     onclose?.();
   }
 
-  function toggleGalleryPictureSpoiler(galleryPictureUrl: string) {
-    $readerImageGalleryPictures$ = $readerImageGalleryPictures$.map((galleryPicture) => {
-      const picture = galleryPicture;
-
-      if (picture.url === galleryPictureUrl) {
-        picture.unspoilered = !galleryPicture.unspoilered;
-      }
-
-      return picture;
-    });
-  }
-
   function previousImage() {
     if (selectedImageIndex <= 0) {
       return;
@@ -106,7 +94,7 @@
   function nextImage() {
     if (
       selectedImageIndex === -1 ||
-      selectedImageIndex === $readerImageGalleryPictures$.length - 1
+      selectedImageIndex === readerImageGallery.pictures.length - 1
     ) {
       return;
     }
@@ -150,7 +138,7 @@
       </button>
     </div>
     <div class="flex flex-col overflow-auto p-2">
-      {#each $readerImageGalleryPictures$ as readerImageGalleryPicture, urlIndex (readerImageGalleryPicture.url)}
+      {#each readerImageGallery.pictures as readerImageGalleryPicture, urlIndex (readerImageGalleryPicture.url)}
         {@const showSpoiler = $hideSpoilerImage$ && !readerImageGalleryPicture.unspoilered}
         <div class="relative my-4 flex justify-center" class:spoiler={showSpoiler}>
           <button
@@ -175,7 +163,7 @@
               title="Show image"
               aria-label={`Reveal gallery image ${urlIndex + 1}`}
               class="spoiler-label"
-              onclick={() => toggleGalleryPictureSpoiler(readerImageGalleryPicture.url)}
+              onclick={() => readerImageGallery.togglePictureSpoiler(readerImageGalleryPicture.url)}
             >
               <span lang="ja">ネタバレ</span>
             </button>
@@ -207,7 +195,7 @@
               title="Show image"
               class="spoiler-label"
               aria-label={`Reveal gallery image ${selectedImageIndex + 1}`}
-              onclick={() => toggleGalleryPictureSpoiler(selectedImage.url)}
+              onclick={() => readerImageGallery.togglePictureSpoiler(selectedImage.url)}
             >
               <span lang="ja">ネタバレ</span>
             </button>
@@ -216,14 +204,14 @@
         <button
           title="Next image"
           class="mx-4 text-5xl hover:text-red-500"
-          class:invisible={selectedImageIndex === $readerImageGalleryPictures$.length - 1}
+          class:invisible={selectedImageIndex === readerImageGallery.pictures.length - 1}
           onclick={nextImage}
         >
           <Fa icon={faChevronRight} />
         </button>
       </div>
       <div class="pb-2 text-center text-white">
-        {selectedImageIndex + 1} / {$readerImageGalleryPictures$.length}
+        {selectedImageIndex + 1} / {readerImageGallery.pictures.length}
       </div>
     {/if}
   </div>
