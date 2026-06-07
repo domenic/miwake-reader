@@ -10,7 +10,7 @@
     faList,
     faRotateLeft
   } from '@fortawesome/free-solid-svg-icons';
-  import { readerImageGalleryPictures$ } from '$lib/components/book-reader/book-reader-image-gallery/book-reader-image-gallery';
+  import { readerImageGallery } from '$lib/components/book-reader/book-reader-image-gallery/book-reader-image-gallery-state.svelte';
   import HeaderButton from '$lib/components/header-button.svelte';
   import HeaderMenuButton from '$lib/components/header-menu-button.svelte';
   import HeaderNavTabs from '$lib/components/header-nav-tabs.svelte';
@@ -127,7 +127,7 @@
         onclick={() => onjumpClick?.()}
       />
     {/if}
-    {#if $readerImageGalleryPictures$.length}
+    {#if readerImageGallery.hasPictures}
       <HeaderButton
         faIcon={faImages}
         title="Open image gallery"

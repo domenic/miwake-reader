@@ -15,7 +15,7 @@ import {
 import { FuriganaStyle, setupRubyClickListeners } from '../../data/furigana-style';
 import { nextChapter$ } from '$lib/components/book-reader/book-toc/book-toc';
 import { pulseElement } from '$lib/functions/range-util';
-import { toggleImageGalleryPictureSpoiler$ } from '$lib/components/book-reader/book-reader-image-gallery/book-reader-image-gallery';
+import { readerImageGallery } from '$lib/components/book-reader/book-reader-image-gallery/book-reader-image-gallery-state.svelte';
 
 export function reactiveElements(
   document: Document,
@@ -24,13 +24,12 @@ export function reactiveElements(
   isExtendedMode: boolean
 ) {
   const anchorTagDocumentListener = anchorTagListener(document);
-  const spoilerImageDocumentListener = spoilerImageListener(document);
 
   return (contentEl: HTMLElement) =>
     merge(
       anchorTagDocumentListener(contentEl),
       rubyTagListener(contentEl, furiganaStyle),
-      spoilerImageDocumentListener(contentEl),
+      new Observable<never>(() => setupSpoilerImageListeners(document, contentEl)),
       openImageInNewTab(contentEl, hideSpoilerImage, isExtendedMode)
     );
 }
@@ -53,37 +52,45 @@ function rubyTagListener(contentEl: HTMLElement, furiganaStyle: FuriganaStyle) {
   return new Observable<never>(() => setupRubyClickListeners(contentEl, furiganaStyle));
 }
 
-function spoilerImageListener(document: Document) {
-  return (contentEl: HTMLElement) => {
-    const elements = Array.from(contentEl.querySelectorAll('[data-miwake-spoiler-img]'));
-    const obs$ = elements.map((el) => {
-      const spoilerLabelEl = document.createElement('span');
-      const spoilerLabelTextEl = document.createElement('span');
-      spoilerLabelEl.title = 'Show Image';
-      spoilerLabelEl.classList.add('spoiler-label');
-      spoilerLabelEl.setAttribute('aria-hidden', 'true');
-      spoilerLabelTextEl.lang = 'ja';
-      spoilerLabelTextEl.textContent = 'ネタバレ';
-      spoilerLabelEl.append(spoilerLabelTextEl);
-      el.appendChild(spoilerLabelEl);
+function setupSpoilerImageListeners(document: Document, contentEl: HTMLElement) {
+  const cleanups = Array.from(contentEl.querySelectorAll('[data-miwake-spoiler-img]')).map((el) =>
+    setupSpoilerImageListener(document, el)
+  );
 
-      const imageElement = el.querySelector('img,image');
+  return () => cleanups.forEach((cleanup) => cleanup());
+}
 
-      toggleImageGalleryPictureSpoiler(imageElement, false);
+function setupSpoilerImageListener(document: Document, el: Element) {
+  const spoilerLabelEl = document.createElement('span');
+  const spoilerLabelTextEl = document.createElement('span');
+  spoilerLabelEl.title = 'Show Image';
+  spoilerLabelEl.classList.add('spoiler-label');
+  spoilerLabelEl.setAttribute('aria-hidden', 'true');
+  spoilerLabelTextEl.lang = 'ja';
+  spoilerLabelTextEl.textContent = 'ネタバレ';
+  spoilerLabelEl.append(spoilerLabelTextEl);
+  el.appendChild(spoilerLabelEl);
 
-      return fromClickEvent(el).pipe(
-        take(1),
-        tap(() => {
-          el.removeChild(spoilerLabelEl);
-          el.removeAttribute('data-miwake-spoiler-img');
+  const imageElement = el.querySelector('img,image');
 
-          imageElement?.classList.add('ttu-unspoilered');
+  function revealSpoilerImage(ev: Event) {
+    ev.preventDefault();
+    ev.stopImmediatePropagation();
 
-          toggleImageGalleryPictureSpoiler(imageElement, true);
-        })
-      );
-    });
-    return merge(...obs$);
+    el.removeEventListener('click', revealSpoilerImage);
+    spoilerLabelEl.remove();
+    el.removeAttribute('data-miwake-spoiler-img');
+
+    imageElement?.classList.add('ttu-unspoilered');
+
+    revealImageGalleryPicture(imageElement);
+  }
+
+  el.addEventListener('click', revealSpoilerImage);
+
+  return () => {
+    el.removeEventListener('click', revealSpoilerImage);
+    spoilerLabelEl.remove();
   };
 }
 
@@ -160,15 +167,19 @@ function openImageInNewTab(
   );
 }
 
-function toggleImageGalleryPictureSpoiler(imageElement: Element | null, unspoilered: boolean) {
-  if (imageElement instanceof HTMLImageElement) {
-    toggleImageGalleryPictureSpoiler$.next({ url: imageElement.src, unspoilered });
-  } else if (imageElement && 'href' in imageElement) {
-    toggleImageGalleryPictureSpoiler$.next({
-      url: (imageElement.href as SVGAnimatedString).baseVal,
-      unspoilered
-    });
+function revealImageGalleryPicture(imageElement: Element | null) {
+  const imageURL = getImageURL(imageElement);
+  if (imageURL) readerImageGallery.revealPicture(imageURL);
+}
+
+function getImageURL(imageElement: Element | null) {
+  if (imageElement instanceof HTMLImageElement) return imageElement.src;
+  const imageURL = imageElement?.getAttribute('href') || imageElement?.getAttribute('xlink:href');
+  if (imageURL) return imageURL;
+  if (imageElement && 'href' in imageElement) {
+    return (imageElement.href as SVGAnimatedString).baseVal;
   }
+  return undefined;
 }
 
 function fromClickEvent(el: Element) {

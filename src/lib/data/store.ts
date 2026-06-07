@@ -2,7 +2,7 @@ import { browser } from '$app/environment';
 import {
   ReaderImageGalleryAvailableKeybind,
   type ReaderImageGalleryKeybindMap
-} from '$lib/components/book-reader/book-reader-image-gallery/book-reader-image-gallery';
+} from '$lib/components/book-reader/book-reader-image-gallery/book-reader-image-gallery-state.svelte';
 import {
   ReadingGoalFrequency,
   TrackerAutoPause,
