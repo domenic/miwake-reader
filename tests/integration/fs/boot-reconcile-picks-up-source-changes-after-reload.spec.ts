@@ -10,7 +10,8 @@ import {
   openBookFromManage,
   VALID_BOOK
 } from '../helpers/fixtures.ts';
-import { completeCurrentBook, connectFS, waitForSyncIdle } from '../helpers/workflows.ts';
+import { completeCurrentBook } from '../helpers/reader.ts';
+import { connectFS, waitForSyncIdle } from '../helpers/workflows.ts';
 
 test('boot reconcile picks up another context adding, completing, and deleting books after reload', async ({
   browser,

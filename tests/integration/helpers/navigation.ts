@@ -1,5 +1,6 @@
 import { expect, type Page } from '@playwright/test';
 import { SYNC_ASSERTION_TIMEOUT } from './harness.ts';
+import { readerIsMounted, showReaderHeader } from './reader.ts';
 
 type AppPath =
   | '/manage'
@@ -114,40 +115,12 @@ async function navigateFromReader(
   tabName: 'Manager' | 'Settings' | 'Statistics',
   { readerExitDialog = 'none' }: NavigationOptions
 ) {
-  const readerHeader = await showReaderHeader(page);
-  await readerHeader.getByRole('button', { name: tabName, exact: true }).click();
+  let header = page.getByRole('toolbar', { name: 'Reader controls' });
+  if ((await header.getAttribute('inert')) !== null) {
+    header = await showReaderHeader(page);
+  }
+  await header.getByRole('button', { name: tabName, exact: true }).click();
   await assertExpectedReaderExitDialog(page, readerExitDialog);
-}
-
-async function showReaderHeader(page: Page) {
-  const header = readerHeader(page);
-
-  await expect
-    .poll(
-      async () => {
-        if ((await header.getAttribute('inert')) === null) {
-          return true;
-        }
-
-        await page
-          .getByRole('button', { name: 'Show reader header' })
-          .click({ timeout: 1_000 })
-          .catch(() => {});
-        return false;
-      },
-      { timeout: SYNC_ASSERTION_TIMEOUT }
-    )
-    .toBe(true);
-
-  return header;
-}
-
-function readerHeader(page: Page) {
-  return page.locator('[aria-label="Reader controls"][role="toolbar"]');
-}
-
-async function readerIsMounted(page: Page) {
-  return (await page.getByRole('button', { name: 'Show reader header' }).count()) > 0;
 }
 
 async function assertExpectedReaderExitDialog(

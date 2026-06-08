@@ -5,8 +5,19 @@ import {
   SYNC_ASSERTION_TIMEOUT,
   type SyncRootOptions
 } from './harness.ts';
-import { navigateToSettingsStatistics, navigateToSettingsSync } from './navigation.ts';
+import {
+  navigateToSettingsReader,
+  navigateToSettingsStatistics,
+  navigateToSettingsSync
+} from './navigation.ts';
 import { expectBooksInSyncRoot, importBookFixtures, type LibraryBookFixture } from './fixtures.ts';
+
+interface ReaderSettings {
+  blurImage?: string;
+  furigana?: string;
+  viewMode?: string;
+  writingMode?: string;
+}
 
 export async function connectFS(page: Page, options?: SyncRootOptions) {
   await navigateToSettingsSync(page);
@@ -65,17 +76,27 @@ export async function openChangeFolderDialog(page: Page) {
   return dialog;
 }
 
-export async function completeCurrentBook(page: Page) {
-  await page.getByRole('button', { name: 'Show reader header' }).click();
-  await page.getByRole('button', { name: 'Complete Book' }).click();
-  await page.locator('dialog[open]').getByRole('button', { name: 'Complete' }).click();
-  await expect(page.getByRole('button', { name: 'Undo Complete' })).toBeVisible();
-}
-
 export async function setSyncDirection(page: Page, direction: 'Up only' | 'Down only' | 'Off') {
   await navigateToSettingsSync(page);
   await page.getByText('Advanced').click();
   await page.getByRole('group', { name: 'Sync direction' }).getByLabel(direction).check();
+}
+
+export async function useReaderSettings(page: Page, settings: ReaderSettings) {
+  await navigateToSettingsReader(page);
+
+  if (settings.viewMode) {
+    await selectReaderSetting(page, /View mode/i, settings.viewMode);
+  }
+  if (settings.writingMode) {
+    await selectReaderSetting(page, /Writing mode/i, settings.writingMode);
+  }
+  if (settings.furigana) {
+    await selectReaderSetting(page, /Furigana/i, settings.furigana);
+  }
+  if (settings.blurImage) {
+    await selectReaderSetting(page, /Blur image/i, settings.blurImage);
+  }
 }
 
 export async function enableStatistics(page: Page, enabledHeading = 'Tracker Auto Pause') {
@@ -88,6 +109,16 @@ export async function enableStatistics(page: Page, enabledHeading = 'Tracker Aut
   await expect(page.getByRole('heading', { name: enabledHeading })).toBeVisible({
     timeout: SYNC_ASSERTION_TIMEOUT
   });
+}
+
+async function selectReaderSetting(page: Page, sectionName: RegExp, optionName: string) {
+  await page
+    .locator('section')
+    .filter({
+      has: page.getByRole('heading', { name: sectionName })
+    })
+    .getByRole('button', { name: optionName })
+    .click();
 }
 
 export async function setReadingGoal(

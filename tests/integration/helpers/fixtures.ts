@@ -9,6 +9,7 @@ import {
   type SyncRootOptions
 } from './harness.ts';
 import { navigateToManage, navigateToStatisticsSummary } from './navigation.ts';
+import { showReaderHeader } from './reader.ts';
 
 const NOT_A_ZIP_BOOK = 'not-a-zip-book';
 const NOT_AN_EPUB_BOOK = 'not-an-epub-book';
@@ -310,8 +311,8 @@ async function bookmarkFixtureAtTOCEntry(
   { tocButtonTitle, minimumFooterPage }: PartwayBookmarkMetadata
 ) {
   await openBookFromManage(page, fixture);
-  await page.getByRole('button', { name: 'Show reader header' }).click();
-  await page.getByRole('button', { name: 'TOC' }).click();
+  let readerHeader = await showReaderHeader(page);
+  await readerHeader.getByRole('button', { name: 'TOC' }).click();
   await page.getByTitle(tocButtonTitle).click();
   await expect
     .poll(async () => {
@@ -319,9 +320,9 @@ async function bookmarkFixtureAtTOCEntry(
       return Number(/(\d+) \/ \d+/.exec(footerText)?.[1] ?? 0);
     })
     .toBeGreaterThan(minimumFooterPage);
-  await page.getByRole('button', { name: 'Show reader header' }).click();
-  await page.getByRole('button', { name: 'Bookmark' }).click();
-  await page.getByRole('button', { name: 'Show reader header' }).click();
+  readerHeader = await showReaderHeader(page);
+  await readerHeader.getByRole('button', { name: 'Bookmark' }).click();
+  await showReaderHeader(page);
   await expect(page.getByRole('button', { name: 'Return to Bookmark' })).toBeVisible();
 }
 

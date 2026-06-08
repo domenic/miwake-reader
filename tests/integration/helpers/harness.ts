@@ -59,7 +59,7 @@ export const test = base.extend({
  * main test context. Use `await using` so the extra context is always closed.
  */
 export async function newPageInTestContext(browser: Browser, testInfo: TestInfo) {
-  const baseURL = testInfo.project.use.baseURL;
+  const baseURL = testInfo.project.use.baseURL ?? process.env.PLAYWRIGHT_TEST_BASE_URL;
   const context = await browser.newContext({
     baseURL: typeof baseURL === 'string' ? baseURL : undefined
   });

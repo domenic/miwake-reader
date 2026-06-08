@@ -1,29 +1,44 @@
-import { combineLatest, fromEvent, Observable, of, race } from 'rxjs';
+export function watchImageLoadingState(
+  contentEl: HTMLElement,
+  onloadingstatechange: (loading: boolean) => void
+) {
+  const loadingImages = new Set(
+    Array.from(contentEl.getElementsByTagName('img')).filter((el) => el.src && !el.complete)
+  );
 
-export function imageLoadingState(contentEl: HTMLElement) {
-  const elements = Array.from(contentEl.getElementsByTagName('img'));
-  return new Observable<boolean>((subscriber) => {
-    const obsArray = elements.filter((el) => el.src).map(imageLoadComplete);
-
-    if (obsArray.length <= 0) {
-      subscriber.next(false);
-      subscriber.complete();
-      return undefined;
-    }
-
-    const subscription = combineLatest(obsArray).subscribe(() => {
-      subscriber.next(false);
-      subscriber.complete();
-    });
-    subscriber.next(true);
-
-    return subscription;
-  });
-}
-
-function imageLoadComplete(imgEl: HTMLImageElement) {
-  if (imgEl.complete) {
-    return of(1);
+  if (loadingImages.size === 0) {
+    onloadingstatechange(false);
+    return () => {};
   }
-  return race(fromEvent(imgEl, 'load'), fromEvent(imgEl, 'error'));
+
+  onloadingstatechange(true);
+
+  const abortController = new AbortController();
+  const { signal } = abortController;
+
+  function markImageLoaded(imageElement: HTMLImageElement) {
+    loadingImages.delete(imageElement);
+
+    if (loadingImages.size === 0) {
+      onloadingstatechange(false);
+      abortController.abort();
+    }
+  }
+
+  for (const imageElement of loadingImages) {
+    imageElement.addEventListener('load', () => markImageLoaded(imageElement), {
+      once: true,
+      signal
+    });
+    imageElement.addEventListener('error', () => markImageLoaded(imageElement), {
+      once: true,
+      signal
+    });
+
+    if (imageElement.complete) {
+      markImageLoaded(imageElement);
+    }
+  }
+
+  return () => abortController.abort();
 }

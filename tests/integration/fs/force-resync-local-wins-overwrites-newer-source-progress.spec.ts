@@ -9,12 +9,12 @@ import {
   openBookFromManage
 } from '../helpers/fixtures.ts';
 import {
-  completeCurrentBook,
   connectFS,
   forceFullResync,
   syncBookFixturesToSource,
   waitForSuccessfulSync
 } from '../helpers/workflows.ts';
+import { completeCurrentBook } from '../helpers/reader.ts';
 
 test('force re-sync with "This device wins" overwrites newer source progress', async ({
   browser,
