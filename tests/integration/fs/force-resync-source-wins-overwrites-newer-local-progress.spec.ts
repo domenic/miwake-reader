@@ -8,12 +8,12 @@ import {
   openBookFromManage
 } from '../helpers/fixtures.ts';
 import {
-  completeCurrentBook,
   forceFullResync,
   setSyncDirection,
   syncBookFixturesToSource,
   waitForSuccessfulSync
 } from '../helpers/workflows.ts';
+import { completeCurrentBook } from '../helpers/reader.ts';
 
 test('force re-sync with "Sync location wins" overwrites newer local progress', async ({
   page

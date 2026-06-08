@@ -8,12 +8,8 @@ import {
   LONG_BOOK,
   openBookFromManage
 } from '../helpers/fixtures.ts';
-import {
-  completeCurrentBook,
-  exportBackup,
-  importBackup,
-  signOutAndWipe
-} from '../helpers/workflows.ts';
+import { exportBackup, importBackup, signOutAndWipe } from '../helpers/workflows.ts';
+import { completeCurrentBook } from '../helpers/reader.ts';
 
 test('backup import with "ZIP wins" overwrites newer local progress', async ({
   page

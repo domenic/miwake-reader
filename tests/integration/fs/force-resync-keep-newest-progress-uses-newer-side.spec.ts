@@ -11,13 +11,13 @@ import {
   VALID_BOOK
 } from '../helpers/fixtures.ts';
 import {
-  completeCurrentBook,
   connectFS,
   forceFullResync,
   setSyncDirection,
   syncBookFixturesToSource,
   waitForSuccessfulSync
 } from '../helpers/workflows.ts';
+import { completeCurrentBook } from '../helpers/reader.ts';
 
 test('force re-sync with "Keep newest" uses the newer progress from either side', async ({
   browser,

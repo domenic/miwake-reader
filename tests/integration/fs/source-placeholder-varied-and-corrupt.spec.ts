@@ -13,7 +13,8 @@ import {
   VALID_BOOK
 } from '../helpers/fixtures.ts';
 import { navigateToManage } from '../helpers/navigation.ts';
-import { completeCurrentBook, connectFS, signOutAndWipe } from '../helpers/workflows.ts';
+import { completeCurrentBook, showReaderHeader } from '../helpers/reader.ts';
+import { connectFS, signOutAndWipe } from '../helpers/workflows.ts';
 
 test('fresh-device placeholders preserve varied UI-created progress and surface corrupt source files', async ({
   page
@@ -46,7 +47,7 @@ test('fresh-device placeholders preserve varied UI-created progress and surface 
   await expect(bookProgressBar(page, PLAIN_TEXT_BOOK)).toHaveAttribute('value', '0');
 
   await openBookFromManage(page, VALID_BOOK);
-  await page.getByRole('button', { name: 'Show reader header' }).click();
+  await showReaderHeader(page);
   await expect(page.getByRole('button', { name: 'Undo Complete' })).toBeVisible();
   await navigateToManage(page);
 

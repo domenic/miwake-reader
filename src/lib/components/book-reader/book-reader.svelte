@@ -6,14 +6,9 @@
     debounceTime,
     filter,
     map,
-    mergeMap,
-    of,
-    ReplaySubject,
-    share,
     shareReplay,
     startWith,
-    Subject,
-    tap
+    Subject
   } from 'rxjs';
   import BookReaderContinuous from '$lib/components/book-reader/book-reader-continuous/book-reader-continuous.svelte';
   import { pxReader } from '$lib/components/book-reader/css-classes';
@@ -21,12 +16,10 @@
   import { FuriganaStyle } from '$lib/data/furigana-style';
   import type { TextMarginMode } from '$lib/data/text-margin-mode';
   import { ViewMode } from '$lib/data/view-mode';
-  import { iffBrowser } from '$lib/functions/rxjs/iff-browser';
-  import { reduceToEmptyString } from '$lib/functions/rxjs/reduce-to-empty-string';
   import { convertRemToPixels } from '$lib/functions/utils';
   import { logger } from '$lib/data/logger';
-  import { imageLoadingState } from './image-loading-state';
-  import { reactiveElements } from './reactive-elements';
+  import { watchImageLoadingState } from './image-loading-state';
+  import { enhanceBookContent } from './book-content-enhancement';
   import type { AutoScroller, BookmarkManager, PageManager } from './types';
   import BookReaderPaginated from './book-reader-paginated/book-reader-paginated.svelte';
   import { enableReaderWakeLock$, enableTapEdgeToFlip$ } from '$lib/data/store';
@@ -137,6 +130,9 @@
   let visibilityState: DocumentVisibilityState = $state('hidden');
 
   let containerEl = $state<HTMLElement>();
+  let contentEl = $state<HTMLElement>();
+  let contentVersion = $state(0);
+  let loadingState = $state(true);
 
   const mutationObserver: MutationObserver = new MutationObserver(handleMutation);
 
@@ -177,8 +173,6 @@
     shareReplay({ refCount: true, bufferSize: 1 })
   );
 
-  const contentEl$ = new ReplaySubject<HTMLElement>(1);
-
   const contentViewportWidth$ = computedStyle$.pipe(
     map((style) =>
       getAdjustedWidth(
@@ -200,31 +194,32 @@
     )
   );
 
-  const reactiveElements$ = iffBrowser(() => of(document)).pipe(
-    mergeMap((document) => {
-      const reactiveElementsFn = reactiveElements(
-        document,
-        furiganaStyle,
-        hideSpoilerImage,
-        navigator.standalone || window.matchMedia('(display-mode: fullscreen)').matches
-      );
-      return contentEl$.pipe(mergeMap((contentEl) => reactiveElementsFn(contentEl)));
-    }),
-    reduceToEmptyString()
-  );
+  $effect(() => {
+    const el = contentEl;
+    const version = contentVersion;
+    if (!el || !version) {
+      loadingState = true;
+      return;
+    }
 
-  const imageLoadingState$ = contentEl$.pipe(
-    mergeMap((contentEl) => imageLoadingState(contentEl)),
-    share()
-  );
+    const attachBookContent = enhanceBookContent({
+      furiganaStyle,
+      hideSpoilerImage,
+      isPWADisplayMode: isInPWADisplayMode()
+    });
+    const cleanupEnhancement = attachBookContent(el);
+    const cleanupImageLoading = watchImageLoadingState(el, (loading) => {
+      loadingState = loading;
+    });
 
-  const blurListener$ = contentEl$.pipe(
-    tap((contentEl) => {
+    mutationObserver.observe(el, { attributes: true });
+
+    return () => {
+      cleanupEnhancement?.();
+      cleanupImageLoading();
       mutationObserver.disconnect();
-      mutationObserver.observe(contentEl, { attributes: true });
-    }),
-    reduceToEmptyString()
-  );
+    };
+  });
 
   $effect(() => {
     width$.next(width);
@@ -286,6 +281,17 @@
 
     wakeLock = undefined;
   }
+
+  function handleContentChange(el: HTMLElement) {
+    contentEl = el;
+    contentVersion += 1;
+  }
+
+  function isInPWADisplayMode() {
+    // The manifest uses `display: fullscreen`, so this is PWA display mode, not the browser
+    // Fullscreen API. Toggling reader fullscreen should not enable PWA-only image behavior.
+    return navigator.standalone || window.matchMedia('(display-mode: fullscreen)').matches;
+  }
 </script>
 
 {#if showBlurMessage}
@@ -330,7 +336,7 @@
       {autoBookmark}
       {autoBookmarkTime}
       {multiplier}
-      loadingState={$imageLoadingState$ ?? true}
+      {loadingState}
       {bookmarkData}
       {customReadingPoint}
       bind:exploredCharCount
@@ -341,7 +347,7 @@
       {onbookmarkmanagerchange}
       {onautoscrollerchange}
       {onbookcharcountchange}
-      oncontentchange={(el) => contentEl$.next(el)}
+      oncontentchange={handleContentChange}
       {onbookmark}
       {ontrackerPause}
     />
@@ -369,7 +375,7 @@
       {textMarginValue}
       {hideSpoilerImage}
       {furiganaStyle}
-      loadingState={$imageLoadingState$ ?? true}
+      {loadingState}
       {avoidPageBreak}
       {pageColumns}
       {autoBookmark}
@@ -383,12 +389,10 @@
       {onbookmarkmanagerchange}
       {onbookcharcountchange}
       {onisbookmarkscreenchange}
-      oncontentchange={(el) => contentEl$.next(el)}
+      oncontentchange={handleContentChange}
       {onbookmark}
       {ontrackerPause}
     />
   {/if}
 </div>
-{$blurListener$ ?? ''}
-{$reactiveElements$ ?? ''}
 <svelte:document bind:visibilityState />

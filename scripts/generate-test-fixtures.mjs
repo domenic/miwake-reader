@@ -69,6 +69,7 @@ await writeOut(
     language: 'en',
     images: {
       'images/cover-before-toc.bmp': bitmapBytes({ red: 45, green: 95, blue: 210 }),
+      'images/svg-before-toc.bmp': bitmapBytes({ red: 155, green: 85, blue: 200 }),
       'images/inline-marker.bmp': bitmapBytes({ red: 65, green: 165, blue: 80 }),
       'images/spoiler-illustration-one.bmp': bitmapBytes({ red: 230, green: 80, blue: 70 }),
       'images/spoiler-illustration-two.bmp': bitmapBytes({ red: 240, green: 190, blue: 55 })
@@ -79,6 +80,11 @@ await writeOut(
         bodyHTML: `
   <figure>
     <img src="images/cover-before-toc.bmp" alt="Cover before spoilers" />
+  </figure>
+  <figure>
+    <svg role="img" aria-label="SVG before spoilers" viewBox="0 0 16 16">
+      <image href="images/svg-before-toc.bmp" width="16" height="16" />
+    </svg>
   </figure>`
       },
       {
@@ -88,6 +94,7 @@ await writeOut(
     <ol>
       <li><a href="chapter3.xhtml">Chapter with images</a></li>
       <li><a href="chapter3.xhtml#second-spoiler">Second spoiler image</a></li>
+      <li><a href="chapter3.xhtml#ruby-sample">Ruby sample</a></li>
     </ol>
   </nav>`
       },
@@ -105,7 +112,11 @@ await writeOut(
   <p id="second-spoiler">The second illustration should start hidden too.</p>
   <figure>
     <img src="images/spoiler-illustration-two.bmp" alt="Spoiler illustration two" />
-  </figure>`
+  </figure>
+  <div style="height: 180vh"></div>
+  <p id="ruby-sample">
+    This paragraph has <ruby>漢<rt>かん</rt></ruby> with furigana.
+  </p>`
       }
     ]
   })

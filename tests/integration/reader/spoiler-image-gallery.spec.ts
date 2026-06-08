@@ -6,15 +6,22 @@ import {
   openBookFromManage,
   SPOILER_IMAGE_GALLERY_BOOK
 } from '../helpers/fixtures.ts';
-import { navigateToSettingsReader } from '../helpers/navigation.ts';
+import {
+  readerImage,
+  readerImageURL,
+  readerSVGImageURL,
+  showReaderHeader
+} from '../helpers/reader.ts';
+import { useReaderSettings } from '../helpers/workflows.ts';
 
 const COVER_ALT = 'Cover before spoilers';
 const INLINE_ALT = 'Inline marker';
+const SVG_LABEL = 'SVG before spoilers';
 const SPOILER_ONE_ALT = 'Spoiler illustration one';
 const SPOILER_TWO_ALT = 'Spoiler illustration two';
 
 test('spoiler image gallery mirrors reader-side spoiler reveal state', async ({ page }) => {
-  await useContinuousReader(page);
+  await useReaderSettings(page, { viewMode: 'Continuous' });
   await importBookFixtures(page, [SPOILER_IMAGE_GALLERY_BOOK]);
   await openBookFromManage(page, SPOILER_IMAGE_GALLERY_BOOK);
   await expectBookReaderText(page, SPOILER_IMAGE_GALLERY_BOOK);
@@ -28,6 +35,7 @@ test('spoiler image gallery mirrors reader-side spoiler reveal state', async ({ 
   await openImageGallery(page);
 
   const coverURL = await readerImageURL(page, COVER_ALT);
+  const svgURL = await readerSVGImageURL(page, SVG_LABEL);
   const inlineURL = await readerImageURL(page, INLINE_ALT);
   const spoilerOneURL = await readerImageURL(page, SPOILER_ONE_ALT);
   const spoilerTwoURL = await readerImageURL(page, SPOILER_TWO_ALT);
@@ -35,39 +43,27 @@ test('spoiler image gallery mirrors reader-side spoiler reveal state', async ({ 
     .getByRole('img', { name: /^Gallery image \d+$/ })
     .evaluateAll((imgs) => imgs.map((img) => (img as HTMLImageElement).src));
 
-  expect(galleryImageURLs).toEqual([coverURL, spoilerOneURL, spoilerTwoURL]);
+  expect(galleryImageURLs).toEqual([coverURL, svgURL, spoilerOneURL, spoilerTwoURL]);
   expect(galleryImageURLs).not.toContain(inlineURL);
 
   await expect(page.getByRole('button', { name: 'Reveal gallery image 1' })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'Reveal gallery image 2' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Reveal gallery image 2' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Reveal gallery image 3' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Reveal gallery image 4' })).toBeVisible();
 
   await closeImageGallery(page);
   await revealReaderImage(page, SPOILER_ONE_ALT);
   await openImageGallery(page);
 
-  await expect(page.getByRole('button', { name: 'Reveal gallery image 2' })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'Reveal gallery image 3' })).toBeVisible();
-
-  await page.getByRole('button', { name: 'Reveal gallery image 3' }).click();
   await expect(page.getByRole('button', { name: 'Reveal gallery image 3' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Reveal gallery image 4' })).toBeVisible();
+
+  await page.getByRole('button', { name: 'Reveal gallery image 4' }).click();
+  await expect(page.getByRole('button', { name: 'Reveal gallery image 4' })).toHaveCount(0);
 
   await closeImageGallery(page);
   await expect(readerSpoilerWrapper(page, SPOILER_TWO_ALT)).toHaveCount(1);
 });
-
-async function useContinuousReader(page: Page) {
-  await navigateToSettingsReader(page);
-  await settingSection(page, /View mode/i)
-    .getByRole('button', { name: 'Continuous' })
-    .click();
-}
-
-function settingSection(page: Page, name: RegExp) {
-  return page.locator('section').filter({
-    has: page.getByRole('heading', { name })
-  });
-}
 
 async function openImageGallery(page: Page) {
   await showReaderHeader(page);
@@ -78,16 +74,6 @@ async function openImageGallery(page: Page) {
 async function closeImageGallery(page: Page) {
   await page.getByTitle('Close image gallery').click();
   await expect(page.getByTitle('Close image gallery')).toHaveCount(0);
-}
-
-async function showReaderHeader(page: Page) {
-  const header = page.locator('[aria-label="Reader controls"][role="toolbar"]');
-
-  if ((await header.getAttribute('inert')) !== null) {
-    await page.getByRole('button', { name: 'Show reader header' }).click();
-  }
-
-  await expect(header).not.toHaveAttribute('inert', '');
 }
 
 async function revealReaderImage(page: Page, imageAlt: string) {
@@ -106,14 +92,4 @@ function readerSpoilerWrapper(page: Page, imageAlt: string) {
 
 function readerSpoilerWrappers(page: Page) {
   return page.locator('.book-content [data-miwake-spoiler-img]');
-}
-
-function readerImage(page: Page, imageAlt: string) {
-  return page.locator(`.book-content img[alt="${imageAlt}"]`);
-}
-
-async function readerImageURL(page: Page, imageAlt: string) {
-  const src = await readerImage(page, imageAlt).getAttribute('src');
-  expect(src).toBeTruthy();
-  return src;
 }

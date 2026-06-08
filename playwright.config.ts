@@ -1,26 +1,36 @@
 import { defineConfig } from '@playwright/test';
 
-const baseURL = 'http://localhost:5174';
+const isCI = !!process.env.CI;
+const ciServerURL = 'http://localhost:4173';
+const localServerURL =
+  /Local:\s+(?<playwright_test_base_url>http:\/\/(?:localhost|127\.0\.0\.1):\d+\/)/;
 
 export default defineConfig({
   testDir: 'tests/integration',
-  forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 2 : 0,
+  forbidOnly: isCI,
+  retries: isCI ? 2 : 0,
   outputDir: 'tests/integration/test-results',
-  reporter: process.env.CI
+  reporter: isCI
     ? [['html', { outputFolder: 'tests/integration/playwright-report' }], ['github']]
     : 'list',
   use: {
-    baseURL,
+    baseURL: isCI ? ciServerURL : undefined,
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
     trace: 'on-first-retry'
   },
-  webServer: {
-    command: process.env.CI
-      ? 'npm run preview -- --port 5174 --strictPort'
-      : 'npm run dev -- --port 5174 --strictPort',
-    url: baseURL,
-    reuseExistingServer: false
-  }
+  webServer: isCI
+    ? {
+        command: 'npm run preview -- --port 4173 --strictPort',
+        url: ciServerURL,
+        reuseExistingServer: false
+      }
+    : {
+        command: 'npm run dev',
+        wait: {
+          stdout: localServerURL,
+          stderr: localServerURL
+        },
+        reuseExistingServer: false
+      }
 });

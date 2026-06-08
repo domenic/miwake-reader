@@ -17,7 +17,6 @@
     skipKeyDownListener$,
     userFonts$
   } from '$lib/data/store';
-  import { prependValue } from '$lib/functions/file-loaders/epub/generate-epub-html';
   import { getReferencePoints } from '$lib/functions/range-util';
   import { getExternalTargetElement } from '$lib/functions/utils';
   import { faBookmark, faSpinner } from '@fortawesome/free-solid-svg-icons';
@@ -655,17 +654,11 @@
   }
 
   nextChapter$.pipe(takeUntil(destroy$)).subscribe((chapterId) => {
-    let targetElement = document.getElementById(chapterId);
+    const targetElement = document.getElementById(chapterId);
 
     if (!targetElement) {
       return;
     }
-
-    const checkForParent = !chapterId.startsWith(prependValue);
-
-    targetElement = checkForParent
-      ? targetElement.closest(`div[id^="${prependValue}"]`) || targetElement
-      : targetElement;
 
     willNavigate = true;
 
