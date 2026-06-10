@@ -1,21 +1,15 @@
 <script lang="ts">
   import {
-    BehaviorSubject,
     debounceTime,
-    distinctUntilChanged,
-    EMPTY,
     filter,
     fromEvent,
     map,
     merge,
     NEVER,
-    Observable,
     of,
     share,
-    shareReplay,
     skip,
     startWith,
-    switchMap,
     take,
     takeWhile,
     tap,
@@ -224,144 +218,146 @@
     .join(', ');
   const verticalTextOrientation = $verticalMode$ ? $verticalTextOrientation$ : '';
 
-  const bookId$ = iffBrowser(() => {
-    const subject = new BehaviorSubject(Number(page.url.searchParams.get('id')));
-    $effect(() => {
-      subject.next(Number(page.url.searchParams.get('id')));
-    });
-    return subject;
-    // distinctUntilChanged: the $effect above fires on mount and
-    // re-emits the seed value, so without this the reader pipeline
-    // would re-run twice on every open.
-  }).pipe(distinctUntilChanged(), shareReplay({ refCount: true, bufferSize: 1 }));
+  let bookId = $derived(browser ? Number(page.url.searchParams.get('id')) : 0);
+  let rawBookData = $state<BooksDbBookData>();
+  let bookData = $state<LoadedBookData>();
 
-  const rawBookData$ = bookId$.pipe(
-    switchMap(async (id) => {
-      let bookData: BooksDbBookData | undefined;
-      logger.debug(`reader/rawBookData$: start id=${id}`);
+  $effect(() => {
+    if (!browser) return;
 
-      try {
-        bookData = await openBook(id);
+    const abortController = new AbortController();
+    void loadReaderBook(bookId, abortController.signal);
+
+    return () => {
+      abortController.abort();
+    };
+  });
+
+  $effect(() => {
+    if (!rawBookData) {
+      bookData = undefined;
+      return;
+    }
+
+    sectionList$.next(rawBookData.sections || []);
+    logger.debug(
+      `reader/bookData: loadBookData start (sections=${rawBookData.sections?.length ?? 0}, htmlLen=${rawBookData.elementHtml?.length ?? 0})`
+    );
+
+    const { loadedBookData, cleanup } = loadBookData(
+      rawBookData,
+      '.book-content',
+      document,
+      $hideSpoilerImageMode$
+    );
+
+    bookData = loadedBookData;
+
+    logger.debug(
+      `reader/bookData: loadBookData emitted (htmlLen=${loadedBookData.htmlContent.length})`
+    );
+
+    return cleanup;
+  });
+
+  async function loadReaderBook(id: number, signal: AbortSignal) {
+    let loadedBook: BooksDbBookData | undefined;
+
+    showSpinner = true;
+    rawBookData = undefined;
+    bookData = undefined;
+    bookmarkData = Promise.resolve(undefined);
+
+    try {
+      loadedBook = await loadReaderBookData(id);
+      if (signal.aborted) return;
+
+      rawBookData = loadedBook;
+
+      if (loadedBook) {
+        bookmarkData = database.getBookmark(loadedBook.id);
+      } else {
+        await goto(resolve(mergeEntries.MANAGE.routeId));
+      }
+    } catch (error) {
+      if (signal.aborted) return;
+
+      showErrorDialog({ title: 'Error loading book', error });
+      await goto(resolve(mergeEntries.MANAGE.routeId));
+    } finally {
+      if (!signal.aborted) {
         logger.debug(
-          `reader/rawBookData$: getBook → ${
-            bookData
-              ? `{id:${bookData.id}, title:${JSON.stringify(bookData.title)}, hasHtml:${!!bookData.elementHtml}}`
-              : 'undefined'
-          }`
-        );
-
-        if (!bookData) {
-          return bookData;
-        }
-
-        const currentContext = {
-          id: bookData.id,
-          title: bookData.title,
-          imagePath: bookData.coverImage
-        };
-
-        bookData.lastBookOpen = new Date().getTime();
-
-        logger.debug('reader/rawBookData$: markBookOpened');
-        await markBookOpened(bookData);
-        logger.debug('reader/rawBookData$: reconcileForBookOpen start');
-        await reconcileForBookOpen(currentContext);
-        logger.debug('reader/rawBookData$: reconcileForBookOpen done');
-
-        // If we started from a placeholder, reconcileForBookOpen should
-        // have written real content into the `data` row — re-read so
-        // the renderer sees the hydrated book. If it's still a
-        // placeholder, syncing didn't (or couldn't) pull the content
-        // and there's nothing to render.
-        if (!bookData.elementHtml) {
-          const refreshed = await openBook(id);
-          if (refreshed) {
-            bookData = refreshed;
-          }
-          if (!bookData.elementHtml) {
-            throw new Error(
-              syncState.location
-                ? "This book's content couldn't be loaded from sync — the source file may be corrupt or incomplete. " +
-                    'Try Force re-sync in Settings → Sync to re-pull it.'
-                : "This book's content hasn't been downloaded yet. " +
-                    'Connect its sync location in Settings → Sync, then try again.'
-            );
-          }
-        }
-
-        if (!$statisticsEnabled$) {
-          const wasNew = (
-            await database.setFirstBookRead(currentContext.title, $startDayHoursForTracker$)
-          )[1];
-
-          if (wasNew) {
-            scheduleReplication(StorageDataType.STATISTICS);
-          }
-        }
-      } catch (error) {
-        showErrorDialog({ title: 'Error loading book', error });
-        return undefined;
-      } finally {
-        logger.debug(
-          `reader/rawBookData$: finally — syncedResolver, showSpinner=false, returning ${
-            bookData ? `hasHtml=${!!bookData.elementHtml}` : 'undefined'
+          `reader/rawBookData: finally — syncedResolver, showSpinner=false, returning ${
+            loadedBook ? `hasHtml=${!!loadedBook.elementHtml}` : 'undefined'
           }`
         );
         syncedResolver();
-
         showSpinner = false;
       }
+    }
+  }
 
-      return bookData;
-    }),
-    shareReplay({ refCount: true, bufferSize: 1 })
-  );
+  async function loadReaderBookData(id: number) {
+    let book: BooksDbBookData | undefined;
+    logger.debug(`reader/rawBookData: start id=${id}`);
 
-  const leaveIfBookMissing$ = rawBookData$.pipe(
-    tap((data) => {
-      if (!data) {
-        goto(resolve(mergeEntries.MANAGE.routeId));
+    book = await openBook(id);
+    logger.debug(
+      `reader/rawBookData: getBook -> ${
+        book
+          ? `{id:${book.id}, title:${JSON.stringify(book.title)}, hasHtml:${!!book.elementHtml}}`
+          : 'undefined'
+      }`
+    );
+
+    if (!book) {
+      return book;
+    }
+
+    const currentContext = {
+      id: book.id,
+      title: book.title,
+      imagePath: book.coverImage
+    };
+
+    book.lastBookOpen = new Date().getTime();
+
+    logger.debug('reader/rawBookData: markBookOpened');
+    await markBookOpened(book);
+    logger.debug('reader/rawBookData: reconcileForBookOpen start');
+    await reconcileForBookOpen(currentContext);
+    logger.debug('reader/rawBookData: reconcileForBookOpen done');
+
+    // If we started from a placeholder, `reconcileForBookOpen` should have written real content
+    // into the `data` row. Re-read so the renderer sees the hydrated book.
+    if (!book.elementHtml) {
+      const refreshed = await openBook(id);
+      if (refreshed) {
+        book = refreshed;
       }
-    }),
-    reduceToEmptyString()
-  );
-
-  const initBookmarkData$ = rawBookData$.pipe(
-    tap((rawBookData) => {
-      if (!rawBookData) return;
-      bookmarkData = database.getBookmark(rawBookData.id);
-    }),
-    reduceToEmptyString()
-  );
-
-  const bookData$ = rawBookData$.pipe(
-    switchMap((rawBookData) => {
-      if (!rawBookData) return EMPTY;
-
-      sectionList$.next(rawBookData.sections || []);
-      logger.debug(
-        `reader/bookData$: loadBookData start (sections=${rawBookData.sections?.length ?? 0}, htmlLen=${rawBookData.elementHtml?.length ?? 0})`
-      );
-
-      return new Observable<LoadedBookData>((subscriber) => {
-        const { loadedBookData, cleanup } = loadBookData(
-          rawBookData,
-          '.book-content',
-          document,
-          $hideSpoilerImageMode$
+      if (!book.elementHtml) {
+        throw new Error(
+          syncState.location
+            ? "This book's content couldn't be loaded from sync — the source file may be corrupt or incomplete. " +
+                'Try Force re-sync in Settings → Sync to re-pull it.'
+            : "This book's content hasn't been downloaded yet. " +
+                'Connect its sync location in Settings → Sync, then try again.'
         );
-        subscriber.next(loadedBookData);
+      }
+    }
 
-        return cleanup;
-      });
-    }),
-    tap((loaded) => {
-      logger.debug(
-        `reader/bookData$: loadBookData emitted (htmlLen=${loaded?.htmlContent?.length ?? 'n/a'})`
-      );
-    }),
-    shareReplay({ refCount: true, bufferSize: 1 })
-  );
+    if (!$statisticsEnabled$) {
+      const wasNew = (
+        await database.setFirstBookRead(currentContext.title, $startDayHoursForTracker$)
+      )[1];
+
+      if (wasNew) {
+        scheduleReplication(StorageDataType.STATISTICS);
+      }
+    }
+
+    return book;
+  }
 
   const resize$ = iffBrowser(() =>
     visualViewport ? fromEvent(visualViewport, 'resize') : of()
@@ -591,9 +587,7 @@
   }
 
   async function handleJump() {
-    const dataId = getBookIdSync();
-
-    if (!bookmarkManager || !dataId) {
+    if (!bookmarkManager || !bookId) {
       return;
     }
 
@@ -619,7 +613,7 @@
 
     bookmarkManager.scrollToBookmark(
       {
-        dataId: dataId,
+        dataId: bookId,
         exploredCharCount: target,
         lastBookmarkModified: new Date().getTime(),
         progress: 0
@@ -629,7 +623,7 @@
   }
 
   async function completeBook() {
-    if (!$rawBookData$ || !beginReaderAction()) {
+    if (!rawBookData || !beginReaderAction()) {
       return;
     }
 
@@ -670,15 +664,15 @@
         await trackerElm.processStatistics(diffToComplete);
       }
 
-      const finishedStatistic = await database.getStatisticForCompletedBook($rawBookData$.title);
+      const finishedStatistic = await database.getStatisticForCompletedBook(rawBookData.title);
       const todayKey = getDateKey($startDayHoursForTracker$);
       const statisticsUntilToday = await database.getStatisticsUntilDate(
-        $rawBookData$.title,
+        rawBookData.title,
         todayKey
       );
       const todayStatistic =
         statisticsUntilToday.find((statistic) => statistic.dateKey === todayKey) ||
-        getDefaultStatistic($rawBookData$.title, todayKey);
+        getDefaultStatistic(rawBookData.title, todayKey);
       const statisticsToStore: BooksDbStatistic[] = [];
       const lastStatisticModified = Date.now();
 
@@ -715,7 +709,7 @@
 
       if (statisticsToStore.length && ctx) {
         await userSaveStatistics(
-          $rawBookData$.title,
+          rawBookData.title,
           statisticsToStore,
           ReplicationSaveBehavior.Overwrite,
           'merge',
@@ -731,7 +725,7 @@
 
       if (bookmarkManager && ctx) {
         const data = {
-          ...bookmarkManager.formatBookmarkData($rawBookData$.id, customReadingPointScrollOffset),
+          ...bookmarkManager.formatBookmarkData(rawBookData.id, customReadingPointScrollOffset),
           completed: true
         };
 
@@ -769,7 +763,6 @@
     }
 
     try {
-      const bookId = getBookIdSync();
       const ctx = bookReplicationContext();
       if (!bookId || !bookmarkManager || !ctx) return;
 
@@ -883,12 +876,6 @@
     ev.preventDefault();
   }
 
-  function getBookIdSync() {
-    let bookId: number | undefined;
-    bookId$.subscribe((x) => (bookId = x)).unsubscribe();
-    return bookId;
-  }
-
   function beginReaderAction() {
     if (readerActionPending) {
       return false;
@@ -903,7 +890,6 @@
   }
 
   async function bookmarkPage() {
-    const bookId = getBookIdSync();
     if (!bookId || !bookmarkManager) return;
 
     let data: BooksDbBookmarkData;
@@ -1169,11 +1155,11 @@
   }
 
   function bookReplicationContext(): ReplicationContext | undefined {
-    if (!$rawBookData$) return undefined;
+    if (!rawBookData) return undefined;
     return {
-      id: $rawBookData$.id,
-      title: $rawBookData$.title,
-      imagePath: $rawBookData$.coverImage
+      id: rawBookData.id,
+      title: rawBookData.title,
+      imagePath: rawBookData.coverImage
     };
   }
 
@@ -1224,14 +1210,13 @@
   }
 </script>
 
-{$initBookmarkData$ ?? ''}
 {$setBackgroundColor$ ?? ''}
 {$setWritingMode$ ?? ''}
 {$textSelector$ ?? ''}
 {$autoStartTracker$ ?? ''}
 
 <svelte:head>
-  <title>{formatPageTitle($rawBookData$?.title ?? '')}</title>
+  <title>{formatPageTitle(rawBookData?.title ?? '')}</title>
 </svelte:head>
 
 <button
@@ -1306,8 +1291,8 @@
       scrollToBookmark();
     }}
     onstatisticsClick={() => {
-      if ($rawBookData$) {
-        $preFilteredTitlesForStatistics$ = new Set([$rawBookData$.title]);
+      if (rawBookData) {
+        $preFilteredTitlesForStatistics$ = new Set([rawBookData.title]);
       }
 
       leaveReader(mergeEntries.STATISTICS.routeId, false);
@@ -1321,12 +1306,12 @@
   />
 </div>
 
-{#if $bookData$ && $rawBookData$}
+{#if bookData && rawBookData}
   {#if $statisticsEnabled$}
     <BookReadingTracker
       fontColor={$themeOption$.fontColor}
       backgroundColor={$backgroundColor$}
-      bookTitle={$rawBookData$.title}
+      bookTitle={rawBookData.title}
       sectionData={$sectionData$}
       {frozenPosition}
       {exploredCharCount}
@@ -1337,9 +1322,9 @@
       onstatisticssaved={scheduleReaderStatisticsReplication}
     />
   {/if}
-  <StyleSheetRenderer styleSheet={$bookData$.styleSheet} />
+  <StyleSheetRenderer styleSheet={bookData.styleSheet} />
   <BookReader
-    htmlContent={$bookData$.htmlContent}
+    htmlContent={bookData.htmlContent}
     width={$containerViewportWidth$ ?? 0}
     height={$containerViewportHeight$ ?? 0}
     {fontFeatureSettings}
@@ -1386,8 +1371,6 @@
     onbookmark={bookmarkPage}
     ontrackerPause={() => pauseTracker('jump', true)}
   />
-{:else}
-  {$leaveIfBookMissing$ ?? ''}
 {/if}
 
 <SidebarOverlay

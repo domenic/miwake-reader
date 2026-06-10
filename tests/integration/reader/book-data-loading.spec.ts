@@ -86,6 +86,12 @@ test('book data loading formats reader images and keeps spoiler gallery state in
   await expect(readerSpoilerWrapper(page, SPOILER_TWO_ALT)).toHaveCount(1);
 });
 
+test('reader route returns to the manager when the book is missing', async ({ page }) => {
+  await page.goto('/b?id=999999');
+
+  await expect(page).toHaveURL(/\/manage$/);
+});
+
 async function openImageGallery(page: Page) {
   await showReaderHeader(page);
   await page.getByRole('button', { name: 'Images' }).click();
