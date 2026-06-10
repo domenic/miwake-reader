@@ -8,6 +8,7 @@ import { readingGoalSortFunction } from '$lib/data/reading-goal';
 import { BaseScopedHandler, BaseStorageHandler } from '$lib/data/storage/handler/base-handler';
 import type { ScopedBookOperations, ScopedSettings } from '$lib/data/storage/handler/handler-roles';
 import { SyncEndpointType } from '$lib/data/storage/storage-types';
+import { downloadBlob } from '$lib/functions/download-blob';
 import { ReplicationSaveBehavior } from '$lib/functions/replication/replication-options';
 import type { ReplicationContext } from '$lib/functions/replication/replication-progress';
 import { BlobReader, BlobWriter, ZipReader, type Entry, type ZipWriter } from '@zip.js/zip.js';
@@ -29,7 +30,7 @@ export class BackupStorageHandler extends BaseStorageHandler {
   ];
 
   /** @internal Used by `ScopedBackupHandler` and one-shot handler writes. */
-  exportZipWriter: ZipWriter<Blob> | undefined;
+  exportZIPWriter: ZipWriter<Blob> | undefined;
 
   private importReader: ZipReader<Blob> | undefined;
 
@@ -45,7 +46,7 @@ export class BackupStorageHandler extends BaseStorageHandler {
   listSyncTitles(_opts?: { refresh?: boolean }) {
     // Backup ZIPs aren't a sync endpoint — placeholder reconciliation
     // is wired to cloud/fs only. The import-backup flow uses
-    // setBackupZip + replicateData with explicit contexts.
+    // setBackupZIP + replicateData with explicit contexts.
     return Promise.resolve([]);
   }
 
@@ -59,7 +60,7 @@ export class BackupStorageHandler extends BaseStorageHandler {
 
   clearData(clearAll = true) {
     if (clearAll) {
-      this.exportZipWriter = undefined;
+      this.exportZIPWriter = undefined;
       this.importReader = undefined;
       this.importEntries = [];
     }
@@ -114,10 +115,10 @@ export class BackupStorageHandler extends BaseStorageHandler {
   ) {
     const filename = BaseStorageHandler.getReadingGoalsFileName(lastGoalModified);
     data.sort(readingGoalSortFunction);
-    this.exportZipWriter = await BaseStorageHandler.addDataToZip(
+    this.exportZIPWriter = await BaseStorageHandler.addDataToZip(
       filename,
       JSON.stringify(data),
-      this.exportZipWriter,
+      this.exportZIPWriter,
       { signal }
     );
   }
@@ -129,7 +130,7 @@ export class BackupStorageHandler extends BaseStorageHandler {
       : undefined;
   }
 
-  async setBackupZip(data: Blob) {
+  async setBackupZIP(data: Blob) {
     this.importReader = new ZipReader(new BlobReader(data));
     this.importEntries = await this.importReader.getEntries();
 
@@ -180,10 +181,10 @@ export class BackupStorageHandler extends BaseStorageHandler {
   }
 
   private async saveRootJson(filename: string, json: string) {
-    this.exportZipWriter = await BaseStorageHandler.addDataToZip(
+    this.exportZIPWriter = await BaseStorageHandler.addDataToZip(
       filename,
       json,
-      this.exportZipWriter
+      this.exportZIPWriter
     );
   }
 
@@ -199,35 +200,27 @@ export class BackupStorageHandler extends BaseStorageHandler {
     return BaseStorageHandler.extractAsJSON(zipEntry, errorMessage);
   }
 
-  async createExportZip(document: Document, resetOnly: boolean) {
-    if (!resetOnly && this.exportZipWriter) {
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(await this.exportZipWriter.close());
-      a.rel = 'noopener';
-      a.download = `miwake-reader-export-${new Date()
-        .toLocaleString('en-US', {
-          year: 'numeric',
-          month: '2-digit',
-          day: '2-digit',
-          hour: '2-digit',
-          minute: '2-digit',
-          second: '2-digit',
-          hour12: false
-        })
-        .replaceAll(/[/:, ]+/g, '-')}.zip`;
-
-      setTimeout(() => {
-        URL.revokeObjectURL(a.href);
-      }, 1e4);
-
-      setTimeout(() => {
-        a.click();
-        this.clearData();
-      });
-    } else if (resetOnly) {
-      this.clearData();
+  async createExportZIP(document: Document, resetOnly: boolean) {
+    if (!resetOnly && this.exportZIPWriter) {
+      downloadBlob(document, await this.exportZIPWriter.close(), getExportZIPFilename());
     }
+
+    this.clearData();
   }
+}
+
+function getExportZIPFilename() {
+  return `miwake-reader-export-${new Date()
+    .toLocaleString('en-US', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false
+    })
+    .replaceAll(/[/:, ]+/g, '-')}.zip`;
 }
 
 class ScopedBackupHandler
@@ -341,10 +334,10 @@ class ScopedBackupHandler
       signal: this.signal
     });
 
-    this.handler.exportZipWriter = await BaseStorageHandler.addDataToZip(
+    this.handler.exportZIPWriter = await BaseStorageHandler.addDataToZip(
       filename,
       zipped,
-      this.handler.exportZipWriter,
+      this.handler.exportZIPWriter,
       { progressBase: 0.5, signal: this.signal }
     );
 
@@ -354,10 +347,10 @@ class ScopedBackupHandler
   async saveProgress(data: BooksDbBookmarkData) {
     const filename = `${this.sanitizedTitle}/${BaseStorageHandler.getProgressFileName(data)}`;
 
-    this.handler.exportZipWriter = await BaseStorageHandler.addDataToZip(
+    this.handler.exportZIPWriter = await BaseStorageHandler.addDataToZip(
       filename,
       JSON.stringify(data),
-      this.handler.exportZipWriter,
+      this.handler.exportZIPWriter,
       { signal: this.signal }
     );
   }
@@ -370,10 +363,10 @@ class ScopedBackupHandler
 
     data.sort((a, b) => (a.dateKey > b.dateKey ? 1 : -1));
 
-    this.handler.exportZipWriter = await BaseStorageHandler.addDataToZip(
+    this.handler.exportZIPWriter = await BaseStorageHandler.addDataToZip(
       filename,
       JSON.stringify(data),
-      this.handler.exportZipWriter,
+      this.handler.exportZIPWriter,
       { signal: this.signal }
     );
   }
@@ -385,10 +378,10 @@ class ScopedBackupHandler
     }
 
     const filename = await BaseStorageHandler.getCoverFileName(data);
-    this.handler.exportZipWriter = await BaseStorageHandler.addDataToZip(
+    this.handler.exportZIPWriter = await BaseStorageHandler.addDataToZip(
       `${this.sanitizedTitle}/${filename}`,
       data,
-      this.handler.exportZipWriter,
+      this.handler.exportZIPWriter,
       { signal: this.signal }
     );
   }

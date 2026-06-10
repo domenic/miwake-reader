@@ -40,6 +40,7 @@ import loadEpub from '$lib/functions/file-loaders/epub/load-epub';
 import loadHtmlz from '$lib/functions/file-loaders/htmlz/load-htmlz';
 import loadTxt from '$lib/functions/file-loaders/txt/load-txt';
 import type { LoadData } from '$lib/functions/file-loaders/types';
+import { downloadBlob } from '$lib/functions/download-blob';
 import { getLocalEndpoint } from '$lib/data/storage/storage-handler-factory';
 import { scopedSettings, syncAfterLocalMutation } from '$lib/data/sync/sync-engine';
 import pLimit from 'p-limit';
@@ -184,20 +185,11 @@ export async function userImportBooks(
   });
 
   if (fileCountData && newFileData) {
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(
-      new Blob([JSON.stringify(fileCountData)], { type: 'application/json' })
+    downloadBlob(
+      document,
+      new Blob([JSON.stringify(fileCountData)], { type: 'application/json' }),
+      'characters'
     );
-    a.rel = 'noopener';
-    a.download = 'characters';
-
-    setTimeout(() => {
-      URL.revokeObjectURL(a.href);
-    }, 1e4);
-
-    setTimeout(() => {
-      a.click();
-    });
   }
 
   if (errors.length) {

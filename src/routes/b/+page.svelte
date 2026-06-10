@@ -9,6 +9,7 @@
     map,
     merge,
     NEVER,
+    Observable,
     of,
     share,
     shareReplay,
@@ -133,7 +134,9 @@
   import { StorageDataType } from '$lib/data/storage/storage-types';
   import { availableThemes } from '$lib/data/theme-option';
   import { ViewMode } from '$lib/data/view-mode';
-  import loadBookData from '$lib/functions/book-data-loader/load-book-data';
+  import loadBookData, {
+    type LoadedBookData
+  } from '$lib/functions/book-data-loader/load-book-data';
   import { formatPageTitle } from '$lib/functions/format-page-title';
   import { iffBrowser } from '$lib/functions/rxjs/iff-browser';
   import { ReplicationSaveBehavior } from '$lib/functions/replication/replication-options';
@@ -340,7 +343,17 @@
         `reader/bookData$: loadBookData start (sections=${rawBookData.sections?.length ?? 0}, htmlLen=${rawBookData.elementHtml?.length ?? 0})`
       );
 
-      return loadBookData(rawBookData, '.book-content', document, $hideSpoilerImageMode$);
+      return new Observable<LoadedBookData>((subscriber) => {
+        const { loadedBookData, cleanup } = loadBookData(
+          rawBookData,
+          '.book-content',
+          document,
+          $hideSpoilerImageMode$
+        );
+        subscriber.next(loadedBookData);
+
+        return cleanup;
+      });
     }),
     tap((loaded) => {
       logger.debug(

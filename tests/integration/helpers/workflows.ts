@@ -243,6 +243,7 @@ export async function exportBackup(
     dialog.getByRole('button', { name: 'Export' }).click()
   ]);
   await download.saveAs(path);
+  return download;
 }
 
 export async function importBackup(

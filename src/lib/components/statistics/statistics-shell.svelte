@@ -194,7 +194,7 @@
 
         if (entriesToExport.length) {
           exportTasks.push(
-            exportLimiter(async () => backupHandler.createExportZip(document, false))
+            exportLimiter(async () => backupHandler.createExportZIP(document, false))
           );
         }
 

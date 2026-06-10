@@ -14,7 +14,7 @@
     buildCurrentCatalog,
     exportBackup,
     importBackup,
-    parseBackupZip,
+    parseBackupZIP,
     wipeAllStorage
   } from '$lib/data/sync/backup-service';
 
@@ -42,7 +42,7 @@
 
     let catalog: BackupCatalog;
     try {
-      catalog = await parseBackupZip(file);
+      catalog = await parseBackupZIP(file);
     } catch (error) {
       await showErrorDialog({ title: 'Error reading backup', error });
       return;

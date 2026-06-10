@@ -3,6 +3,7 @@ import { FuriganaStyle, setupRubyClickListeners } from '../../data/furigana-styl
 import { nextChapter$ } from '$lib/components/book-reader/book-toc/book-toc';
 import { pulseElement } from '$lib/functions/range-util';
 import { readerImageGallery } from '$lib/components/book-reader/book-reader-image-gallery/book-reader-image-gallery-state.svelte';
+import { getImageURL } from './image-url';
 
 interface EnhanceBookContentOptions {
   furiganaStyle: FuriganaStyle;
@@ -227,14 +228,4 @@ function openImageOnGestureEnd(elm: HTMLElement) {
 function revealImageGalleryPicture(imageElement: Element | null) {
   const imageURL = getImageURL(imageElement);
   if (imageURL) readerImageGallery.revealPicture(imageURL);
-}
-
-function getImageURL(imageElement: Element | null) {
-  if (imageElement instanceof HTMLImageElement) return imageElement.src;
-  const imageURL = imageElement?.getAttribute('href') || imageElement?.getAttribute('xlink:href');
-  if (imageURL) return imageURL;
-  if (imageElement && 'href' in imageElement) {
-    return (imageElement.href as SVGAnimatedString).baseVal;
-  }
-  return undefined;
 }

@@ -245,7 +245,7 @@ export async function replicateData(opts: ReplicateDataOptions) {
   });
 
   if (target instanceof BackupStorageHandler) {
-    await target.createExportZip(document, signal?.aborted || !processed).catch((err) => {
+    await target.createExportZIP(document, signal?.aborted || !processed).catch((err) => {
       errors.push(err);
     });
   }
