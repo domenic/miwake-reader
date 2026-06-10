@@ -106,8 +106,12 @@ await writeOut(
     <img src="images/inline-marker.bmp" alt="Inline marker" />
     that should not appear in the gallery.
   </p>
+  <span class="placeholder-br">Legacy placeholder should be removed.</span>
   <figure>
     <img src="images/spoiler-illustration-one.bmp" alt="Spoiler illustration one" />
+  </figure>
+  <figure>
+    <img src="images/spoiler-illustration-one.bmp" alt="Spoiler illustration one duplicate" />
   </figure>
   <p id="second-spoiler">The second illustration should start hidden too.</p>
   <figure>
@@ -166,14 +170,14 @@ async function buildEPUB({ title, author, identifier, language, chapters, coverC
     dataDescriptor: false
   });
 
-  await zip.add('META-INF/container.xml', new TextReader(containerXml()));
+  await zip.add('META-INF/container.xml', new TextReader(containerXML()));
   await zip.add(
     'OEBPS/content.opf',
     new TextReader(
-      packageOpf({ title, author, identifier, language, chapters, coverColor, images })
+      packageOPF({ title, author, identifier, language, chapters, coverColor, images })
     )
   );
-  await zip.add('OEBPS/nav.xhtml', new TextReader(navXhtml({ title, chapters })));
+  await zip.add('OEBPS/nav.xhtml', new TextReader(navXHTML({ title, chapters })));
   if (coverColor) {
     await zip.add('OEBPS/cover.bmp', new Uint8ArrayReader(coverBitmapBytes(coverColor)));
   }
@@ -183,14 +187,14 @@ async function buildEPUB({ title, author, identifier, language, chapters, coverC
 
   for (let i = 0; i < chapters.length; i++) {
     const c = chapters[i];
-    await zip.add(`OEBPS/chapter${i + 1}.xhtml`, new TextReader(chapterXhtml(c, language)));
+    await zip.add(`OEBPS/chapter${i + 1}.xhtml`, new TextReader(chapterXHTML(c, language)));
   }
 
   await zip.close();
   return writer.getData();
 }
 
-function containerXml() {
+function containerXML() {
   return `<?xml version="1.0" encoding="UTF-8"?>
 <container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
   <rootfiles>
@@ -200,7 +204,7 @@ function containerXml() {
 `;
 }
 
-function packageOpf({ title, author, identifier, language, chapters, coverColor, images }) {
+function packageOPF({ title, author, identifier, language, chapters, coverColor, images }) {
   const manifestItems = chapters
     .map(
       (_c, i) =>
@@ -236,7 +240,7 @@ ${spineItems}
 `;
 }
 
-function navXhtml({ title, chapters }) {
+function navXHTML({ title, chapters }) {
   const items = chapters
     .map((c, i) => `      <li><a href="chapter${i + 1}.xhtml">${escapeXML(c.title)}</a></li>`)
     .join('\n');
@@ -256,7 +260,7 @@ ${items}
 `;
 }
 
-function chapterXhtml(chapter, language) {
+function chapterXHTML(chapter, language) {
   const bodyContent = chapter.bodyHTML ?? `  <p>${escapeXML(chapter.body)}</p>`;
 
   return `<?xml version="1.0" encoding="UTF-8"?>

@@ -18,19 +18,28 @@ const COVER_ALT = 'Cover before spoilers';
 const INLINE_ALT = 'Inline marker';
 const SVG_LABEL = 'SVG before spoilers';
 const SPOILER_ONE_ALT = 'Spoiler illustration one';
+const SPOILER_ONE_DUPLICATE_ALT = 'Spoiler illustration one duplicate';
 const SPOILER_TWO_ALT = 'Spoiler illustration two';
+const REMOVED_PLACEHOLDER_TEXT = 'Legacy placeholder should be removed.';
 
-test('spoiler image gallery mirrors reader-side spoiler reveal state', async ({ page }) => {
+test('book data loading formats reader images and keeps spoiler gallery state in sync', async ({
+  page
+}) => {
   await useReaderSettings(page, { viewMode: 'Continuous' });
   await importBookFixtures(page, [SPOILER_IMAGE_GALLERY_BOOK]);
   await openBookFromManage(page, SPOILER_IMAGE_GALLERY_BOOK);
   await expectBookReaderText(page, SPOILER_IMAGE_GALLERY_BOOK);
 
-  await expect(readerSpoilerWrappers(page)).toHaveCount(2);
+  await expect(page.locator('.book-content .placeholder-br')).toHaveCount(0);
+  await expect(page.getByText(REMOVED_PLACEHOLDER_TEXT)).toHaveCount(0);
+  await expect(readerSpoilerWrappers(page)).toHaveCount(3);
   await expect(readerSpoilerWrapper(page, COVER_ALT)).toHaveCount(0);
   await expect(readerSpoilerWrapper(page, INLINE_ALT)).toHaveCount(0);
   await expect(readerSpoilerWrapper(page, SPOILER_ONE_ALT)).toHaveCount(1);
+  await expect(readerSpoilerWrapper(page, SPOILER_ONE_DUPLICATE_ALT)).toHaveCount(1);
   await expect(readerSpoilerWrapper(page, SPOILER_TWO_ALT)).toHaveCount(1);
+  await expect(page.locator('.book-content .ttu-img-container')).toHaveCount(5);
+  await expect(page.locator('.book-content .ttu-illustration-container')).toHaveCount(4);
 
   await openImageGallery(page);
 
@@ -38,11 +47,23 @@ test('spoiler image gallery mirrors reader-side spoiler reveal state', async ({ 
   const svgURL = await readerSVGImageURL(page, SVG_LABEL);
   const inlineURL = await readerImageURL(page, INLINE_ALT);
   const spoilerOneURL = await readerImageURL(page, SPOILER_ONE_ALT);
+  const spoilerOneDuplicateURL = await readerImageURL(page, SPOILER_ONE_DUPLICATE_ALT);
   const spoilerTwoURL = await readerImageURL(page, SPOILER_TWO_ALT);
   const galleryImageURLs = await page
     .getByRole('img', { name: /^Gallery image \d+$/ })
     .evaluateAll((imgs) => imgs.map((img) => (img as HTMLImageElement).src));
 
+  for (const imageURL of [
+    coverURL,
+    svgURL,
+    inlineURL,
+    spoilerOneURL,
+    spoilerOneDuplicateURL,
+    spoilerTwoURL
+  ]) {
+    expect(imageURL).toMatch(/^blob:/);
+  }
+  expect(spoilerOneDuplicateURL).toBe(spoilerOneURL);
   expect(galleryImageURLs).toEqual([coverURL, svgURL, spoilerOneURL, spoilerTwoURL]);
   expect(galleryImageURLs).not.toContain(inlineURL);
 

@@ -148,20 +148,20 @@ export async function exportBackup(selection: BackupSelection): Promise<void> {
     await backupHandler.saveAppSettings(JSON.stringify(snapshot));
   }
 
-  await backupHandler.createExportZip(document, false);
+  await backupHandler.createExportZIP(document, false);
 }
 
 /**
  * Walk the ZIP entries to derive a catalog. Doesn't reuse
- * BackupStorageHandler because the handler's setBackupZip mutates its
+ * BackupStorageHandler because the handler's setBackupZIP mutates its
  * singleton state, and we want the inspection step to be free of side
- * effects. The actual import re-opens the same blob via setBackupZip
+ * effects. The actual import re-opens the same blob via setBackupZIP
  * when the user confirms.
  *
  * Tolerates ZIPs from older miwake / tsutsu builds: missing
  * app-settings.json or reading goals just turn off those checkboxes.
  */
-export async function parseBackupZip(file: File): Promise<BackupCatalog> {
+export async function parseBackupZIP(file: File): Promise<BackupCatalog> {
   const reader = new ZipReader(new BlobReader(file));
   try {
     const entries = await reader.getEntries();
@@ -227,7 +227,7 @@ export async function importBackup(
   const backupHandler = getSyncEndpoint(window, SyncEndpointType.BACKUP);
   const browserHandler = getLocalEndpoint();
 
-  const allContexts = await backupHandler.setBackupZip(file);
+  const allContexts = await backupHandler.setBackupZIP(file);
   const contextsByTitle = new Map(allContexts.map((c) => [c.title, c]));
   const importSettings = scopedSettings({ winnerTakesAll: direction === 'zip-wins' });
 
