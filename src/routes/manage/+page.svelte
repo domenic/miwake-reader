@@ -33,42 +33,27 @@
   } from '$lib/functions/replication/replication-progress';
   import { pluralize } from '$lib/functions/utils';
   import pLimit from 'p-limit';
-  import { combineLatest, map, Observable, share, Subject, takeUntil } from 'rxjs';
-  import { tick } from 'svelte';
+  import { onDestroy, tick } from 'svelte';
   import Fa from 'svelte-fa';
 
-  const booksAreLoading$ = database.listLoading$.pipe(map((isLoading) => isLoading));
+  const { dataList$, bookmarks$, lastItem$, listLoading$ } = database;
 
   // The unified library view always reads from the local IndexedDB
   // (browser storage). Placeholder books (not-yet-downloaded cloud
   // content) stay in the list with a cloud-icon marker and are
   // downloaded transparently when clicked; see onBookClick below.
-  const bookCards$: Observable<BookCardProps[]> = combineLatest([
-    database.dataList$,
-    database.bookmarks$,
-    booklistSortOptions$
-  ]).pipe(
-    map(([dataList, bookmarks, sortProp]) => {
-      const isTitleSort = sortProp.property === 'title';
-      const bookmarkMap = keyBy(bookmarks, 'dataId');
+  let bookCards = $derived.by(() => {
+    const dataList = $dataList$;
+    const bookmarks = $bookmarks$;
+    // Svelte's RxJS auto-subscription yields `undefined` before the observables emit. Remove this
+    // guard once the database streams become native Svelte stores/state.
+    if (dataList === undefined || bookmarks === undefined) return [];
 
-      return [
-        ...dataList
-          .map((d) => ({
-            ...d,
-            ...bookmarkToProgress(bookmarkMap.get(d.id))
-          }))
-          .sort((card1: BookCardProps, card2: BookCardProps) =>
-            sortBookCards(card1, card2, sortProp, isTitleSort)
-          )
-      ];
-    }),
-    share()
-  );
-
-  const currentBookId$ = database.lastItem$.pipe(
-    map((item) => item?.dataId),
-    share()
+    return getBookCards(dataList, bookmarks, $booklistSortOptions$);
+  });
+  let currentBookId = $derived($lastItem$?.dataId);
+  let bookCardsAreLoading = $derived(
+    $dataList$ === undefined || $bookmarks$ === undefined || $listLoading$ === true
   );
 
   let selectedBookIds: ReadonlySet<number> = $state(new Set());
@@ -79,15 +64,37 @@
   let replicationProgress = $state(0);
   let replicationToProgress = $state(0);
   let replicationProgressRemaining = $state('~ ??:??:??');
-  let replicationDone = new Subject<void>();
+  let stopReplicationProgress: (() => void) | undefined;
   let progressBase = 0;
   let executionStart = 0;
+
+  onDestroy(() => {
+    stopReplicationProgress?.();
+  });
 
   $effect(() => {
     if (!selectMode) {
       selectedBookIds = new Set();
     }
   });
+
+  function getBookCards(
+    dataList: BookCardProps[],
+    bookmarks: BooksDbBookmarkData[],
+    sortProp: SortOption
+  ) {
+    const isTitleSort = sortProp.property === 'title';
+    const bookmarkMap = keyBy(bookmarks, 'dataId');
+
+    return dataList
+      .map((d) => ({
+        ...d,
+        ...bookmarkToProgress(bookmarkMap.get(d.id))
+      }))
+      .sort((card1: BookCardProps, card2: BookCardProps) =>
+        sortBookCards(card1, card2, sortProp, isTitleSort)
+      );
+  }
 
   function bookmarkToProgress(b: BooksDbBookmarkData | undefined) {
     return b
@@ -147,7 +154,7 @@
     // placeholder, pre-check that the original sync source is still
     // connected so we can surface a friendlier error than "couldn't
     // render empty book" if not; otherwise just navigate.
-    const bookItem = $bookCards$.find((book) => book.id === bookId);
+    const bookItem = bookCards.find((book) => book.id === bookId);
     if (!bookItem) return;
 
     if (bookItem.isPlaceholder) {
@@ -164,7 +171,7 @@
       }
     }
 
-    openBook(bookId);
+    await openBook(bookId);
   }
 
   function operationAllowed() {
@@ -172,8 +179,10 @@
   }
 
   function initializeReplicationProgressData() {
-    replicationDone = new Subject<void>();
-    replicationProgress$.pipe(takeUntil(replicationDone)).subscribe(updateProgress);
+    stopReplicationProgress?.();
+    const subscription = replicationProgress$.subscribe(updateProgress);
+    stopReplicationProgress = () => subscription.unsubscribe();
+
     replicationProgressRemaining = '~ ??:??:??';
     replicationProgress = 0;
     replicationToProgress = 1;
@@ -183,8 +192,8 @@
   }
 
   function resetProgress() {
-    replicationDone.next();
-    replicationDone.complete();
+    stopReplicationProgress?.();
+    stopReplicationProgress = undefined;
     replicationToProgress = 0;
     replicationProgress = 0;
     cancelTooltip = '';
@@ -226,17 +235,13 @@
       : '??:??:??';
   }
 
-  function openBook(bookId: number) {
+  async function openBook(bookId: number) {
     if (!bookId) {
       return;
     }
 
-    database.putLastItem(bookId);
-    gotoBook(bookId);
-  }
-
-  async function gotoBook(id: number) {
-    await goto(resolve(`/b?id=${id}`));
+    await database.putLastItem(bookId);
+    await goto(resolve(`/b?id=${bookId}`));
   }
 
   async function onFilesChange(fileList: FileList | File[]) {
@@ -267,7 +272,6 @@
   }
 
   function onSelectAllBooks() {
-    const bookCards = $bookCards$;
     selectedBookIds = cloneMutateSet(selectedBookIds, (set) => {
       bookCards.forEach((x) => set.add(x.id));
     });
@@ -279,7 +283,7 @@
     cancelTooltip = 'Cancels the deletion\nAlready deleted data will not be restored';
     initializeReplicationProgressData();
 
-    const titlesToDelete = $bookCards$.reduce((toDelete, card) => {
+    const titlesToDelete = bookCards.reduce((toDelete, card) => {
       if (bookIds.includes(card.id)) toDelete.push(card.title);
       return toDelete;
     }, [] as string[]);
@@ -296,7 +300,7 @@
       // successfully deleted) drop out of the selection set; ids that
       // still exist (failed deletes) stay selected so the user can
       // retry. Works for both full success and partial failure.
-      const stillPresent = new Set($bookCards$.map((card) => card.id));
+      const stillPresent = new Set(bookCards.map((card) => card.id));
       selectedBookIds = cloneMutateSet(selectedBookIds, (set) => {
         set.forEach((id) => {
           if (!stillPresent.has(id)) set.delete(id);
@@ -307,7 +311,7 @@
   }
 
   async function onDeleteStatistics() {
-    const titles = $bookCards$
+    const titles = bookCards
       .filter((card) => selectedBookIds.has(card.id))
       .map((book) => book.title);
 
@@ -378,7 +382,7 @@
 <div class="elevation-4 fixed inset-x-0 top-0 z-10">
   <BookManagerHeader
     selectedCount={selectedBookIds.size}
-    hasBooks={!!$bookCards$?.length}
+    hasBooks={bookCards.length > 0}
     {replicationProgress}
     {replicationToProgress}
     {replicationProgressRemaining}
@@ -409,13 +413,13 @@
     getDropEventFiles(ev).then(onFilesChange);
   }}
 >
-  {#if !$bookCards$ || $booksAreLoading$}
+  {#if bookCardsAreLoading}
     Loading...
-  {:else if $bookCards$.length}
+  {:else if bookCards.length}
     <BookCardList
-      currentBookId={$currentBookId$}
+      {currentBookId}
       {selectedBookIds}
-      bookCards={$bookCards$}
+      {bookCards}
       onbookClick={({ id }) => onBookClick(id)}
       onremoveBookClick={({ id }) => removeBooks([id])}
     />

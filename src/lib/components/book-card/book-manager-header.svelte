@@ -218,6 +218,7 @@
                 >
                   <button
                     type="button"
+                    aria-label={`Sort by ${sortMenuItem.label} ascending`}
                     class="self-center justify-self-start"
                     class:text-red-500={isCurrentSortAsc}
                     class:hover:text-gray-700={isCurrentSortAsc}
@@ -240,6 +241,7 @@
                   </div>
                   <button
                     type="button"
+                    aria-label={`Sort by ${sortMenuItem.label} descending`}
                     class="justify-self-end hover:text-red-500"
                     class:text-red-500={isCurrentSort && !isCurrentSortAsc}
                     class:hover:text-gray-700={isCurrentSort && !isCurrentSortAsc}
