@@ -31,7 +31,7 @@ import { AutoReplicationType } from '$lib/functions/replication/replication-opti
 import { writableSubject } from '$lib/functions/svelte/store';
 import { map } from 'rxjs';
 import { BookReaderAvailableKeybind, type BookReaderKeybindMap } from './book-reader-keybind';
-import { DatabaseService } from './database/books-db/database.service';
+import { DatabaseService } from './database/books-db/database.service.svelte';
 import { createBooksDb } from './database/books-db/factory';
 import { FuriganaStyle } from './furigana-style';
 import { ImportHTMLFixMode } from './import-html-fix-mode';

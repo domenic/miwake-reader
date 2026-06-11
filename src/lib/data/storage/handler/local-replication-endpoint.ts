@@ -57,10 +57,10 @@ export class LocalReplicationEndpoint implements LocalReplicationEndpointRole {
     } finally {
       // On partial failure the AggregateError loses the per-id
       // deleted list, but IDB still reflects whatever got through.
-      // Fire dataListChanged$ unconditionally so the UI re-renders
-      // off the actual book set rather than a stale snapshot. The
-      // redundant fire on 0-id success is one cheap no-op rerender.
-      database.dataListChanged$.next();
+      // Refresh unconditionally so the UI re-renders off the actual
+      // book set rather than a stale snapshot. The redundant refresh on
+      // 0-id success is one cheap no-op rerender.
+      database.notifyDataListChanged();
     }
   }
 

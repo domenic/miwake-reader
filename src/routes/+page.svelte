@@ -3,17 +3,16 @@
   import { resolve } from '$app/paths';
   import { database } from '$lib/data/store';
   import { formatPageTitle } from '$lib/functions/format-page-title';
-  import { observe } from '$lib/functions/rxjs/use-observable';
-  import { map, tap } from 'rxjs';
 
-  const autoNavigate$ = database.lastItem$.pipe(
-    map((lastItem) => resolve(lastItem ? `/b?id=${lastItem.dataId}` : '/manage')),
-    tap(goto)
-  );
+  $effect(() => {
+    if (!database.lastItemLoaded) return;
+
+    void goto(
+      resolve(database.lastItemId === undefined ? '/manage' : `/b?id=${database.lastItemId}`)
+    );
+  });
 </script>
 
 <svelte:head>
   <title>{formatPageTitle('Home')}</title>
 </svelte:head>
-
-<div use:observe={autoNavigate$}></div>
