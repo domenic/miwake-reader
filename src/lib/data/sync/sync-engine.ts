@@ -808,7 +808,7 @@ export async function reconcileForBookOpen(context: ReplicationContext): Promise
       library: local,
       endpoint: handler,
       direction: 'pull',
-      refreshDataList: false,
+      refreshDataList: isPlaceholder,
       contexts: [context],
       dataToReplicate: types,
       settings: scopedSettings()

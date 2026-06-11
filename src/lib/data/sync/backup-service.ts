@@ -360,8 +360,8 @@ export async function importBackup(
 /**
  * Clear every IndexedDB store + all localStorage, then reload to a
  * fresh boot. Doesn't deleteDatabase: that races with in-flight
- * transactions from RxJS subscribers (dataList$, bookmarks$) and
- * surfaces a misleading "still open in another tab" error. Clearing
+ * transactions from live store refreshes and surfaces a misleading
+ * "still open in another tab" error. Clearing
  * stores is atomic in one transaction and leaves the schema intact —
  * the next boot finds empty stores and behaves identically to a
  * fresh install.

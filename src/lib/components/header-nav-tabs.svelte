@@ -7,7 +7,6 @@
   import type { IconDefinition } from '@fortawesome/free-solid-svg-icons';
   import HeaderButton from '$lib/components/header-button.svelte';
   import { database } from '$lib/data/store';
-  import { map, share } from 'rxjs';
 
   type HeaderRouteId = Extract<RouteId, '/b' | '/statistics' | '/settings' | '/manage'>;
   type HeaderRouteWithQuery = HeaderRouteId | `${HeaderRouteId}?${string}`;
@@ -19,11 +18,6 @@
   }
 
   let { disableNavigation = false, onnavigate }: Props = $props();
-
-  const currentBookId$ = database.lastItem$.pipe(
-    map((item) => item?.dataId),
-    share()
-  );
 
   const tabs = [
     { routeId: '/statistics', label: 'Statistics', icon: faChartLine },
@@ -48,13 +42,13 @@
   }
 </script>
 
-{#if $currentBookId$}
+{#if database.lastItemId !== undefined}
   <HeaderButton
     faIcon={faBookOpen}
     label="Book"
     selected={page.route.id === '/b'}
     variant="tab"
-    onclick={() => handleClick('/b', `?id=${$currentBookId$}`)}
+    onclick={() => handleClick('/b', `?id=${database.lastItemId}`)}
   />
 {/if}
 {#each tabs as tab (tab.routeId)}

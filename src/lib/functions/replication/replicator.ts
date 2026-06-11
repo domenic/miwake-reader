@@ -38,16 +38,15 @@ export type ReplicationDirection = 'push' | 'pull';
  * `scopedSettings({ winnerTakesAll })` rather than wiring knobs.
  *
  * Resolves on success. Throws on any failure (including AbortError on
- * cancel). Per-book partial successes are observable via IDB side
- * effects (dataListChanged$ / bookmarksChanged$); callers that care
- * about which book worked should subscribe to those rather than parse
- * the thrown error.
+ * cancel). Per-book partial successes are observable via refreshed IDB
+ * stores; callers that care about which book worked should read those
+ * rather than parse the thrown error.
  */
 export interface ReplicateDataOptions {
   library: LocalReplicationEndpoint;
   endpoint: SyncEndpoint;
   direction: ReplicationDirection;
-  /** Whether to fire dataListChanged$ after writes; true for flows
+  /** Whether to refresh the book-card list after writes; true for flows
    *  that affect /manage's view (force-resync, backup-import). */
   refreshDataList: boolean;
   contexts: ReplicationContext[];
@@ -174,10 +173,10 @@ export async function replicateData(opts: ReplicateDataOptions) {
 
             if (direction === 'pull') {
               if (refreshDataList) {
-                database.dataListChanged$.next();
+                database.notifyDataListChanged();
               }
               if (processProgressData) {
-                database.bookmarksChanged$.next();
+                database.notifyBookmarksChanged();
               }
             }
           } else {

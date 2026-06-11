@@ -36,24 +36,12 @@
   import { onDestroy, tick } from 'svelte';
   import Fa from 'svelte-fa';
 
-  const { dataList$, bookmarks$, lastItem$, listLoading$ } = database;
-
   // The unified library view always reads from the local IndexedDB
   // (browser storage). Placeholder books (not-yet-downloaded cloud
   // content) stay in the list with a cloud-icon marker and are
   // downloaded transparently when clicked; see onBookClick below.
-  let bookCards = $derived.by(() => {
-    const dataList = $dataList$;
-    const bookmarks = $bookmarks$;
-    // Svelte's RxJS auto-subscription yields `undefined` before the observables emit. Remove this
-    // guard once the database streams become native Svelte stores/state.
-    if (dataList === undefined || bookmarks === undefined) return [];
-
-    return getBookCards(dataList, bookmarks, $booklistSortOptions$);
-  });
-  let currentBookId = $derived($lastItem$?.dataId);
-  let bookCardsAreLoading = $derived(
-    $dataList$ === undefined || $bookmarks$ === undefined || $listLoading$ === true
+  let bookCards = $derived(
+    getBookCards(database.dataList, database.bookmarks, $booklistSortOptions$)
   );
 
   let selectedBookIds: ReadonlySet<number> = $state(new Set());
@@ -413,11 +401,11 @@
     getDropEventFiles(ev).then(onFilesChange);
   }}
 >
-  {#if bookCardsAreLoading}
+  {#if database.listLoading}
     Loading...
   {:else if bookCards.length}
     <BookCardList
-      {currentBookId}
+      currentBookId={database.lastItemId}
       {selectedBookIds}
       {bookCards}
       onbookClick={({ id }) => onBookClick(id)}

@@ -5,7 +5,7 @@ import type {
   BooksDbStatistic,
   BooksDbStorageSource
 } from '$lib/data/database/books-db/versions/books-db';
-import { Observable, Subject, from } from 'rxjs';
+import { browser } from '$app/environment';
 import { StorageDataType } from '$lib/data/storage/storage-types';
 import {
   advanceDateDays,
@@ -14,7 +14,6 @@ import {
   mergeStatistics,
   updateStatisticToStore
 } from '$lib/functions/statistic-util';
-import { catchError, map, shareReplay, startWith, switchMap } from 'rxjs/operators';
 import {
   getCurrentReadingGoal,
   mergeReadingGoals,
@@ -32,102 +31,162 @@ import type { MergeMode } from '$lib/data/merge-mode';
 import { ReplicationSaveBehavior } from '$lib/functions/replication/replication-options';
 import { getDefaultStatistic } from '$lib/components/book-reader/book-reading-tracker/tracker-domain';
 import { handleErrorDuringReplication } from '$lib/functions/replication/error-handler';
-import { iffBrowser } from '$lib/functions/rxjs/iff-browser';
 import { logger } from '$lib/data/logger';
 import pLimit from 'p-limit';
 import { replicationProgress$ } from '$lib/functions/replication/replication-progress';
+import { SvelteMap, SvelteSet } from 'svelte/reactivity';
 
 const LAST_ITEM_KEY = 0;
 
 export class DatabaseService {
-  private db$: Observable<Awaited<typeof this.db>>;
-
-  isReady$: Observable<boolean>;
-
-  listLoading$ = new Subject<boolean>();
-
-  dataListChanged$ = new Subject<void>();
+  #state = $state({
+    isReady: false,
+    listLoading: browser,
+    dataList: [] as BookCardProps[],
+    bookmarks: [] as BooksDbBookmarkData[],
+    lastItemId: undefined as number | undefined,
+    lastItemLoaded: false
+  });
 
   /**
    * The unified library view — every BookCardProps row /manage shows.
    * Reads IndexedDB directly; no storage-handler involvement, since
    * cloud/fs handlers are sync endpoints, not library data sources.
-   * Subscribers debounce their own work; this just emits BookCardProps[]
-   * whenever someone calls notifyDataListChanged() or fires
-   * dataListChanged$.next().
+   * Call notifyDataListChanged() after direct writes so this state refreshes
+   * from IndexedDB.
    */
-  dataList$ = iffBrowser(() =>
-    this.dataListChanged$.pipe(
-      startWith(undefined),
-      switchMap(() =>
-        from(this.fetchBookCards()).pipe(
-          catchError((error: unknown) => {
-            showErrorDialog({ title: 'Error loading books', error });
-            return [[]];
-          })
-        )
-      ),
-      shareReplay({ refCount: true, bufferSize: 1 })
-    )
-  );
-
-  private async fetchBookCards(): Promise<BookCardProps[]> {
-    this.listLoading$.next(true);
-    try {
-      logger.clearHistory();
-      const db = await this.db;
-      const data = await db.getAll('data');
-      return data.map((book) => ({
-        id: book.id,
-        title: book.title,
-        imagePath: book.coverImage || '',
-        characters: BaseStorageHandler.getBookCharacters(book.characters || 0, book.sections || []),
-        lastBookModified: book.lastBookModified || 0,
-        lastBookOpen: book.lastBookOpen || 0,
-        isPlaceholder: !book.elementHtml,
-        // Overlaid by /manage's bookCards$ pipeline from the bookmark store.
-        progress: 0,
-        completed: false,
-        lastBookmarkModified: 0
-      }));
-    } finally {
-      this.listLoading$.next(false);
-    }
+  get dataList() {
+    return this.#state.dataList;
   }
 
-  bookmarksChanged$ = new Subject<void>();
+  get bookmarks() {
+    return this.#state.bookmarks;
+  }
 
-  bookmarks$ = this.bookmarksChanged$.pipe(
-    startWith(0),
-    switchMap(() => this.db$),
-    switchMap((db) => db.getAll('bookmark')),
-    shareReplay({ refCount: true, bufferSize: 1 })
-  );
+  get lastItemId() {
+    return this.#state.lastItemId;
+  }
 
-  lastItemChanged$ = new Subject<void>();
+  get lastItemLoaded() {
+    return this.#state.lastItemLoaded;
+  }
 
-  lastItem$ = this.lastItemChanged$.pipe(
-    startWith(0),
-    switchMap(() => this.db$),
-    switchMap((db) => db.get('lastItem', LAST_ITEM_KEY)),
-    shareReplay({ refCount: true, bufferSize: 1 })
-  );
+  get listLoading() {
+    return this.#state.listLoading;
+  }
 
-  storageSourcesChanged$ = new Subject<BooksDbStorageSource[]>();
+  get isReady() {
+    return this.#state.isReady;
+  }
+
+  #dataListRefreshId = 0;
+
+  #bookmarksRefreshId = 0;
+
+  #lastItemRefreshId = 0;
+
+  async #fetchBookCards(): Promise<BookCardProps[]> {
+    logger.clearHistory();
+    const db = await this.db;
+    const data = await db.getAll('data');
+    return data.map((book) => ({
+      id: book.id,
+      title: book.title,
+      imagePath: book.coverImage || '',
+      characters: BaseStorageHandler.getBookCharacters(book.characters || 0, book.sections || []),
+      lastBookModified: book.lastBookModified || 0,
+      lastBookOpen: book.lastBookOpen || 0,
+      isPlaceholder: !book.elementHtml,
+      // Overlaid by /manage's book-card derivation from bookmark state.
+      progress: 0,
+      completed: false,
+      lastBookmarkModified: 0
+    }));
+  }
 
   constructor(public db: Promise<IDBPDatabase<BooksDb>>) {
-    this.db$ = from(db).pipe(shareReplay({ refCount: true, bufferSize: 1 }));
-    this.isReady$ = this.db$.pipe(map((x) => !!x));
+    db.then(
+      () => (this.#state.isReady = true),
+      (error: unknown) => showErrorDialog({ title: 'Error opening database', error })
+    );
+
+    if (browser) {
+      this.notifyDataListChanged();
+      this.notifyBookmarksChanged();
+      void this.#refreshLastItem();
+    }
   }
 
   /**
    * Use this when something has mutated the `data` store directly
-   * (sync engine seeding placeholders, importers, etc.). dataList$
-   * reads IndexedDB on every emission so no handler-cache
-   * invalidation is needed — just kick the pipeline.
+   * (sync engine seeding placeholders, importers, etc.). `dataList`
+   * reads IndexedDB on every refresh so no handler-cache invalidation is
+   * needed.
    */
   notifyDataListChanged(): void {
-    this.dataListChanged$.next();
+    void this.#refreshBookCards();
+  }
+
+  notifyBookmarksChanged(): void {
+    void this.#refreshBookmarks();
+  }
+
+  async #refreshBookCards() {
+    const refreshId = ++this.#dataListRefreshId;
+
+    this.#state.listLoading = true;
+
+    try {
+      const bookCards = await this.#fetchBookCards();
+      if (refreshId === this.#dataListRefreshId) {
+        this.#state.dataList = bookCards;
+      }
+    } catch (error) {
+      if (refreshId === this.#dataListRefreshId) {
+        showErrorDialog({ title: 'Error loading books', error });
+        this.#state.dataList = [];
+      }
+    } finally {
+      if (refreshId === this.#dataListRefreshId) {
+        this.#state.listLoading = false;
+      }
+    }
+  }
+
+  async #refreshBookmarks() {
+    const refreshId = ++this.#bookmarksRefreshId;
+
+    try {
+      const db = await this.db;
+      const bookmarks = await db.getAll('bookmark');
+      if (refreshId === this.#bookmarksRefreshId) {
+        this.#state.bookmarks = bookmarks;
+      }
+    } catch (error) {
+      if (refreshId === this.#bookmarksRefreshId) {
+        showErrorDialog({ title: 'Error loading bookmarks', error });
+        this.#state.bookmarks = [];
+      }
+    }
+  }
+
+  async #refreshLastItem() {
+    const refreshId = ++this.#lastItemRefreshId;
+
+    try {
+      const db = await this.db;
+      const lastItem = await db.get('lastItem', LAST_ITEM_KEY);
+      if (refreshId === this.#lastItemRefreshId) {
+        this.#state.lastItemId = lastItem?.dataId;
+        this.#state.lastItemLoaded = true;
+      }
+    } catch (error) {
+      if (refreshId === this.#lastItemRefreshId) {
+        showErrorDialog({ title: 'Error loading last-opened book', error });
+        this.#state.lastItemId = undefined;
+        this.#state.lastItemLoaded = true;
+      }
+    }
   }
 
   async getLastModifiedForType(title: string, dataType: string) {
@@ -276,7 +335,7 @@ export class DatabaseService {
     const lastItemObj = await db.get('lastItem', LAST_ITEM_KEY);
     const bookmarkIdData = await db.getAllKeys('bookmark');
     const lastItem = lastItemObj?.dataId;
-    const bookmarkIds = new Set(bookmarkIdData);
+    const bookmarkIds = new SvelteSet(bookmarkIdData);
     const deleted: number[] = [];
     const errors: Error[] = [];
     const limiter = pLimit(1);
@@ -290,7 +349,7 @@ export class DatabaseService {
           try {
             signal.throwIfAborted();
             deleted.push(
-              await this.deleteSingleData(
+              await this.#deleteSingleData(
                 db,
                 id,
                 idsToTitles.get(id),
@@ -324,24 +383,26 @@ export class DatabaseService {
   async putBookmark(bookmarkData: BooksDbBookmarkData) {
     const db = await this.db;
     const result = await db.put('bookmark', bookmarkData);
-    this.bookmarksChanged$.next();
+    await this.#refreshBookmarks();
     return result;
   }
 
   async putLastItem(dataId: number) {
     const db = await this.db;
     const result = await db.put('lastItem', { dataId }, LAST_ITEM_KEY);
-    this.lastItemChanged$.next();
+    this.#state.lastItemId = dataId;
+    this.#state.lastItemLoaded = true;
     return result;
   }
 
   async deleteLastItem() {
     const db = await this.db;
     await db.delete('lastItem', LAST_ITEM_KEY);
-    this.lastItemChanged$.next();
+    this.#state.lastItemId = undefined;
+    this.#state.lastItemLoaded = true;
   }
 
-  private async deleteSingleData(
+  async #deleteSingleData(
     db: IDBPDatabase<BooksDb>,
     dataId: number,
     title: string | undefined,
@@ -393,7 +454,8 @@ export class DatabaseService {
       await tx.done;
 
       if (shouldDeleteLastItem) {
-        this.lastItemChanged$.next();
+        this.#state.lastItemId = undefined;
+        this.#state.lastItemLoaded = true;
       }
     } catch (error: any) {
       try {
@@ -608,11 +670,11 @@ export class DatabaseService {
   async clearZombieStatistics() {
     const db = await this.db;
     const books = await db.getAll('data');
-    const titles = new Set(books.map((book) => book.title));
+    const titles = new SvelteSet(books.map((book) => book.title));
     const statistics = await db.getAll('statistic');
     const lastModifiedForStatistics = await db.getAll('lastModified');
     const statisticsToDelete: BooksDbStatistic[] = [];
-    const lastModifiedItemsToDelete = new Set<string>();
+    const lastModifiedItemsToDelete = new SvelteSet<string>();
 
     for (let index = 0, { length } = statistics; index < length; index += 1) {
       const entry = statistics[index];
@@ -640,7 +702,7 @@ export class DatabaseService {
 
     const db = await this.db;
     const tx = db.transaction(['statistic', 'lastModified'], 'readwrite');
-    const titlesToDelete = new Set<string>();
+    const titlesToDelete = new SvelteSet<string>();
 
     try {
       const statisticsStore = tx.objectStore('statistic');
@@ -715,7 +777,7 @@ export class DatabaseService {
       const tasks: Promise<void>[] = [];
       const dates: string[] = [];
       const lastModifiedValue = Date.now();
-      const hadDataMap = new Map<string, boolean>();
+      const hadDataMap = new SvelteMap<string, boolean>();
 
       if (startDateString) {
         // eslint-disable-next-line prefer-const

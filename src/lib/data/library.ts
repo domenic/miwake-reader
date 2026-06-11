@@ -164,8 +164,8 @@ export async function userImportBooks(
             }
           });
 
-          // The library always drives /manage's view; emit unconditionally.
-          database.dataListChanged$.next();
+          // The library always drives /manage's view; refresh unconditionally.
+          database.notifyDataListChanged();
 
           checkCancelAndProgress(signal, true, !bookContent.coverImage);
         } catch (error: any) {
@@ -297,9 +297,9 @@ export async function userDeleteBooks(
 ): Promise<void> {
   const local = getLocalEndpoint();
   // Local delete throws on any per-id failure; the surviving deleted
-  // ids stay in IDB and `dataListChanged$` already fired, so the UI
-  // re-renders from the new book list without needing the partial set
-  // threaded through the return.
+  // ids stay in IDB and the book-card list already refreshed, so the
+  // UI re-renders without needing the partial set threaded through the
+  // return.
   await local.deleteBookData(titles, signal, keepLocalStatistics);
 
   await syncAfterLocalMutation({ kind: 'books-deleted', titles, signal });
