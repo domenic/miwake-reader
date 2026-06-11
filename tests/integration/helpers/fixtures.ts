@@ -475,7 +475,7 @@ function fixturePaths(fixtures: readonly BookFixture[]) {
   return fixtures.map((fixture) => getFixtureMetadata(fixture).path);
 }
 
-function fixtureTitle(fixture: LibraryBookFixture) {
+export function fixtureTitle(fixture: LibraryBookFixture) {
   return getFixtureMetadata(fixture).title;
 }
 
