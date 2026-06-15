@@ -11,11 +11,7 @@
     charactersDataSources,
     readingSpeedDataSources,
     statisticsDataAggregrationModes,
-    StatisticsReadingDataAggregationMode,
-    exportStatisticsData$,
-    statisticsActionInProgress$,
-    deleteStatisticsData$,
-    setStatisticsDatesToAllTime$
+    StatisticsReadingDataAggregationMode
   } from '$lib/components/statistics/statistics-types';
   import { daysOfWeek } from '$lib/components/statistics/statistics-heatmap/statistics-heatmap';
   import {
@@ -32,10 +28,18 @@
   import Fa from 'svelte-fa';
 
   interface Props {
-    onstatisticsDateChange?: (data: StatisticsDateChange) => void;
+    ondeletestatisticsdata: (deleteAllStatisticsData: boolean) => void;
+    onexportstatisticsdata: (exportAllStatisticsData: boolean) => void;
+    onsetstatisticsdatestoalltime: () => void;
+    onstatisticsDateChange: (data: StatisticsDateChange) => void;
   }
 
-  let { onstatisticsDateChange }: Props = $props();
+  let {
+    ondeletestatisticsdata,
+    onexportstatisticsdata,
+    onsetstatisticsdatestoalltime,
+    onstatisticsDateChange
+  }: Props = $props();
 
   const weekDays = [...daysOfWeek.slice(1, 7), daysOfWeek[0]].map((day, index) => {
     if (day === 'Sunday') {
@@ -47,31 +51,21 @@
   let selectedStatisticsStartDate = $derived($lastStatisticsStartDate$);
 
   let selectedStatisticsEndDate = $derived($lastStatisticsEndDate$);
-
-  async function exportStatisticsData(exportAllStatisticsData = true) {
-    $statisticsActionInProgress$ = true;
-
-    exportStatisticsData$.next(exportAllStatisticsData);
-  }
-
-  async function deleteStatisticsData(deleteAllStatisticsData = true) {
-    $statisticsActionInProgress$ = true;
-
-    deleteStatisticsData$.next(deleteAllStatisticsData);
-  }
 </script>
 
 <div class="flex items-center justify-end p-4 pl-12">
-  <button class="mr-2 sm:mr-4 hover:text-red-500" onclick={() => exportStatisticsData(false)}>
+  <button class="mr-2 sm:mr-4 hover:text-red-500" onclick={() => onexportstatisticsdata(false)}>
     Export Selection
   </button>
-  <button class="mr-2 sm:mr-4 hover:text-red-500" onclick={() => deleteStatisticsData(false)}>
+  <button class="mr-2 sm:mr-4 hover:text-red-500" onclick={() => ondeletestatisticsdata(false)}>
     Delete Selection
   </button>
-  <button class="mr-2 sm:mr-4 hover:text-red-500" onclick={() => exportStatisticsData()}>
+  <button class="mr-2 sm:mr-4 hover:text-red-500" onclick={() => onexportstatisticsdata(true)}>
     Export All
   </button>
-  <button class="hover:text-red-500" onclick={() => deleteStatisticsData()}>Delete All</button>
+  <button class="hover:text-red-500" onclick={() => ondeletestatisticsdata(true)}>
+    Delete All
+  </button>
 </div>
 <div class="flex-1 p-4 overflow-auto">
   <div class="flex flex-col mb-6">
@@ -103,7 +97,7 @@
         class="text-black"
         bind:value={selectedStatisticsStartDate}
         onchange={() =>
-          onstatisticsDateChange?.({
+          onstatisticsDateChange({
             isStartDate: true,
             dateString: selectedStatisticsStartDate
           })}
@@ -112,7 +106,7 @@
     <div class="flex flex-col justify-between pt-4 mx-2 text-xl sm:mx-0">
       <button
         onclick={() =>
-          onstatisticsDateChange?.({
+          onstatisticsDateChange({
             isStartDate: false,
             dateString: selectedStatisticsStartDate
           })}
@@ -121,7 +115,7 @@
       </button>
       <button
         onclick={() =>
-          onstatisticsDateChange?.({
+          onstatisticsDateChange({
             isStartDate: true,
             dateString: selectedStatisticsEndDate
           })}
@@ -137,7 +131,7 @@
         class="text-black"
         bind:value={selectedStatisticsEndDate}
         onchange={() =>
-          onstatisticsDateChange?.({
+          onstatisticsDateChange({
             isStartDate: false,
             dateString: selectedStatisticsEndDate
           })}
@@ -154,10 +148,7 @@
       </select>
     </div>
   </div>
-  <button
-    class="text-left mt-3 hover:text-red-500"
-    onclick={() => setStatisticsDatesToAllTime$.next()}
-  >
+  <button class="text-left mt-3 hover:text-red-500" onclick={() => onsetstatisticsdatestoalltime()}>
     Set to all time for the selected books
   </button>
   <div class="flex flex-wrap justify-between mt-4">

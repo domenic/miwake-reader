@@ -62,6 +62,10 @@ interface StatisticRowExpectation {
   dateKey: string;
 }
 
+interface RecordStatisticOptions {
+  durationMs?: number;
+}
+
 const fixtureRoot = resolve(import.meta.dirname, '../fixtures/books');
 const fixtureMetadata = new Map<BookFixture, BookFixtureMetadata>([
   [
@@ -199,7 +203,8 @@ export async function expectBooksInManage(
 export async function recordStatisticForBook(
   page: Page,
   fixture: LibraryBookFixture,
-  dateKey: string
+  dateKey: string,
+  { durationMs = 2_000 }: RecordStatisticOptions = {}
 ) {
   await page.clock.setSystemTime(new Date(`${dateKey}T12:00:00Z`));
   await openBookFromManage(page, fixture);
@@ -209,7 +214,7 @@ export async function recordStatisticForBook(
     timeout: SYNC_ASSERTION_TIMEOUT
   });
 
-  await page.clock.runFor(2_000);
+  await page.clock.runFor(durationMs);
   await page.getByRole('button', { name: 'Pause reading tracker' }).click();
   await expect(page.getByRole('button', { name: 'Resume reading tracker' })).toBeVisible({
     timeout: SYNC_ASSERTION_TIMEOUT
@@ -260,7 +265,7 @@ export async function deleteAllStatisticsFromSummary(page: Page) {
 
 export async function openBookFromManage(page: Page, fixture: LibraryBookFixture) {
   await navigateToManage(page);
-  await page.getByText(fixtureTitle(fixture), { exact: true }).click();
+  await bookCard(page, fixture).click();
   await page.waitForURL((url) => url.pathname === '/b' && url.searchParams.has('id'));
 }
 
@@ -421,7 +426,7 @@ async function showAllStatistics(page: Page) {
   await expect(settings).toHaveCount(0, { timeout: SYNC_ASSERTION_TIMEOUT });
 }
 
-async function openStatisticsSettings(page: Page) {
+export async function openStatisticsSettings(page: Page) {
   const settings = statisticsSettingsDialog(page);
   if (await settings.isVisible()) {
     return settings;

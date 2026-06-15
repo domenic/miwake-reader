@@ -1,30 +1,38 @@
 <script lang="ts">
   import ToggleSwitch from '$lib/components/toggle-switch.svelte';
-  import { lastStatisticsFilterDateRangeOnly$ } from '$lib/data/store';
   import { japaneseLangIfNeeded } from '$lib/functions/japanese-language';
 
   interface Props {
-    titleFilterSelections: [string, boolean][];
+    filterDateRangeOnly: boolean;
+    statisticsTitleFilters: Map<string, boolean>;
     titlesInStatisticsDateRange: Set<string>;
+    ontitlefiltertoggle: (title: string, isSelected: boolean) => void;
+    ontitlefiltertoggleall: (titles: Iterable<string>, isSelected: boolean) => void;
   }
 
-  let { titleFilterSelections = $bindable(), titlesInStatisticsDateRange }: Props = $props();
+  let {
+    filterDateRangeOnly = $bindable(),
+    statisticsTitleFilters,
+    titlesInStatisticsDateRange,
+    ontitlefiltertoggle,
+    ontitlefiltertoggleall
+  }: Props = $props();
 
   let titleFilter = $state('');
   let headerCheckbox = $state<HTMLInputElement>();
 
-  let filteredSelections = $derived(
-    titleFilterSelections.filter(
-      ([title]) =>
+  let visibleTitles = $derived(
+    [...statisticsTitleFilters.keys()].filter(
+      (title) =>
         (!titleFilter || title.includes(titleFilter)) &&
-        (!$lastStatisticsFilterDateRangeOnly$ || titlesInStatisticsDateRange.has(title))
+        (!filterDateRangeOnly || titlesInStatisticsDateRange.has(title))
     )
   );
 
   let allSelected = $derived(
-    filteredSelections.length > 0 && filteredSelections.every(([, isSelected]) => isSelected)
+    visibleTitles.length > 0 && visibleTitles.every((title) => statisticsTitleFilters.get(title))
   );
-  let noneSelected = $derived(filteredSelections.every(([, isSelected]) => !isSelected));
+  let noneSelected = $derived(visibleTitles.every((title) => !statisticsTitleFilters.get(title)));
 
   $effect(() => {
     if (headerCheckbox) {
@@ -32,12 +40,8 @@
     }
   });
 
-  function handleToggleAll() {
-    const valueToSet = !allSelected;
-
-    for (const item of filteredSelections) {
-      item[1] = valueToSet;
-    }
+  function setAllVisibleTitlesSelected(isSelected: boolean) {
+    ontitlefiltertoggleall(visibleTitles, isSelected);
   }
 </script>
 
@@ -51,20 +55,19 @@
     />
   </div>
   <ToggleSwitch
-    bind:checked={$lastStatisticsFilterDateRangeOnly$}
+    bind:checked={filterDateRangeOnly}
     label="Only show books with statistics in the target date range"
     class="mt-4"
   />
   <div class="grow mt-4 pl-1 overflow-auto">
-    {#if filteredSelections.length}
+    {#if visibleTitles.length}
       <table class="w-full">
         <thead class="sticky top-0 z-10 bg-gray-700 shadow-[0_1px_0_var(--color-gray-500)]">
           <tr>
             <th class="w-0 py-2 pr-4">
               <input
                 type="checkbox"
-                checked={allSelected}
-                onchange={handleToggleAll}
+                bind:checked={() => allSelected, setAllVisibleTitlesSelected}
                 title={allSelected ? 'Deselect all' : 'Select all'}
                 bind:this={headerCheckbox}
               />
@@ -73,18 +76,24 @@
           </tr>
         </thead>
         <tbody>
-          {#each filteredSelections as item (item[0])}
-            {@const titleLang = japaneseLangIfNeeded(item[0])}
+          {#each visibleTitles as title (title)}
+            {@const titleLang = japaneseLangIfNeeded(title)}
             <tr>
               <td class="py-2 pr-4">
-                <input type="checkbox" bind:checked={item[1]} />
+                <input
+                  type="checkbox"
+                  bind:checked={
+                    () => statisticsTitleFilters.get(title) ?? false,
+                    (isSelected) => ontitlefiltertoggle(title, isSelected)
+                  }
+                />
               </td>
               <td
                 class="py-2 line-clamp-3"
-                class:opacity-50={!titlesInStatisticsDateRange.has(item[0])}
+                class:opacity-50={!titlesInStatisticsDateRange.has(title)}
                 lang={titleLang}
               >
-                {item[0]}
+                {title}
               </td>
             </tr>
           {/each}

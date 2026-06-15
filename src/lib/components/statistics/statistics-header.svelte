@@ -1,5 +1,4 @@
 <script lang="ts">
-  import type { RouteId } from '$app/types';
   import {
     faCalendarDays,
     faCopy,
@@ -10,30 +9,38 @@
   import HeaderButton from '$lib/components/header-button.svelte';
   import HeaderMenuButton from '$lib/components/header-menu-button.svelte';
   import HeaderNavTabs from '$lib/components/header-nav-tabs.svelte';
-  import type { StatisticsRoute } from '$lib/components/statistics/statistics-route';
-  import {
-    copyStatisticsData$,
-    statisticsTitleFilterEnabled$,
-    statisticsTitleFilterIsOpen$,
-    type StatisticsDataSource
+  import type { StatisticsView } from '$lib/components/statistics/statistics-view';
+  import type {
+    BookStatistic,
+    StatisticsDataSource
   } from '$lib/components/statistics/statistics-types';
   import { baseHeaderClasses, headerDividerClasses } from '$lib/css-classes';
 
   interface Props {
-    activeRouteId?: RouteId | null;
-    onopensettings?: () => void;
-    onselecttab?: (href: StatisticsRoute) => void;
+    activeView: StatisticsView;
+    titleFilterEnabled: boolean;
+    oncopydata: (dataKey: keyof BookStatistic) => void;
+    onopenfilter: () => void;
+    onopensettings: () => void;
+    onselecttab: (view: StatisticsView) => void;
   }
 
-  let { activeRouteId, onopensettings, onselecttab }: Props = $props();
+  let {
+    activeView,
+    titleFilterEnabled,
+    oncopydata,
+    onopenfilter,
+    onopensettings,
+    onselecttab
+  }: Props = $props();
 
   const copyStatisticsDataItems: StatisticsDataSource[] = [
     { key: 'readingTime', label: 'Reading Time' },
     { key: 'charactersRead', label: 'Characters Read' }
   ];
 
-  let summarySelected = $derived(activeRouteId === '/statistics/summary');
-  let heatmapSelected = $derived(activeRouteId === '/statistics/heatmap');
+  let summarySelected = $derived(activeView === 'summary');
+  let heatmapSelected = $derived(activeView === 'heatmap');
 </script>
 
 <div class="elevation-4 fixed inset-x-0 top-0 z-10">
@@ -46,7 +53,7 @@
           selected={summarySelected}
           variant="tab"
           title={summarySelected ? undefined : 'Switch to Summary tab'}
-          onclick={() => onselecttab?.('/statistics/summary')}
+          onclick={() => onselecttab('summary')}
         />
         <HeaderButton
           faIcon={faMap}
@@ -54,17 +61,17 @@
           selected={heatmapSelected}
           variant="tab"
           title={heatmapSelected ? undefined : 'Switch to Heatmap tab'}
-          onclick={() => onselecttab?.('/statistics/heatmap')}
+          onclick={() => onselecttab('heatmap')}
         />
         <div class={headerDividerClasses}></div>
         <HeaderButton
           faIcon={faFilter}
           title="Open book filter menu"
           label="Filter"
-          disabled={!$statisticsTitleFilterEnabled$}
+          disabled={!titleFilterEnabled}
           onclick={() => {
-            if ($statisticsTitleFilterEnabled$) {
-              $statisticsTitleFilterIsOpen$ = true;
+            if (titleFilterEnabled) {
+              onopenfilter();
             }
           }}
         />
@@ -81,8 +88,7 @@
           title="Copy data in TMW log format"
           label="Copy"
           items={copyStatisticsDataItems}
-          onselect={(copyStatisticsDataItem) =>
-            copyStatisticsData$.next(copyStatisticsDataItem.key)}
+          onselect={(copyStatisticsDataItem) => oncopydata(copyStatisticsDataItem.key)}
         />
         <div class={headerDividerClasses}></div>
         <HeaderNavTabs />

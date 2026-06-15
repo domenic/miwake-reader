@@ -1,7 +1,4 @@
 import type { BooksDbStatistic } from '$lib/data/database/books-db/versions/books-db';
-import { Subject } from 'rxjs';
-import { writableSubject } from '$lib/functions/svelte/store';
-import { writable } from 'svelte/store';
 
 export interface StatisticsDateChange {
   dateString: string;
@@ -67,22 +64,6 @@ export const readingSpeedDataSources: StatisticsDataSource[] = [
 export const dateDataSources: StatisticsDataSource[] = [{ key: 'dateKey', label: 'Date' }];
 
 export const titleDataSources: StatisticsDataSource[] = [{ key: 'title', label: 'Book' }];
-
-export const copyStatisticsData$ = new Subject<keyof BookStatistic>();
-
-export const exportStatisticsData$ = new Subject<boolean>();
-
-export const deleteStatisticsData$ = new Subject<boolean>();
-
-export const setStatisticsDatesToAllTime$ = new Subject<void>();
-
-export const statisticsActionInProgress$ = writableSubject<boolean>(false);
-
-export const statisticsTitleFilterEnabled$ = writableSubject<boolean>(false);
-
-export const statisticsTitleFilterIsOpen$ = writable<boolean>(false);
-
-export const preFilteredTitlesForStatistics$ = writableSubject<Set<string>>(new Set());
 
 export const statisticsDataAggregrationModes = [
   StatisticsReadingDataAggregationMode.NONE,
