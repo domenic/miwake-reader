@@ -7,7 +7,7 @@ type AppPath =
   | '/settings/reader'
   | '/settings/sync'
   | '/settings/statistics'
-  | '/statistics/summary';
+  | '/statistics';
 
 interface NavigationOptions {
   readerExitDialog?: 'none' | 'confirm';
@@ -49,19 +49,21 @@ export async function navigateToSettingsStatistics(page: Page, options?: Navigat
 export async function navigateToStatisticsSummary(page: Page, options?: NavigationOptions) {
   await loadApp(page);
   const readerMounted = await readerIsMounted(page);
-  if (currentPath(page) !== '/statistics/summary' || readerMounted) {
-    if (!currentPath(page).startsWith('/statistics') || readerMounted) {
-      await navigateWithGlobalTab(
-        page,
-        'Statistics',
-        (path) => path.startsWith('/statistics'),
-        options
-      );
+  if (
+    currentPath(page) !== '/statistics' ||
+    currentStatisticsView(page) !== 'summary' ||
+    readerMounted
+  ) {
+    if (currentPath(page) !== '/statistics' || readerMounted) {
+      await navigateWithGlobalTab(page, 'Statistics', (path) => path === '/statistics', options);
     }
 
-    await page.getByRole('button', { name: 'Summary', exact: true }).click();
+    if (currentStatisticsView(page) !== 'summary') {
+      await page.getByRole('button', { name: 'Summary', exact: true }).click();
+    }
   }
-  await expectPath(page, '/statistics/summary');
+  await expectPath(page, '/statistics');
+  await expectStatisticsView(page, 'summary');
 }
 
 async function navigateToSettingsSection(
@@ -147,4 +149,14 @@ async function expectPath(page: Page, path: AppPath) {
 
 function currentPath(page: Page) {
   return new URL(page.url()).pathname;
+}
+
+function currentStatisticsView(page: Page) {
+  return new URL(page.url()).searchParams.get('view');
+}
+
+async function expectStatisticsView(page: Page, view: 'summary' | 'heatmap') {
+  await expect
+    .poll(() => currentStatisticsView(page), { timeout: SYNC_ASSERTION_TIMEOUT })
+    .toBe(view);
 }

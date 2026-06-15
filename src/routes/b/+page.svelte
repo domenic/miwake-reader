@@ -106,7 +106,7 @@
   import { showNumberDialog } from '$lib/components/number-dialog.svelte';
   import { mergeEntries } from '$lib/components/merged-header-icon/merged-entries';
   import SidebarOverlay from '$lib/components/sidebar-overlay.svelte';
-  import { preFilteredTitlesForStatistics$ } from '$lib/components/statistics/statistics-types';
+  import { getBookStatisticsURL } from '$lib/components/statistics/statistics-view';
   import {
     currentDbVersion,
     type BooksDbBookData,
@@ -1020,7 +1020,11 @@
         showErrorDialog({ title: 'Error saving reader state', error });
       }
 
-      await goto(resolve(routeId));
+      if (routeId === mergeEntries.STATISTICS.routeId && bookId) {
+        await goto(resolve(getBookStatisticsURL(bookId)));
+      } else {
+        await goto(resolve(routeId));
+      }
     } finally {
       endReaderAction();
     }
@@ -1290,13 +1294,7 @@
       showHeader = false;
       scrollToBookmark();
     }}
-    onstatisticsClick={() => {
-      if (rawBookData) {
-        $preFilteredTitlesForStatistics$ = new Set([rawBookData.title]);
-      }
-
-      leaveReader(mergeEntries.STATISTICS.routeId, false);
-    }}
+    onstatisticsClick={() => leaveReader(mergeEntries.STATISTICS.routeId, false)}
     onreaderImageGalleryClick={() => {
       showHeader = false;
       showReaderImageGallery = true;
