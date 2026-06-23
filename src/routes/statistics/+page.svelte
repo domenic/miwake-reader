@@ -136,7 +136,7 @@
   onselecttab={navigateToStatisticsTab}
 />
 
-<div class="{pxScreen} flex h-full flex-col pt-16">
+<div class="{pxScreen} flex min-h-full flex-col pt-16">
   {#if controller.isLoading}
     <div class="fixed inset-0 flex size-full items-center justify-center text-7xl">
       <Fa icon={faSpinner} spin />

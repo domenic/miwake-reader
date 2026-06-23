@@ -1,7 +1,5 @@
 <script lang="ts">
   import {
-    faChevronLeft,
-    faChevronRight,
     faClose,
     faFloppyDisk,
     faPen,
@@ -25,7 +23,6 @@
     dateDataSources,
     titleDataSources
   } from '$lib/components/statistics/statistics-types';
-  import { CLOSE_POPOVER } from '$lib/data/events';
   import { SortDirection } from '$lib/data/sort-types';
   import { japaneseLangIfNeeded } from '$lib/functions/japanese-language';
   import {
@@ -40,9 +37,6 @@
     lastStatisticsSummarySortProperty$
   } from '$lib/data/store';
   import { getNumberFromObject, secondsToMinutes } from '$lib/functions/statistic-util';
-  import { reduceToEmptyString } from '$lib/functions/rxjs/reduce-to-empty-string';
-  import { convertRemToPixels, getFullHeight, limitToRange } from '$lib/functions/utils';
-  import { debounceTime, fromEvent, tap } from 'rxjs';
   import { tick, untrack } from 'svelte';
   import Fa from 'svelte-fa';
 
@@ -58,31 +52,12 @@
   const statisticsSummaryBaseRowRem = 3;
   const statisticsSummaryBaseRowGap = 1.5;
 
-  let renderFullStatisticsSummaryTable = $state(
-    window && window.matchMedia('(min-width: 768px)').matches
-  );
-  let statisticsSummaryTableContainerElm = $state<HTMLElement>();
   let statisticsSummaryPopover = $state<Popover>();
-  let statisticsSummaryButtonContainer = $state<HTMLElement>();
-  let statisticsSummaryGridRowMod = $state(0);
-  let currentStatisticsSummaryPage = $state(1);
-  let rowsPerStatisticsSummaryPage = $state(0);
-  const statisticsSummaryPageRefs: HTMLButtonElement[] = $state([]);
-  let statisticsSummaryPagesContainer = $state<HTMLElement>();
   let statisticsSummaryPopoverDetails: string[] = $state([]);
   let rowInEdit = $state<BookStatistic>();
   let rowInEditTime = $state(0);
   let rowInEditCharacters = $state(0);
   let rowInEditResetMinMaxValues = $state(false);
-
-  const resizeHandler$ = fromEvent(window, 'resize').pipe(
-    debounceTime(250),
-    tap(() => {
-      renderFullStatisticsSummaryTable = window && window.matchMedia('(min-width: 768px)').matches;
-      updateRowsPerPage();
-    }),
-    reduceToEmptyString()
-  );
 
   // Derive sorted data from the raw statistics + sort settings
   let sortedData = $derived.by(() => {
@@ -91,31 +66,11 @@
     return data;
   });
 
-  let statisticsSummaryMaxPages = $derived(
-    rowsPerStatisticsSummaryPage ? Math.ceil(sortedData.length / rowsPerStatisticsSummaryPage) : 0
-  );
-
-  let currentStatisticsSummaryRows = $derived.by(() => {
-    if (!rowsPerStatisticsSummaryPage) return [];
-    const page = limitToRange(1, statisticsSummaryMaxPages || 1, currentStatisticsSummaryPage);
-    const start = (page - 1) * rowsPerStatisticsSummaryPage;
-    return sortedData.slice(start, start + rowsPerStatisticsSummaryPage);
-  });
-
-  let statisticsSummaryPageLabel = $derived(
-    `PAGE ${currentStatisticsSummaryPage} / ${statisticsSummaryMaxPages}`
-  );
-
-  let statisticsSummaryPages = $derived(
-    Array.apply(null, Array(statisticsSummaryMaxPages)).map((_, index) => index + 1)
-  );
-
-  // When new data arrives, reset edit mode and recalculate rows per page
+  // When new data arrives, reset edit mode.
   $effect(() => {
     if (aggregatedStatistics) {
       untrack(() => {
         setRowInEditMode();
-        updateRowsPerPage();
       });
     }
   });
@@ -141,8 +96,6 @@
           $lastReadingTimeDataSource$ = 'readingTime';
           break;
       }
-
-      statisticsSummaryGridRowMod = mode === StatisticsReadingDataAggregationMode.NONE ? 0 : 1;
     });
   });
 
@@ -236,36 +189,6 @@
     $lastStatisticsSummarySortProperty$ = property;
   }
 
-  function updateRowsPerPage() {
-    tick().then(() => {
-      const tableContainer = statisticsSummaryTableContainerElm;
-      const buttonContainer = statisticsSummaryButtonContainer;
-
-      if (renderFullStatisticsSummaryTable) {
-        if (!tableContainer || !buttonContainer) {
-          return;
-        }
-
-        rowsPerStatisticsSummaryPage = Math.max(
-          1,
-          Math.ceil(
-            (getFullHeight(window, tableContainer) - getFullHeight(window, buttonContainer, true)) /
-              convertRemToPixels(
-                window,
-                statisticsSummaryBaseRowRem + statisticsSummaryBaseRowGap + 0.4
-              )
-          )
-        );
-      } else {
-        rowsPerStatisticsSummaryPage = 1;
-      }
-
-      // Clamp page to valid range after rows-per-page changes
-      const maxPages = Math.ceil(sortedData.length / rowsPerStatisticsSummaryPage);
-      currentStatisticsSummaryPage = limitToRange(1, maxPages || 1, currentStatisticsSummaryPage);
-    });
-  }
-
   function sortTable(row1: BookStatistic, row2: BookStatistic) {
     const isTitleSort = $lastStatisticsSummarySortProperty$ === 'title';
     const isDateKeySort = $lastStatisticsSummarySortProperty$ === 'dateKey';
@@ -320,17 +243,17 @@
   }
 </script>
 
-{$resizeHandler$ ?? ''}
 <div class="my-4" class:hidden={!aggregatedStatistics.length}>
   Data for {statisticsDateRangeLabel}
 </div>
 <div
-  class="grow p-2 overflow-auto"
+  role="region"
+  aria-label="Statistics summary"
+  class="p-2"
   class:flex={!sortedData.length}
   class:justify-center={!sortedData.length}
   class:items-center={!sortedData.length}
   class:text-4xl={!sortedData.length}
-  bind:this={statisticsSummaryTableContainerElm}
 >
   {#if sortedData.length}
     {@const isNoneAggregation =
@@ -340,26 +263,19 @@
     {@const isTitleAggregation =
       $lastPrimaryReadingDataAggregationMode$ === StatisticsReadingDataAggregationMode.TITLE}
     <div
-      class="grid grid-cols-[0.75fr_1fr] gap-x-8 items-center"
-      class:md:grid-cols-[0.31fr_0.6fr_0.77fr_0.74fr_0.6fr_0.57fr]={isNoneAggregation}
-      class:lg:grid-cols-[0.14fr_0.26fr_0.85fr_repeat(2,0.59fr)_0.45fr]={isNoneAggregation}
-      class:md:grid-cols-[0.1fr_0.6fr_1fr_1.1fr_0.85fr]={isDateAggregation}
-      class:lg:grid-cols-[0.1fr_repeat(4,1fr)]={isDateAggregation}
-      class:md:grid-cols-[0.1fr_1fr_repeat(3,0.45fr)]={isTitleAggregation}
-      class:lg:grid-cols-[0.1fr_0.93fr_0.35fr_0.42fr_0.3fr]={isTitleAggregation}
+      class="sticky top-12 z-20 grid w-full min-w-232 gap-x-8 items-center border-b-2 border-gray-200 bg-(--background-color)"
+      class:grid-cols-[3rem_8rem_minmax(12rem,1fr)_8rem_8rem_8rem]={isNoneAggregation}
+      class:grid-cols-[3rem_8rem_8rem_8rem_8rem]={isDateAggregation}
+      class:grid-cols-[3rem_minmax(14rem,1fr)_8rem_8rem_8rem]={isTitleAggregation}
       style:grid-auto-rows={`${statisticsSummaryBaseRowRem}rem`}
-      style:row-gap={`${statisticsSummaryBaseRowGap}rem`}
     >
-      {#if renderFullStatisticsSummaryTable}
-        <div></div>
-      {/if}
+      <div></div>
       <StatisticsSummaryHeader
         statisticsSummaryKey={StatisticsSummaryKey.DATE}
         options={dateDataSources}
         selectionKey={StatisticsSummaryKey.DATE}
         hasRowInEdit={rowInEdit !== undefined}
         isHidden={isTitleAggregation}
-        gridRow={renderFullStatisticsSummaryTable ? undefined : 2}
         title="Click to select/sort by this attribute"
         onpropertyChange={handlePropertyChange}
       />
@@ -369,7 +285,6 @@
         selectionKey={StatisticsSummaryKey.TITLE}
         hasRowInEdit={rowInEdit !== undefined}
         isHidden={isDateAggregation}
-        gridRow={renderFullStatisticsSummaryTable ? undefined : 3 - statisticsSummaryGridRowMod}
         title="Click to select/sort by this attribute"
         onpropertyChange={handlePropertyChange}
       />
@@ -378,7 +293,6 @@
         options={readingTimeDataSources}
         selectionKey={$lastReadingTimeDataSource$}
         hasRowInEdit={rowInEdit !== undefined}
-        gridRow={renderFullStatisticsSummaryTable ? undefined : 4 - statisticsSummaryGridRowMod}
         title="Switch between Reading Time Attributes"
         onpropertyChange={handlePropertyChange}
       />
@@ -387,7 +301,6 @@
         options={charactersDataSources}
         selectionKey={$lastCharactersDataSource$}
         hasRowInEdit={rowInEdit !== undefined}
-        gridRow={renderFullStatisticsSummaryTable ? undefined : 5 - statisticsSummaryGridRowMod}
         title="Switch between Character Attributes"
         onpropertyChange={handlePropertyChange}
       />
@@ -396,11 +309,20 @@
         options={readingSpeedDataSources}
         selectionKey={$lastReadingSpeedDataSource$}
         hasRowInEdit={rowInEdit !== undefined}
-        gridRow={renderFullStatisticsSummaryTable ? undefined : 6 - statisticsSummaryGridRowMod}
         title="Switch between Reading Speed Attributes"
         onpropertyChange={handlePropertyChange}
       />
-      {#each currentStatisticsSummaryRows as currentStatisticsSummaryRow (currentStatisticsSummaryRow.id)}
+    </div>
+    <div
+      class="grid w-full min-w-232 gap-x-8 items-center"
+      class:grid-cols-[3rem_8rem_minmax(12rem,1fr)_8rem_8rem_8rem]={isNoneAggregation}
+      class:grid-cols-[3rem_8rem_8rem_8rem_8rem]={isDateAggregation}
+      class:grid-cols-[3rem_minmax(14rem,1fr)_8rem_8rem_8rem]={isTitleAggregation}
+      style:grid-auto-rows={`${statisticsSummaryBaseRowRem}rem`}
+      style:row-gap={`${statisticsSummaryBaseRowGap}rem`}
+      style:margin-top={`${statisticsSummaryBaseRowGap}rem`}
+    >
+      {#each sortedData as currentStatisticsSummaryRow (currentStatisticsSummaryRow.id)}
         {@const currentRowInEdit = rowInEdit && rowInEdit.id === currentStatisticsSummaryRow.id}
         {@const otherRowInEdit = rowInEdit && !currentRowInEdit}
         {@const titleLang = japaneseLangIfNeeded(currentStatisticsSummaryRow.title)}
@@ -557,7 +479,7 @@
     </div>
     {#if statisticsSummaryPopoverDetails.length}
       <Popover
-        placement={renderFullStatisticsSummaryTable ? 'top-start' : 'top'}
+        placement="top-start"
         yOffset={5}
         containerStyles={`align-self:flex-start;display:${isDateAggregation ? 'none' : 'flex'}`}
         bind:this={statisticsSummaryPopover}
@@ -583,72 +505,4 @@
   {:else}
     No Data found for {statisticsDateRangeLabel}
   {/if}
-</div>
-<div
-  class="my-6 flex justify-between"
-  class:invisible={statisticsSummaryMaxPages < 2}
-  bind:this={statisticsSummaryButtonContainer}
->
-  <button
-    disabled={currentStatisticsSummaryPage === 1}
-    class:opacity-25={currentStatisticsSummaryPage === 1}
-    class:cursor-not-allowed={currentStatisticsSummaryPage === 1}
-    onclick={() => {
-      setRowInEditMode();
-      currentStatisticsSummaryPage -= 1;
-    }}
-  >
-    <Fa icon={faChevronLeft} />
-  </button>
-  <Popover
-    yOffset={5}
-    onopen={() => {
-      const currentPageElement = statisticsSummaryPageRefs[currentStatisticsSummaryPage];
-
-      if (!currentPageElement || !statisticsSummaryPagesContainer) {
-        return;
-      }
-
-      const absoluteElementTop = currentPageElement.offsetTop + currentPageElement.clientHeight / 2;
-      const middle = absoluteElementTop - statisticsSummaryPagesContainer.clientHeight / 2;
-
-      statisticsSummaryPagesContainer.scrollTo(0, middle);
-    }}
-  >
-    <div class="mx-6">{statisticsSummaryPageLabel}</div>
-    {#snippet content()}
-      <div
-        class="max-h-32 w-32 p-2 flex flex-col overflow-auto"
-        bind:this={statisticsSummaryPagesContainer}
-      >
-        {#each statisticsSummaryPages as statisticsSummaryPage, pageIndex (statisticsSummaryPage)}
-          <button
-            class="hover:opacity-50 hover:bg-slate-300 hover:text-black"
-            class:bg-slate-300={statisticsSummaryPage === currentStatisticsSummaryPage}
-            class:text-black={statisticsSummaryPage === currentStatisticsSummaryPage}
-            bind:this={statisticsSummaryPageRefs[pageIndex + 1]}
-            onclick={({ target }) => {
-              setRowInEditMode();
-
-              currentStatisticsSummaryPage = statisticsSummaryPage;
-              target?.dispatchEvent(new CustomEvent(CLOSE_POPOVER, { bubbles: true }));
-            }}
-          >
-            {statisticsSummaryPage}
-          </button>
-        {/each}
-      </div>
-    {/snippet}
-  </Popover>
-  <button
-    disabled={currentStatisticsSummaryPage === statisticsSummaryMaxPages}
-    class:opacity-25={currentStatisticsSummaryPage === statisticsSummaryMaxPages}
-    class:cursor-not-allowed={currentStatisticsSummaryPage === statisticsSummaryMaxPages}
-    onclick={() => {
-      setRowInEditMode();
-      currentStatisticsSummaryPage += 1;
-    }}
-  >
-    <Fa icon={faChevronRight} />
-  </button>
 </div>
