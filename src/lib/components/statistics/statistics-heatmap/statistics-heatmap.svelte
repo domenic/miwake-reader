@@ -39,7 +39,6 @@
     lastStatisticsStartDate$,
     startDayHoursForTracker$
   } from '$lib/data/store';
-  import { reduceToEmptyString } from '$lib/functions/rxjs/reduce-to-empty-string';
   import {
     advanceDateDays,
     getDate,
@@ -50,7 +49,6 @@
     secondsToMinutes
   } from '$lib/functions/statistic-util';
   import { caluclatePercentage, dummyFn, limitToRange, pluralize } from '$lib/functions/utils';
-  import { debounceTime, fromEvent, tap } from 'rxjs';
   import { onMount, tick, untrack } from 'svelte';
   import { SvelteDate, SvelteMap, SvelteSet } from 'svelte/reactivity';
   import Fa from 'svelte-fa';
@@ -74,18 +72,18 @@
   let today = $derived(getStartHoursDate($startDayHoursForTracker$));
   let todayKey = $derived(getDateString(today));
 
-  const resizeHandler$ = fromEvent(window, 'resize').pipe(
-    debounceTime(250),
-    tap(updateHeatmapDimensions),
-    reduceToEmptyString()
-  );
-
+  const heatmapArrowButtonsWidth = 30;
+  const heatmapColumnsPerYear = 54;
+  const heatmapLabelColumns = 3;
+  const heatmapGridGapsWidth = heatmapGridGapValue * 2 * heatmapColumnsPerYear;
+  const heatmapCellSize = `max(${heatmapDayElementSize}px, calc((100cqw - ${heatmapArrowButtonsWidth}px - ${heatmapGridGapsWidth}px) / ${heatmapColumnsPerYear + heatmapLabelColumns}))`;
+  const heatmapGridTemplateRows =
+    'calc(var(--heatmap-cell-size) + 4px) repeat(7, var(--heatmap-cell-size))';
   const colorRanges: HeatmapColorRange[] = [];
 
   let heatmapElement: HTMLElement = $state()!;
   let heatmapDetailDataPopover: Popover = $state()!;
   let monthLabels: HeatmapMonthLabel[] = $state([...monthLabelList]);
-  let dayElementSize = $state(heatmapDayElementSize);
   let heatmapYear = $state(getStartHoursDate($startDayHoursForTracker$).getFullYear());
   let globalHeatmapData: StatisticsHeatmapData | ReadingGoalsHeatmapData = $state()!;
   const globalHeatmapDayData = new SvelteMap<
@@ -155,8 +153,6 @@
         ...getColorRanges(1, 100, 100)
       );
     }
-
-    updateHeatmapDimensions();
   });
 
   function checkIsStatisticsHeatmapData(
@@ -258,25 +254,6 @@
 
       heatmapElement.scrollTo(middle, 0);
     }
-  }
-
-  function updateHeatmapDimensions() {
-    if (!heatmapElement?.parentElement) {
-      return;
-    }
-
-    const containerWidth = heatmapElement.parentElement.clientWidth;
-    const arrowElementsWidth = 30;
-    const gridGap = heatmapGridGapValue * 2;
-    const gridColumnsPerYear = 54;
-    const gridColumnsWidth = gridColumnsPerYear * gridGap;
-    const dayGridColums = 3;
-    const allGridColumns = gridColumnsPerYear + dayGridColums;
-
-    dayElementSize = Math.max(
-      dayElementSize,
-      Math.ceil((containerWidth - arrowElementsWidth - gridColumnsWidth) / allGridColumns)
-    );
   }
 
   function updateHeatmapDataAfterFilterChange() {
@@ -1097,7 +1074,6 @@
   }
 </script>
 
-{$resizeHandler$ ?? ''}
 <div class="mb-4 flex justify-center">
   {heatmapLabel}
   <button
@@ -1119,7 +1095,7 @@
     <Fa icon={faLayerGroup} />
   </button>
 </div>
-<div class="flex justify-between">
+<div class="flex justify-between" style:container-type="inline-size">
   <button
     title="Move backward"
     class="hover:text-red-500"
@@ -1138,10 +1114,13 @@
     <Fa icon={faChevronLeft} />
   </button>
   <div
+    role="grid"
+    aria-label={heatmapLabel}
     class="grid items-center overflow-x-auto py-1"
-    style:grid-auto-columns={`${dayElementSize}px`}
-    style:grid-auto-rows={`${dayElementSize}px`}
-    style:grid-template-rows={`${dayElementSize + 4}px repeat(7, ${dayElementSize}px)`}
+    style:--heatmap-cell-size={heatmapCellSize}
+    style:grid-auto-columns="var(--heatmap-cell-size)"
+    style:grid-auto-rows="var(--heatmap-cell-size)"
+    style:grid-template-rows={heatmapGridTemplateRows}
     style:gap={`${heatmapGridGapValue}px`}
     style:margin={`0 ${heatmapDayMargins}px`}
     bind:this={heatmapElement}
@@ -1190,8 +1169,8 @@
         class:border-red-500={isToday}
         class:highlight={selectedStreakDates.has(heatmapDay.dateString)}
         style:animation-delay={`${3 * heatmapDay.heatmapColumn}ms`}
-        style:height={`${dayElementSize}px`}
-        style:width={`${dayElementSize}px`}
+        style:height="var(--heatmap-cell-size)"
+        style:width="var(--heatmap-cell-size)"
         style:grid-row={`${heatmapDay.heatmapRow}/${heatmapDay.heatmapRow}`}
         style:grid-column={`${heatmapDay.heatmapColumn}/${heatmapDay.heatmapColumn}`}
         style:background-color={heatmapDay.color || null}

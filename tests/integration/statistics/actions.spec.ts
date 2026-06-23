@@ -141,6 +141,98 @@ test('reader statistics navigation preserves the active tab and filters to the c
   await expectSummaryBookHidden(page, VALID_BOOK);
 });
 
+test('statistics summary headers stay sticky while the page scrolls', async ({ page }) => {
+  await page.setViewportSize({ width: 900, height: 360 });
+  await page.clock.install({ time: new Date(`${LATER_STAT_DATE}T11:59:00Z`) });
+  await enableStatistics(page);
+  await importBookFixtures(page, [VALID_BOOK]);
+
+  for (let day = 1; day <= 6; day += 1) {
+    await recordStatisticForBook(page, VALID_BOOK, `2026-05-${day.toString().padStart(2, '0')}`);
+  }
+
+  await navigateToStatisticsSummary(page);
+  const settings = await openStatisticsSettings(page);
+  await settings.getByRole('button', { name: 'Set to all time for the selected books' }).click();
+  await settings.getByTitle('Close statistics settings').click();
+  await expect(settings).toHaveCount(0, { timeout: SYNC_ASSERTION_TIMEOUT });
+
+  const summary = page.getByRole('region', { name: 'Statistics summary' });
+  await expect
+    .poll(() => page.evaluate(() => document.scrollingElement!.scrollHeight > window.innerHeight), {
+      timeout: SYNC_ASSERTION_TIMEOUT
+    })
+    .toBe(true);
+  await expect
+    .poll(() => summary.evaluate((el) => el.scrollHeight - el.clientHeight), {
+      timeout: SYNC_ASSERTION_TIMEOUT
+    })
+    .toBeLessThanOrEqual(1);
+
+  const readingTimeHeader = summary.getByText('Total Time', { exact: true });
+  const headerTop = await readingTimeHeader.evaluate((el) =>
+    Math.round(el.getBoundingClientRect().top)
+  );
+
+  await page.evaluate(() => window.scrollTo(0, document.scrollingElement!.scrollHeight));
+
+  await expect
+    .poll(() => readingTimeHeader.evaluate((el) => Math.round(el.getBoundingClientRect().top)), {
+      timeout: SYNC_ASSERTION_TIMEOUT
+    })
+    .toBeLessThan(headerTop);
+  await expect
+    .poll(() => readingTimeHeader.evaluate((el) => Math.round(el.getBoundingClientRect().top)), {
+      timeout: SYNC_ASSERTION_TIMEOUT
+    })
+    .toBeGreaterThanOrEqual(48);
+  await expect
+    .poll(() => readingTimeHeader.evaluate((el) => Math.round(el.getBoundingClientRect().top)), {
+      timeout: SYNC_ASSERTION_TIMEOUT
+    })
+    .toBeLessThanOrEqual(72);
+});
+
+test('statistics heatmap expands day cells to fill desktop width', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.clock.install({ time: new Date(`${LATER_STAT_DATE}T11:59:00Z`) });
+  await enableStatistics(page);
+  await importBookFixtures(page, [VALID_BOOK]);
+  await recordStatisticForBook(page, VALID_BOOK, LATER_STAT_DATE);
+
+  await navigateToStatisticsSummary(page);
+  await page.getByRole('button', { name: 'Heatmap', exact: true }).click();
+
+  const heatmap = page.getByRole('grid', { name: 'Reading Data for 2026' });
+  const dayCell = heatmap.getByRole('cell', { name: new RegExp(`^${LATER_STAT_DATE},`) });
+  await expect(dayCell).toBeVisible({ timeout: SYNC_ASSERTION_TIMEOUT });
+
+  const { actualWidth, expectedWidth } = await dayCell.evaluate((el) => {
+    const heatmapGrid = el.closest('[role="grid"]');
+    if (!(heatmapGrid instanceof HTMLElement) || !heatmapGrid.parentElement) {
+      throw new Error('Could not find heatmap container');
+    }
+
+    const containerWidth = heatmapGrid.parentElement.clientWidth;
+    const arrowElementsWidth = 30;
+    const gridGap = 2;
+    const gridColumnsPerYear = 54;
+    const gridColumnsWidth = gridColumnsPerYear * gridGap;
+    const dayGridColumns = 3;
+    const allGridColumns = gridColumnsPerYear + dayGridColumns;
+
+    return {
+      actualWidth: el instanceof HTMLElement ? el.offsetWidth : el.getBoundingClientRect().width,
+      expectedWidth: Math.max(
+        15,
+        (containerWidth - arrowElementsWidth - gridColumnsWidth) / allGridColumns
+      )
+    };
+  });
+
+  expect(actualWidth).toBeGreaterThanOrEqual(expectedWidth - 1);
+});
+
 async function openStatisticsFilter(page: Page) {
   await page.getByRole('button', { name: 'Filter', exact: true }).click();
   const filter = page.locator('dialog.sidebar-overlay[open]').filter({

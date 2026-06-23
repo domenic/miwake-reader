@@ -20,7 +20,6 @@
     statisticsSummaryKey: StatisticsSummaryKey;
     options: StatisticsDataSource[];
     selectionKey: keyof BookStatistic;
-    gridRow?: number;
     hasRowInEdit: boolean;
     isHidden?: boolean;
     title?: string;
@@ -31,7 +30,6 @@
     statisticsSummaryKey,
     options,
     selectionKey,
-    gridRow,
     hasRowInEdit,
     isHidden = false,
     title = '',
@@ -39,7 +37,7 @@
   }: Props = $props();
 
   const tableHeaderClasses =
-    'flex items-center py-2.5 px-0 text-sm w-full bg-transparent border-0 md:border-b-2 border-gray-200 appearance-none focus:outline-hidden focus:ring-0 focus:border-gray-200 peer lg:text-base';
+    'flex h-full w-full items-center px-0 py-2.5 text-sm appearance-none border-0 bg-transparent focus:outline-hidden focus:ring-0 peer lg:text-base';
 
   let summaryHeaderPopover = $state<Popover>();
 
@@ -50,13 +48,7 @@
   let selectedOption = $derived(options.find((option) => option.key === selectionKey)!);
 </script>
 
-<div
-  tabindex="0"
-  role="button"
-  class={tableHeaderClasses}
-  class:hidden={isHidden}
-  style:grid-row={gridRow ? `${gridRow}/${gridRow}` : null}
->
+<div tabindex="0" role="button" class={tableHeaderClasses} class:hidden={isHidden}>
   {#if options.length > 1 && !hasRowInEdit}
     <Popover
       placement="bottom-start"
