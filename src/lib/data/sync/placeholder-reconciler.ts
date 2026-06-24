@@ -152,17 +152,16 @@ async function ensurePlaceholders(
         });
         if (coverChanged) touched += 1;
       }
-      // Refresh the placeholder bookmark so /manage's progress /
-      // bookmarked sort reflects what the source advertises. Real
-      // bookmarks (placeholder !== true) represent the user's actual
-      // reading position and are reconciled by the replicator, not
-      // here.
-      if (!existing.elementHtml) {
-        const bookmark = await database.getBookmark(existing.id);
-        if (!bookmark || bookmark.placeholder) {
-          await maybeWritePlaceholderBookmark(existing.id, card, bookmark);
-        }
-      }
+      // Refresh source-advertised bookmark metadata so /manage's
+      // progress / bookmarked sort reflects remote progress before
+      // the user opens the book. The row stays marked as placeholder,
+      // so the book-open path still pulls the full bookmark JSON with
+      // exact reading position.
+      await maybeWritePlaceholderBookmark(
+        existing.id,
+        card,
+        await database.getBookmark(existing.id)
+      );
       continue;
     }
 
@@ -198,23 +197,36 @@ async function maybeWritePlaceholderBookmark(
   card: SyncTitle,
   existing?: BooksDbBookmarkData
 ) {
-  if (!card.lastBookmarkModified && !card.progress && !card.completed) {
+  const progress = card.progress ?? 0;
+  const lastBookmarkModified = card.lastBookmarkModified ?? 0;
+  const completed = !!card.completed;
+  if (!lastBookmarkModified && !progress && !completed) {
     // Source has no progress file for this title — nothing to seed.
     return;
   }
-  if (
-    existing &&
-    existing.progress === (card.progress ?? 0) &&
-    existing.lastBookmarkModified === (card.lastBookmarkModified ?? 0)
-  ) {
-    // Already in sync with what the source advertises.
-    return;
+
+  if (existing) {
+    if (
+      existing.progress === progress &&
+      existing.lastBookmarkModified === lastBookmarkModified &&
+      !!existing.completed === completed
+    ) {
+      // Already in sync with what the source advertises.
+      return;
+    }
+
+    if (!existing.placeholder && existing.lastBookmarkModified >= lastBookmarkModified) {
+      // Real local bookmarks keep their exact reading position unless
+      // the source advertises newer progress.
+      return;
+    }
   }
+
   await database.putBookmark({
     dataId,
-    progress: card.progress ?? 0,
-    lastBookmarkModified: card.lastBookmarkModified ?? 0,
-    completed: !!card.completed,
+    progress,
+    lastBookmarkModified,
+    completed,
     placeholder: true
   });
 }
