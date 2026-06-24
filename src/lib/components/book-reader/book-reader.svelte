@@ -1,15 +1,4 @@
 <script lang="ts">
-  import {
-    animationFrameScheduler,
-    BehaviorSubject,
-    combineLatest,
-    debounceTime,
-    filter,
-    map,
-    shareReplay,
-    startWith,
-    Subject
-  } from 'rxjs';
   import BookReaderContinuous from '$lib/components/book-reader/book-reader-continuous/book-reader-continuous.svelte';
   import { pxReader } from '$lib/components/book-reader/css-classes';
   import type { BooksDbBookmarkData } from '$lib/data/database/books-db/versions/books-db';
@@ -24,6 +13,13 @@
   import BookReaderPaginated from './book-reader-paginated/book-reader-paginated.svelte';
   import { enableReaderWakeLock$, enableTapEdgeToFlip$ } from '$lib/data/store';
   import { onDestroy } from 'svelte';
+
+  interface BoxEdges {
+    bottom: number;
+    left: number;
+    right: number;
+    top: number;
+  }
 
   interface Props {
     htmlContent: string;
@@ -129,22 +125,31 @@
   let contentEl = $state<HTMLElement>();
   let contentVersion = $state(0);
   let loadingState = $state(true);
+  let containerPadding = $state<BoxEdges>();
 
   const mutationObserver: MutationObserver = new MutationObserver(handleMutation);
 
-  const width$ = new Subject<number>();
-
-  const height$ = new Subject<number>();
-
-  const containerEl$ = new BehaviorSubject<HTMLElement | null>(null);
-
-  $effect(() => {
-    containerEl$.next(containerEl ?? null);
-  });
-
-  let heightModifer = $derived(
+  let heightModifier = $derived(
     firstDimensionMargin && ViewMode.Paginated === viewMode && !verticalMode
       ? firstDimensionMargin * 2
+      : 0
+  );
+  let tapEdgeWidth = $derived(
+    $enableTapEdgeToFlip$ &&
+      ViewMode.Paginated === viewMode &&
+      !verticalMode &&
+      typeof window !== 'undefined'
+      ? convertRemToPixels(window, 1.75)
+      : 0
+  );
+  let contentViewportWidth = $derived(
+    containerPadding
+      ? getAdjustedWidth(width - containerPadding.left - containerPadding.right - tapEdgeWidth)
+      : 0
+  );
+  let contentViewportHeight = $derived(
+    containerPadding
+      ? getAdjustedHeight(height - containerPadding.top - containerPadding.bottom - heightModifier)
       : 0
   );
 
@@ -159,36 +164,6 @@
 
     releaseWakeLock();
   });
-
-  const computedStyle$ = combineLatest([
-    containerEl$.pipe(filter((el): el is HTMLElement => !!el)),
-    combineLatest([width$, height$]).pipe(startWith(0))
-  ]).pipe(
-    debounceTime(0, animationFrameScheduler),
-    map(([el]) => getComputedStyle(el)),
-    shareReplay({ refCount: true, bufferSize: 1 })
-  );
-
-  const contentViewportWidth$ = computedStyle$.pipe(
-    map((style) =>
-      getAdjustedWidth(
-        width -
-          parsePx(style.paddingLeft) -
-          parsePx(style.paddingRight) -
-          ($enableTapEdgeToFlip$ && ViewMode.Paginated === viewMode && !verticalMode
-            ? convertRemToPixels(window, 1.75)
-            : 0)
-      )
-    )
-  );
-
-  const contentViewportHeight$ = computedStyle$.pipe(
-    map((style) =>
-      getAdjustedHeight(
-        height - parsePx(style.paddingTop) - parsePx(style.paddingBottom) - heightModifer
-      )
-    )
-  );
 
   $effect(() => {
     const el = contentEl;
@@ -218,12 +193,27 @@
   });
 
   $effect(() => {
-    width$.next(width);
+    if (!containerEl || width <= 0 || height <= 0) {
+      containerPadding = undefined;
+      return;
+    }
+
+    const frame = scheduleContainerPaddingUpdate(containerEl);
+
+    return () => cancelAnimationFrame(frame);
   });
 
-  $effect(() => {
-    height$.next(height);
-  });
+  function scheduleContainerPaddingUpdate(el: HTMLElement) {
+    return requestAnimationFrame(() => {
+      const style = getComputedStyle(el);
+      containerPadding = {
+        bottom: parsePx(style.paddingBottom),
+        left: parsePx(style.paddingLeft),
+        right: parsePx(style.paddingRight),
+        top: parsePx(style.paddingTop)
+      };
+    });
+  }
 
   function getAdjustedWidth(widthValue: number) {
     if (ViewMode.Paginated === viewMode && !verticalMode && secondDimensionMaxValue) {
@@ -305,8 +295,8 @@
   {#if viewMode === ViewMode.Continuous}
     <BookReaderContinuous
       {htmlContent}
-      width={$contentViewportWidth$ ?? 0}
-      height={$contentViewportHeight$ ?? 0}
+      width={contentViewportWidth}
+      height={contentViewportHeight}
       {verticalMode}
       {fontFeatureSettings}
       {verticalTextOrientation}
@@ -348,8 +338,8 @@
   {:else}
     <BookReaderPaginated
       {htmlContent}
-      width={$contentViewportWidth$ ?? 0}
-      height={$contentViewportHeight$ ?? 0}
+      width={contentViewportWidth}
+      height={contentViewportHeight}
       {verticalMode}
       {fontFeatureSettings}
       {verticalTextOrientation}
