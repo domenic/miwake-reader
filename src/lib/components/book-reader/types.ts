@@ -1,8 +1,7 @@
-import type { BehaviorSubject } from 'rxjs';
 import type { BooksDbBookmarkData } from '$lib/data/database/books-db/versions/books-db';
 
 export interface AutoScroller {
-  wasAutoScrollerEnabled$: BehaviorSubject<boolean>;
+  readonly enabled: boolean;
   toggle: () => void;
   off: () => void;
 }

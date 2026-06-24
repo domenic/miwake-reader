@@ -2,7 +2,7 @@ import {
   ReaderImageGalleryAvailableKeybind,
   type ReaderImageGalleryKeybindMap
 } from '$lib/components/book-reader/book-reader-image-gallery/book-reader-image-gallery-state.svelte';
-import type { AutoScroller, PageManager } from '$lib/components/book-reader/types';
+import type { BookReaderController } from '$lib/components/book-reader/book-reader-controller.svelte';
 import {
   BookReaderAvailableKeybind,
   type BookReaderKeybindMap
@@ -18,8 +18,7 @@ export function onKeydownReader(
   bookmarkPage: () => void,
   scrollToBookmark: () => void,
   multiplierOffsetFn: (offset: number) => void,
-  autoScroller: AutoScroller | undefined,
-  pageManager: PageManager | undefined,
+  readerController: BookReaderController,
   isVertical: boolean,
   changeChapter: (offset: number) => void,
   handleSetCustomReadingPoint: () => void,
@@ -37,7 +36,7 @@ export function onKeydownReader(
       scrollToBookmark();
       return true;
     case BookReaderAvailableKeybind.AUTO_SCROLL_TOGGLE:
-      autoScroller?.toggle();
+      readerController.toggleAutoScrollIfAvailable();
       return true;
     case BookReaderAvailableKeybind.AUTO_SCROLL_INCREASE:
       multiplierOffsetFn(1);
@@ -46,10 +45,10 @@ export function onKeydownReader(
       multiplierOffsetFn(-1);
       return true;
     case BookReaderAvailableKeybind.NEXT_PAGE:
-      pageManager?.nextPage();
+      if (readerController.canPage) readerController.nextPage();
       return true;
     case BookReaderAvailableKeybind.PREV_PAGE:
-      pageManager?.prevPage();
+      if (readerController.canPage) readerController.prevPage();
       return true;
     case BookReaderAvailableKeybind.PREV_CHAPTER:
       changeChapter(isVertical ? 1 : -1);

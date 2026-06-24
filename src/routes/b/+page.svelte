@@ -21,12 +21,8 @@
   import { resolve } from '$app/paths';
   import type { RouteId } from '$app/types';
   import { faSpinner } from '@fortawesome/free-solid-svg-icons';
+  import { BookReaderController } from '$lib/components/book-reader/book-reader-controller.svelte';
   import BookReader from '$lib/components/book-reader/book-reader.svelte';
-  import type {
-    AutoScroller,
-    BookmarkManager,
-    PageManager
-  } from '$lib/components/book-reader/types';
   import StyleSheetRenderer from '$lib/components/style-sheet-renderer.svelte';
   import {
     autoBookmark$,
@@ -162,9 +158,6 @@
   let showFooter = $state(true);
   let exploredCharCount = $state(0);
   let bookCharCount = $state(0);
-  let autoScroller = $state<AutoScroller>();
-  let bookmarkManager = $state<BookmarkManager>();
-  let pageManager = $state<PageManager>();
   let bookmarkData: Promise<BooksDbBookmarkData | undefined> = $state(Promise.resolve(undefined));
   let customReadingPointTop = $state(-2);
   let customReadingPointLeft = $state(-2);
@@ -193,6 +186,8 @@
   let syncedResolver: () => void;
   let lastReaderStatisticsSyncAt = 0;
   let readerStatisticsSyncDirty = false;
+
+  const readerController = new BookReaderController();
 
   const syncedPromise = new Promise<void>((resolver) => {
     syncedResolver = resolver;
@@ -427,7 +422,7 @@
 
   $effect(() => {
     if (bookTOCState.isOpen) {
-      untrack(() => autoScroller?.off());
+      untrack(() => readerController.stopAutoScrollIfAvailable());
     }
 
     if (!$statisticsEnabled$) {
@@ -571,7 +566,7 @@
   }
 
   async function handleJump() {
-    if (!bookmarkManager || !bookId) {
+    if (!readerController.canBookmark || !bookId) {
       return;
     }
 
@@ -595,7 +590,7 @@
 
     restartTrackerAfterCharacterChangeOrTime('jump', 1000);
 
-    bookmarkManager.scrollToBookmark(
+    readerController.scrollToBookmark(
       {
         dataId: bookId,
         exploredCharCount: target,
@@ -612,9 +607,9 @@
     }
 
     try {
-      const wasAutoscrollerEnabled = autoScroller?.wasAutoScrollerEnabled$.getValue();
+      const wasAutoscrollerEnabled = readerController.autoScrollEnabled;
       showHeader = false;
-      autoScroller?.off();
+      readerController.stopAutoScrollIfAvailable();
 
       if ($statisticsEnabled$) {
         pauseTrackerFor('completion');
@@ -638,7 +633,7 @@
         }
 
         if (wasAutoscrollerEnabled) {
-          autoScroller?.toggle();
+          readerController.toggleAutoScrollIfAvailable();
         }
 
         return;
@@ -707,9 +702,9 @@
         );
       }
 
-      if (bookmarkManager && ctx) {
+      if (readerController.canBookmark && ctx) {
         const data = {
-          ...bookmarkManager.formatBookmarkData(rawBookData.id, customReadingPointScrollOffset),
+          ...readerController.formatBookmarkData(rawBookData.id, customReadingPointScrollOffset),
           completed: true
         };
 
@@ -748,10 +743,10 @@
 
     try {
       const ctx = bookReplicationContext();
-      if (!bookId || !bookmarkManager || !ctx) return;
+      if (!bookId || !ctx || !readerController.canBookmark) return;
 
       const data = {
-        ...bookmarkManager.formatBookmarkData(bookId, customReadingPointScrollOffset),
+        ...readerController.formatBookmarkData(bookId, customReadingPointScrollOffset),
         completed: false
       };
 
@@ -831,8 +826,7 @@
       bookmarkPage,
       scrollToBookmark,
       (x) => multiplier$.next(multiplier$.getValue() + x),
-      autoScroller,
-      pageManager,
+      readerController,
       $verticalMode$,
       changeChapter,
       handleSetCustomReadingPoint,
@@ -862,7 +856,7 @@
   }
 
   async function bookmarkPage() {
-    if (!bookId || !bookmarkManager) return;
+    if (!bookId || !readerController.canBookmark) return;
 
     let data: BooksDbBookmarkData;
 
@@ -876,13 +870,13 @@
 
       pulseElement(bookmarkRange?.endContainer?.parentElement, 'add', 0.5, 500);
 
-      data = bookmarkManager.formatBookmarkDataByRange(bookId, bookmarkRange);
+      data = readerController.formatBookmarkDataByRange(bookId, bookmarkRange);
 
       if (userSelectedRange) {
         clearRange(window);
       }
     } else {
-      data = bookmarkManager.formatBookmarkData(bookId, customReadingPointScrollOffset);
+      data = readerController.formatBookmarkData(bookId, customReadingPointScrollOffset);
     }
 
     const existingData = await bookmarkData;
@@ -902,13 +896,13 @@
 
   async function scrollToBookmark() {
     const data = await bookmarkData;
-    if (!data || !bookmarkManager) return;
+    if (!data || !readerController.canBookmark) return;
 
     if (data.exploredCharCount !== exploredCharCount) {
       pauseTracker('jump', true);
     }
 
-    bookmarkManager.scrollToBookmark(data, customReadingPointScrollOffset);
+    readerController.scrollToBookmark(data, customReadingPointScrollOffset);
   }
 
   function onFullscreenClick() {
@@ -955,7 +949,7 @@
       try {
         await tick();
 
-        autoScroller?.off();
+        readerController.stopAutoScrollIfAvailable();
         pauseTrackerFor('leaving-reader');
 
         if ($confirmClose$ && storedExploredCharacter !== exploredCharCount) {
@@ -1011,7 +1005,7 @@
       return;
     }
 
-    autoScroller?.off();
+    readerController.stopAutoScrollIfAvailable();
 
     if ($pauseTrackerOnCustomPointChange$) {
       pauseTracker('custom-reading-point');
@@ -1284,7 +1278,7 @@
       {frozenPosition}
       {exploredCharCount}
       {bookCharCount}
-      {autoScroller}
+      {readerController}
       bind:this={trackerElm}
       onfreezecurrentlocation={freezeTrackerPosition}
       onstatisticssaved={scheduleReaderStatisticsReplication}
@@ -1330,10 +1324,8 @@
     bind:customReadingPointLeft
     bind:customReadingPointScrollOffset
     bind:customReadingPointRange
+    {readerController}
     onhideCustomReadingPoint={() => (showCustomReadingPoint = false)}
-    onpagemanagerchange={(pm) => (pageManager = pm)}
-    onbookmarkmanagerchange={(bm) => (bookmarkManager = bm)}
-    onautoscrollerchange={(as) => (autoScroller = as)}
     onbookcharcountchange={(count) => (bookCharCount = count)}
     onisbookmarkscreenchange={(value) => (isBookmarkScreen = value)}
     onbookmark={bookmarkPage}
@@ -1376,14 +1368,16 @@
   <button
     class="fixed left-0 z-10 w-5"
     aria-label={$verticalMode$ ? 'Next page' : 'Previous page'}
-    onclick={$verticalMode$ ? () => pageManager?.nextPage() : () => pageManager?.prevPage()}
+    disabled={!readerController.canPage}
+    onclick={$verticalMode$ ? () => readerController.nextPage() : () => readerController.prevPage()}
     style:height={tapButtonHeight}
     style:top={tapButtonTop}
   ></button>
   <button
     class="fixed right-0 z-10 w-5"
     aria-label={$verticalMode$ ? 'Previous page' : 'Next page'}
-    onclick={$verticalMode$ ? () => pageManager?.prevPage() : () => pageManager?.nextPage()}
+    disabled={!readerController.canPage}
+    onclick={$verticalMode$ ? () => readerController.prevPage() : () => readerController.nextPage()}
     style:height={tapButtonHeight}
     style:top={tapButtonTop}
   ></button>

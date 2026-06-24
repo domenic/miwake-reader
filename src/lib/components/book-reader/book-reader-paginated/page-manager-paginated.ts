@@ -1,11 +1,11 @@
 import { Observable, type Subject, type BehaviorSubject } from 'rxjs';
-import {
-  bookTOCState,
-  type SectionWithProgress
-} from '$lib/components/book-reader/book-toc/book-toc-state.svelte';
+import type { SectionWithProgress } from '$lib/components/book-reader/book-toc/book-toc-state.svelte';
+import type { Section } from '$lib/data/database/books-db/versions/v3/books-db-v3';
 import type { PageManager } from '../types';
 
 export class PageManagerPaginated implements PageManager {
+  #setSectionProgress: (sectionProgress: Map<string, SectionWithProgress>) => void;
+
   private translateX = 0;
 
   private sectionData: Map<string, SectionWithProgress> = new Map();
@@ -14,6 +14,8 @@ export class PageManagerPaginated implements PageManager {
     private contentEl: HTMLElement,
     private scrollEl: HTMLElement,
     private sections: Element[],
+    tocSections: readonly Section[],
+    setSectionProgress: (sectionProgress: Map<string, SectionWithProgress>) => void,
     private sectionIndex$: BehaviorSubject<number>,
     private virtualScrollPos$: BehaviorSubject<number>,
     private width: number,
@@ -23,7 +25,9 @@ export class PageManagerPaginated implements PageManager {
     private pageChange$: Subject<boolean>,
     private sectionRenderComplete$: Subject<number>
   ) {
-    bookTOCState.sections.forEach((section) => {
+    this.#setSectionProgress = setSectionProgress;
+
+    tocSections.forEach((section) => {
       this.sectionData.set(section.reference, { ...section, progress: 0 });
     });
   }
@@ -233,7 +237,7 @@ export class PageManagerPaginated implements PageManager {
     });
 
     if (emit) {
-      bookTOCState.setSectionProgress(this.sectionData);
+      this.#setSectionProgress(this.sectionData);
     }
   }
 }
