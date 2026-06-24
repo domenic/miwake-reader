@@ -15,6 +15,9 @@ import { expectBooksInSyncRoot, importBookFixtures, type LibraryBookFixture } fr
 interface ReaderSettings {
   blurImage?: string;
   furigana?: string;
+  showFooterChapterCharacters?: string;
+  showFooterChapterPercentage?: string;
+  tapToFlip?: string;
   viewMode?: string;
   writingMode?: string;
 }
@@ -96,6 +99,23 @@ export async function useReaderSettings(page: Page, settings: ReaderSettings) {
   }
   if (settings.blurImage) {
     await selectReaderSetting(page, /Blur image/i, settings.blurImage);
+  }
+  if (settings.showFooterChapterCharacters) {
+    await selectReaderSetting(
+      page,
+      /Show Footer Chapter Characters/i,
+      settings.showFooterChapterCharacters
+    );
+  }
+  if (settings.showFooterChapterPercentage) {
+    await selectReaderSetting(
+      page,
+      /Show Footer Chapter Percentage/i,
+      settings.showFooterChapterPercentage
+    );
+  }
+  if (settings.tapToFlip) {
+    await selectReaderSetting(page, /Tap to Flip/i, settings.tapToFlip);
   }
 }
 

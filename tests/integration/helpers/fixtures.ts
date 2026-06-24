@@ -9,13 +9,14 @@ import {
   type SyncRootOptions
 } from './harness.ts';
 import { navigateToManage, navigateToStatisticsSummary } from './navigation.ts';
-import { showReaderHeader } from './reader.ts';
+import { openTOC, showReaderHeader } from './reader.ts';
 
 const NOT_A_ZIP_BOOK = 'not-a-zip-book';
 const NOT_AN_EPUB_BOOK = 'not-an-epub-book';
 
 export const COVER_REFRESH_BOOK = 'cover-refresh-book';
 export const LONG_BOOK = 'long-book';
+export const LONG_BOOK_CHAPTER_CHARACTERS = 7519;
 export const PLAIN_TEXT_BOOK = 'plain-text-book';
 export const SPOILER_IMAGE_GALLERY_BOOK = 'spoiler-image-gallery-book';
 export const VALID_BOOK = 'valid-book';
@@ -316,8 +317,7 @@ async function bookmarkFixtureAtTOCEntry(
   { tocButtonTitle, minimumFooterPage }: PartwayBookmarkMetadata
 ) {
   await openBookFromManage(page, fixture);
-  let readerHeader = await showReaderHeader(page);
-  await readerHeader.getByRole('button', { name: 'TOC' }).click();
+  await openTOC(page);
   await page.getByTitle(tocButtonTitle).click();
   await expect
     .poll(async () => {
@@ -325,7 +325,7 @@ async function bookmarkFixtureAtTOCEntry(
       return Number(/(\d+) \/ \d+/.exec(footerText)?.[1] ?? 0);
     })
     .toBeGreaterThan(minimumFooterPage);
-  readerHeader = await showReaderHeader(page);
+  const readerHeader = await showReaderHeader(page);
   await readerHeader.getByRole('button', { name: 'Bookmark' }).click();
   await showReaderHeader(page);
   await expect(page.getByRole('button', { name: 'Return to Bookmark' })).toBeVisible();
@@ -482,6 +482,10 @@ function fixturePaths(fixtures: readonly BookFixture[]) {
 
 export function fixtureTitle(fixture: LibraryBookFixture) {
   return getFixtureMetadata(fixture).title;
+}
+
+export function longBookChapterStartCharacter(chapterNumber: number) {
+  return (chapterNumber - 1) * LONG_BOOK_CHAPTER_CHARACTERS;
 }
 
 function getPartwayBookmark(fixture: LibraryBookFixture) {

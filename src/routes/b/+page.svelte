@@ -94,15 +94,8 @@
     type TrackerPauseReason
   } from '$lib/components/book-reader/book-reading-tracker/tracker-state.svelte';
   import BookReadingTracker from '$lib/components/book-reader/book-reading-tracker/book-reading-tracker.svelte';
-  import {
-    getChapterData,
-    nextChapter$,
-    sectionList$,
-    sectionProgress$,
-    tocIsOpen$,
-    type SectionWithProgress
-  } from '$lib/components/book-reader/book-toc/book-toc';
-  import BookToc from '$lib/components/book-reader/book-toc/book-toc.svelte';
+  import { bookTOCState } from '$lib/components/book-reader/book-toc/book-toc-state.svelte';
+  import BookTOC from '$lib/components/book-reader/book-toc/book-toc.svelte';
   import { showNumberDialog } from '$lib/components/number-dialog.svelte';
   import { mergeEntries } from '$lib/components/merged-header-icon/merged-entries';
   import SidebarOverlay from '$lib/components/sidebar-overlay.svelte';
@@ -146,13 +139,7 @@
   import { syncState } from '$lib/data/sync/sync-store.svelte';
   import { getDateKey } from '$lib/functions/statistic-util';
   import { clickOutside } from '$lib/functions/use-click-outside';
-  import {
-    convertRemToPixels,
-    dummyFn,
-    isMobile$,
-    limitToRange,
-    getWeightedAverage
-  } from '$lib/functions/utils';
+  import { convertRemToPixels, dummyFn, isMobile$, limitToRange } from '$lib/functions/utils';
   import { onKeydownReader } from './on-keydown-reader';
   import { onDestroy, onMount, tick, untrack } from 'svelte';
   import Fa from 'svelte-fa';
@@ -193,7 +180,7 @@
   let storedExploredCharacter = 0;
   let hasBookmarkData = $state(false);
   let trackerElm: BookReadingTracker = $state()!;
-  let resumeTrackerAfterTocCloses = $state(false);
+  let resumeTrackerAfterTOCCloses = $state(false);
   let frozenPosition = $state(-1);
   let skipFirstFreezeChange = $state(false);
   let bookCompleted = $state(false);
@@ -201,7 +188,7 @@
   let confettiWidthModifier = $state(36);
   let confettiMaxRuns = $state(0);
   let showReaderImageGallery = $state(false);
-  let wasTocOpen = $state(false);
+  let wasTOCOpen = $state(false);
   let wasTrackerMenuOpen = $state(false);
   let syncedResolver: () => void;
   let lastReaderStatisticsSyncAt = 0;
@@ -221,7 +208,6 @@
   let bookId = $derived(browser ? Number(page.url.searchParams.get('id')) : 0);
   let rawBookData = $state<BooksDbBookData>();
   let bookData = $state<LoadedBookData>();
-
   $effect(() => {
     if (!browser) return;
 
@@ -236,10 +222,11 @@
   $effect(() => {
     if (!rawBookData) {
       bookData = undefined;
+      bookTOCState.setSections([]);
       return;
     }
 
-    sectionList$.next(rawBookData.sections || []);
+    bookTOCState.setSections(rawBookData.sections || []);
     logger.debug(
       `reader/bookData: loadBookData start (sections=${rawBookData.sections?.length ?? 0}, htmlLen=${rawBookData.elementHtml?.length ?? 0})`
     );
@@ -266,6 +253,7 @@
     showSpinner = true;
     rawBookData = undefined;
     bookData = undefined;
+    bookTOCState.setSections([]);
     bookmarkData = Promise.resolve(undefined);
 
     try {
@@ -409,10 +397,6 @@
     takeWhenBrowser()
   );
 
-  const sectionData$ = iffBrowser(() => sectionProgress$).pipe(
-    map((sectionProgress) => [...sectionProgress.values()])
-  );
-
   const textSelector$ = iffBrowser(() => fromEvent(document, 'selectionchange')).pipe(
     debounceTime(200),
     tap(() => {
@@ -442,23 +426,23 @@
   );
 
   $effect(() => {
-    if ($tocIsOpen$) {
+    if (bookTOCState.isOpen) {
       untrack(() => autoScroller?.off());
     }
 
     if (!$statisticsEnabled$) {
-      wasTocOpen = $tocIsOpen$;
+      wasTOCOpen = bookTOCState.isOpen;
       return;
     }
 
-    if ($tocIsOpen$ && !wasTocOpen) {
-      resumeTrackerAfterTocCloses = !trackerStatus.paused;
+    if (bookTOCState.isOpen && !wasTOCOpen) {
+      resumeTrackerAfterTOCCloses = !trackerStatus.paused;
       pauseTrackerFor('toc');
-    } else if (!$tocIsOpen$ && wasTocOpen) {
+    } else if (!bookTOCState.isOpen && wasTOCOpen) {
       resumeTrackerFor('toc');
     }
 
-    wasTocOpen = $tocIsOpen$;
+    wasTOCOpen = bookTOCState.isOpen;
   });
 
   $effect(() => {
@@ -521,7 +505,7 @@
 
   let tapButtonTop = $derived(`${showHeader ? 3 : 2}rem`);
 
-  let footerChapterProgress = $derived(getCurrentChapterProgress($sectionData$));
+  let footerChapterProgress = $derived(getCurrentChapterProgress());
 
   $effect(() => {
     bookmarkData.then((data) => {
@@ -779,10 +763,11 @@
     }
   }
 
-  function getCurrentChapterProgress(sectionData: SectionWithProgress[]) {
+  function getCurrentChapterProgress() {
+    const currentChapter = bookTOCState.currentChapter;
     if (
       (!$showFooterChapterCharacterCounter$ && !$showFooterChapterPercentage$) ||
-      !sectionData?.length
+      !currentChapter
     ) {
       return '';
     }
@@ -790,30 +775,17 @@
     let chapterProgress = '';
     let chapterCharacters = '';
 
-    const [mainChapters, chapterIndex, referenceId] = getChapterData($sectionData$);
-
     if ($showFooterChapterPercentage$) {
-      const relevantSections = sectionData.filter(
-        (section) => section.reference === referenceId || section.parentChapter === referenceId
-      );
-
-      chapterProgress = `${getWeightedAverage(
-        relevantSections.map((section) => section.progress),
-        relevantSections.map((section) => section.charactersWeight)
-      ).toFixed(2)}%`;
+      chapterProgress = `${bookTOCState.currentChapterProgress.toFixed(2)}%`;
     }
 
     if ($showFooterChapterCharacterCounter$) {
-      const currentChapter = mainChapters[chapterIndex];
+      const endCharacter = currentChapter.characters;
 
-      if (currentChapter) {
-        const endCharacter = currentChapter.characters as number;
-
-        chapterCharacters = `${Math.min(
-          Math.max(exploredCharCount - (currentChapter.startCharacter as number), 0),
-          endCharacter
-        )} / ${endCharacter}`;
-      }
+      chapterCharacters = `${Math.min(
+        Math.max(exploredCharCount - currentChapter.startCharacter, 0),
+        endCharacter
+      )} / ${endCharacter}`;
     }
 
     return [chapterCharacters, chapterProgress, 'C'].filter(Boolean).join(' ');
@@ -950,20 +922,18 @@
   }
 
   function changeChapter(offset: number) {
-    if (!$sectionData$?.length) {
+    if (!bookTOCState.hasChapters) {
       return;
     }
 
-    const [mainChapters, currentChapterIndex] = getChapterData($sectionData$);
-
     if (
-      (!currentChapterIndex && offset === -1) ||
-      (offset === 1 && currentChapterIndex === mainChapters.length - 1)
+      (!bookTOCState.currentChapterIndex && offset === -1) ||
+      (offset === 1 && bookTOCState.currentChapterIndex === bookTOCState.mainChapters.length - 1)
     ) {
       return;
     }
 
-    const nextChapter = mainChapters[currentChapterIndex + offset];
+    const nextChapter = bookTOCState.chapterAtOffset(offset);
 
     if (!nextChapter) {
       return;
@@ -973,7 +943,7 @@
       pauseTracker('jump', true);
     }
 
-    nextChapter$.next(nextChapter.reference);
+    bookTOCState.navigateToChapter(nextChapter.reference);
   }
 
   async function leaveReader(routeId: ReaderExitRoute, deleteLastItem = true) {
@@ -1243,7 +1213,7 @@
   use:clickOutside={() => (showHeader = false)}
 >
   <BookReaderHeader
-    hasChapterData={!!$sectionData$?.length}
+    hasChapterData={bookTOCState.hasChapters}
     hasText={!!bookCharCount}
     hasCustomReadingPoint={!!(
       ($customReadingPointEnabled$ || isPaginated) &&
@@ -1256,7 +1226,7 @@
     {isBookmarkScreen}
     ontocClick={() => {
       showHeader = false;
-      tocIsOpen$.set(true);
+      bookTOCState.isOpen = true;
     }}
     onjumpClick={handleJump}
     {isBookCompleted}
@@ -1310,7 +1280,7 @@
       fontColor={$themeOption$.fontColor}
       backgroundColor={$backgroundColor$}
       bookTitle={rawBookData.title}
-      sectionData={$sectionData$}
+      currentChapter={bookTOCState.currentChapter}
       {frozenPosition}
       {exploredCharCount}
       {bookCharCount}
@@ -1372,19 +1342,14 @@
 {/if}
 
 <SidebarOverlay
-  bind:open={$tocIsOpen$}
+  bind:open={bookTOCState.isOpen}
   side="left"
   class="overflow-hidden bg-background-color text-(--font-color)"
   closeTitle="Close table of contents"
   style={`color: ${$themeOption$?.fontColor}; background-color: ${$backgroundColor$};`}
 >
-  {#if $sectionData$}
-    <BookToc
-      sectionData={$sectionData$}
-      verticalMode={$verticalMode$}
-      {exploredCharCount}
-      {resumeTrackerAfterTocCloses}
-    />
+  {#if bookTOCState.hasChapters}
+    <BookTOC verticalMode={$verticalMode$} {exploredCharCount} {resumeTrackerAfterTOCCloses} />
   {/if}
 </SidebarOverlay>
 

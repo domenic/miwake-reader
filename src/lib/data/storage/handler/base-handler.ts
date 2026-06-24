@@ -6,7 +6,7 @@ import {
   type BooksDbReadingGoal,
   type BooksDbStatistic
 } from '$lib/data/database/books-db/versions/books-db';
-import type { Section } from '$lib/data/database/books-db/versions/v4/books-db-v4';
+import type { ChapterSection, Section } from '$lib/data/database/books-db/versions/v4/books-db-v4';
 import { storageRootName } from '$lib/data/env';
 import { mergeReadingGoals, readingGoalSortFunction } from '$lib/data/reading-goal';
 import type { SyncEndpointType, SyncTitle } from '$lib/data/storage/storage-types';
@@ -225,17 +225,11 @@ export abstract class BaseStorageHandler implements SyncEndpoint {
       return characterAmount;
     }
 
-    const lastSection = [...sections]
+    const lastChapter = [...sections]
       .reverse()
-      .find((section) => section.startCharacter !== undefined && section.characters !== undefined);
+      .find((section): section is ChapterSection => section.parentChapter === undefined);
 
-    let characters = 0;
-
-    if (lastSection?.startCharacter && lastSection.characters) {
-      characters = lastSection.startCharacter + lastSection.characters;
-    }
-
-    return characters;
+    return lastChapter ? lastChapter.startCharacter + lastChapter.characters : 0;
   }
 
   static reportProgress(progressToAdd = 1) {

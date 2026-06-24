@@ -1,5 +1,8 @@
 import { isOPFType, type EpubContent, type EpubOPFContent } from './types';
-import type { Section } from '../../../data/database/books-db/versions/v3/books-db-v3';
+import type {
+  ChapterSection,
+  Section
+} from '../../../data/database/books-db/versions/v3/books-db-v3';
 import buildDummyBookImage from '../utils/build-dummy-book-image';
 import clearAllBadImageRef from '../utils/clear-all-bad-image-ref';
 import fixXHtmlHref from '../utils/fix-xhtml-href';
@@ -10,6 +13,16 @@ import { getParagraphNodes } from '../../../components/book-reader/get-paragraph
 import path from 'path-browserify';
 
 export const prependValue = 'miwake-';
+
+interface TOCChapter {
+  reference: string;
+  charactersWeight: number;
+  label?: string;
+}
+
+function isChapterSection(section: Section | undefined): section is ChapterSection {
+  return !!section && section.parentChapter === undefined;
+}
 
 // eslint-disable-next-line no-control-regex
 const controlCharactersRegex = /[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/gim;
@@ -100,7 +113,7 @@ export default function generateEpubHtml(
   const sectionData: Section[] = [];
   const result = document.createElement('div');
 
-  let mainChapters: Section[] = [];
+  let mainChapters: TOCChapter[] = [];
   let firstChapterMatchIndex;
 
   if (applyImportFixes && restrictImportFixToAnchor) {
@@ -154,8 +167,7 @@ export default function generateEpubHtml(
       mainChapters.unshift({
         reference,
         charactersWeight: 1,
-        label: 'Preface',
-        startCharacter: 0
+        label: 'Preface'
       });
     }
   }
@@ -271,6 +283,7 @@ export default function generateEpubHtml(
 
     if (mainChapter) {
       const oldMainChapterIndex = currentMainChapterIndex;
+      const oldMainChapter = sectionData[oldMainChapterIndex];
 
       currentMainChapter = mainChapter;
       currentMainChapterIndex = sectionData.length;
@@ -280,14 +293,17 @@ export default function generateEpubHtml(
         reference: currentMainChapterId,
         charactersWeight: characters || 1,
         label: currentMainChapter.label,
-        startCharacter: currentMainChapterIndex
-          ? (sectionData[oldMainChapterIndex].startCharacter as number) +
-            (sectionData[oldMainChapterIndex].characters as number)
-          : 0,
+        startCharacter:
+          currentMainChapterIndex && isChapterSection(oldMainChapter)
+            ? oldMainChapter.startCharacter + oldMainChapter.characters
+            : 0,
         characters
       });
     } else if (currentMainChapter) {
-      (sectionData[currentMainChapterIndex].characters as number) += characters;
+      const currentMainChapterSection = sectionData[currentMainChapterIndex];
+      if (isChapterSection(currentMainChapterSection)) {
+        currentMainChapterSection.characters += characters;
+      }
 
       sectionData.push({
         reference: `${prependValue}${itemIdRef}`,

@@ -1,76 +1,53 @@
 <script lang="ts">
   import { faChevronLeft, faChevronRight } from '@fortawesome/free-solid-svg-icons';
-  import {
-    getChapterData,
-    nextChapter$,
-    tocIsOpen$,
-    type SectionWithProgress
-  } from '$lib/components/book-reader/book-toc/book-toc';
+  import { bookTOCState } from '$lib/components/book-reader/book-toc/book-toc-state.svelte';
   import { PAGE_CHANGE } from '$lib/data/events';
   import { statisticsEnabled$ } from '$lib/data/store';
   import { japaneseLangIfNeeded } from '$lib/functions/japanese-language';
-  import { dummyFn, getWeightedAverage } from '$lib/functions/utils';
-  import { debounceTime, fromEvent, merge, take } from 'rxjs';
+  import { dummyFn } from '$lib/functions/utils';
   import Fa from 'svelte-fa';
 
   interface Props {
-    sectionData?: SectionWithProgress[];
     exploredCharCount?: number;
     verticalMode: boolean;
-    resumeTrackerAfterTocCloses: boolean;
+    resumeTrackerAfterTOCCloses: boolean;
   }
 
-  let {
-    sectionData = [],
-    exploredCharCount = 0,
-    verticalMode,
-    resumeTrackerAfterTocCloses
-  }: Props = $props();
+  let { exploredCharCount = 0, verticalMode, resumeTrackerAfterTOCCloses }: Props = $props();
 
   const componentId = $props.id();
 
-  let chapters: SectionWithProgress[] = $state([]);
-  let currentChapter: SectionWithProgress = $state(undefined as any);
-  let currentChapterIndex = $state(-1);
-  let currentChapterCharacterProgress = $state('0/0');
-  let currentChapterProgress = $state('0.00');
-  let currentChapterReference = $derived(currentChapter?.reference);
+  let currentChapterCharacterProgress = $derived.by(() => {
+    const currentChapter = bookTOCState.currentChapter;
+    if (!currentChapter) {
+      return '0/0';
+    }
+
+    const endCharacter = currentChapter.characters;
+
+    return `${Math.min(
+      Math.max(exploredCharCount - currentChapter.startCharacter, 0),
+      endCharacter
+    )} / ${endCharacter}`;
+  });
+  let currentChapterProgress = $derived(bookTOCState.currentChapterProgress.toFixed(2));
+  let currentChapterReference = $derived(bookTOCState.currentChapter?.reference);
 
   let prevChapterAvailable = $derived(
-    verticalMode ? currentChapterIndex < chapters.length - 1 : !!currentChapterIndex
+    verticalMode
+      ? bookTOCState.currentChapterIndex < bookTOCState.mainChapters.length - 1
+      : !!bookTOCState.currentChapterIndex
   );
   let nextChapterAvailable = $derived(
-    verticalMode ? !!currentChapterIndex : currentChapterIndex < chapters.length - 1
+    verticalMode
+      ? !!bookTOCState.currentChapterIndex
+      : bookTOCState.currentChapterIndex < bookTOCState.mainChapters.length - 1
   );
 
   $effect(() => {
-    if (sectionData) {
-      const [mainChapters, chapterIndex, referenceId] = getChapterData(sectionData);
-      const relevantSections = sectionData.filter(
-        (section) => section.reference === referenceId || section.parentChapter === referenceId
-      );
+    if (!bookTOCState.currentChapter) return;
 
-      currentChapterProgress = getWeightedAverage(
-        relevantSections.map((section) => section.progress),
-        relevantSections.map((section) => section.charactersWeight)
-      ).toFixed(2);
-      chapters = mainChapters;
-      currentChapterIndex = chapterIndex;
-      currentChapter = mainChapters[currentChapterIndex];
-    }
-  });
-
-  $effect(() => {
-    if (currentChapter) {
-      scrollToChapterItem(document.getElementById(`for${currentChapter.reference}`));
-
-      const endCharacter = currentChapter.characters as number;
-
-      currentChapterCharacterProgress = `${Math.min(
-        Math.max(exploredCharCount - (currentChapter.startCharacter as number), 0),
-        endCharacter
-      )} / ${endCharacter}`;
-    }
+    scrollToChapterItem(document.getElementById(`for${bookTOCState.currentChapter.reference}`));
   });
 
   function scrollToChapterItem(elm: HTMLElement | null) {
@@ -87,31 +64,41 @@
 
   function changeChapter(canNavigate: boolean, indexMod: number) {
     if (canNavigate) {
-      const nextChapter = chapters[currentChapterIndex + indexMod];
+      const nextChapter = bookTOCState.chapterAtOffset(indexMod);
 
-      goToChapter(nextChapter.reference, false);
+      if (nextChapter) {
+        goToChapter(nextChapter.reference, false);
+      }
     }
   }
 
-  function goToChapter(chapterId: string, closeToc = false) {
-    const nextChapter = chapters.find((chapter) => chapter.reference === chapterId);
+  function goToChapter(chapterId: string, closeTOC = false) {
+    const nextChapter = bookTOCState.mainChapters.find(
+      (chapter) => chapter.reference === chapterId
+    );
     const hasCharacterChange = exploredCharCount !== nextChapter?.startCharacter;
 
-    if ($statisticsEnabled$ && closeToc && hasCharacterChange && resumeTrackerAfterTocCloses) {
-      merge(fromEvent(document, PAGE_CHANGE))
-        .pipe(debounceTime(200), take(1))
-        .subscribe(() => {
-          if (closeToc) {
-            tocIsOpen$.set(false);
-          }
-        });
+    if ($statisticsEnabled$ && closeTOC && hasCharacterChange && resumeTrackerAfterTOCCloses) {
+      closeTOCAfterNextPageChange();
     }
 
-    nextChapter$.next(chapterId);
+    bookTOCState.navigateToChapter(chapterId);
 
-    if ((!hasCharacterChange || !$statisticsEnabled$ || !resumeTrackerAfterTocCloses) && closeToc) {
-      tocIsOpen$.set(false);
+    if ((!hasCharacterChange || !$statisticsEnabled$ || !resumeTrackerAfterTOCCloses) && closeTOC) {
+      bookTOCState.isOpen = false;
     }
+  }
+
+  function closeTOCAfterNextPageChange() {
+    document.addEventListener(
+      PAGE_CHANGE,
+      () => {
+        window.setTimeout(() => {
+          bookTOCState.isOpen = false;
+        }, 200);
+      },
+      { once: true }
+    );
   }
 </script>
 
@@ -119,7 +106,7 @@
   <div>Chapter Progress: {currentChapterCharacterProgress} ({currentChapterProgress}%)</div>
 </div>
 <div class="flex-1 overflow-auto p-4">
-  {#each chapters as chapter, chapterIndex (chapter.reference)}
+  {#each bookTOCState.mainChapters as chapter, chapterIndex (chapter.reference)}
     {@const chapterActionId = `${componentId}-chapter-action-${chapterIndex}`}
     {@const chapterLabelId = `${componentId}-chapter-label-${chapterIndex}`}
     {@const chapterLabelLang = japaneseLangIfNeeded(chapter.label)}

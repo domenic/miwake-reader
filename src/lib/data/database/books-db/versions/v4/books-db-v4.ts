@@ -33,14 +33,26 @@ interface BooksDbV4StorageSource {
   lastSourceModified: number;
 }
 
-export interface Section {
+interface BaseSection {
   reference: string;
   charactersWeight: number;
-  label?: string;
-  startCharacter?: number;
-  characters?: number;
-  parentChapter?: string;
 }
+
+export interface ChapterSection extends BaseSection {
+  label?: string;
+  startCharacter: number;
+  characters: number;
+  parentChapter?: undefined;
+}
+
+export interface ChildSection extends BaseSection {
+  parentChapter: string;
+  label?: undefined;
+  startCharacter?: undefined;
+  characters?: undefined;
+}
+
+export type Section = ChapterSection | ChildSection;
 
 export default interface BooksDbV4 extends DBSchema {
   data: {

@@ -1,9 +1,8 @@
-import { Observable, take, type Subject, type BehaviorSubject } from 'rxjs';
+import { Observable, type Subject, type BehaviorSubject } from 'rxjs';
 import {
-  sectionProgress$,
-  sectionList$,
+  bookTOCState,
   type SectionWithProgress
-} from '$lib/components/book-reader/book-toc/book-toc';
+} from '$lib/components/book-reader/book-toc/book-toc-state.svelte';
 import type { PageManager } from '../types';
 
 export class PageManagerPaginated implements PageManager {
@@ -24,16 +23,8 @@ export class PageManagerPaginated implements PageManager {
     private pageChange$: Subject<boolean>,
     private sectionRenderComplete$: Subject<number>
   ) {
-    sectionList$.pipe(take(1)).subscribe((entries) => {
-      if (!entries.length) {
-        return;
-      }
-
-      entries.forEach((section) => {
-        this.sectionData.set(section.reference, { ...section, progress: 0 });
-      });
-
-      sectionProgress$.next(this.sectionData);
+    bookTOCState.sections.forEach((section) => {
+      this.sectionData.set(section.reference, { ...section, progress: 0 });
     });
   }
 
@@ -242,7 +233,7 @@ export class PageManagerPaginated implements PageManager {
     });
 
     if (emit) {
-      sectionProgress$.next(this.sectionData);
+      bookTOCState.setSectionProgress(this.sectionData);
     }
   }
 }
