@@ -45,12 +45,11 @@ interface BooksDbV7BookmarkData {
   completed?: boolean;
   lastBookmarkModified: number;
   /**
-   * Set when the row was seeded by ensurePlaceholders from a sync
-   * source's progress_* filename. The reading position is unknown
-   * (no scrollY / exploredCharCount), so LocalReplicationEndpoint's
-   * up-to-date check treats it as missing and the open-flow pulls
-   * the real bookmark. Cleared on first overwrite by replicator →
-   * saveProgress.
+   * Set when the row was seeded from a sync source's progress_*
+   * filename. The reading position is unknown (no scrollY /
+   * exploredCharCount), so LocalReplicationEndpoint's up-to-date
+   * check treats it as missing and the open-flow pulls the real
+   * bookmark. Cleared on first overwrite by replicator → saveProgress.
    */
   placeholder?: boolean;
 }
