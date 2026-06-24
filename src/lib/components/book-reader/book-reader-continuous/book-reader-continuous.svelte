@@ -18,18 +18,6 @@
   import { getReferencePoints } from '$lib/functions/range-util';
   import { getExternalTargetElement } from '$lib/functions/utils';
   import { faBookmark, faSpinner } from '@fortawesome/free-solid-svg-icons';
-  import {
-    animationFrameScheduler,
-    combineLatest,
-    debounceTime,
-    distinctUntilChanged,
-    filter,
-    map,
-    observeOn,
-    skip,
-    Subject,
-    takeUntil
-  } from 'rxjs';
   import { onDestroy, onMount, untrack } from 'svelte';
   import { SvelteMap } from 'svelte/reactivity';
   import Fa from 'svelte-fa';
@@ -152,12 +140,6 @@
     ? horizontalMouseWheel(4, document.documentElement, requestAnimationFrame)
     : () => 0;
 
-  const width$ = new Subject<number>();
-
-  const height$ = new Subject<number>();
-
-  const destroy$ = new Subject<void>();
-
   const sectionToElement = new SvelteMap<string, HTMLElement>();
 
   const sectionData = new SvelteMap<string, SectionWithProgress>();
@@ -169,6 +151,12 @@
   let stopAutoBookmark: (() => void) | undefined;
 
   let stopSectionProgressTracking: (() => void) | undefined;
+
+  let lastAutoPositionDimension: number | undefined;
+
+  let autoPositionTimer: number | undefined;
+
+  let autoPositionFrame: number | undefined;
 
   let fullLengthDimension = $derived(verticalMode ? 'height' : 'width');
 
@@ -196,15 +184,6 @@
     }
 
     return base;
-  });
-
-  // Push width/height changes to subjects
-  $effect(() => {
-    width$.next(width);
-  });
-
-  $effect(() => {
-    height$.next(height);
   });
 
   // Initialize content when htmlContent changes (or on first mount).
@@ -286,26 +265,27 @@
 
   onMount(() => bookTOCState.onChapterNavigation(scrollToChapter));
 
-  // Resize scroll subscription
-  combineLatest([width$, height$])
-    .pipe(
-      filter(() => autoPositionOnResize),
-      skip(1),
-      map(([w, h]) => (verticalMode ? h : w)),
-      distinctUntilChanged(),
-      debounceTime(10),
-      observeOn(animationFrameScheduler),
-      takeUntil(destroy$)
-    )
-    .subscribe(() => {
-      if (!calculator || !pageManager) return;
+  $effect(() => {
+    const dimension = verticalMode ? height : width;
 
-      const scrollPos =
-        calculator.getScrollPosByCharCount(prevIntendedCharCount) +
-        (verticalMode ? customReadingPointScrollOffset : -customReadingPointScrollOffset);
-      isResizeScroll = true;
-      pageManager.scrollTo(scrollPos);
-    });
+    if (!autoPositionOnResize) {
+      lastAutoPositionDimension = dimension;
+      clearScheduledAutoPosition();
+      return;
+    }
+
+    if (lastAutoPositionDimension === undefined) {
+      lastAutoPositionDimension = dimension;
+      return;
+    }
+
+    if (dimension === lastAutoPositionDimension) {
+      return;
+    }
+
+    lastAutoPositionDimension = dimension;
+    scheduleAutoPositionAfterResize();
+  });
 
   /** Experimental Code - May be removed any time without warning */
   onMount(() => {
@@ -422,9 +402,39 @@
 
     stopAutoBookmark?.();
     stopSectionProgressTracking?.();
-    destroy$.next();
-    destroy$.complete();
+    clearScheduledAutoPosition();
   });
+
+  function scheduleAutoPositionAfterResize() {
+    clearScheduledAutoPosition();
+
+    autoPositionTimer = window.setTimeout(() => {
+      autoPositionTimer = undefined;
+      autoPositionFrame = requestAnimationFrame(() => {
+        autoPositionFrame = undefined;
+        autoPositionAfterResize();
+      });
+    }, 10);
+  }
+
+  function clearScheduledAutoPosition() {
+    window.clearTimeout(autoPositionTimer);
+    if (autoPositionFrame !== undefined) {
+      cancelAnimationFrame(autoPositionFrame);
+      autoPositionFrame = undefined;
+    }
+    autoPositionTimer = undefined;
+  }
+
+  function autoPositionAfterResize() {
+    if (!calculator || !pageManager) return;
+
+    const scrollPos =
+      calculator.getScrollPosByCharCount(prevIntendedCharCount) +
+      (verticalMode ? customReadingPointScrollOffset : -customReadingPointScrollOffset);
+    isResizeScroll = true;
+    pageManager.scrollTo(scrollPos);
+  }
 
   function updateCustomReadingPointPosition() {
     if (!$customReadingPointEnabled$ || !contentEl) {

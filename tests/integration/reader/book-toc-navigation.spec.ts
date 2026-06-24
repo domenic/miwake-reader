@@ -63,15 +63,38 @@ test('continuous reader updates chapter progress after scrolling', async ({ page
   await expectFooterChapterProgress(page, { charactersRead: 8, percentage: 80.59 });
 });
 
+test('continuous reader preserves chapter progress after resizing', async ({ page }) => {
+  await page.setViewportSize({ width: 1_000, height: 700 });
+  await useProgressReaderSettings(page, {
+    autoPositionOnResize: 'On',
+    viewMode: 'Continuous'
+  });
+  await importBookFixtures(page, [LONG_BOOK]);
+  await openBookFromManage(page, LONG_BOOK);
+  await expectBookReaderText(page, LONG_BOOK);
+
+  await page.mouse.wheel(0, 2_000);
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
+  const progressBeforeResize = await footerChapterProgressText(page);
+  expect(progressBeforeResize).toMatch(/^\d+ \/ \d+ \d+\.\d{2}% C$/);
+  expect(progressBeforeResize).not.toBe(
+    formatChapterProgress({ charactersRead: 0, percentage: 0 })
+  );
+
+  await page.setViewportSize({ width: 700, height: 700 });
+  await expect.poll(() => footerChapterProgressText(page)).toBe(progressBeforeResize);
+});
+
 function chapterRow(page: Page, chapterLabel: string) {
   return page.getByTitle(`Go to ${chapterLabel}`).locator('xpath=..');
 }
 
 async function useProgressReaderSettings(
   page: Page,
-  settings: { tapToFlip?: string; viewMode?: string } = {}
+  settings: { autoPositionOnResize?: string; tapToFlip?: string; viewMode?: string } = {}
 ) {
   await useReaderSettings(page, {
+    autoPositionOnResize: settings.autoPositionOnResize,
     showFooterChapterCharacters: 'On',
     showFooterChapterPercentage: 'On',
     viewMode: settings.viewMode ?? 'Paginated',
@@ -99,14 +122,16 @@ async function expectTOCChapterProgress(page: Page, progress: ChapterProgress) {
 }
 
 async function expectFooterChapterProgress(page: Page, progress: ChapterProgress) {
-  await expect(page.locator('#miwake-page-footer')).toContainText(
-    formatChapterProgress(progress, 'footer')
-  );
+  await expect.poll(() => footerChapterProgressText(page)).toBe(formatChapterProgress(progress));
+}
+
+async function footerChapterProgressText(page: Page) {
+  return page.locator('#miwake-page-footer span').first().innerText();
 }
 
 function formatChapterProgress(
   { charactersRead, percentage }: ChapterProgress,
-  location: 'footer' | 'toc'
+  location: 'footer' | 'toc' = 'footer'
 ) {
   const progress = `${charactersRead} / ${LONG_BOOK_CHAPTER_CHARACTERS}`;
   const percentageText = `${percentage.toFixed(2)}%`;

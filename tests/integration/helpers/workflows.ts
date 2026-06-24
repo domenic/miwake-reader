@@ -15,6 +15,7 @@ import { expectBooksInSyncRoot, importBookFixtures, type LibraryBookFixture } fr
 interface ReaderSettings {
   autoBookmark?: string;
   autoBookmarkTime?: string;
+  autoPositionOnResize?: string;
   blurImage?: string;
   furigana?: string;
   showFooterChapterCharacters?: string;
@@ -124,6 +125,9 @@ export async function useReaderSettings(page: Page, settings: ReaderSettings) {
   }
   if (settings.autoBookmarkTime) {
     await fillReaderNumberSetting(page, /^Auto Bookmark Time$/i, settings.autoBookmarkTime);
+  }
+  if (settings.autoPositionOnResize) {
+    await selectReaderSetting(page, /^Auto position on resize$/i, settings.autoPositionOnResize);
   }
 }
 
