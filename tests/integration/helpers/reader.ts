@@ -11,6 +11,11 @@ export async function showReaderHeader(page: Page) {
   return header;
 }
 
+export async function openTOC(page: Page) {
+  const header = await showReaderHeader(page);
+  await header.getByRole('button', { name: 'TOC' }).click();
+}
+
 function readerHeader(page: Page) {
   return page.locator('[aria-label="Reader controls"][role="toolbar"]');
 }

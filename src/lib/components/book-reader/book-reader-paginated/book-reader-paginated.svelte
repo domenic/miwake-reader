@@ -1,6 +1,6 @@
 <script lang="ts">
   import { browser } from '$app/environment';
-  import { nextChapter$ } from '$lib/components/book-reader/book-toc/book-toc';
+  import { bookTOCState } from '$lib/components/book-reader/book-toc/book-toc-state.svelte';
   import type { BooksDbBookmarkData } from '$lib/data/database/books-db/versions/books-db';
   import { SECTION_CHANGE } from '$lib/data/events';
   import { isStoredFont } from '$lib/data/fonts';
@@ -313,6 +313,8 @@
 
   /** Experimental Code - May be removed any time without warning */
   onMount(() => document.addEventListener('miwake-action', handleAction, false));
+
+  onMount(() => bookTOCState.onChapterNavigation(goToChapter));
 
   async function handleAction({ detail }: any) {
     if (!detail.type || !calculator || !concretePageManager) {
@@ -699,7 +701,7 @@
     }
   }
 
-  nextChapter$.pipe(takeUntil(destroy$)).subscribe((chapterId) => {
+  function goToChapter(chapterId: string) {
     const nextSectionIndex = sections.findIndex(
       (section) => section.id === chapterId || section.querySelector(`[id="${chapterId}"]`)
     );
@@ -708,7 +710,7 @@
       sectionIndex$.next(nextSectionIndex);
       concretePageManager?.scrollTo(0, true);
     }
-  });
+  }
 </script>
 
 <div

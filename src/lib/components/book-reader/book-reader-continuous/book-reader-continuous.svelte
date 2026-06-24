@@ -1,11 +1,9 @@
 <script lang="ts">
   import { browser } from '$app/environment';
   import {
-    nextChapter$,
-    sectionList$,
-    sectionProgress$,
+    bookTOCState,
     type SectionWithProgress
-  } from '$lib/components/book-reader/book-toc/book-toc';
+  } from '$lib/components/book-reader/book-toc/book-toc-state.svelte';
   import type { BooksDbBookmarkData } from '$lib/data/database/books-db/versions/books-db';
   import { isStoredFont } from '$lib/data/fonts';
   import { FuriganaStyle } from '$lib/data/furigana-style';
@@ -23,20 +21,15 @@
   import {
     animationFrameScheduler,
     combineLatest,
-    debounce,
     debounceTime,
     distinctUntilChanged,
-    EMPTY,
     filter,
     fromEvent,
     map,
     observeOn,
     skip,
     Subject,
-    switchMap,
-    take,
-    takeUntil,
-    timer
+    takeUntil
   } from 'rxjs';
   import { onDestroy, onMount, untrack } from 'svelte';
   import { SvelteMap } from 'svelte/reactivity';
@@ -180,6 +173,8 @@
 
   let willNavigate = false;
 
+  let stopSectionProgressTracking: (() => void) | undefined;
+
   let fullLengthDimension = $derived(verticalMode ? 'height' : 'width');
 
   let modifyingDimension = $derived(verticalMode ? 'width' : 'height');
@@ -289,6 +284,8 @@
     autoScrollerConcrete = new AutoScrollerContinuous(multiplier, verticalMode, destroy$, document);
     onautoscrollerchange?.(autoScrollerConcrete);
   });
+
+  onMount(() => bookTOCState.onChapterNavigation(scrollToChapter));
 
   // Resize scroll subscription
   combineLatest([width$, height$])
@@ -424,6 +421,7 @@
   onDestroy(() => {
     document.removeEventListener('miwake-action', handleAction, false);
 
+    stopSectionProgressTracking?.();
     destroy$.next();
     destroy$.complete();
   });
@@ -497,48 +495,68 @@
               });
           }
 
-          sectionList$
-            .pipe(
-              take(1),
-              switchMap((sections) => {
-                if (!sections.length) {
-                  return EMPTY;
-                }
-
-                sections.forEach((section) => {
-                  const ref = section.reference;
-                  const elm = document.getElementById(ref);
-
-                  if (elm) {
-                    if (!scrollAdjustment) {
-                      scrollAdjustment =
-                        Number(
-                          getComputedStyle(elm)[
-                            verticalMode ? 'marginLeft' : 'marginBottom'
-                          ].replace(/px$/, '')
-                        ) / 2;
-                    }
-
-                    sectionData.set(ref, { ...section, progress: 0 });
-                    sectionToElement.set(ref, elm);
-                  }
-                });
-
-                if (sectionToElement.size) {
-                  updateSectionProgress();
-
-                  return fromEvent(window, 'scroll');
-                }
-                return EMPTY;
-              }),
-              debounce(() => timer(willNavigate ? 100 : 500)),
-              takeUntil(destroy$)
-            )
-            .subscribe(updateSectionProgress);
+          startSectionProgressTracking();
         });
     }
     contentReadyEvent = {};
     allowDisplay = true;
+  }
+
+  function startSectionProgressTracking() {
+    stopSectionProgressTracking?.();
+    stopSectionProgressTracking = undefined;
+    sectionData.clear();
+    sectionToElement.clear();
+
+    for (const section of bookTOCState.sections) {
+      const ref = section.reference;
+      const elm = document.getElementById(ref);
+
+      if (!elm) {
+        continue;
+      }
+
+      if (!scrollAdjustment) {
+        scrollAdjustment =
+          Number(
+            getComputedStyle(elm)[verticalMode ? 'marginLeft' : 'marginBottom'].replace(/px$/, '')
+          ) / 2;
+      }
+
+      sectionData.set(ref, { ...section, progress: 0 });
+      sectionToElement.set(ref, elm);
+    }
+
+    if (!sectionToElement.size) {
+      bookTOCState.clearSectionProgress();
+      return;
+    }
+
+    updateSectionProgress();
+
+    let updateTimer: number | undefined;
+    const scheduleSectionProgressUpdate = () => {
+      if (updateTimer !== undefined) {
+        window.clearTimeout(updateTimer);
+      }
+
+      updateTimer = window.setTimeout(
+        () => {
+          updateTimer = undefined;
+          updateSectionProgress();
+        },
+        willNavigate ? 100 : 500
+      );
+    };
+
+    window.addEventListener('scroll', scheduleSectionProgressUpdate);
+    stopSectionProgressTracking = () => {
+      if (updateTimer !== undefined) {
+        window.clearTimeout(updateTimer);
+      }
+
+      window.removeEventListener('scroll', scheduleSectionProgressUpdate);
+    };
   }
 
   function updateSectionProgress() {
@@ -579,7 +597,7 @@
     }
 
     willNavigate = false;
-    sectionProgress$.next(sectionData);
+    bookTOCState.setSectionProgress(sectionData);
   }
 
   function onWheel(ev: WheelEvent) {
@@ -653,7 +671,7 @@
     }
   }
 
-  nextChapter$.pipe(takeUntil(destroy$)).subscribe((chapterId) => {
+  function scrollToChapter(chapterId: string) {
     const targetElement = document.getElementById(chapterId);
 
     if (!targetElement) {
@@ -690,7 +708,7 @@
             : 0)
       );
     }
-  });
+  }
 </script>
 
 <div

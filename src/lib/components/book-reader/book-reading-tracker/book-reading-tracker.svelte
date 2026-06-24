@@ -16,7 +16,7 @@
   } from '$lib/components/book-reader/book-reading-tracker/tracker-state.svelte';
   import BookReadingTrackerPanel from '$lib/components/book-reader/book-reading-tracker/book-reading-tracker-panel.svelte';
   import SidebarOverlay from '$lib/components/sidebar-overlay.svelte';
-  import type { SectionWithProgress } from '$lib/components/book-reader/book-toc/book-toc';
+  import type { ChapterWithProgress } from '$lib/components/book-reader/book-toc/book-toc-state.svelte';
   import type { AutoScroller } from '$lib/components/book-reader/types';
   import type {
     BooksDbReadingGoal,
@@ -57,7 +57,7 @@
     bookTitle: string;
     exploredCharCount: number;
     bookCharCount: number;
-    sectionData: SectionWithProgress[];
+    currentChapter: ChapterWithProgress | undefined;
     frozenPosition: number;
     autoScroller: AutoScroller | undefined;
     onstatisticssaved?: () => void;
@@ -70,7 +70,7 @@
     bookTitle,
     exploredCharCount,
     bookCharCount,
-    sectionData,
+    currentChapter,
     frozenPosition,
     autoScroller,
     onstatisticssaved,
@@ -810,7 +810,7 @@
     {bookCompletionStatistics}
     {autoScrollerStatistics}
     {bookStartDate}
-    {sectionData}
+    {currentChapter}
     canSaveStatistics={statisticsToStore.size > 0}
     trackerPaused={trackerStatus.pausedOutsideMenu}
     {onfreezecurrentlocation}

@@ -12,16 +12,12 @@
     type IconDefinition
   } from '@fortawesome/free-solid-svg-icons';
   import type { TrackingHistory } from '$lib/components/book-reader/book-reading-tracker/tracker-domain';
-  import {
-    getChapterData,
-    type SectionWithProgress
-  } from '$lib/components/book-reader/book-toc/book-toc';
+  import type { ChapterWithProgress } from '$lib/components/book-reader/book-toc/book-toc-state.svelte';
   import type { BooksDbStatistic } from '$lib/data/database/books-db/versions/books-db';
   import type { ReadingGoal } from '$lib/data/reading-goal';
   import { lastBlurredTrackerItems$ } from '$lib/data/store';
   import { secondsToMinutes, toTimeString } from '$lib/functions/statistic-util';
   import { caluclatePercentage, dummyFn } from '$lib/functions/utils';
-  import { onMount } from 'svelte';
   import Fa from 'svelte-fa';
 
   interface Props {
@@ -38,7 +34,7 @@
     trackerPaused: boolean;
     canSaveStatistics: boolean;
     timeToFinishBook: string;
-    sectionData: SectionWithProgress[];
+    currentChapter: ChapterWithProgress | undefined;
     exploredCharCount: number;
     lastExploredCharCount: number;
     previousLastExploredCharCount: number;
@@ -71,7 +67,7 @@
     trackerPaused,
     canSaveStatistics,
     timeToFinishBook,
-    sectionData,
+    currentChapter,
     exploredCharCount,
     lastExploredCharCount,
     previousLastExploredCharCount,
@@ -100,7 +96,20 @@
   const trackingItemsPerPage = 15;
 
   let trackingHistoryIndex = $state(0);
-  let timeToFinishChapter = $state('');
+  let timeToFinishChapter = $derived.by(() => {
+    if (!currentChapter) {
+      return '';
+    }
+
+    const remainingCharacters =
+      currentChapter.startCharacter + currentChapter.characters - (exploredCharCount ?? 0);
+
+    return sessionStatistics.lastReadingSpeed
+      ? toTimeString(
+          Math.max(0, Math.floor(remainingCharacters / (sessionStatistics.lastReadingSpeed / 3600)))
+        )
+      : 'N/A';
+  });
 
   let allStatistics = $derived(
     autoScrollerStatistics
@@ -137,26 +146,6 @@
   let hasNextPage = $derived(
     trackingHistory.length > currentTrackingHistoryIndex + trackingItemsPerPage
   );
-
-  onMount(() => {
-    if (sectionData) {
-      const [mainChapters, chapterIndex] = getChapterData(sectionData);
-      const currentChapter = mainChapters[chapterIndex];
-      const remainingCharacters =
-        (currentChapter.startCharacter ?? 0) +
-        (currentChapter.characters ?? 0) -
-        (exploredCharCount ?? 0);
-
-      timeToFinishChapter = sessionStatistics.lastReadingSpeed
-        ? toTimeString(
-            Math.max(
-              0,
-              Math.floor(remainingCharacters / (sessionStatistics.lastReadingSpeed / 3600))
-            )
-          )
-        : 'N/A';
-    }
-  });
 
   function executeAction(event: string) {
     switch (event) {

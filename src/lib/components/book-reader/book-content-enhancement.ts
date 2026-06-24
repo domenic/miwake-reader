@@ -1,6 +1,6 @@
 import type { Attachment } from 'svelte/attachments';
 import { FuriganaStyle, setupRubyClickListeners } from '../../data/furigana-style';
-import { nextChapter$ } from '$lib/components/book-reader/book-toc/book-toc';
+import { bookTOCState } from '$lib/components/book-reader/book-toc/book-toc-state.svelte';
 import { pulseElement } from '$lib/functions/range-util';
 import { readerImageGallery } from '$lib/components/book-reader/book-reader-image-gallery/book-reader-image-gallery-state.svelte';
 import { getImageURL } from './image-url';
@@ -45,7 +45,7 @@ function setupAnchorClickListeners(contentEl: HTMLElement, signal: AbortSignal) 
         ev.preventDefault();
         ev.stopImmediatePropagation();
 
-        nextChapter$.next(el.hash.substring(1));
+        bookTOCState.navigateToChapter(el.hash.substring(1));
       },
       { signal }
     );
