@@ -16,8 +16,8 @@
   } from '$lib/components/book-reader/book-reading-tracker/tracker-state.svelte';
   import BookReadingTrackerPanel from '$lib/components/book-reader/book-reading-tracker/book-reading-tracker-panel.svelte';
   import SidebarOverlay from '$lib/components/sidebar-overlay.svelte';
+  import type { BookReaderController } from '$lib/components/book-reader/book-reader-controller.svelte';
   import type { ChapterWithProgress } from '$lib/components/book-reader/book-toc/book-toc-state.svelte';
-  import type { AutoScroller } from '$lib/components/book-reader/types';
   import type {
     BooksDbReadingGoal,
     BooksDbStatistic
@@ -47,7 +47,6 @@
     toTimeString
   } from '$lib/functions/statistic-util';
   import { fireAndForget, filterNotNullAndNotUndefined } from '$lib/functions/utils';
-  import { interval, NEVER, switchMap, tap } from 'rxjs';
   import { onDestroy, onMount, tick, untrack } from 'svelte';
   import { SvelteMap, SvelteSet } from 'svelte/reactivity';
 
@@ -59,7 +58,7 @@
     bookCharCount: number;
     currentChapter: ChapterWithProgress | undefined;
     frozenPosition: number;
-    autoScroller: AutoScroller | undefined;
+    readerController: BookReaderController;
     onstatisticssaved?: () => void;
     onfreezecurrentlocation?: () => void;
   }
@@ -72,7 +71,7 @@
     bookCharCount,
     currentChapter,
     frozenPosition,
-    autoScroller,
+    readerController,
     onstatisticssaved,
     onfreezecurrentlocation
   }: Props = $props();
@@ -289,6 +288,8 @@
   let trackingHistory: TrackingHistory[] = $state([]);
   let historyIndex = 0;
   let autoScrollerStatistics = $state<BooksDbStatistic>();
+
+  let autoScrollerEnabled = $derived(readerController.autoScrollEnabled);
   let lastExploredCharCountScroller = initSnapshot.exploredCharCount;
   let statisticsToStore = new SvelteSet<string>();
   let lastTrackerTick = 0;
@@ -355,41 +356,34 @@
   });
 
   $effect(() => {
-    const currentAutoScroller = autoScroller;
-
-    if (!currentAutoScroller) {
+    if (!autoScrollerEnabled) {
       autoScrollerStatistics = undefined;
       return;
     }
 
-    const subscription = currentAutoScroller.wasAutoScrollerEnabled$
-      .pipe(
-        tap((isEnabled) => {
-          if (isEnabled) {
-            todayKey = getDateKey($startDayHoursForTracker$);
-            autoScrollerStatistics = getDefaultStatistic(bookTitle, todayKey);
-            lastExploredCharCountScroller = exploredCharCount;
-          } else {
-            autoScrollerStatistics = undefined;
-          }
-        }),
-        switchMap((isEnabled) => (isEnabled ? interval(1000) : NEVER)),
-        tap(() => {
-          if (!autoScrollerStatistics) {
-            return;
-          }
+    todayKey = getDateKey($startDayHoursForTracker$);
+    autoScrollerStatistics = getDefaultStatistic(bookTitle, todayKey);
+    lastExploredCharCountScroller = untrack(() => exploredCharCount);
 
-          const diff = exploredCharCount - lastExploredCharCountScroller;
+    const updateAutoScrollerStatistics = () => {
+      if (!autoScrollerStatistics) {
+        return;
+      }
 
-          lastExploredCharCountScroller = exploredCharCount;
-          autoScrollerStatistics = {
-            ...updateStatistic(autoScrollerStatistics, 1, diff, Date.now())
-          };
-        })
-      )
-      .subscribe();
+      const currentExploredCharCount = untrack(() => exploredCharCount);
+      const diff = currentExploredCharCount - lastExploredCharCountScroller;
 
-    return () => subscription.unsubscribe();
+      lastExploredCharCountScroller = currentExploredCharCount;
+      autoScrollerStatistics = {
+        ...updateStatistic(autoScrollerStatistics, 1, diff, Date.now())
+      };
+    };
+
+    const timer = window.setInterval(updateAutoScrollerStatistics, 1000);
+
+    return () => {
+      window.clearInterval(timer);
+    };
   });
 
   $effect(() => {

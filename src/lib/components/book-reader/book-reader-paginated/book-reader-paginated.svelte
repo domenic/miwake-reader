@@ -36,7 +36,7 @@
   } from 'rxjs';
   import Fa from 'svelte-fa';
   import { useSwipe, type SwipeCustomEvent } from 'svelte-gestures';
-  import type { BookmarkManager, PageManager } from '../types';
+  import type { BookReaderController } from '../book-reader-controller.svelte';
   import { BookmarkManagerPaginated } from './bookmark-manager-paginated';
   import { PageManagerPaginated } from './page-manager-paginated';
   import { SectionCharacterStatsCalculator } from './section-character-stats-calculator';
@@ -74,9 +74,8 @@
     autoBookmarkTime: number;
     exploredCharCount?: number;
     customReadingPointRange?: Range | undefined;
+    readerController: BookReaderController;
     onhideCustomReadingPoint?: () => void;
-    onpagemanagerchange?: (pm: PageManager) => void;
-    onbookmarkmanagerchange?: (bm: BookmarkManager) => void;
     onbookcharcountchange?: (count: number) => void;
     onisbookmarkscreenchange?: (value: boolean) => void;
     onbookmark?: () => void;
@@ -116,9 +115,8 @@
     autoBookmarkTime,
     exploredCharCount = $bindable(0),
     customReadingPointRange = $bindable(),
+    readerController,
     onhideCustomReadingPoint,
-    onpagemanagerchange,
-    onbookmarkmanagerchange,
     onbookcharcountchange,
     onisbookmarkscreenchange,
     onbookmark,
@@ -134,9 +132,9 @@
 
   let sections: Element[] = $state([]);
 
-  let concretePageManager = $state<PageManagerPaginated>();
+  let pageManager: PageManagerPaginated | undefined;
 
-  let concreteBookmarkManager = $state<BookmarkManagerPaginated>();
+  let bookmarkManager: BookmarkManagerPaginated | undefined;
 
   let scrollWhenReady: boolean = $state(false);
 
@@ -240,40 +238,48 @@
 
   // Create/recreate PageManager and BookmarkManager when dependencies change
   $effect(() => {
-    if (contentEl && scrollEl && sections && calculator) {
-      const content = contentEl;
-      const scroll = scrollEl;
-      const sectionCalculator = calculator;
-      // Read tracked deps
-      const w = width;
-      const h = height;
-      const vm = verticalMode;
-      untrack(() => {
-        concretePageManager = new PageManagerPaginated(
-          content,
-          scroll,
-          sections,
-          sectionIndex$,
-          virtualScrollPos$,
-          w,
-          h,
-          gap,
-          vm,
-          pageChange$,
-          sectionRenderComplete$
-        );
-        onpagemanagerchange?.(concretePageManager);
-
-        concreteBookmarkManager = new BookmarkManagerPaginated(
-          sectionCalculator,
-          concretePageManager,
-          sectionReady$,
-          sectionIndex$,
-          (c) => (previousIntendedCount = c)
-        );
-        onbookmarkmanagerchange?.(concreteBookmarkManager);
-      });
+    if (!contentEl || !scrollEl || !sections.length || !calculator) {
+      return undefined;
     }
+
+    const content = contentEl;
+    const scroll = scrollEl;
+    const sectionCalculator = calculator;
+    const tocSections = bookTOCState.sections;
+    const w = width;
+    const h = height;
+    const vm = verticalMode;
+
+    pageManager = new PageManagerPaginated(
+      content,
+      scroll,
+      sections,
+      tocSections,
+      (sectionProgress) => bookTOCState.setSectionProgress(sectionProgress),
+      sectionIndex$,
+      virtualScrollPos$,
+      w,
+      h,
+      gap,
+      vm,
+      pageChange$,
+      sectionRenderComplete$
+    );
+    readerController.setPageManager(pageManager);
+
+    bookmarkManager = new BookmarkManagerPaginated(
+      sectionCalculator,
+      pageManager,
+      sectionReady$,
+      sectionIndex$,
+      (c) => (previousIntendedCount = c)
+    );
+    readerController.setBookmarkManager(bookmarkManager);
+
+    return () => {
+      readerController.clearPageManager();
+      readerController.clearBookmarkManager();
+    };
   });
 
   // On content display change
@@ -317,7 +323,7 @@
   onMount(() => bookTOCState.onChapterNavigation(goToChapter));
 
   async function handleAction({ detail }: any) {
-    if (!detail.type || !calculator || !concretePageManager) {
+    if (!detail.type || !calculator || !pageManager) {
       return;
     }
 
@@ -336,7 +342,7 @@
         });
 
         sectionIndex$.next(targetSection);
-        concretePageManager.scrollTo(0, false);
+        pageManager.scrollTo(0, false);
 
         await waitForSection;
       }
@@ -347,7 +353,7 @@
         return;
       }
 
-      concretePageManager.scrollTo(scrollPos, true);
+      pageManager.scrollTo(scrollPos, true);
 
       if (currentSection !== targetSection) {
         document.dispatchEvent(new CustomEvent(SECTION_CHANGE));
@@ -431,16 +437,16 @@
       takeUntil(destroy$)
     )
     .subscribe(() => {
-      if (!calculator || !concretePageManager) return;
+      if (!calculator || !pageManager) return;
 
-      concretePageManager.scrollTo(0, false);
+      pageManager.scrollTo(0, false);
       calculator.updateParagraphPos();
 
       const scrollPos = calculator.getScrollPosByCharCount(previousIntendedCount);
 
       if (scrollPos < 0) return;
 
-      concretePageManager.scrollTo(scrollPos, false);
+      pageManager.scrollTo(scrollPos, false);
       isResizing = false;
     });
 
@@ -510,7 +516,7 @@
       if (!ev.deltaX) {
         multiplier = ev.deltaY < 0 ? -1 : 1;
       }
-      concretePageManager?.flipPage(multiplier as -1 | 1);
+      pageManager?.flipPage(multiplier as -1 | 1);
     });
 
   function updateAfterCustomReadingPointUpdate(updatedCustomReadingPosition: Range | undefined) {
@@ -525,11 +531,11 @@
   }
 
   function updateSectionData(updatedCustomReadingRange: Range | undefined) {
-    if (!concretePageManager || !calculator) {
+    if (!pageManager || !calculator) {
       return;
     }
 
-    concretePageManager.updateSectionDataByOffset(
+    pageManager.updateSectionDataByOffset(
       calculator.getOffsetToRange(updatedCustomReadingRange, columnCount)
     );
   }
@@ -592,9 +598,9 @@
     if (scrollWhenReady) {
       scrollWhenReady = false;
       bookmarkData.then((data) => {
-        if (!data || !concreteBookmarkManager) return;
+        if (!data || !bookmarkManager) return;
         exploredCharCount = data.exploredCharCount || 0;
-        concreteBookmarkManager.scrollToBookmark(data);
+        bookmarkManager.scrollToBookmark(data);
       });
     } else {
       bookmarkData.then(updateBookmarkScreen);
@@ -664,16 +670,16 @@
   }
 
   function onSwipe(ev: SwipeCustomEvent) {
-    if (!concretePageManager || $skipKeyDownListener$) return;
+    if (!pageManager || $skipKeyDownListener$) return;
     if (ev.detail.direction !== 'left' && ev.detail.direction !== 'right') return;
     const swipeLeft = ev.detail.direction === 'left';
     const nextPage = verticalMode ? !swipeLeft : swipeLeft;
-    concretePageManager.flipPage(nextPage ? 1 : -1);
+    pageManager.flipPage(nextPage ? 1 : -1);
   }
 
   function onKeydown(ev: KeyboardEvent) {
     if (
-      !concretePageManager ||
+      !pageManager ||
       $skipKeyDownListener$ ||
       ev.altKey ||
       ev.ctrlKey ||
@@ -685,17 +691,17 @@
     switch (ev.code) {
       case 'ArrowLeft':
       case 'KeyA':
-        concretePageManager[verticalMode ? 'nextPage' : 'prevPage']();
+        pageManager[verticalMode ? 'nextPage' : 'prevPage']();
         break;
       case 'ArrowRight':
       case 'KeyD':
-        concretePageManager[verticalMode ? 'prevPage' : 'nextPage']();
+        pageManager[verticalMode ? 'prevPage' : 'nextPage']();
         break;
       case 'ArrowUp':
-        concretePageManager.prevPage();
+        pageManager.prevPage();
         break;
       case 'ArrowDown':
-        concretePageManager.nextPage();
+        pageManager.nextPage();
         break;
       default:
     }
@@ -708,7 +714,7 @@
 
     if (nextSectionIndex > -1) {
       sectionIndex$.next(nextSectionIndex);
-      concretePageManager?.scrollTo(0, true);
+      pageManager?.scrollTo(0, true);
     }
   }
 </script>

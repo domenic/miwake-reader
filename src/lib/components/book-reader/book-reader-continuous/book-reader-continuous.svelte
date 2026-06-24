@@ -24,7 +24,6 @@
     debounceTime,
     distinctUntilChanged,
     filter,
-    fromEvent,
     map,
     observeOn,
     skip,
@@ -34,8 +33,8 @@
   import { onDestroy, onMount, untrack } from 'svelte';
   import { SvelteMap } from 'svelte/reactivity';
   import Fa from 'svelte-fa';
-  import type { AutoScroller, BookmarkManager, PageManager } from '../types';
-  import { AutoScrollerContinuous } from './auto-scroller-continuous';
+  import type { BookReaderController } from '../book-reader-controller.svelte';
+  import { AutoScrollerContinuous } from './auto-scroller-continuous.svelte';
   import { BookmarkManagerContinuous, type BookmarkPosData } from './bookmark-manager-continuous';
   import { CharacterStatsCalculator } from './character-stats-calculator';
   import { horizontalMouseWheel } from './horizontal-mouse-wheel';
@@ -77,9 +76,7 @@
     customReadingPointLeft: number;
     customReadingPointTop: number;
     customReadingPointScrollOffset: number;
-    onpagemanagerchange?: (pm: PageManager) => void;
-    onbookmarkmanagerchange?: (bm: BookmarkManager) => void;
-    onautoscrollerchange?: (as: AutoScroller) => void;
+    readerController: BookReaderController;
     onbookcharcountchange?: (count: number) => void;
     onbookmark?: () => void;
     oncontentchange?: (el: HTMLElement) => void;
@@ -122,9 +119,7 @@
     customReadingPointLeft = $bindable(),
     customReadingPointTop = $bindable(),
     customReadingPointScrollOffset = $bindable(),
-    onpagemanagerchange,
-    onbookmarkmanagerchange,
-    onautoscrollerchange,
+    readerController,
     onbookcharcountchange,
     onbookmark,
     oncontentchange,
@@ -139,11 +134,9 @@
 
   let contentReadyEvent = $state({});
 
-  let autoScrollerConcrete: AutoScrollerContinuous | undefined;
+  let bookmarkManager: BookmarkManagerContinuous | undefined;
 
-  let bookmarkManagerConcrete: BookmarkManagerContinuous | undefined;
-
-  let pageManagerConcrete: PageManagerContinuous | undefined;
+  let pageManager: PageManagerContinuous | undefined;
 
   let bookmarkPos = $state<BookmarkPosData>();
 
@@ -172,6 +165,8 @@
   let scrollAdjustment = 0;
 
   let willNavigate = false;
+
+  let stopAutoBookmark: (() => void) | undefined;
 
   let stopSectionProgressTracking: (() => void) | undefined;
 
@@ -231,24 +226,16 @@
     }
   });
 
-  // Keep autoScroller props in sync
-  $effect(() => {
-    if (autoScrollerConcrete) {
-      autoScrollerConcrete.multiplier = multiplier;
-      autoScrollerConcrete.verticalMode = verticalMode;
-    }
-  });
-
   // Create bookmarkManager when calculator is available
   $effect(() => {
-    if (browser && calculator) {
-      bookmarkManagerConcrete = new BookmarkManagerContinuous(
-        calculator,
-        window,
-        firstDimensionMargin || 0
-      );
-      onbookmarkmanagerchange?.(bookmarkManagerConcrete);
+    if (!browser || !calculator) {
+      return undefined;
     }
+
+    bookmarkManager = new BookmarkManagerContinuous(calculator, window, firstDimensionMargin || 0);
+    readerController.setBookmarkManager(bookmarkManager);
+
+    return () => readerController.clearBookmarkManager();
   });
 
   // Update bookmark position when contentReadyEvent changes
@@ -257,17 +244,21 @@
       bookmarkPos = undefined;
       bookmarkData.then((data) => {
         if (!data) return;
-        bookmarkPos = bookmarkManagerConcrete?.getBookmarkBarPosition(data);
+        bookmarkPos = bookmarkManager?.getBookmarkBarPosition(data);
       });
     }
   });
 
   // Create pageManager when verticalMode or firstDimensionMargin change
   $effect(() => {
-    if (browser) {
-      pageManagerConcrete = new PageManagerContinuous(verticalMode, firstDimensionMargin, window);
-      onpagemanagerchange?.(pageManagerConcrete);
+    if (!browser) {
+      return undefined;
     }
+
+    pageManager = new PageManagerContinuous(verticalMode, firstDimensionMargin, window);
+    readerController.setPageManager(pageManager);
+
+    return () => readerController.clearPageManager();
   });
 
   // Update custom reading point position
@@ -279,10 +270,18 @@
     }
   });
 
-  // Create autoScroller on mount (values synced reactively via $effect above)
   onMount(() => {
-    autoScrollerConcrete = new AutoScrollerContinuous(multiplier, verticalMode, destroy$, document);
-    onautoscrollerchange?.(autoScrollerConcrete);
+    const autoScroller = new AutoScrollerContinuous(
+      () => multiplier,
+      () => verticalMode,
+      document
+    );
+    readerController.setAutoScroller(autoScroller);
+
+    return () => {
+      autoScroller.destroy();
+      readerController.clearAutoScroller();
+    };
   });
 
   onMount(() => bookTOCState.onChapterNavigation(scrollToChapter));
@@ -299,13 +298,13 @@
       takeUntil(destroy$)
     )
     .subscribe(() => {
-      if (!calculator || !pageManagerConcrete) return;
+      if (!calculator || !pageManager) return;
 
       const scrollPos =
         calculator.getScrollPosByCharCount(prevIntendedCharCount) +
         (verticalMode ? customReadingPointScrollOffset : -customReadingPointScrollOffset);
       isResizeScroll = true;
-      pageManagerConcrete.scrollTo(scrollPos);
+      pageManager.scrollTo(scrollPos);
     });
 
   /** Experimental Code - May be removed any time without warning */
@@ -421,6 +420,7 @@
   onDestroy(() => {
     document.removeEventListener('miwake-action', handleAction, false);
 
+    stopAutoBookmark?.();
     stopSectionProgressTracking?.();
     destroy$.next();
     destroy$.complete();
@@ -479,20 +479,17 @@
 
       bookmarkData
         .then((data) => {
-          if (!data || !bookmarkManagerConcrete) {
+          if (!data || !bookmarkManager) {
             return;
           }
 
           prevIntendedCharCount = data.exploredCharCount || 0;
-          bookmarkManagerConcrete.scrollToBookmark(data, customReadingPointScrollOffset);
+          bookmarkManager.scrollToBookmark(data, customReadingPointScrollOffset);
         })
         .finally(() => {
           if (autoBookmark) {
-            fromEvent(window, 'scroll')
-              .pipe(skip(1), debounceTime(autoBookmarkTime * 1000), takeUntil(destroy$))
-              .subscribe(() => {
-                onbookmark?.();
-              });
+            stopAutoBookmark?.();
+            stopAutoBookmark = startAutoBookmarking(autoBookmarkTime * 1000);
           }
 
           startSectionProgressTracking();
@@ -500,6 +497,32 @@
     }
     contentReadyEvent = {};
     allowDisplay = true;
+  }
+
+  function startAutoBookmarking(delay: number) {
+    const abortController = new AbortController();
+    let hasSkippedInitialScroll = false;
+    let bookmarkTimer: number | undefined;
+
+    const scheduleBookmark = () => {
+      if (!hasSkippedInitialScroll) {
+        hasSkippedInitialScroll = true;
+        return;
+      }
+
+      window.clearTimeout(bookmarkTimer);
+      bookmarkTimer = window.setTimeout(() => {
+        bookmarkTimer = undefined;
+        onbookmark?.();
+      }, delay);
+    };
+
+    window.addEventListener('scroll', scheduleBookmark, { signal: abortController.signal });
+
+    return () => {
+      window.clearTimeout(bookmarkTimer);
+      abortController.abort();
+    };
   }
 
   function startSectionProgressTracking() {

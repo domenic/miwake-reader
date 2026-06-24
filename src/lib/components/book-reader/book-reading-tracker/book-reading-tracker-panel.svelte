@@ -257,7 +257,7 @@
     </div>
   {/if}
   {#each allStatistics as statistic (statistic.id)}
-    <div class="mb-7 last:mb-4">
+    <section class="mb-7 last:mb-4" aria-label={statistic.id}>
       <div class="flex items-center">
         <div>
           {statistic.id}
@@ -426,7 +426,7 @@
           </div>
         </details>
       {/if}
-    </div>
+    </section>
   {/each}
   {#if actionInProgress}
     <div class="tap-highlight-transparent absolute inset-0 bg-black/20"></div>

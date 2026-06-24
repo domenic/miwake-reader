@@ -13,6 +13,8 @@ import {
 import { expectBooksInSyncRoot, importBookFixtures, type LibraryBookFixture } from './fixtures.ts';
 
 interface ReaderSettings {
+  autoBookmark?: string;
+  autoBookmarkTime?: string;
   blurImage?: string;
   furigana?: string;
   showFooterChapterCharacters?: string;
@@ -117,6 +119,12 @@ export async function useReaderSettings(page: Page, settings: ReaderSettings) {
   if (settings.tapToFlip) {
     await selectReaderSetting(page, /Tap to Flip/i, settings.tapToFlip);
   }
+  if (settings.autoBookmark) {
+    await selectReaderSetting(page, /^Auto Bookmark$/i, settings.autoBookmark);
+  }
+  if (settings.autoBookmarkTime) {
+    await fillReaderNumberSetting(page, /^Auto Bookmark Time$/i, settings.autoBookmarkTime);
+  }
 }
 
 export async function enableStatistics(page: Page, enabledHeading = 'Tracker Auto Pause') {
@@ -139,6 +147,18 @@ async function selectReaderSetting(page: Page, sectionName: RegExp, optionName: 
     })
     .getByRole('button', { name: optionName })
     .click();
+}
+
+async function fillReaderNumberSetting(page: Page, sectionName: RegExp, value: string) {
+  const input = page
+    .locator('section')
+    .filter({
+      has: page.getByRole('heading', { name: sectionName })
+    })
+    .getByRole('spinbutton');
+
+  await input.fill(value);
+  await input.blur();
 }
 
 export async function setReadingGoal(

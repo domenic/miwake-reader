@@ -20,7 +20,7 @@
   import { logger } from '$lib/data/logger';
   import { watchImageLoadingState } from './image-loading-state';
   import { enhanceBookContent } from './book-content-enhancement';
-  import type { AutoScroller, BookmarkManager, PageManager } from './types';
+  import type { BookReaderController } from './book-reader-controller.svelte';
   import BookReaderPaginated from './book-reader-paginated/book-reader-paginated.svelte';
   import { enableReaderWakeLock$, enableTapEdgeToFlip$ } from '$lib/data/store';
   import { onDestroy } from 'svelte';
@@ -64,10 +64,8 @@
     customReadingPointLeft: number;
     customReadingPointScrollOffset: number;
     customReadingPointRange: Range | undefined;
+    readerController: BookReaderController;
     onhideCustomReadingPoint?: () => void;
-    onpagemanagerchange?: (pm: PageManager | undefined) => void;
-    onbookmarkmanagerchange?: (bm: BookmarkManager | undefined) => void;
-    onautoscrollerchange?: (as: AutoScroller | undefined) => void;
     onbookcharcountchange?: (count: number) => void;
     onisbookmarkscreenchange?: (value: boolean) => void;
     onbookmark?: () => void;
@@ -113,10 +111,8 @@
     customReadingPointLeft = $bindable(),
     customReadingPointScrollOffset = $bindable(),
     customReadingPointRange = $bindable(),
+    readerController,
     onhideCustomReadingPoint,
-    onpagemanagerchange,
-    onbookmarkmanagerchange,
-    onautoscrollerchange,
     onbookcharcountchange,
     onisbookmarkscreenchange,
     onbookmark,
@@ -343,9 +339,7 @@
       bind:customReadingPointTop
       bind:customReadingPointLeft
       bind:customReadingPointScrollOffset
-      {onpagemanagerchange}
-      {onbookmarkmanagerchange}
-      {onautoscrollerchange}
+      {readerController}
       {onbookcharcountchange}
       oncontentchange={handleContentChange}
       {onbookmark}
@@ -384,9 +378,8 @@
       {bookmarkData}
       bind:exploredCharCount
       bind:customReadingPointRange
+      {readerController}
       {onhideCustomReadingPoint}
-      {onpagemanagerchange}
-      {onbookmarkmanagerchange}
       {onbookcharcountchange}
       {onisbookmarkscreenchange}
       oncontentchange={handleContentChange}
