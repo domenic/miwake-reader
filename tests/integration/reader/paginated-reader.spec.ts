@@ -63,9 +63,19 @@ test('paginated reader preserves progress after resizing', async ({ page }) => {
   await expect.poll(() => footerTotalProgressText(page)).toBe(progressBeforeResize);
 });
 
+test('paginated reader applies max width to content', async ({ page }) => {
+  await page.setViewportSize({ width: 900, height: 700 });
+  await usePaginatedReader(page, { readerMaxWidth: '420' });
+  await importBookFixtures(page, [LONG_BOOK]);
+  await openBookFromManage(page, LONG_BOOK);
+  await expectBookReaderText(page, LONG_BOOK);
+
+  await expect.poll(() => bookContentWidth(page)).toBe(420);
+});
+
 async function usePaginatedReader(
   page: Page,
-  settings: { autoBookmark?: string; autoBookmarkTime?: string } = {}
+  settings: { autoBookmark?: string; autoBookmarkTime?: string; readerMaxWidth?: string } = {}
 ) {
   await useReaderSettings(page, {
     ...settings,
@@ -84,4 +94,8 @@ async function expectTotalProgressChangedFromStart(page: Page) {
 
 async function footerTotalProgressText(page: Page) {
   return page.locator('#miwake-page-footer span').nth(1).innerText();
+}
+
+async function bookContentWidth(page: Page) {
+  return page.locator('.book-content').evaluate((el) => el.getBoundingClientRect().width);
 }

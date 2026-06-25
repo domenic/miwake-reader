@@ -18,6 +18,7 @@ interface ReaderSettings {
   autoPositionOnResize?: string;
   blurImage?: string;
   furigana?: string;
+  readerMaxWidth?: string;
   showFooterChapterCharacters?: string;
   showFooterChapterPercentage?: string;
   tapToFlip?: string;
@@ -102,6 +103,9 @@ export async function useReaderSettings(page: Page, settings: ReaderSettings) {
   }
   if (settings.blurImage) {
     await selectReaderSetting(page, /Blur image/i, settings.blurImage);
+  }
+  if (settings.readerMaxWidth) {
+    await fillReaderNumberSetting(page, /^Reader Max width$/i, settings.readerMaxWidth);
   }
   if (settings.showFooterChapterCharacters) {
     await selectReaderSetting(
