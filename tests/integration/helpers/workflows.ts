@@ -17,11 +17,16 @@ interface ReaderSettings {
   autoBookmarkTime?: string;
   autoPositionOnResize?: string;
   blurImage?: string;
+  customReadingPoint?: string;
+  fontVPAL?: string;
   furigana?: string;
   readerMaxWidth?: string;
   showFooterChapterCharacters?: string;
   showFooterChapterPercentage?: string;
   tapToFlip?: string;
+  theme?: string;
+  verticalFontKerning?: string;
+  verticalTextOrientation?: string;
   viewMode?: string;
   writingMode?: string;
 }
@@ -95,8 +100,26 @@ export async function useReaderSettings(page: Page, settings: ReaderSettings) {
   if (settings.viewMode) {
     await selectReaderSetting(page, /View mode/i, settings.viewMode);
   }
+  if (settings.theme) {
+    await page
+      .locator('section')
+      .filter({
+        has: page.getByRole('heading', { name: /Theme/i })
+      })
+      .getByTitle(settings.theme)
+      .click();
+  }
   if (settings.writingMode) {
     await selectReaderSetting(page, /Writing mode/i, settings.writingMode);
+  }
+  if (settings.verticalFontKerning) {
+    await selectReaderSetting(page, /^Enable Font Kerning$/i, settings.verticalFontKerning);
+  }
+  if (settings.fontVPAL) {
+    await selectReaderSetting(page, /^Enable VPAL$/i, settings.fontVPAL);
+  }
+  if (settings.verticalTextOrientation) {
+    await selectReaderSetting(page, /^Text Orientation$/i, settings.verticalTextOrientation);
   }
   if (settings.furigana) {
     await selectReaderSetting(page, /Furigana/i, settings.furigana);
@@ -132,6 +155,9 @@ export async function useReaderSettings(page: Page, settings: ReaderSettings) {
   }
   if (settings.autoPositionOnResize) {
     await selectReaderSetting(page, /^Auto position on resize$/i, settings.autoPositionOnResize);
+  }
+  if (settings.customReadingPoint) {
+    await selectReaderSetting(page, /^Custom Reading Point$/i, settings.customReadingPoint);
   }
 }
 

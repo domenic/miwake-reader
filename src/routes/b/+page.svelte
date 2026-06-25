@@ -1,20 +1,4 @@
 <script lang="ts">
-  import {
-    debounceTime,
-    filter,
-    fromEvent,
-    map,
-    merge,
-    NEVER,
-    of,
-    share,
-    skip,
-    startWith,
-    take,
-    takeWhile,
-    tap,
-    timer
-  } from 'rxjs';
   import { browser } from '$app/environment';
   import { page } from '$app/state';
   import { goto } from '$app/navigation';
@@ -121,12 +105,8 @@
     type LoadedBookData
   } from '$lib/functions/book-data-loader/load-book-data';
   import { formatPageTitle } from '$lib/functions/format-page-title';
-  import { iffBrowser } from '$lib/functions/rxjs/iff-browser';
   import { ReplicationSaveBehavior } from '$lib/functions/replication/replication-options';
   import type { ReplicationContext } from '$lib/functions/replication/replication-progress.svelte';
-  import { reduceToEmptyString } from '$lib/functions/rxjs/reduce-to-empty-string';
-  import { takeWhenBrowser } from '$lib/functions/rxjs/take-when-browser';
-  import { tapDom } from '$lib/functions/rxjs/tap-dom';
   import {
     isSyncingOrPending,
     reconcileForBookOpen,
@@ -192,13 +172,11 @@
   const syncedPromise = new Promise<void>((resolver) => {
     syncedResolver = resolver;
   });
-  const fontFeatureSettings = [
-    $enableVerticalFontKerning$ && '"vkrn"',
-    $enableFontVPAL$ && '"vpal"'
-  ]
-    .filter((f) => !!f && $verticalMode$)
-    .join(', ');
-  const verticalTextOrientation = $verticalMode$ ? $verticalTextOrientation$ : '';
+  let fontFeatureSettings = $derived(
+    [$enableVerticalFontKerning$ && '"vkrn"', $enableFontVPAL$ && '"vpal"']
+      .filter((f) => !!f && $verticalMode$)
+      .join(', ')
+  );
 
   let bookId = $derived(browser ? Number(page.url.searchParams.get('id')) : 0);
   let rawBookData = $state<BooksDbBookData>();
@@ -342,83 +320,95 @@
     return book;
   }
 
-  const resize$ = iffBrowser(() =>
-    visualViewport ? fromEvent(visualViewport, 'resize') : of()
-  ).pipe(share());
+  let containerViewportWidth = $state(browser ? (visualViewport?.width ?? 0) : 0);
+  let containerViewportHeight = $state(browser ? (visualViewport?.height ?? 0) : 0);
 
-  const containerViewportWidth$ = resize$.pipe(
-    startWith(0),
-    map(() => visualViewport?.width || 0),
-    takeWhenBrowser()
+  $effect(() => {
+    if (!browser) return;
+
+    updateContainerViewportSize();
+    const viewport = visualViewport;
+    if (!viewport) return;
+
+    viewport.addEventListener('resize', updateContainerViewportSize);
+    return () => viewport.removeEventListener('resize', updateContainerViewportSize);
+  });
+
+  function updateContainerViewportSize() {
+    containerViewportWidth = visualViewport?.width || 0;
+    containerViewportHeight = visualViewport?.height || 0;
+  }
+
+  let themeOption = $derived(
+    availableThemes.get($theme$) || $customThemes$[$theme$] || availableThemes.get('light-theme')!
   );
 
-  const containerViewportHeight$ = resize$.pipe(
-    startWith(0),
-    map(() => visualViewport?.height || 0),
-    takeWhenBrowser()
-  );
+  $effect(() => {
+    if (!browser) return;
 
-  const themeOption$ = theme$.pipe(
-    map(
-      (theme) =>
-        availableThemes.get(theme) || $customThemes$[theme] || availableThemes.get('light-theme')
-    ),
-    filter((o): o is NonNullable<typeof o> => !!o),
-    takeWhenBrowser()
-  );
+    document.body.style.setProperty('background-color', themeOption.backgroundColor);
+    return () => document.body.style.removeProperty('background-color');
+  });
 
-  const backgroundColor$ = themeOption$.pipe(map((o) => o.backgroundColor));
+  $effect(() => {
+    if (!browser) return;
 
-  const backgroundStyleName = 'background-color';
-  const setBackgroundColor$ = backgroundColor$.pipe(
-    tapDom(
-      () => document.body,
-      (backgroundColor, body) => body.style.setProperty(backgroundStyleName, backgroundColor),
-      (body) => body.style.removeProperty(backgroundStyleName)
-    ),
-    reduceToEmptyString(),
-    takeWhenBrowser()
-  );
+    document.documentElement.style.setProperty('writing-mode', $writingMode$);
+    return () => document.documentElement.style.removeProperty('writing-mode');
+  });
 
-  const writingModeStyleName = 'writing-mode';
-  const setWritingMode$ = writingMode$.pipe(
-    tapDom(
-      () => document.documentElement,
-      (writingMode, documentElement) =>
-        documentElement.style.setProperty(writingModeStyleName, writingMode),
-      (documentElement) => documentElement.style.removeProperty(writingModeStyleName)
-    ),
-    reduceToEmptyString(),
-    takeWhenBrowser()
-  );
+  $effect(() => {
+    if (!browser) return;
 
-  const textSelector$ = iffBrowser(() => fromEvent(document, 'selectionchange')).pipe(
-    debounceTime(200),
-    tap(() => {
-      const currentSelected = window.getSelection()?.toString() || '';
+    let selectionTimer: number | undefined;
+    const updateAfterSelectionSettles = () => {
+      window.clearTimeout(selectionTimer);
+      selectionTimer = window.setTimeout(updateLastSelectedRange, 200);
+    };
 
-      if (!currentSelected && lastSelectedRangeWasEmpty) {
-        lastSelectedRange = undefined;
-      } else if (currentSelected) {
-        lastSelectedRange = window.getSelection()?.getRangeAt(0);
-        lastSelectedRangeWasEmpty = false;
-      } else {
-        lastSelectedRangeWasEmpty = true;
-      }
-    }),
-    reduceToEmptyString()
-  );
+    document.addEventListener('selectionchange', updateAfterSelectionSettles);
+    return () => {
+      window.clearTimeout(selectionTimer);
+      document.removeEventListener('selectionchange', updateAfterSelectionSettles);
+    };
+  });
 
-  const autoStartTracker$ = iffBrowser(() =>
-    $statisticsEnabled$ && $trackerAutostartTime$ > 0 ? fromEvent(document, PAGE_CHANGE) : NEVER
-  ).pipe(
-    debounceTime($trackerAutostartTime$ * 1000),
-    take(1),
-    tap(() => {
-      resumeTrackerFor('manual');
-    }),
-    reduceToEmptyString()
-  );
+  function updateLastSelectedRange() {
+    const currentSelected = window.getSelection()?.toString() || '';
+
+    if (!currentSelected && lastSelectedRangeWasEmpty) {
+      lastSelectedRange = undefined;
+    } else if (currentSelected) {
+      lastSelectedRange = window.getSelection()?.getRangeAt(0);
+      lastSelectedRangeWasEmpty = false;
+    } else {
+      lastSelectedRangeWasEmpty = true;
+    }
+  }
+
+  $effect(() => {
+    if (!browser || !$statisticsEnabled$ || $trackerAutostartTime$ <= 0) return;
+
+    const abortController = new AbortController();
+    let autoStartTimer: number | undefined;
+    const cleanup = () => {
+      window.clearTimeout(autoStartTimer);
+      abortController.abort();
+    };
+    const scheduleAutoStart = () => {
+      window.clearTimeout(autoStartTimer);
+      autoStartTimer = window.setTimeout(() => {
+        cleanup();
+        resumeTrackerFor('manual');
+      }, $trackerAutostartTime$ * 1000);
+    };
+
+    document.addEventListener(PAGE_CHANGE, scheduleAutoStart, {
+      signal: abortController.signal
+    });
+
+    return cleanup;
+  });
 
   $effect(() => {
     if (bookTOCState.isOpen) {
@@ -461,21 +451,33 @@
   });
 
   $effect(() => {
-    if (showCustomReadingPoint) {
-      untrack(() => {
-        pauseTracker('custom-reading-point');
+    if (!showCustomReadingPoint) return;
 
-        pulseElement(customReadingPointRange?.endContainer?.parentElement, 'add', 1);
+    return untrack(() => {
+      pauseTracker('custom-reading-point');
 
-        fromEvent(document, 'click')
-          .pipe(skip(1), take(1))
-          .subscribe(() => {
-            showCustomReadingPoint = false;
-            pulseElement(customReadingPointRange?.endContainer?.parentElement, 'remove', 1);
-            restartTrackerAfterCharacterChangeOrTime('custom-reading-point', 1);
-          });
-      });
-    }
+      pulseElement(customReadingPointRange?.endContainer?.parentElement, 'add', 1);
+
+      let clicksToSkip = 1;
+      const abortController = new AbortController();
+      document.addEventListener(
+        'click',
+        () => {
+          if (clicksToSkip) {
+            clicksToSkip -= 1;
+            return;
+          }
+
+          abortController.abort();
+          showCustomReadingPoint = false;
+          pulseElement(customReadingPointRange?.endContainer?.parentElement, 'remove', 1);
+          restartTrackerAfterCharacterChangeOrTime('custom-reading-point', 1);
+        },
+        { signal: abortController.signal }
+      );
+
+      return () => abortController.abort();
+    });
   });
 
   $effect(() => {
@@ -497,10 +499,7 @@
   );
 
   let tapButtonHeight = $derived(`calc(100% - ${showHeader ? 5 : 4}rem)`);
-
   let tapButtonTop = $derived(`${showHeader ? 3 : 2}rem`);
-
-  let footerChapterProgress = $derived(getCurrentChapterProgress());
 
   $effect(() => {
     bookmarkData.then((data) => {
@@ -510,16 +509,16 @@
     });
   });
 
-  /** Experimental Code - May be removed any time without warning */
-
   $effect(() => {
     if (browser) {
       document.dispatchEvent(new CustomEvent(SKIPKEYLISTENER, { detail: $skipKeyDownListener$ }));
     }
   });
 
+  /** Experimental Code - May be removed any time without warning */
   onMount(() => {
     document.addEventListener('miwake-action', handleAction, false);
+    return () => document.removeEventListener('miwake-action', handleAction, false);
   });
 
   function handleAction({ detail }: any) {
@@ -535,15 +534,8 @@
       skipKeyDownListener$.next(detail.params.value);
     }
   }
-  /** Experimental Code - May be removed any time without warning */
-
   onDestroy(() => {
     flushReaderStatisticsReplication();
-
-    if (browser) {
-      document.removeEventListener('miwake-action', handleAction, false);
-    }
-
     readerImageGallery.clear();
   });
 
@@ -723,11 +715,7 @@
         confettiMaxRuns = 3;
         bookCompleted = true;
 
-        merge(fromEvent(document, 'pointerup'), timer(10000))
-          .pipe(take(1))
-          .subscribe(() => {
-            bookCompleted = false;
-          });
+        dismissCompletionConfettiOnPointerUpOrTimeout();
       }
     } catch (error) {
       showErrorDialog({ title: 'Error completing book', error });
@@ -1028,73 +1016,90 @@
       pointGap
     } = getReferencePoints(window, contentEl, $verticalMode$, firstDimensionMargin);
 
-    merge(fromEvent(document, 'pointerup'), fromEvent(document, 'pointermove'))
-      .pipe(takeWhile(() => isSelectingCustomReadingPoint))
-      .subscribe((event: Event) => {
-        if (!(event instanceof PointerEvent)) {
-          return;
-        }
+    const abortController = new AbortController();
+    const handlePointer = (event: PointerEvent) => {
+      if (!(event instanceof PointerEvent)) {
+        return;
+      }
 
-        if (event.type === 'pointerup') {
-          document.body.classList.remove('cursor-crosshair');
-          isSelectingCustomReadingPoint = false;
+      if (event.type === 'pointerup') {
+        abortController.abort();
+        document.body.classList.remove('cursor-crosshair');
+        isSelectingCustomReadingPoint = false;
 
-          tick().then(() => {
-            customReadingPointLeft = $verticalMode$ ? event.x : customReadingPointLeft;
-            customReadingPointTop = $verticalMode$ ? customReadingPointTop : event.y;
+        tick().then(() => {
+          customReadingPointLeft = $verticalMode$ ? event.x : customReadingPointLeft;
+          customReadingPointTop = $verticalMode$ ? customReadingPointTop : event.y;
 
-            const result = getParagraphToPoint(customReadingPointLeft, customReadingPointTop);
+          const result = getParagraphToPoint(customReadingPointLeft, customReadingPointTop);
 
-            if (result) {
-              pulseElement(result.parent, 'add', 0.5, 500);
-            }
-
-            if (isPaginated) {
-              customReadingPointRange = result?.range;
-            } else {
-              let newPercentage: number;
-
-              if ($verticalMode$) {
-                newPercentage = Math.ceil(
-                  (Math.max(0, customReadingPointLeft - elLeftReferencePoint) /
-                    (elRightReferencePoint - elLeftReferencePoint)) *
-                    100
-                );
-
-                verticalCustomReadingPosition$.next(newPercentage);
-              } else {
-                newPercentage = Math.ceil(
-                  (Math.max(0, customReadingPointTop - elTopReferencePoint) /
-                    (elBottomReferencePoint - elTopReferencePoint)) *
-                    100
-                );
-
-                horizontalCustomReadingPosition$.next(newPercentage);
-              }
-
-              customReadingPoint = newPercentage;
-            }
-
-            if ($pauseTrackerOnCustomPointChange$) {
-              restartTrackerAfterCharacterChangeOrTime('custom-reading-point', 1000);
-            }
-          });
-        } else {
-          const insideXBound =
-            event.x >= elLeftReferencePoint + pointGap && event.x <= elRightReferencePoint;
-          const insideYBound =
-            event.y >= elTopReferencePoint && event.y <= elBottomReferencePoint - pointGap;
+          if (result) {
+            pulseElement(result.parent, 'add', 0.5, 500);
+          }
 
           if (isPaginated) {
-            customReadingPointTop = insideYBound ? event.y : customReadingPointTop;
-            customReadingPointLeft = insideXBound ? event.x : customReadingPointLeft;
-          } else if ($verticalMode$ && insideXBound) {
-            customReadingPointLeft = event.x;
-          } else if (!$verticalMode$ && insideYBound) {
-            customReadingPointTop = event.y;
+            customReadingPointRange = result?.range;
+          } else {
+            let newPercentage: number;
+
+            if ($verticalMode$) {
+              newPercentage = Math.ceil(
+                (Math.max(0, customReadingPointLeft - elLeftReferencePoint) /
+                  (elRightReferencePoint - elLeftReferencePoint)) *
+                  100
+              );
+
+              verticalCustomReadingPosition$.next(newPercentage);
+            } else {
+              newPercentage = Math.ceil(
+                (Math.max(0, customReadingPointTop - elTopReferencePoint) /
+                  (elBottomReferencePoint - elTopReferencePoint)) *
+                  100
+              );
+
+              horizontalCustomReadingPosition$.next(newPercentage);
+            }
+
+            customReadingPoint = newPercentage;
           }
+
+          if ($pauseTrackerOnCustomPointChange$) {
+            restartTrackerAfterCharacterChangeOrTime('custom-reading-point', 1000);
+          }
+        });
+      } else {
+        const insideXBound =
+          event.x >= elLeftReferencePoint + pointGap && event.x <= elRightReferencePoint;
+        const insideYBound =
+          event.y >= elTopReferencePoint && event.y <= elBottomReferencePoint - pointGap;
+
+        if (isPaginated) {
+          customReadingPointTop = insideYBound ? event.y : customReadingPointTop;
+          customReadingPointLeft = insideXBound ? event.x : customReadingPointLeft;
+        } else if ($verticalMode$ && insideXBound) {
+          customReadingPointLeft = event.x;
+        } else if (!$verticalMode$ && insideYBound) {
+          customReadingPointTop = event.y;
         }
-      });
+      }
+    };
+
+    document.addEventListener('pointerup', handlePointer, { signal: abortController.signal });
+    document.addEventListener('pointermove', handlePointer, { signal: abortController.signal });
+  }
+
+  function handleResize() {
+    if (!$statisticsEnabled$ || trackerStatus.paused) {
+      return;
+    }
+
+    pauseTracker('resize');
+
+    runAfterPageChangeOrTimeout({
+      timeoutMs: 1_000,
+      debounceMs: 1_000,
+      callback: () => restartTrackerAfterCharacterChangeOrTime('resize', 1_000)
+    });
   }
 
   function pauseTracker(reason: TrackerPauseReason = 'jump', restartAfterCharacterChange = false) {
@@ -1115,11 +1120,62 @@
       return;
     }
 
-    merge(fromEvent(document, PAGE_CHANGE), timerAmount ? timer(timerAmount) : NEVER)
-      .pipe(debounceTime(200), take(1))
-      .subscribe(() => {
-        resumeTrackerFor(reason);
-      });
+    runAfterPageChangeOrTimeout({
+      timeoutMs: timerAmount,
+      debounceMs: 200,
+      callback: () => resumeTrackerFor(reason)
+    });
+  }
+
+  function dismissCompletionConfettiOnPointerUpOrTimeout() {
+    const abortController = new AbortController();
+    const timeout = window.setTimeout(dismiss, 10_000);
+
+    function dismiss() {
+      window.clearTimeout(timeout);
+      abortController.abort();
+      bookCompleted = false;
+    }
+
+    document.addEventListener('pointerup', dismiss, {
+      once: true,
+      signal: abortController.signal
+    });
+  }
+
+  function runAfterPageChangeOrTimeout({
+    timeoutMs,
+    debounceMs,
+    callback
+  }: {
+    timeoutMs?: number;
+    debounceMs: number;
+    callback: () => void;
+  }) {
+    const abortController = new AbortController();
+    let timeout: number | undefined;
+    let debounceTimer: number | undefined;
+
+    const cleanup = () => {
+      window.clearTimeout(timeout);
+      window.clearTimeout(debounceTimer);
+      abortController.abort();
+    };
+    const scheduleCallback = () => {
+      window.clearTimeout(debounceTimer);
+      debounceTimer = window.setTimeout(() => {
+        cleanup();
+        callback();
+      }, debounceMs);
+    };
+
+    document.addEventListener(PAGE_CHANGE, scheduleCallback, { signal: abortController.signal });
+
+    if (timeoutMs) {
+      timeout = window.setTimeout(scheduleCallback, timeoutMs);
+    }
+
+    return cleanup;
   }
 
   function bookReplicationContext(): ReplicationContext | undefined {
@@ -1177,11 +1233,6 @@
     }
   }
 </script>
-
-{$setBackgroundColor$ ?? ''}
-{$setWritingMode$ ?? ''}
-{$textSelector$ ?? ''}
-{$autoStartTracker$ ?? ''}
 
 <svelte:head>
   <title>{formatPageTitle(rawBookData?.title ?? '')}</title>
@@ -1271,8 +1322,8 @@
 {#if bookData && rawBookData}
   {#if $statisticsEnabled$}
     <BookReadingTracker
-      fontColor={$themeOption$.fontColor}
-      backgroundColor={$backgroundColor$}
+      fontColor={themeOption.fontColor}
+      backgroundColor={themeOption.backgroundColor}
       bookTitle={rawBookData.title}
       currentChapter={bookTOCState.currentChapter}
       {frozenPosition}
@@ -1287,18 +1338,18 @@
   <StyleSheetRenderer styleSheet={bookData.styleSheet} />
   <BookReader
     htmlContent={bookData.htmlContent}
-    width={$containerViewportWidth$ ?? 0}
-    height={$containerViewportHeight$ ?? 0}
+    width={containerViewportWidth}
+    height={containerViewportHeight}
     {fontFeatureSettings}
-    {verticalTextOrientation}
+    verticalTextOrientation={$verticalMode$ ? $verticalTextOrientation$ : ''}
     prioritizeReaderStyles={$prioritizeReaderStyles$}
     enableTextJustification={$enableTextJustification$}
     enableTextWrapPretty={$enableTextWrapPretty$}
     verticalMode={$verticalMode$}
-    fontColor={$themeOption$?.fontColor}
-    backgroundColor={$backgroundColor$}
-    hintFuriganaFontColor={$themeOption$?.hintFuriganaFontColor}
-    hintFuriganaShadowColor={$themeOption$?.hintFuriganaShadowColor}
+    fontColor={themeOption.fontColor}
+    backgroundColor={themeOption.backgroundColor}
+    hintFuriganaFontColor={themeOption.hintFuriganaFontColor}
+    hintFuriganaShadowColor={themeOption.hintFuriganaShadowColor}
     fontFamilyGroupOne={$fontFamilyGroupOne$}
     fontFamilyGroupTwo={$fontFamilyGroupTwo$}
     fontSize={$fontSize$}
@@ -1338,7 +1389,7 @@
   side="left"
   class="overflow-hidden bg-background-color text-(--font-color)"
   closeTitle="Close table of contents"
-  style={`color: ${$themeOption$?.fontColor}; background-color: ${$backgroundColor$};`}
+  style={`color: ${themeOption.fontColor}; background-color: ${themeOption.backgroundColor};`}
 >
   {#if bookTOCState.hasChapters}
     <BookTOC
@@ -1352,8 +1403,8 @@
 
 {#if showReaderImageGallery}
   <BookReaderImageGallery
-    fontColor={$themeOption$.fontColor}
-    backgroundColor={$backgroundColor$}
+    fontColor={themeOption.fontColor}
+    backgroundColor={themeOption.backgroundColor}
     onclose={() => (showReaderImageGallery = false)}
   />
 {/if}
@@ -1399,11 +1450,12 @@
   tabindex="0"
   role="button"
   class="writing-horizontal-tb fixed bottom-0 left-0 z-10 flex h-8 w-full items-center justify-end text-xs leading-none"
-  style:color={$themeOption$?.tooltipTextFontColor}
+  style:color={themeOption.tooltipTextFontColor}
   onclick={() => (showFooter = !showFooter)}
   onkeyup={dummyFn}
 >
   {#if showFooter && bookCharCount}
+    {@const footerChapterProgress = getCurrentChapterProgress()}
     {@const currentProgress = [
       $showCharacterCounter$ ? `${exploredCharCount} / ${bookCharCount}` : '',
       $showPercentage$ ? `${((exploredCharCount / bookCharCount) * 100).toFixed(2)}%` : '',
@@ -1420,7 +1472,7 @@
         !$showPercentage$ &&
         !$showFooterChapterCharacterCounter$ &&
         !$showFooterChapterPercentage$}
-      style:color={$themeOption$?.tooltipTextFontColor}
+      style:color={themeOption.tooltipTextFontColor}
       onclick={(e) => {
         e.stopPropagation();
         if (!$showCharacterCounter$ && !$showPercentage$) {
@@ -1446,18 +1498,4 @@
   <BookCompletionConfetti {confettiWidthModifier} {confettiMaxRuns} {window} />
 {/if}
 
-<svelte:window
-  onkeydown={onKeydown}
-  onbeforeunload={handleUnload}
-  onresize={() => {
-    if ($statisticsEnabled$ && !trackerStatus.paused) {
-      pauseTracker('resize');
-
-      merge(fromEvent(document, PAGE_CHANGE), timer(1000))
-        .pipe(debounceTime(1000), take(1))
-        .subscribe(() => {
-          restartTrackerAfterCharacterChangeOrTime('resize', 1000);
-        });
-    }
-  }}
-/>
+<svelte:window onkeydown={onKeydown} onbeforeunload={handleUnload} onresize={handleResize} />
