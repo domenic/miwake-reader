@@ -123,7 +123,7 @@
   import { formatPageTitle } from '$lib/functions/format-page-title';
   import { iffBrowser } from '$lib/functions/rxjs/iff-browser';
   import { ReplicationSaveBehavior } from '$lib/functions/replication/replication-options';
-  import type { ReplicationContext } from '$lib/functions/replication/replication-progress';
+  import type { ReplicationContext } from '$lib/functions/replication/replication-progress.svelte';
   import { reduceToEmptyString } from '$lib/functions/rxjs/reduce-to-empty-string';
   import { takeWhenBrowser } from '$lib/functions/rxjs/take-when-browser';
   import { tapDom } from '$lib/functions/rxjs/tap-dom';

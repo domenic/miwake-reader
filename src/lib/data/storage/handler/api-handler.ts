@@ -16,7 +16,7 @@ import { SyncEndpointType } from '$lib/data/storage/storage-types';
 import { database } from '$lib/data/store';
 import { convertAuthErrorResponse } from '$lib/functions/replication/error-handler';
 import { ReplicationSaveBehavior } from '$lib/functions/replication/replication-options';
-import type { ReplicationContext } from '$lib/functions/replication/replication-progress';
+import type { ReplicationContext } from '$lib/functions/replication/replication-progress.svelte';
 import { mergeStatistics, updateStatisticToStore } from '$lib/functions/statistic-util';
 
 export interface RequestOptions {

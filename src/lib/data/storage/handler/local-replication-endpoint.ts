@@ -6,7 +6,7 @@ import type {
 } from '$lib/data/database/books-db/versions/books-db';
 import { database, lastReadingGoalsModified$ } from '$lib/data/store';
 import { StorageDataType } from '$lib/data/storage/storage-types';
-import type { ReplicationContext } from '$lib/functions/replication/replication-progress';
+import type { ReplicationContext } from '$lib/functions/replication/replication-progress.svelte';
 import { ReplicationSaveBehavior } from '$lib/functions/replication/replication-options';
 import { BaseScopedHandler, BaseStorageHandler } from '$lib/data/storage/handler/base-handler';
 import type {

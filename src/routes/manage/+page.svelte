@@ -27,13 +27,10 @@
   import { formatPageTitle } from '$lib/functions/format-page-title';
   import { keyBy } from '$lib/functions/key-by';
   import { handleErrorDuringReplication } from '$lib/functions/replication/error-handler';
-  import {
-    replicationProgress$,
-    type ReplicationProgress
-  } from '$lib/functions/replication/replication-progress';
+  import { replicationProgressState } from '$lib/functions/replication/replication-progress.svelte';
   import { pluralize } from '$lib/functions/utils';
   import pLimit from 'p-limit';
-  import { onDestroy, tick } from 'svelte';
+  import { tick } from 'svelte';
   import Fa from 'svelte-fa';
 
   // The unified library view always reads from the local IndexedDB
@@ -49,16 +46,6 @@
   let abortController = $state(new AbortController());
   let signal = $derived(abortController.signal);
   let cancelTooltip = $state('');
-  let replicationProgress = $state(0);
-  let replicationToProgress = $state(0);
-  let replicationProgressRemaining = $state('~ ??:??:??');
-  let stopReplicationProgress: (() => void) | undefined;
-  let progressBase = 0;
-  let executionStart = 0;
-
-  onDestroy(() => {
-    stopReplicationProgress?.();
-  });
 
   $effect(() => {
     if (!selectMode) {
@@ -163,64 +150,18 @@
   }
 
   function operationAllowed() {
-    return !replicationToProgress;
+    return !replicationProgressState.toProgress;
   }
 
   function initializeReplicationProgressData() {
-    stopReplicationProgress?.();
-    const subscription = replicationProgress$.subscribe(updateProgress);
-    stopReplicationProgress = () => subscription.unsubscribe();
-
-    replicationProgressRemaining = '~ ??:??:??';
-    replicationProgress = 0;
-    replicationToProgress = 1;
-    executionStart = Date.now();
     logger.clearHistory();
     abortController = new AbortController();
+    replicationProgressState.start(abortController.signal);
   }
 
   function resetProgress() {
-    stopReplicationProgress?.();
-    stopReplicationProgress = undefined;
-    replicationToProgress = 0;
-    replicationProgress = 0;
+    replicationProgressState.reset();
     cancelTooltip = '';
-  }
-
-  function updateProgress(p: ReplicationProgress) {
-    if (signal.aborted) return;
-
-    progressBase = p.progressBase || progressBase || 0;
-    replicationToProgress = p.maxProgress || replicationToProgress || 0;
-
-    if (p.skipStep) {
-      const diff =
-        Math.ceil(replicationProgress / progressBase) * progressBase - replicationProgress;
-      replicationProgress =
-        Math.floor((replicationProgress + (diff || progressBase) + Number.EPSILON) * 1000) / 1000;
-    } else if (p.completeStep) {
-      const diff = Math.ceil(replicationProgress) - replicationProgress;
-      replicationProgress = Math.floor((replicationProgress + diff + Number.EPSILON) * 1000) / 1000;
-    } else if (p.progressToAdd && p.progressToAdd > 0) {
-      replicationProgress =
-        Math.floor((replicationProgress + p.progressToAdd + Number.EPSILON) * 1000) / 1000;
-    }
-
-    if (p.progressToAdd) {
-      const duration = (Date.now() - executionStart) / 1000;
-      const processPerSecond = replicationProgress / duration;
-      const remaining = (replicationToProgress - replicationProgress) / processPerSecond;
-      replicationProgressRemaining =
-        replicationToProgress > replicationProgress
-          ? `~ ${getTimestamp(Math.ceil(remaining))}`
-          : '~ 00:00:01';
-    }
-  }
-
-  function getTimestamp(seconds: number) {
-    return seconds && Number.isFinite(seconds)
-      ? new Date(seconds * 1000).toISOString().substr(11, 8)
-      : '??:??:??';
   }
 
   async function openBook(bookId: number) {
@@ -328,7 +269,7 @@
 
     const errors: unknown[] = [];
 
-    replicationProgress$.next({ progressBase: 1, maxProgress: titles.length });
+    replicationProgressState.report({ progressBase: 1, maxProgress: titles.length });
 
     titles.forEach((title) => {
       tasks.push(
@@ -336,7 +277,7 @@
           try {
             signal.throwIfAborted();
             await userDeleteStatisticEntries([title], true);
-            replicationProgress$.next({ progressToAdd: 1 });
+            replicationProgressState.report({ progressToAdd: 1 });
           } catch (error) {
             handleErrorDuringReplication(error, `Error on deleting statistics for ${title}: `, [
               limiter
@@ -371,9 +312,9 @@
   <BookManagerHeader
     selectedCount={selectedBookIds.size}
     hasBooks={bookCards.length > 0}
-    {replicationProgress}
-    {replicationToProgress}
-    {replicationProgressRemaining}
+    replicationProgress={replicationProgressState.progress}
+    replicationToProgress={replicationProgressState.toProgress}
+    replicationProgressRemaining={replicationProgressState.remaining}
     {cancelTooltip}
     bind:selectMode
     onselectAllClick={onSelectAllBooks}
@@ -384,7 +325,7 @@
     oncancelReplication={() => {
       if (!signal.aborted) {
         abortController.abort();
-        replicationProgressRemaining = 'Canceling…';
+        replicationProgressState.showCanceling();
       }
     }}
   />

@@ -10,7 +10,7 @@ import {
   AutoReplicationType,
   ReplicationSaveBehavior
 } from '$lib/functions/replication/replication-options';
-import type { ReplicationContext } from '$lib/functions/replication/replication-progress';
+import type { ReplicationContext } from '$lib/functions/replication/replication-progress.svelte';
 import { replicateData } from '$lib/functions/replication/replicator';
 import {
   autoReplication$,

@@ -33,7 +33,7 @@ import { getDefaultStatistic } from '$lib/components/book-reader/book-reading-tr
 import { handleErrorDuringReplication } from '$lib/functions/replication/error-handler';
 import { logger } from '$lib/data/logger';
 import pLimit from 'p-limit';
-import { replicationProgress$ } from '$lib/functions/replication/replication-progress';
+import { replicationProgressState } from '$lib/functions/replication/replication-progress.svelte';
 import { SvelteMap, SvelteSet } from 'svelte/reactivity';
 
 const LAST_ITEM_KEY = 0;
@@ -341,7 +341,7 @@ export class DatabaseService {
     const limiter = pLimit(1);
     const tasks: Promise<void>[] = [];
 
-    replicationProgress$.next({ progressBase: 1, maxProgress: dataIds.length });
+    replicationProgressState.report({ progressBase: 1, maxProgress: dataIds.length });
 
     dataIds.forEach((id) =>
       tasks.push(
@@ -468,7 +468,7 @@ export class DatabaseService {
       throw error;
     }
 
-    replicationProgress$.next({ progressToAdd: 1 });
+    replicationProgressState.report({ progressToAdd: 1 });
 
     return dataId;
   }
