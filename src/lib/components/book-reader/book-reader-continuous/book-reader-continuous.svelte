@@ -16,7 +16,6 @@
     userFonts$
   } from '$lib/data/store';
   import { getReferencePoints } from '$lib/functions/range-util';
-  import { getExternalTargetElement } from '$lib/functions/utils';
   import { faBookmark, faSpinner } from '@fortawesome/free-solid-svg-icons';
   import { onDestroy, onMount, untrack } from 'svelte';
   import { SvelteMap } from 'svelte/reactivity';
@@ -68,7 +67,6 @@
     onbookcharcountchange?: (count: number) => void;
     onbookmark?: () => void;
     oncontentchange?: (el: HTMLElement) => void;
-    ontrackerPause?: () => void;
   }
 
   let {
@@ -110,8 +108,7 @@
     readerController,
     onbookcharcountchange,
     onbookmark,
-    oncontentchange,
-    ontrackerPause
+    oncontentchange
   }: Props = $props();
 
   let allowDisplay = $state(false);
@@ -280,10 +277,7 @@
     scheduleAutoPositionAfterResize();
   });
 
-  /** Experimental Code - May be removed any time without warning */
   onMount(() => {
-    document.addEventListener('miwake-action', handleAction, false);
-
     // Register wheel handler with { passive: false } since Svelte 5 doesn't support |nonpassive
     document.body.addEventListener('wheel', onWheel, { passive: false });
 
@@ -296,103 +290,7 @@
     };
   });
 
-  function handleAction({ detail }: any) {
-    if (!detail.type) {
-      return;
-    }
-
-    if (detail.type === 'cue') {
-      const { scroll, rect } = needScroll(detail.selector, detail.scrollMode);
-
-      if (!scroll) {
-        return;
-      }
-
-      willNavigate = true;
-
-      if (verticalMode) {
-        window.scrollBy({
-          left: -(
-            window.innerWidth -
-            rect.right -
-            (firstDimensionMargin || 0) -
-            customReadingPointScrollOffset -
-            (!customReadingPointScrollOffset ||
-            (customReadingPointScrollOffset && scrollAdjustment > customReadingPointScrollOffset)
-              ? scrollAdjustment
-              : 0)
-          ),
-          top: 0,
-          behavior: detail.scrollBehavior || 'instant'
-        });
-      } else {
-        window.scrollBy({
-          left: 0,
-          top:
-            rect.top -
-            (firstDimensionMargin || 0) -
-            customReadingPointScrollOffset -
-            (!customReadingPointScrollOffset ||
-            (customReadingPointScrollOffset && scrollAdjustment > customReadingPointScrollOffset)
-              ? scrollAdjustment
-              : 0),
-          behavior: detail.scrollBehavior || 'instant'
-        });
-      }
-    } else if (
-      detail.type === 'pauseTracker' &&
-      needScroll(detail.selector, detail.scrollMode).scroll
-    ) {
-      ontrackerPause?.();
-    }
-  }
-
-  function needScroll(selector: string, scrollMode: string) {
-    const targetElement = getExternalTargetElement(document, selector, !verticalMode);
-
-    if (!targetElement || !contentEl) {
-      return { scroll: false, rect: { top: 0, right: 0, bottom: 0, left: 0 } };
-    }
-
-    const rect = targetElement.getBoundingClientRect();
-
-    if (!scrollMode || scrollMode === 'Always') {
-      return { scroll: true, rect };
-    }
-
-    const footerElement = verticalMode ? null : document.getElementById('miwake-page-footer');
-    const {
-      elTopReferencePoint,
-      elLeftReferencePoint,
-      elBottomReferencePoint,
-      elRightReferencePoint
-    } = getReferencePoints(
-      window,
-      contentEl,
-      verticalMode,
-      firstDimensionMargin,
-      !verticalMode && footerElement
-        ? Number.parseFloat(getComputedStyle(footerElement).height.replace('px', ''))
-        : 0
-    );
-
-    if (verticalMode) {
-      return {
-        scroll: rect.left <= elLeftReferencePoint || rect.right >= elRightReferencePoint,
-        rect
-      };
-    }
-
-    return {
-      scroll: rect.top <= elTopReferencePoint || rect.bottom >= elBottomReferencePoint,
-      rect
-    };
-  }
-  /** Experimental Code - May be removed any time without warning */
-
   onDestroy(() => {
-    document.removeEventListener('miwake-action', handleAction, false);
-
     stopAutoBookmark?.();
     stopSectionProgressTracking?.();
     clearScheduledAutoPosition();

@@ -2,7 +2,6 @@
   import type { Snippet } from 'svelte';
   import { browser } from '$app/environment';
   import { popovers } from '$lib/components/popover/popover';
-  import { CLOSE_POPOVER } from '$lib/data/events';
   import { clickOutside } from '$lib/functions/use-click-outside';
   import type { Instance, Placement } from '@popperjs/core';
   import flip from '@popperjs/core/lib/modifiers/flip';
@@ -159,16 +158,6 @@
     };
   }
 
-  function externalClose(node: HTMLElement) {
-    node.addEventListener(CLOSE_POPOVER, toggleOpen, false);
-
-    return {
-      destroy() {
-        node.removeEventListener(CLOSE_POPOVER, toggleOpen, false);
-      }
-    };
-  }
-
   function getTargetElement(referenceElement?: HTMLElement | Event): HTMLElement | undefined {
     let targetElement: HTMLElement | undefined;
 
@@ -206,7 +195,6 @@
   >
     <div
       style={contentStyles}
-      use:externalClose
       use:clickOutside={({ target }) => {
         if (!(target instanceof Element && target.closest('[data-popover]'))) {
           toggleOpen();

@@ -65,7 +65,6 @@
     onbookcharcountchange?: (count: number) => void;
     onisbookmarkscreenchange?: (value: boolean) => void;
     onbookmark?: () => void;
-    ontrackerPause?: () => void;
   }
 
   let {
@@ -111,8 +110,7 @@
     onhideCustomReadingPoint,
     onbookcharcountchange,
     onisbookmarkscreenchange,
-    onbookmark,
-    ontrackerPause
+    onbookmark
   }: Props = $props();
 
   let showBlurMessage = $state(false);
@@ -334,7 +332,6 @@
       {onbookcharcountchange}
       oncontentchange={handleContentChange}
       {onbookmark}
-      {ontrackerPause}
     />
   {:else}
     <BookReaderPaginated
@@ -375,7 +372,6 @@
       {onisbookmarkscreenchange}
       oncontentchange={handleContentChange}
       {onbookmark}
-      {ontrackerPause}
     />
   {/if}
 </div>
