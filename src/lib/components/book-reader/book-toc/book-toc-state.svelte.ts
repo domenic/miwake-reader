@@ -62,11 +62,8 @@ function deriveChapterData(sectionData: SectionWithProgress[]): BookTOCChapterDa
   };
 }
 
-type ChapterNavigationListener = (chapterId: string) => void;
-
 class BookTOCState {
   #sectionProgress = new SvelteMap<string, SectionWithProgress>();
-  #chapterNavigationListeners = new Set<ChapterNavigationListener>();
 
   sections = $state<Section[]>([]);
   isOpen = $state(false);
@@ -116,20 +113,6 @@ class BookTOCState {
 
   clearSectionProgress() {
     this.#sectionProgress.clear();
-  }
-
-  navigateToChapter(chapterId: string) {
-    for (const listener of this.#chapterNavigationListeners) {
-      listener(chapterId);
-    }
-  }
-
-  onChapterNavigation(listener: ChapterNavigationListener) {
-    this.#chapterNavigationListeners.add(listener);
-
-    return () => {
-      this.#chapterNavigationListeners.delete(listener);
-    };
   }
 }
 

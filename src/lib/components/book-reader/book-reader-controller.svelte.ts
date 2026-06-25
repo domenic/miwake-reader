@@ -1,9 +1,10 @@
 import type { BooksDbBookmarkData } from '$lib/data/database/books-db/versions/books-db';
-import type { AutoScroller, BookmarkManager, PageManager } from './types';
+import type { AutoScroller, BookmarkManager, ChapterNavigator, PageManager } from './types';
 
 export class BookReaderController {
   #autoScroller = $state<AutoScroller>();
   #bookmarkManager = $state<BookmarkManager>();
+  #chapterNavigator: ChapterNavigator | undefined;
   #pageManager = $state<PageManager>();
 
   get autoScrollEnabled() {
@@ -18,28 +19,45 @@ export class BookReaderController {
     return !!this.#pageManager;
   }
 
-  setAutoScroller(autoScroller: AutoScroller) {
+  registerAutoScroller(autoScroller: AutoScroller) {
     this.#autoScroller = autoScroller;
+
+    return () => {
+      autoScroller.destroy();
+      if (this.#autoScroller === autoScroller) {
+        this.#autoScroller = undefined;
+      }
+    };
   }
 
-  clearAutoScroller() {
-    this.#autoScroller = undefined;
-  }
-
-  setBookmarkManager(bookmarkManager: BookmarkManager) {
+  registerBookmarkManager(bookmarkManager: BookmarkManager) {
     this.#bookmarkManager = bookmarkManager;
+
+    return () => {
+      if (this.#bookmarkManager === bookmarkManager) {
+        this.#bookmarkManager = undefined;
+      }
+    };
   }
 
-  clearBookmarkManager() {
-    this.#bookmarkManager = undefined;
+  registerChapterNavigator(chapterNavigator: ChapterNavigator) {
+    this.#chapterNavigator = chapterNavigator;
+
+    return () => {
+      if (this.#chapterNavigator === chapterNavigator) {
+        this.#chapterNavigator = undefined;
+      }
+    };
   }
 
-  setPageManager(pageManager: PageManager) {
+  registerPageManager(pageManager: PageManager) {
     this.#pageManager = pageManager;
-  }
 
-  clearPageManager() {
-    this.#pageManager = undefined;
+    return () => {
+      if (this.#pageManager === pageManager) {
+        this.#pageManager = undefined;
+      }
+    };
   }
 
   stopAutoScrollIfAvailable() {
@@ -83,12 +101,24 @@ export class BookReaderController {
     this.#requireBookmarkManager().scrollToBookmark(bookmarkData, customReadingPointScrollOffset);
   }
 
+  goToChapter(chapterId: string) {
+    this.#requireChapterNavigator()(chapterId);
+  }
+
   #requireBookmarkManager() {
     if (!this.#bookmarkManager) {
       throw new Error('Reader bookmark manager is not registered');
     }
 
     return this.#bookmarkManager;
+  }
+
+  #requireChapterNavigator() {
+    if (!this.#chapterNavigator) {
+      throw new Error('Reader chapter navigator is not registered');
+    }
+
+    return this.#chapterNavigator;
   }
 
   #requirePageManager() {

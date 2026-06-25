@@ -1,10 +1,13 @@
-import type { BehaviorSubject } from 'rxjs';
 import { CharacterStatsCalculator } from '$lib/components/book-reader/book-reader-continuous/character-stats-calculator';
 import { binarySearchNoNegative } from '$lib/functions/binary-search';
 import { dev } from '$app/environment';
 import { formatPos } from '$lib/functions/format-pos';
 import { getCharacterCount } from '$lib/functions/get-character-count';
 import { getParagraphNodes } from '../get-paragraph-nodes';
+
+interface VirtualScrollState {
+  virtualScrollPos: number;
+}
 
 export class SectionCharacterStatsCalculator {
   readonly charCount: number;
@@ -18,7 +21,7 @@ export class SectionCharacterStatsCalculator {
   constructor(
     public readonly containerEl: HTMLElement,
     public readonly sections: ReadonlyArray<Element>,
-    private virtualScrollPos$: BehaviorSubject<number>,
+    private readerState: VirtualScrollState,
     private getWidth: () => number,
     private getHeight: () => number,
     private getPageGap: () => number,
@@ -49,13 +52,13 @@ export class SectionCharacterStatsCalculator {
     this.sectionIndex = sectionIndex;
 
     setTimeout(() => {
-      this.calculator?.updateParagraphPosIfNeeded(this.virtualScrollPos$.getValue());
+      this.calculator?.updateParagraphPosIfNeeded(this.readerState.virtualScrollPos);
     });
   }
 
   updateParagraphPos() {
     if (!this.calculator) return;
-    this.calculator.updateParagraphPos(this.virtualScrollPos$.getValue());
+    this.calculator.updateParagraphPos(this.readerState.virtualScrollPos);
   }
 
   calcExploredCharCount(customReadingPointRange: Range | undefined) {
@@ -71,7 +74,7 @@ export class SectionCharacterStatsCalculator {
     }
 
     const offset = this.verticalMode ? 0 : -this.screenSize;
-    return this.getCharCountByScrollPos(this.virtualScrollPos$.getValue() + offset);
+    return this.getCharCountByScrollPos(this.readerState.virtualScrollPos + offset);
   }
 
   getCharCountByScrollPos(scrollPos: number) {
@@ -113,7 +116,7 @@ export class SectionCharacterStatsCalculator {
 
   checkBookmarkOnScreen(charCount: number) {
     const scrollPos = this.getScrollPosByCharCount(charCount);
-    const virtualPos = this.virtualScrollPos$.getValue();
+    const virtualPos = this.readerState.virtualScrollPos;
 
     if (scrollPos !== -1 && scrollPos === virtualPos && this.calculator) {
       return {

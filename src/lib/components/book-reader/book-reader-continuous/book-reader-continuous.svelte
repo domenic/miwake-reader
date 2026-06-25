@@ -212,9 +212,8 @@
     }
 
     bookmarkManager = new BookmarkManagerContinuous(calculator, window, firstDimensionMargin || 0);
-    readerController.setBookmarkManager(bookmarkManager);
 
-    return () => readerController.clearBookmarkManager();
+    return readerController.registerBookmarkManager(bookmarkManager);
   });
 
   // Update bookmark position when contentReadyEvent changes
@@ -235,9 +234,8 @@
     }
 
     pageManager = new PageManagerContinuous(verticalMode, firstDimensionMargin, window);
-    readerController.setPageManager(pageManager);
 
-    return () => readerController.clearPageManager();
+    return readerController.registerPageManager(pageManager);
   });
 
   // Update custom reading point position
@@ -255,15 +253,10 @@
       () => verticalMode,
       document
     );
-    readerController.setAutoScroller(autoScroller);
-
-    return () => {
-      autoScroller.destroy();
-      readerController.clearAutoScroller();
-    };
+    return readerController.registerAutoScroller(autoScroller);
   });
 
-  onMount(() => bookTOCState.onChapterNavigation(scrollToChapter));
+  onMount(() => readerController.registerChapterNavigator(scrollToChapter));
 
   $effect(() => {
     const dimension = verticalMode ? height : width;

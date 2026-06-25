@@ -1,17 +1,19 @@
 import type { Attachment } from 'svelte/attachments';
 import { FuriganaStyle, setupRubyClickListeners } from '../../data/furigana-style';
-import { bookTOCState } from '$lib/components/book-reader/book-toc/book-toc-state.svelte';
 import { pulseElement } from '$lib/functions/range-util';
 import { readerImageGallery } from '$lib/components/book-reader/book-reader-image-gallery/book-reader-image-gallery-state.svelte';
 import { getImageURL } from './image-url';
+import type { BookReaderController } from './book-reader-controller.svelte';
 
 interface EnhanceBookContentOptions {
+  readerController: BookReaderController;
   furiganaStyle: FuriganaStyle;
   hideSpoilerImage: boolean;
   isPWADisplayMode: boolean;
 }
 
 export function enhanceBookContent({
+  readerController,
   furiganaStyle,
   hideSpoilerImage,
   isPWADisplayMode
@@ -20,7 +22,7 @@ export function enhanceBookContent({
     const abortController = new AbortController();
     const { signal } = abortController;
 
-    setupAnchorClickListeners(contentEl, signal);
+    setupAnchorClickListeners(contentEl, readerController, signal);
     const cleanups = [
       setupRubyClickListeners(contentEl, furiganaStyle),
       setupSpoilerImageListeners(contentEl, signal),
@@ -34,7 +36,11 @@ export function enhanceBookContent({
   };
 }
 
-function setupAnchorClickListeners(contentEl: HTMLElement, signal: AbortSignal) {
+function setupAnchorClickListeners(
+  contentEl: HTMLElement,
+  readerController: BookReaderController,
+  signal: AbortSignal
+) {
   const document = contentEl.ownerDocument;
 
   for (const el of contentEl.getElementsByTagName('a')) {
@@ -45,7 +51,7 @@ function setupAnchorClickListeners(contentEl: HTMLElement, signal: AbortSignal) 
         ev.preventDefault();
         ev.stopImmediatePropagation();
 
-        bookTOCState.navigateToChapter(el.hash.substring(1));
+        readerController.goToChapter(el.hash.substring(1));
       },
       { signal }
     );

@@ -4,7 +4,10 @@ export interface AutoScroller {
   readonly enabled: boolean;
   toggle: () => void;
   off: () => void;
+  destroy: () => void;
 }
+
+export type ChapterNavigator = (chapterId: string) => void;
 
 export interface BookmarkManager {
   formatBookmarkData: (

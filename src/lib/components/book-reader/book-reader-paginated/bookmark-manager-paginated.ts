@@ -1,43 +1,59 @@
-import type { BehaviorSubject, Observable } from 'rxjs';
-
 import type { BookmarkManager } from '$lib/components/book-reader/types';
 import type { BooksDbBookmarkData } from '$lib/data/database/books-db/versions/books-db';
 import type { PageManagerPaginated } from './page-manager-paginated';
 import type { SectionCharacterStatsCalculator } from './section-character-stats-calculator';
 
-export class BookmarkManagerPaginated implements BookmarkManager {
-  constructor(
-    private calculator: SectionCharacterStatsCalculator,
-    private pageManager: PageManagerPaginated,
-    private sectionReady$: Observable<SectionCharacterStatsCalculator>,
-    private sectionIndex$: BehaviorSubject<number>,
-    private setIntendedCharCount: (count: number) => void
-  ) {}
+interface ReaderSectionState {
+  sectionIndex: number;
+}
 
-  scrollToBookmark(bookmarkData: BooksDbBookmarkData) {
+interface BookmarkManagerPaginatedOptions {
+  calculator: SectionCharacterStatsCalculator;
+  pageManager: PageManagerPaginated;
+  readerState: ReaderSectionState;
+  setSectionIndexAndWait: (index: number) => Promise<SectionCharacterStatsCalculator>;
+  setIntendedCharCount: (count: number) => void;
+}
+
+export class BookmarkManagerPaginated implements BookmarkManager {
+  #calculator: SectionCharacterStatsCalculator;
+
+  #pageManager: PageManagerPaginated;
+
+  #readerState: ReaderSectionState;
+
+  #setSectionIndexAndWait: (index: number) => Promise<SectionCharacterStatsCalculator>;
+
+  #setIntendedCharCount: (count: number) => void;
+
+  constructor({
+    calculator,
+    pageManager,
+    readerState,
+    setSectionIndexAndWait,
+    setIntendedCharCount
+  }: BookmarkManagerPaginatedOptions) {
+    this.#calculator = calculator;
+    this.#pageManager = pageManager;
+    this.#readerState = readerState;
+    this.#setSectionIndexAndWait = setSectionIndexAndWait;
+    this.#setIntendedCharCount = setIntendedCharCount;
+  }
+
+  async scrollToBookmark(bookmarkData: BooksDbBookmarkData) {
     const charCount = bookmarkData.exploredCharCount;
     if (!charCount) return;
 
-    const index = this.calculator.getSectionIndexByCharCount(charCount);
+    const index = this.#calculator.getSectionIndexByCharCount(charCount);
+    let calculator = this.#calculator;
 
-    const scroll = (calc: SectionCharacterStatsCalculator) => {
-      const scrollPos = calc.getScrollPosByCharCount(charCount);
-      this.pageManager.scrollTo(scrollPos, false);
-      this.setIntendedCharCount(charCount);
-    };
-
-    const currentSectionIndex = this.sectionIndex$.getValue();
-
-    if (currentSectionIndex === index) {
-      scroll(this.calculator);
-      return;
+    if (this.#readerState.sectionIndex !== index) {
+      calculator = await this.#setSectionIndexAndWait(index);
     }
 
-    const subscription = this.sectionReady$.subscribe((updatedCalc) => {
-      scroll(updatedCalc);
-      subscription.unsubscribe();
-    });
-    this.sectionIndex$.next(index);
+    const scrollPos = calculator.getScrollPosByCharCount(charCount);
+    this.#pageManager.scrollTo(scrollPos, false);
+    this.#setIntendedCharCount(charCount);
   }
 
   formatBookmarkData(bookId: number): BooksDbBookmarkData {
@@ -48,8 +64,8 @@ export class BookmarkManagerPaginated implements BookmarkManager {
     bookId: number,
     customReadingPointRange: Range | undefined
   ): BooksDbBookmarkData {
-    const exploredCharCount = this.calculator.calcExploredCharCount(customReadingPointRange);
-    const bookCharCount = this.calculator.charCount;
+    const exploredCharCount = this.#calculator.calcExploredCharCount(customReadingPointRange);
+    const bookCharCount = this.#calculator.charCount;
 
     return {
       dataId: bookId,
