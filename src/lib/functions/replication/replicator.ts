@@ -10,10 +10,8 @@ import { storage } from '$lib/data/window/navigator/storage';
 import { StorageDataType } from '$lib/data/storage/storage-types';
 import { database } from '$lib/data/store';
 import { handleErrorDuringReplication } from '$lib/functions/replication/error-handler';
-import {
-  replicationProgress$,
-  type ReplicationContext
-} from '$lib/functions/replication/replication-progress';
+import { replicationProgressState } from '$lib/functions/replication/replication-progress.svelte';
+import type { ReplicationContext } from '$lib/functions/replication/replication-progress.svelte';
 import pLimit from 'p-limit';
 
 /**
@@ -88,7 +86,7 @@ export async function replicateData(opts: ReplicateDataOptions) {
   const errors: Error[] = [];
   let processed = 0;
 
-  replicationProgress$.next({ maxProgress });
+  replicationProgressState.report({ maxProgress });
 
   if (direction === 'pull') {
     // Pulling into the library — request persistent storage so the

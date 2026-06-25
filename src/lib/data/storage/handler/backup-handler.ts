@@ -10,7 +10,7 @@ import type { ScopedBookOperations, ScopedSettings } from '$lib/data/storage/han
 import { SyncEndpointType } from '$lib/data/storage/storage-types';
 import { downloadBlob } from '$lib/functions/download-blob';
 import { ReplicationSaveBehavior } from '$lib/functions/replication/replication-options';
-import type { ReplicationContext } from '$lib/functions/replication/replication-progress';
+import type { ReplicationContext } from '$lib/functions/replication/replication-progress.svelte';
 import { BlobReader, BlobWriter, ZipReader, type Entry, type ZipWriter } from '@zip.js/zip.js';
 
 export class BackupStorageHandler extends BaseStorageHandler {

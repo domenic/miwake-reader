@@ -32,10 +32,8 @@ import {
   persistLibraryStorage
 } from '$lib/functions/replication/replicator';
 import { handleErrorDuringReplication } from '$lib/functions/replication/error-handler';
-import {
-  replicationProgress$,
-  type ReplicationContext
-} from '$lib/functions/replication/replication-progress';
+import { replicationProgressState } from '$lib/functions/replication/replication-progress.svelte';
+import type { ReplicationContext } from '$lib/functions/replication/replication-progress.svelte';
 import loadEpub from '$lib/functions/file-loaders/epub/load-epub';
 import loadHtmlz from '$lib/functions/file-loaders/htmlz/load-htmlz';
 import loadTxt from '$lib/functions/file-loaders/txt/load-txt';
@@ -96,7 +94,7 @@ export async function userImportBooks(
 
   const errors: Error[] = [];
 
-  replicationProgress$.next({ progressBase, maxProgress });
+  replicationProgressState.report({ progressBase, maxProgress });
   await persistLibraryStorage();
 
   let newFileData = 0;

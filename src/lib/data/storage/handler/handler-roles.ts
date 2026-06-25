@@ -6,7 +6,7 @@ import type {
 } from '$lib/data/database/books-db/versions/books-db';
 import type { MergeMode } from '$lib/data/merge-mode';
 import { ReplicationSaveBehavior } from '$lib/functions/replication/replication-options';
-import type { ReplicationContext } from '$lib/functions/replication/replication-progress';
+import type { ReplicationContext } from '$lib/functions/replication/replication-progress.svelte';
 import type { SyncEndpointType, SyncTitle } from '$lib/data/storage/storage-types';
 
 // Re-export so callers can import settings type alongside the

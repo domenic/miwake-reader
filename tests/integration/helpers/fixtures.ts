@@ -139,12 +139,16 @@ export function fixtureDescription(fixture: BookFixture) {
     : metadata.title;
 }
 
-export async function importBookFixtures(page: Page, fixtures: readonly BookFixture[]) {
+export async function startImportBookFixtures(page: Page, fixtures: readonly BookFixture[]) {
   await navigateToManage(page);
   const importButton = page.getByRole('button', { name: 'Import Files' });
   await expect(importButton).toBeVisible();
   const [fileChooser] = await Promise.all([page.waitForEvent('filechooser'), importButton.click()]);
   await fileChooser.setFiles(fixturePaths(fixtures));
+}
+
+export async function importBookFixtures(page: Page, fixtures: readonly BookFixture[]) {
+  await startImportBookFixtures(page, fixtures);
   await Promise.all(
     libraryBookFixtures(fixtures).map((fixture) =>
       expect(page.getByText(fixtureTitle(fixture), { exact: true })).toBeVisible({

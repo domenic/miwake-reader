@@ -1,6 +1,6 @@
 import type { LimitFunction } from 'p-limit';
 import { logger } from '$lib/data/logger';
-import { replicationProgress$ } from '$lib/functions/replication/replication-progress';
+import { replicationProgressState } from '$lib/functions/replication/replication-progress.svelte';
 
 export function handleErrorDuringReplication(
   error: any,
@@ -25,9 +25,9 @@ export function handleErrorDuringReplication(
   }
 
   if (currentProgressBase !== undefined) {
-    replicationProgress$.next({ progressBase: currentProgressBase, skipStep: true });
+    replicationProgressState.report({ progressBase: currentProgressBase, skipStep: true });
   } else {
-    replicationProgress$.next({ skipStep: true });
+    replicationProgressState.report({ skipStep: true });
   }
 
   return `${baseError}${message}`;

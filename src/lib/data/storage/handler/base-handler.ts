@@ -18,10 +18,8 @@ import type {
 import { handleErrorDuringReplication } from '$lib/functions/replication/error-handler';
 import { exporterVersion } from '$lib/functions/replication/exporter-version';
 import { ReplicationSaveBehavior } from '$lib/functions/replication/replication-options';
-import {
-  replicationProgress$,
-  type ReplicationContext
-} from '$lib/functions/replication/replication-progress';
+import { replicationProgressState } from '$lib/functions/replication/replication-progress.svelte';
+import type { ReplicationContext } from '$lib/functions/replication/replication-progress.svelte';
 import pLimit from 'p-limit';
 import {
   BlobReader,
@@ -183,7 +181,7 @@ export abstract class BaseStorageHandler implements SyncEndpoint {
     const errors: Error[] = [];
     const limiter = pLimit(1);
 
-    replicationProgress$.next({ progressBase: 1, maxProgress: booksToDelete.length });
+    replicationProgressState.report({ progressBase: 1, maxProgress: booksToDelete.length });
 
     const tasks = booksToDelete.map((title) =>
       limiter(async () => {
@@ -233,16 +231,16 @@ export abstract class BaseStorageHandler implements SyncEndpoint {
   }
 
   static reportProgress(progressToAdd = 1) {
-    replicationProgress$.next({ progressToAdd });
+    replicationProgressState.report({ progressToAdd });
   }
 
   static completeStep() {
-    replicationProgress$.next({ completeStep: true });
+    replicationProgressState.report({ completeStep: true });
   }
 
   /**
    * Build an onprogress callback that streams progress deltas into the
-   * shared replicationProgress$ subject. The `last` watermark stays in
+   * shared replication progress state. The `last` watermark stays in
    * the closure so each call site gets independent book-keeping —
    * concurrent in-flight operations don't interfere.
    */
