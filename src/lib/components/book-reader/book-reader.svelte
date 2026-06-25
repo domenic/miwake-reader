@@ -174,6 +174,7 @@
     }
 
     const attachBookContent = enhanceBookContent({
+      readerController,
       furiganaStyle,
       hideSpoilerImage,
       isPWADisplayMode: isInPWADisplayMode()

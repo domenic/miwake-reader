@@ -16,24 +16,8 @@
     userFonts$
   } from '$lib/data/store';
   import { clearRange, createRange, pulseElement } from '$lib/functions/range-util';
-  import { iffBrowser } from '$lib/functions/rxjs/iff-browser';
   import { getExternalTargetElement, isMobile$ } from '$lib/functions/utils';
   import { faBookmark, faSpinner } from '@fortawesome/free-solid-svg-icons';
-  import {
-    BehaviorSubject,
-    combineLatest,
-    debounceTime,
-    distinctUntilChanged,
-    filter,
-    fromEvent,
-    map,
-    skip,
-    Subject,
-    switchMap,
-    take,
-    takeUntil,
-    throttleTime
-  } from 'rxjs';
   import Fa from 'svelte-fa';
   import { useSwipe, type SwipeCustomEvent } from 'svelte-gestures';
   import type { BookReaderController } from '../book-reader-controller.svelte';
@@ -160,27 +144,23 @@
 
   let currentSectionId = $state('');
 
-  const width$ = new Subject<number>();
+  let displayedSectionVersion = $state(0);
 
-  const height$ = new Subject<number>();
+  let readerState = $state({
+    sectionIndex: -1,
+    virtualScrollPos: 0
+  });
 
-  const sectionIndex$ = new BehaviorSubject<number>(-1);
+  let sectionReadyIndex = -1;
 
-  const pageChange$ = new Subject<boolean>();
+  let sectionReadyWaiters: {
+    index: number;
+    resolve: (calculator: SectionCharacterStatsCalculator) => void;
+  }[] = [];
 
-  const virtualScrollPos$ = new BehaviorSubject(0);
-
-  const sectionRenderComplete$ = new Subject<number>();
-
-  const sectionReady$ = new Subject<SectionCharacterStatsCalculator>();
-
-  const currentSection$ = sectionIndex$.pipe(map((index) => sections[index]?.innerHTML || ''));
-
-  const cssClassOverflowHidden = 'overflow-hidden';
+  let autoBookmarkTimer: number | undefined;
 
   const gap = 40;
-
-  const destroy$ = new Subject<void>();
 
   let columnCount = $derived(verticalMode ? 1 : pageColumns || Math.ceil(width / 1000));
 
@@ -196,131 +176,122 @@
     });
   });
 
-  // Push width/height changes to RxJS subjects
-  $effect(() => {
-    if (width) width$.next(width);
-  });
-
-  $effect(() => {
-    if (height) height$.next(height);
-  });
-
-  // When htmlContent changes, set scrollWhenReady
-  $effect(() => {
-    if (htmlContent) {
-      scrollWhenReady = true;
-    }
-  });
-
   // Initialize content when displayedHtml changes (section navigation).
   // Skip only the initial empty state (before any section loads); after that,
   // process all sections including empty ones (blank spine items / separators).
   let contentInitialized = false;
   $effect(() => {
-    const html = displayedHtml;
-    const el = scrollEl;
-    if ((!contentInitialized && !html) || !el) return;
+    if (!displayedSectionVersion || (!contentInitialized && !displayedHtml) || !scrollEl) return;
+
     contentInitialized = true;
-    untrack(() => initContent(el));
+    untrack(() => initContent(scrollEl!));
   });
 
   // When htmlContent changes, parse sections and reset sectionIndex
   $effect(() => {
     if (browser && htmlContent) {
+      scrollWhenReady = true;
       const tempContainer = document.createElement('div');
       tempContainer.innerHTML = htmlContent;
       sections = Array.from(tempContainer.children);
-      // untrack because sectionIndex$.next() synchronously triggers currentSection$
-      // subscribers that write to $state (allowDisplay)
-      untrack(() => sectionIndex$.next(0));
+      resetSectionIndex(0);
     }
   });
 
-  // Create/recreate PageManager and BookmarkManager when dependencies change
+  $effect(() => {
+    const index = readerState.sectionIndex;
+    if (index < 0) return;
+
+    const html = sections[index]?.innerHTML || '';
+    allowDisplay = false;
+
+    let cancelled = false;
+    // Let Svelte apply the loading state before the follow-up effect reads the new section DOM.
+    requestAnimationFrame(() => {
+      if (cancelled) return;
+
+      displayedHtml = html;
+      displayedSectionVersion += 1;
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  });
+
+  // Create/recreate PageManager and BookmarkManager when dependencies change.
   $effect(() => {
     if (!contentEl || !scrollEl || !sections.length || !calculator) {
       return undefined;
     }
 
-    const content = contentEl;
-    const scroll = scrollEl;
-    const sectionCalculator = calculator;
-    const tocSections = bookTOCState.sections;
-    const w = width;
-    const h = height;
-    const vm = verticalMode;
-
-    pageManager = new PageManagerPaginated(
-      content,
-      scroll,
+    pageManager = new PageManagerPaginated({
+      contentEl,
+      scrollEl,
+      tocSections: bookTOCState.sections,
       sections,
-      tocSections,
-      (sectionProgress) => bookTOCState.setSectionProgress(sectionProgress),
-      sectionIndex$,
-      virtualScrollPos$,
-      w,
-      h,
-      gap,
-      vm,
-      pageChange$,
-      sectionRenderComplete$
-    );
-    readerController.setPageManager(pageManager);
+      setSectionProgress: (sectionProgress) => bookTOCState.setSectionProgress(sectionProgress),
+      readerState,
+      setSectionIndexAndWait,
+      width,
+      height,
+      pageGap: gap,
+      verticalMode,
+      onPageChange: handlePageChange
+    });
+    const cleanupPageManager = readerController.registerPageManager(pageManager);
 
-    bookmarkManager = new BookmarkManagerPaginated(
-      sectionCalculator,
+    bookmarkManager = new BookmarkManagerPaginated({
+      calculator,
       pageManager,
-      sectionReady$,
-      sectionIndex$,
-      (c) => (previousIntendedCount = c)
-    );
-    readerController.setBookmarkManager(bookmarkManager);
+      readerState,
+      setSectionIndexAndWait,
+      setIntendedCharCount: (c) => (previousIntendedCount = c)
+    });
+    const cleanupBookmarkManager = readerController.registerBookmarkManager(bookmarkManager);
 
     return () => {
-      readerController.clearPageManager();
-      readerController.clearBookmarkManager();
+      cleanupPageManager();
+      cleanupBookmarkManager();
+      pageManager = undefined;
+      bookmarkManager = undefined;
     };
   });
 
   // On content display change
   $effect(() => {
     if (calculator && width && height && !loadingState) {
-      const c = calculator;
+      const currentCalculator = calculator;
       requestAnimationFrame(() => {
-        onContentDisplayChange(c);
+        onContentDisplayChange(currentCalculator);
       });
-    }
-  });
-
-  // Fire sectionRenderComplete when calculator is ready and not loading
-  $effect(() => {
-    if (calculator && !loadingState) {
-      const sectionIndex = sectionIndex$.getValue();
-      const section = sections[sectionIndex];
-
-      currentSectionId = section?.id.startsWith('miwake-') ? section.id : '';
-
-      sectionRenderComplete$.next(sectionIndex);
-    }
-  });
-
-  // Add overflow-hidden class to body
-  $effect(() => {
-    if (browser) {
-      // because Yomitan popup creates overflow on vertical-rl
-      document.body.classList.add(cssClassOverflowHidden);
     }
   });
 
   // React to customReadingPointRange changes
   $effect(() => {
-    updateAfterCustomReadingPointUpdate(customReadingPointRange);
+    if (!calculator) return;
+
+    exploredCharCount = calculator.calcExploredCharCount(customReadingPointRange);
+    previousIntendedCount = exploredCharCount;
+
+    updateSectionData(customReadingPointRange);
   });
 
   /** Experimental Code - May be removed any time without warning */
-  onMount(() => document.addEventListener('miwake-action', handleAction, false));
+  onMount(() => {
+    document.addEventListener('miwake-action', handleAction, false);
 
-  onMount(() => bookTOCState.onChapterNavigation(goToChapter));
+    // because Yomitan popup creates overflow on vertical-rl
+    document.body.classList.add('overflow-hidden');
+
+    return () => {
+      document.removeEventListener('miwake-action', handleAction, false);
+      document.body.classList.remove('overflow-hidden');
+    };
+  });
+
+  onMount(() => readerController.registerChapterNavigator(goToChapter));
 
   async function handleAction({ detail }: any) {
     if (!detail.type || !calculator || !pageManager) {
@@ -334,26 +305,24 @@
         return;
       }
 
-      const currentSection = sectionIndex$.getValue();
+      const currentSection = readerState.sectionIndex;
+      let updatedCalculator = calculator;
 
       if (currentSection !== targetSection) {
-        const waitForSection = new Promise<void>((resolve) => {
-          sectionReady$.pipe(take(1)).subscribe(() => resolve());
-        });
-
-        sectionIndex$.next(targetSection);
-        pageManager.scrollTo(0, false);
-
-        await waitForSection;
+        updatedCalculator = await setSectionIndexAndWait(targetSection);
+        pageManager?.scrollTo(0, false);
       }
 
-      const scrollPos = getTargetScrollPos(calculator, detail.selector);
+      const updatedPageManager = pageManager;
+      if (!updatedCalculator || !updatedPageManager) return;
+
+      const scrollPos = getTargetScrollPos(updatedCalculator, detail.selector);
 
       if (scrollPos < 0) {
         return;
       }
 
-      pageManager.scrollTo(scrollPos, true);
+      updatedPageManager.scrollTo(scrollPos, true);
 
       if (currentSection !== targetSection) {
         document.dispatchEvent(new CustomEvent(SECTION_CHANGE));
@@ -365,7 +334,7 @@
         return;
       }
 
-      if (targetSection !== sectionIndex$.getValue()) {
+      if (targetSection !== readerState.sectionIndex) {
         ontrackerPause?.();
         return;
       }
@@ -387,18 +356,7 @@
   }
 
   function getTargetSection(selector: string) {
-    let targetSection = -1;
-
-    for (let index = 0, { length } = sections; index < length; index += 1) {
-      const element = getExternalTargetElement(sections[index], selector);
-
-      if (element) {
-        targetSection = index;
-        break;
-      }
-    }
-
-    return targetSection;
+    return sections.findIndex((section) => getExternalTargetElement(section, selector));
   }
 
   function getTargetScrollPos(
@@ -406,12 +364,12 @@
     selector: string
   ) {
     const targetElement = getExternalTargetElement(document, selector);
-    const nodeRange = document.createRange();
 
     if (!targetElement) {
       return -1;
     }
 
+    const nodeRange = document.createRange();
     nodeRange.setStart(targetElement, 0);
     nodeRange.setEnd(targetElement, targetElement.childNodes.length);
 
@@ -421,36 +379,34 @@
   }
   /** Experimental Code - May be removed or changed any time without warning */
 
-  onDestroy(() => {
-    document.removeEventListener('miwake-action', handleAction, false);
+  let hasMeasuredSize = false;
+  $effect(() => {
+    const currentWidth = width;
+    const currentHeight = height;
+    if (!currentWidth || !currentHeight) return;
 
-    document.body.classList.remove(cssClassOverflowHidden);
+    if (!hasMeasuredSize) {
+      hasMeasuredSize = true;
+      return;
+    }
 
-    destroy$.next();
-    destroy$.complete();
-  });
-
-  combineLatest([width$, height$])
-    .pipe(
-      skip(1),
-      switchMap(() => sectionReady$.pipe(take(1))),
-      takeUntil(destroy$)
-    )
-    .subscribe(() => {
-      if (!calculator || !pageManager) return;
+    const targetSectionIndex = untrack(() => readerState.sectionIndex);
+    void waitForNextSectionReady(targetSectionIndex).then((updatedCalculator) => {
+      if (width !== currentWidth || height !== currentHeight || !pageManager) return;
 
       pageManager.scrollTo(0, false);
-      calculator.updateParagraphPos();
+      updatedCalculator.updateParagraphPos();
 
-      const scrollPos = calculator.getScrollPosByCharCount(previousIntendedCount);
+      const scrollPos = updatedCalculator.getScrollPosByCharCount(previousIntendedCount);
 
       if (scrollPos < 0) return;
 
       pageManager.scrollTo(scrollPos, false);
       isResizing = false;
     });
+  });
 
-  pageChange$.pipe(takeUntil(destroy$)).subscribe((isUser) => {
+  function handlePageChange(isUser: boolean) {
     if (!calculator) return;
 
     if (!isResizing) {
@@ -475,59 +431,94 @@
       useExploredCharCount = isUser || !!customReadingPointRange;
       updateBookmarkScreen(data);
     });
-  });
 
-  if (untrack(() => autoBookmark)) {
-    const bookmarkTime = untrack(() => autoBookmarkTime);
-    pageChange$.pipe(debounceTime(bookmarkTime * 1000), takeUntil(destroy$)).subscribe((isUser) => {
-      if (isUser) {
-        onbookmark?.();
-      }
-    });
+    if (isUser) {
+      scheduleAutoBookmark();
+    }
   }
 
-  currentSection$.pipe(distinctUntilChanged(), takeUntil(destroy$)).subscribe(() => {
-    allowDisplay = false;
+  $effect(() => {
+    if (!autoBookmark) {
+      clearAutoBookmarkTimer();
+    }
   });
 
-  currentSection$.pipe(takeUntil(destroy$)).subscribe((html) => {
-    const nestAnimationFrame = (fn: () => void, count: number) => {
-      if (count === 0) {
-        fn();
-        return;
-      }
-      requestAnimationFrame(() => nestAnimationFrame(fn, count - 1));
-    };
-
-    // 2x for loading screen to render
-    nestAnimationFrame(() => {
-      displayedHtml = html;
-    }, 2);
+  onDestroy(() => {
+    clearAutoBookmarkTimer();
+    sectionReadyWaiters = [];
   });
 
-  iffBrowser(() => fromEvent<WheelEvent>(document.body, 'wheel', { passive: true }))
-    .pipe(
-      filter(() => !$disableWheelNavigation$ && !$skipKeyDownListener$),
-      throttleTime(50),
-      takeUntil(destroy$)
-    )
-    .subscribe((ev) => {
+  onMount(() => {
+    let lastWheelFlip = 0;
+    const handleWheel = (ev: WheelEvent) => {
+      if ($disableWheelNavigation$ || $skipKeyDownListener$) return;
+
+      const now = performance.now();
+      if (now - lastWheelFlip < 50) return;
+      lastWheelFlip = now;
+
       let multiplier = (ev.deltaX < 0 ? -1 : 1) * (verticalMode ? -1 : 1);
       if (!ev.deltaX) {
         multiplier = ev.deltaY < 0 ? -1 : 1;
       }
       pageManager?.flipPage(multiplier as -1 | 1);
-    });
+    };
 
-  function updateAfterCustomReadingPointUpdate(updatedCustomReadingPosition: Range | undefined) {
-    if (!calculator) {
-      return;
+    document.body.addEventListener('wheel', handleWheel, { passive: true });
+
+    return () => document.body.removeEventListener('wheel', handleWheel);
+  });
+
+  function scheduleAutoBookmark() {
+    clearAutoBookmarkTimer();
+
+    if (!autoBookmark) return;
+
+    autoBookmarkTimer = window.setTimeout(() => {
+      autoBookmarkTimer = undefined;
+      onbookmark?.();
+    }, autoBookmarkTime * 1000);
+  }
+
+  function clearAutoBookmarkTimer() {
+    window.clearTimeout(autoBookmarkTimer);
+    autoBookmarkTimer = undefined;
+  }
+
+  function resetSectionIndex(index: number) {
+    sectionReadyIndex = -1;
+    readerState.sectionIndex = index;
+  }
+
+  async function setSectionIndexAndWait(index: number): Promise<SectionCharacterStatsCalculator> {
+    if (readerState.sectionIndex === index && sectionReadyIndex === index && calculator) {
+      return calculator;
     }
 
-    exploredCharCount = calculator.calcExploredCharCount(updatedCustomReadingPosition);
-    previousIntendedCount = exploredCharCount;
+    const ready = waitForNextSectionReady(index);
+    if (readerState.sectionIndex !== index) {
+      resetSectionIndex(index);
+    }
+    return ready;
+  }
 
-    updateSectionData(updatedCustomReadingPosition);
+  function waitForNextSectionReady(index: number) {
+    return new Promise<SectionCharacterStatsCalculator>((resolve) => {
+      sectionReadyWaiters.push({ index, resolve });
+    });
+  }
+
+  function notifySectionReady(updatedCalculator: SectionCharacterStatsCalculator) {
+    sectionReadyIndex = readerState.sectionIndex;
+
+    const readyWaiters = sectionReadyWaiters.filter(
+      (waiter) => waiter.index === readerState.sectionIndex
+    );
+    sectionReadyWaiters = [];
+
+    for (const waiter of readyWaiters) {
+      waiter.resolve(updatedCalculator);
+    }
   }
 
   function updateSectionData(updatedCustomReadingRange: Range | undefined) {
@@ -544,7 +535,7 @@
     calculator = new SectionCharacterStatsCalculator(
       el,
       sections,
-      virtualScrollPos$,
+      readerState,
       () => width,
       () => height,
       () => gap,
@@ -586,14 +577,16 @@
   function triggerContentChange() {
     if (!calculator || !scrollEl) return;
 
-    calculator.updateCurrentSection(sectionIndex$.getValue());
+    calculator.updateCurrentSection(readerState.sectionIndex);
     oncontentchange?.(scrollEl);
   }
 
   function onContentDisplayChange(_calculator: SectionCharacterStatsCalculator) {
     _calculator.updateParagraphPos();
     exploredCharCount = _calculator.calcExploredCharCount(customReadingPointRange);
-    sectionReady$.next(_calculator);
+    const section = sections[readerState.sectionIndex];
+    currentSectionId = section?.id.startsWith('miwake-') ? section.id : '';
+    notifySectionReady(_calculator);
 
     if (scrollWhenReady) {
       scrollWhenReady = false;
@@ -713,8 +706,9 @@
     );
 
     if (nextSectionIndex > -1) {
-      sectionIndex$.next(nextSectionIndex);
-      pageManager?.scrollTo(0, true);
+      void setSectionIndexAndWait(nextSectionIndex).then(() => {
+        pageManager?.scrollTo(0, true);
+      });
     }
   }
 </script>

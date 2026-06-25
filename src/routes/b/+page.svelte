@@ -937,7 +937,7 @@
       pauseTracker('jump', true);
     }
 
-    bookTOCState.navigateToChapter(nextChapter.reference);
+    readerController.goToChapter(nextChapter.reference);
   }
 
   async function leaveReader(routeId: ReaderExitRoute, deleteLastItem = true) {
@@ -1341,7 +1341,12 @@
   style={`color: ${$themeOption$?.fontColor}; background-color: ${$backgroundColor$};`}
 >
   {#if bookTOCState.hasChapters}
-    <BookTOC verticalMode={$verticalMode$} {exploredCharCount} {resumeTrackerAfterTOCCloses} />
+    <BookTOC
+      {readerController}
+      verticalMode={$verticalMode$}
+      {exploredCharCount}
+      {resumeTrackerAfterTOCCloses}
+    />
   {/if}
 </SidebarOverlay>
 

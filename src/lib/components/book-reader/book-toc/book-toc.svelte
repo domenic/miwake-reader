@@ -6,14 +6,21 @@
   import { japaneseLangIfNeeded } from '$lib/functions/japanese-language';
   import { dummyFn } from '$lib/functions/utils';
   import Fa from 'svelte-fa';
+  import type { BookReaderController } from '../book-reader-controller.svelte';
 
   interface Props {
+    readerController: BookReaderController;
     exploredCharCount?: number;
     verticalMode: boolean;
     resumeTrackerAfterTOCCloses: boolean;
   }
 
-  let { exploredCharCount = 0, verticalMode, resumeTrackerAfterTOCCloses }: Props = $props();
+  let {
+    readerController,
+    exploredCharCount = 0,
+    verticalMode,
+    resumeTrackerAfterTOCCloses
+  }: Props = $props();
 
   const componentId = $props.id();
 
@@ -82,7 +89,7 @@
       closeTOCAfterNextPageChange();
     }
 
-    bookTOCState.navigateToChapter(chapterId);
+    readerController.goToChapter(chapterId);
 
     if ((!hasCharacterChange || !$statisticsEnabled$ || !resumeTrackerAfterTOCCloses) && closeTOC) {
       bookTOCState.isOpen = false;
