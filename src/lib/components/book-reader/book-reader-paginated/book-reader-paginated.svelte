@@ -2,7 +2,6 @@
   import { browser } from '$app/environment';
   import { bookTOCState } from '$lib/components/book-reader/book-toc/book-toc-state.svelte';
   import type { BooksDbBookmarkData } from '$lib/data/database/books-db/versions/books-db';
-  import { SECTION_CHANGE } from '$lib/data/events';
   import { isStoredFont } from '$lib/data/fonts';
   import { FuriganaStyle } from '$lib/data/furigana-style';
   import { logger } from '$lib/data/logger';
@@ -16,7 +15,7 @@
     userFonts$
   } from '$lib/data/store';
   import { clearRange, createRange, pulseElement } from '$lib/functions/range-util';
-  import { getExternalTargetElement, isMobile$ } from '$lib/functions/utils';
+  import { isMobile$ } from '$lib/functions/utils';
   import { faBookmark, faSpinner } from '@fortawesome/free-solid-svg-icons';
   import Fa from 'svelte-fa';
   import { useSwipe, type SwipeCustomEvent } from 'svelte-gestures';
@@ -64,7 +63,6 @@
     onisbookmarkscreenchange?: (value: boolean) => void;
     onbookmark?: () => void;
     oncontentchange?: (el: HTMLElement) => void;
-    ontrackerPause?: () => void;
   }
 
   let {
@@ -104,8 +102,7 @@
     onbookcharcountchange,
     onisbookmarkscreenchange,
     onbookmark,
-    oncontentchange,
-    ontrackerPause
+    oncontentchange
   }: Props = $props();
 
   let scrollEl = $state<HTMLElement>();
@@ -280,106 +277,16 @@
     updateSectionData(customReadingPointRange);
   });
 
-  /** Experimental Code - May be removed any time without warning */
   onMount(() => {
-    document.addEventListener('miwake-action', handleAction, false);
-
     // because Yomitan popup creates overflow on vertical-rl
     document.body.classList.add('overflow-hidden');
 
     return () => {
-      document.removeEventListener('miwake-action', handleAction, false);
       document.body.classList.remove('overflow-hidden');
     };
   });
 
   onMount(() => readerController.registerChapterNavigator(goToChapter));
-
-  async function handleAction({ detail }: any) {
-    if (!detail.type || !calculator || !pageManager) {
-      return;
-    }
-
-    if (detail.type === 'cue') {
-      const targetSection = getTargetSection(detail.selector);
-
-      if (targetSection === -1) {
-        return;
-      }
-
-      const currentSection = readerState.sectionIndex;
-      let updatedCalculator = calculator;
-
-      if (currentSection !== targetSection) {
-        updatedCalculator = await setSectionIndexAndWait(targetSection);
-        pageManager?.scrollTo(0, false);
-      }
-
-      const updatedPageManager = pageManager;
-      if (!updatedCalculator || !updatedPageManager) return;
-
-      const scrollPos = getTargetScrollPos(updatedCalculator, detail.selector);
-
-      if (scrollPos < 0) {
-        return;
-      }
-
-      updatedPageManager.scrollTo(scrollPos, true);
-
-      if (currentSection !== targetSection) {
-        document.dispatchEvent(new CustomEvent(SECTION_CHANGE));
-      }
-    } else if (detail.type === 'pauseTracker') {
-      const targetSection = getTargetSection(detail.selector);
-
-      if (targetSection === -1) {
-        return;
-      }
-
-      if (targetSection !== readerState.sectionIndex) {
-        ontrackerPause?.();
-        return;
-      }
-
-      const scrollPos = getTargetScrollPos(calculator, detail.selector);
-
-      if (scrollPos < 0) {
-        return;
-      }
-
-      const currentScrollPos = calculator.getScrollPosByCharCount(
-        calculator.calcExploredCharCount(customReadingPointRange)
-      );
-
-      if (scrollPos !== currentScrollPos) {
-        ontrackerPause?.();
-      }
-    }
-  }
-
-  function getTargetSection(selector: string) {
-    return sections.findIndex((section) => getExternalTargetElement(section, selector));
-  }
-
-  function getTargetScrollPos(
-    calculatorInstance: SectionCharacterStatsCalculator,
-    selector: string
-  ) {
-    const targetElement = getExternalTargetElement(document, selector);
-
-    if (!targetElement) {
-      return -1;
-    }
-
-    const nodeRange = document.createRange();
-    nodeRange.setStart(targetElement, 0);
-    nodeRange.setEnd(targetElement, targetElement.childNodes.length);
-
-    return calculatorInstance.getScrollPosByCharCount(
-      calculatorInstance.calcExploredCharCount(nodeRange)
-    );
-  }
-  /** Experimental Code - May be removed or changed any time without warning */
 
   let hasMeasuredSize = false;
   $effect(() => {

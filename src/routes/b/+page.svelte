@@ -81,12 +81,11 @@
   import SidebarOverlay from '$lib/components/sidebar-overlay.svelte';
   import { getBookStatisticsURL } from '$lib/components/statistics/statistics-view';
   import {
-    currentDbVersion,
     type BooksDbBookData,
     type BooksDbBookmarkData,
     type BooksDbStatistic
   } from '$lib/data/database/books-db/versions/books-db';
-  import { DB_VERSION, PAGE_CHANGE, SKIPKEYLISTENER, SYNCED } from '$lib/data/events';
+  import { PAGE_CHANGE } from '$lib/data/events';
   import { fullscreenManager } from '$lib/data/fullscreen-manager';
   import { logger } from '$lib/data/logger';
   import { showConfirmDialog } from '$lib/components/confirm-dialog.svelte';
@@ -117,7 +116,7 @@
   import { clickOutside } from '$lib/functions/use-click-outside';
   import { convertRemToPixels, dummyFn, isMobile$, limitToRange } from '$lib/functions/utils';
   import { onKeydownReader } from './on-keydown-reader';
-  import { onDestroy, onMount, tick, untrack } from 'svelte';
+  import { onDestroy, tick, untrack } from 'svelte';
   import Fa from 'svelte-fa';
   import {
     clearRange,
@@ -163,15 +162,11 @@
   let showReaderImageGallery = $state(false);
   let wasTOCOpen = $state(false);
   let wasTrackerMenuOpen = $state(false);
-  let syncedResolver: () => void;
   let lastReaderStatisticsSyncAt = 0;
   let readerStatisticsSyncDirty = false;
 
   const readerController = new BookReaderController();
 
-  const syncedPromise = new Promise<void>((resolver) => {
-    syncedResolver = resolver;
-  });
   let fontFeatureSettings = $derived(
     [$enableVerticalFontKerning$ && '"vkrn"', $enableFontVPAL$ && '"vpal"']
       .filter((f) => !!f && $verticalMode$)
@@ -248,11 +243,10 @@
     } finally {
       if (!signal.aborted) {
         logger.debug(
-          `reader/rawBookData: finally — syncedResolver, showSpinner=false, returning ${
+          `reader/rawBookData: finally — showSpinner=false, returning ${
             loadedBook ? `hasHtml=${!!loadedBook.elementHtml}` : 'undefined'
           }`
         );
-        syncedResolver();
         showSpinner = false;
       }
     }
@@ -509,31 +503,6 @@
     });
   });
 
-  $effect(() => {
-    if (browser) {
-      document.dispatchEvent(new CustomEvent(SKIPKEYLISTENER, { detail: $skipKeyDownListener$ }));
-    }
-  });
-
-  /** Experimental Code - May be removed any time without warning */
-  onMount(() => {
-    document.addEventListener('miwake-action', handleAction, false);
-    return () => document.removeEventListener('miwake-action', handleAction, false);
-  });
-
-  function handleAction({ detail }: any) {
-    if (!detail.type) {
-      return;
-    }
-
-    if (detail.type === 'dbVersion') {
-      document.dispatchEvent(new CustomEvent(DB_VERSION, { detail: currentDbVersion }));
-    } else if (detail.type === 'waitForSync') {
-      syncedPromise.finally(() => document.dispatchEvent(new CustomEvent(SYNCED)));
-    } else if (detail.type === 'skipKeyDownListener') {
-      skipKeyDownListener$.next(detail.params.value);
-    }
-  }
   onDestroy(() => {
     flushReaderStatisticsReplication();
     readerImageGallery.clear();
@@ -1380,7 +1349,6 @@
     onbookcharcountchange={(count) => (bookCharCount = count)}
     onisbookmarkscreenchange={(value) => (isBookmarkScreen = value)}
     onbookmark={bookmarkPage}
-    ontrackerPause={() => pauseTracker('jump', true)}
   />
 {/if}
 
