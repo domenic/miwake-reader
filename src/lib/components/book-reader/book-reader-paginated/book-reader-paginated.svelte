@@ -132,6 +132,8 @@
 
   let isResizing = $state(false);
 
+  let resizeIntendedCount: number | undefined;
+
   let isBookmarkScreen = $state(false);
 
   let bookmarkTopAdjustment = $state<string>();
@@ -391,20 +393,29 @@
     }
 
     const targetSectionIndex = untrack(() => readerState.sectionIndex);
+    const intendedCount = untrack(() => resizeIntendedCount ?? previousIntendedCount);
     void waitForNextSectionReady(targetSectionIndex).then((updatedCalculator) => {
       if (width !== currentWidth || height !== currentHeight || !pageManager) return;
 
-      pageManager.scrollTo(0, false);
       updatedCalculator.updateParagraphPos();
 
-      const scrollPos = updatedCalculator.getScrollPosByCharCount(previousIntendedCount);
-
-      if (scrollPos < 0) return;
+      const scrollPos = updatedCalculator.getScrollPosByCharCount(intendedCount);
+      if (scrollPos < 0) {
+        resizeIntendedCount = undefined;
+        isResizing = false;
+        return;
+      }
 
       pageManager.scrollTo(scrollPos, false);
+      resizeIntendedCount = undefined;
       isResizing = false;
     });
   });
+
+  function handleResize() {
+    isResizing = true;
+    resizeIntendedCount ??= previousIntendedCount;
+  }
 
   function handlePageChange(isUser: boolean) {
     if (!calculator) return;
@@ -792,7 +803,7 @@
   </div>
 {/if}
 
-<svelte:window onkeydown={onKeydown} onresize={() => (isResizing = true)} />
+<svelte:window onkeydown={onKeydown} onresize={handleResize} />
 
 <style>
   @import '../styles.css';
