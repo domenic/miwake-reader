@@ -141,6 +141,47 @@ test('reader statistics navigation preserves the active tab and filters to the c
   await expectSummaryBookHidden(page, VALID_BOOK);
 });
 
+test('statistics keyboard shortcuts change the range template and aggregation mode', async ({
+  page
+}) => {
+  await page.clock.install({ time: new Date(`${LATER_STAT_DATE}T11:59:00Z`) });
+  await enableStatistics(page);
+  await importBookFixtures(page, [VALID_BOOK]);
+  await recordStatisticForBook(page, VALID_BOOK, LATER_STAT_DATE, { durationMs: 61_000 });
+
+  await navigateToStatisticsSummary(page);
+
+  const summary = page.getByRole('region', { name: 'Statistics summary' });
+  await expect(page.getByText(`Data for ${LATER_STAT_DATE}`, { exact: true })).toBeVisible({
+    timeout: SYNC_ASSERTION_TIMEOUT
+  });
+  await expect(summary.getByText('Book', { exact: true }).first()).toBeVisible();
+
+  await page.keyboard.press('Shift+T');
+  await expect(page.getByText(`Data for ${LATER_STAT_DATE}`, { exact: true })).toBeVisible();
+
+  await page.keyboard.down('t');
+  await expect(page.getByText('Data for 2026-05-04 - 2026-05-10', { exact: true })).toBeVisible({
+    timeout: SYNC_ASSERTION_TIMEOUT
+  });
+  await page.keyboard.down('t');
+  await page.keyboard.up('t');
+  await expect(page.getByText('Data for 2026-05-04 - 2026-05-10', { exact: true })).toBeVisible();
+
+  await page.keyboard.press('Shift+A');
+  await expect(summary.getByText('Book', { exact: true }).first()).toBeVisible();
+
+  await page.keyboard.down('a');
+  await expect(summary.getByText('Book', { exact: true }).first()).toBeHidden();
+  await page.keyboard.down('a');
+  await page.keyboard.up('a');
+  await expect(summary.getByText('Book', { exact: true }).first()).toBeHidden();
+
+  const settings = await openStatisticsSettings(page);
+  await expect(settings.getByLabel('Template')).toHaveValue('This Week');
+  await expect(settings.getByLabel('Primary Aggregration')).toHaveValue('Date');
+});
+
 test('statistics summary headers stay sticky while the page scrolls', async ({ page }) => {
   await page.setViewportSize({ width: 900, height: 360 });
   await page.clock.install({ time: new Date(`${LATER_STAT_DATE}T11:59:00Z`) });

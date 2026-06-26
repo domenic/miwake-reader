@@ -1,9 +1,5 @@
 import { browser } from '$app/environment';
 import {
-  ReaderImageGalleryAvailableKeybind,
-  type ReaderImageGalleryKeybindMap
-} from '$lib/components/book-reader/book-reader-image-gallery/book-reader-image-gallery-state.svelte';
-import {
   ReadingGoalFrequency,
   TrackerAutoPause,
   TrackerSkipThresholdAction
@@ -23,14 +19,9 @@ import type { UserFont } from '$lib/data/fonts';
 import type { MergeMode } from '$lib/data/merge-mode';
 import type { ReadingGoal } from '$lib/data/reading-goal';
 import { SortDirection, type SortOption } from '$lib/data/sort-types';
-import {
-  StatisticsTabAvailableKeybind,
-  type StatisticsTabKeybindMap
-} from '$lib/data/statistics-tab-keybind';
 import { AutoReplicationType } from '$lib/functions/replication/replication-options';
 import { writableSubject } from '$lib/functions/svelte/store';
 import { map } from 'rxjs';
-import { BookReaderAvailableKeybind, type BookReaderKeybindMap } from './book-reader-keybind';
 import { DatabaseService } from './database/books-db/database.service.svelte';
 import { createBooksDb } from './database/books-db/factory';
 import { FuriganaStyle } from './furigana-style';
@@ -360,57 +351,6 @@ export const lastStatisticsSummarySortDirection$ =
   );
 
 export const fileCountData$ = writableSubject<Record<string, number> | undefined>(undefined);
-
-export const bookReaderKeybindMap$ = writableSubject<BookReaderKeybindMap>({
-  KeyB: BookReaderAvailableKeybind.BOOKMARK,
-  b: BookReaderAvailableKeybind.BOOKMARK,
-  KeyR: BookReaderAvailableKeybind.JUMP_TO_BOOKMARK,
-  r: BookReaderAvailableKeybind.JUMP_TO_BOOKMARK,
-  PageDown: BookReaderAvailableKeybind.NEXT_PAGE,
-  pagedown: BookReaderAvailableKeybind.NEXT_PAGE,
-  PageUp: BookReaderAvailableKeybind.PREV_PAGE,
-  pageup: BookReaderAvailableKeybind.PREV_PAGE,
-  Space: BookReaderAvailableKeybind.AUTO_SCROLL_TOGGLE,
-  ' ': BookReaderAvailableKeybind.AUTO_SCROLL_TOGGLE,
-  KeyA: BookReaderAvailableKeybind.AUTO_SCROLL_INCREASE,
-  a: BookReaderAvailableKeybind.AUTO_SCROLL_INCREASE,
-  KeyD: BookReaderAvailableKeybind.AUTO_SCROLL_DECREASE,
-  d: BookReaderAvailableKeybind.AUTO_SCROLL_DECREASE,
-  KeyN: BookReaderAvailableKeybind.PREV_CHAPTER,
-  n: BookReaderAvailableKeybind.PREV_CHAPTER,
-  KeyM: BookReaderAvailableKeybind.NEXT_CHAPTER,
-  m: BookReaderAvailableKeybind.NEXT_CHAPTER,
-  KeyT: BookReaderAvailableKeybind.SET_READING_POINT,
-  t: BookReaderAvailableKeybind.SET_READING_POINT,
-  KeyP: BookReaderAvailableKeybind.TOGGLE_TRACKING,
-  p: BookReaderAvailableKeybind.TOGGLE_TRACKING,
-  KeyF: BookReaderAvailableKeybind.TOGGLE_TRACKING_FREEZE,
-  f: BookReaderAvailableKeybind.TOGGLE_TRACKING_FREEZE
-});
-
-export const statisticsTabKeybindMap$ = writableSubject<StatisticsTabKeybindMap>({
-  KeyT: StatisticsTabAvailableKeybind.RANGE_TEMPLATE_TOGGLE,
-  t: StatisticsTabAvailableKeybind.RANGE_TEMPLATE_TOGGLE,
-  KeyA: StatisticsTabAvailableKeybind.AGGREGRATION_TOGGLE,
-  a: StatisticsTabAvailableKeybind.AGGREGRATION_TOGGLE
-});
-
-export const readerImageGalleryKeybindMap$ = writableSubject<ReaderImageGalleryKeybindMap>({
-  PageDown: ReaderImageGalleryAvailableKeybind.NEXT_IMAGE,
-  pagedown: ReaderImageGalleryAvailableKeybind.NEXT_IMAGE,
-  ArrowDown: ReaderImageGalleryAvailableKeybind.NEXT_IMAGE,
-  arrowdown: ReaderImageGalleryAvailableKeybind.NEXT_IMAGE,
-  ArrowRight: ReaderImageGalleryAvailableKeybind.NEXT_IMAGE,
-  arrowright: ReaderImageGalleryAvailableKeybind.NEXT_IMAGE,
-  ArrowUp: ReaderImageGalleryAvailableKeybind.PREVIOUS_IMAGE,
-  arrowup: ReaderImageGalleryAvailableKeybind.PREVIOUS_IMAGE,
-  ArrowLeft: ReaderImageGalleryAvailableKeybind.PREVIOUS_IMAGE,
-  arrowleft: ReaderImageGalleryAvailableKeybind.PREVIOUS_IMAGE,
-  PageUp: ReaderImageGalleryAvailableKeybind.PREVIOUS_IMAGE,
-  pageup: ReaderImageGalleryAvailableKeybind.PREVIOUS_IMAGE,
-  Escape: ReaderImageGalleryAvailableKeybind.CLOSE,
-  escape: ReaderImageGalleryAvailableKeybind.CLOSE
-});
 
 const db = browser ? createBooksDb() : import('fake-indexeddb/auto').then(() => createBooksDb());
 

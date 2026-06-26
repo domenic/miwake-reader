@@ -67,12 +67,34 @@ test('book data loading formats reader images and keeps spoiler gallery state in
   expect(galleryImageURLs).toEqual([coverURL, svgURL, spoilerOneURL, spoilerTwoURL]);
   expect(galleryImageURLs).not.toContain(inlineURL);
 
+  await expect(page.getByText('1 / 4')).toBeVisible();
+  await page.keyboard.press('Shift+PageDown');
+  await expect(page.getByText('1 / 4')).toBeVisible();
+
+  await page.keyboard.down('PageDown');
+  await expect(page.getByText('2 / 4')).toBeVisible();
+  await page.keyboard.down('PageDown');
+  await page.keyboard.up('PageDown');
+  await expect(page.getByText('3 / 4')).toBeVisible();
+  await page.keyboard.press('PageUp');
+  await expect(page.getByText('2 / 4')).toBeVisible();
+
+  await page.keyboard.press('b');
+  await page.keyboard.press('Escape');
+  const headerAfterGallery = await showReaderHeader(page);
+  await expect(headerAfterGallery.getByRole('button', { name: 'Return to Bookmark' })).toHaveCount(
+    0
+  );
+  await headerAfterGallery.getByRole('button', { name: 'Images' }).click();
+  await expect(page.getByTitle('Close image gallery')).toBeVisible();
+
   await expect(page.getByRole('button', { name: 'Reveal gallery image 1' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Reveal gallery image 2' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Reveal gallery image 3' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Reveal gallery image 4' })).toBeVisible();
 
-  await closeImageGallery(page);
+  await page.keyboard.press('Escape');
+  await expect(page.getByTitle('Close image gallery')).toHaveCount(0);
   await revealReaderImage(page, SPOILER_ONE_ALT);
   await openImageGallery(page);
 

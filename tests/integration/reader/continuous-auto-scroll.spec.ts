@@ -16,6 +16,8 @@ test('continuous reader auto-scroll starts and stops from the keyboard shortcut'
   await importBookFixtures(page, [LONG_BOOK]);
   await openBookFromManage(page, LONG_BOOK);
   await expectBookReaderText(page, LONG_BOOK);
+  await showReaderHeader(page);
+  await page.locator('.book-content').click({ position: { x: 10, y: 10 } });
 
   const startingScrollY = await scrollY(page);
   await page.keyboard.press('Space');
@@ -24,6 +26,39 @@ test('continuous reader auto-scroll starts and stops from the keyboard shortcut'
   await page.keyboard.press('Space');
   const stoppedScrollY = await scrollY(page);
   await expectScrollToStayStopped(page, stoppedScrollY);
+});
+
+test('continuous reader page shortcuts scroll forward and back', async ({ page }) => {
+  await useContinuousReader(page);
+  await importBookFixtures(page, [LONG_BOOK]);
+  await openBookFromManage(page, LONG_BOOK);
+  await expectBookReaderText(page, LONG_BOOK);
+
+  await page.mouse.wheel(0, 1_000);
+  const scrolledY = await expectScrollYChangedFrom(page, 0);
+
+  await page.locator('body').press('PageUp');
+  const afterPageUpScrollY = await expectScrollYLessThan(page, scrolledY - 50);
+
+  await page.locator('body').press('PageDown');
+  await expect.poll(() => scrollY(page)).toBeGreaterThan(afterPageUpScrollY + 50);
+});
+
+test('continuous reader keyboard shortcuts adjust auto-scroll speed', async ({ page }) => {
+  await useContinuousReader(page);
+  await importBookFixtures(page, [LONG_BOOK]);
+  await openBookFromManage(page, LONG_BOOK);
+  await expectBookReaderText(page, LONG_BOOK);
+
+  await page.keyboard.press('Shift+A');
+  const header = await showReaderHeader(page);
+  await expect(header.getByTitle('Current autoscroll speed')).toHaveText('20x');
+
+  await page.keyboard.press('a');
+  await expect(header.getByTitle('Current autoscroll speed')).toHaveText('21x');
+
+  await page.keyboard.press('d');
+  await expect(header.getByTitle('Current autoscroll speed')).toHaveText('20x');
 });
 
 test('continuous reader shows auto-scroll tracker statistics while auto-scrolling', async ({
@@ -63,6 +98,63 @@ test('continuous reader auto-bookmarks after scrolling stops', async ({ page }) 
   await expect(returnToBookmark).toBeVisible();
 });
 
+test('continuous reader bookmark shortcuts create and return to a bookmark', async ({ page }) => {
+  await useContinuousReader(page);
+  await importBookFixtures(page, [LONG_BOOK]);
+  await openBookFromManage(page, LONG_BOOK);
+  await expectBookReaderText(page, LONG_BOOK);
+
+  await expect(page.getByRole('button', { name: 'Return to Bookmark' })).toHaveCount(0);
+
+  await page.keyboard.press('Shift+B');
+  await expect(page.getByRole('button', { name: 'Return to Bookmark' })).toHaveCount(0);
+
+  await page.mouse.wheel(0, 1_000);
+  const bookmarkedScrollY = await expectScrollYChangedFrom(page, 0);
+
+  await page.keyboard.press('b');
+
+  const header = await showReaderHeader(page);
+  await expect(header.getByRole('button', { name: 'Return to Bookmark' })).toBeVisible();
+
+  await page.mouse.wheel(0, 1_000);
+  await expectScrollYChangedFrom(page, bookmarkedScrollY);
+
+  await page.keyboard.press('r');
+  await expect.poll(() => scrollY(page)).toBe(bookmarkedScrollY);
+});
+
+test('continuous reader tracker toggle shortcut pauses and resumes tracking', async ({ page }) => {
+  await enableStatistics(page);
+  await useContinuousReader(page);
+  await importBookFixtures(page, [LONG_BOOK]);
+  await openBookFromManage(page, LONG_BOOK);
+  await expectBookReaderText(page, LONG_BOOK);
+
+  await expect(page.getByRole('button', { name: 'Resume reading tracker' })).toBeVisible();
+
+  await page.keyboard.press('Shift+P');
+  await expect(page.getByRole('button', { name: 'Resume reading tracker' })).toBeVisible();
+
+  await page.keyboard.press('p');
+  await expect(page.getByRole('button', { name: 'Pause reading tracker' })).toBeVisible();
+
+  await page.keyboard.press('p');
+  await expect(page.getByRole('button', { name: 'Resume reading tracker' })).toBeVisible();
+});
+
+test('continuous reader tracker freeze shortcut freezes the current position', async ({ page }) => {
+  await enableStatistics(page);
+  await useContinuousReader(page);
+  await importBookFixtures(page, [LONG_BOOK]);
+  await openBookFromManage(page, LONG_BOOK);
+  await expectBookReaderText(page, LONG_BOOK);
+
+  await page.keyboard.press('f');
+  await page.getByRole('button', { name: 'Open reading statistics' }).click();
+  await expect(page.getByText('Frozen Position')).toBeVisible();
+});
+
 async function useContinuousReader(
   page: Page,
   settings: { autoBookmark?: string; autoBookmarkTime?: string } = {}
@@ -76,6 +168,16 @@ async function useContinuousReader(
 
 function scrollY(page: Page) {
   return page.evaluate(() => window.scrollY);
+}
+
+async function expectScrollYChangedFrom(page: Page, startingScrollY: number) {
+  await expect.poll(() => scrollY(page)).toBeGreaterThan(startingScrollY);
+  return scrollY(page);
+}
+
+async function expectScrollYLessThan(page: Page, targetScrollY: number) {
+  await expect.poll(() => scrollY(page)).toBeLessThan(targetScrollY);
+  return scrollY(page);
 }
 
 async function expectScrollToStayStopped(page: Page, stoppedScrollY: number) {

@@ -1,15 +1,7 @@
-export enum ReaderImageGalleryAvailableKeybind {
-  PREVIOUS_IMAGE = 'previousImage',
-  NEXT_IMAGE = 'nextImage',
-  CLOSE = 'close'
-}
-
 export interface ReaderImageGalleryPicture {
   url: string;
   unspoilered: boolean;
 }
-
-export type ReaderImageGalleryKeybindMap = Record<string, ReaderImageGalleryAvailableKeybind>;
 
 class ReaderImageGallery {
   #state = $state({

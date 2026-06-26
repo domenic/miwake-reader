@@ -13,7 +13,6 @@
     autoBookmarkTime$,
     autoPositionOnResize$,
     avoidPageBreak$,
-    bookReaderKeybindMap$,
     database,
     enableTapEdgeToFlip$,
     enableTextJustification$,
@@ -115,7 +114,7 @@
   import { getDateKey } from '$lib/functions/statistic-util';
   import { clickOutside } from '$lib/functions/use-click-outside';
   import { convertRemToPixels, dummyFn, isMobile$, limitToRange } from '$lib/functions/utils';
-  import { onKeydownReader } from './on-keydown-reader';
+  import { handleReaderKeydown } from '$lib/components/book-reader/book-reader-keybind';
   import { onDestroy, tick, untrack } from 'svelte';
   import Fa from 'svelte-fa';
   import {
@@ -476,7 +475,7 @@
 
   $effect(() => {
     if (frozenPosition !== -1 && exploredCharCount >= frozenPosition) {
-      if (skipFirstFreezeChange) {
+      if (untrack(() => skipFirstFreezeChange)) {
         skipFirstFreezeChange = false;
       } else {
         frozenPosition = -1;
@@ -765,38 +764,19 @@
   }
 
   function onKeydown(ev: KeyboardEvent) {
-    if (
-      readerActionPending ||
-      $skipKeyDownListener$ ||
-      ev.altKey ||
-      ev.ctrlKey ||
-      ev.shiftKey ||
-      ev.metaKey ||
-      ev.repeat
-    ) {
-      return;
-    }
-
-    const result = onKeydownReader(
-      ev,
-      bookReaderKeybindMap$.getValue(),
+    handleReaderKeydown(ev, {
       bookmarkPage,
-      scrollToBookmark,
-      (x) => multiplier$.next(multiplier$.getValue() + x),
-      readerController,
-      $verticalMode$,
       changeChapter,
+      freezeTrackerPosition,
       handleSetCustomReadingPoint,
-      toggleTrackerPause,
-      freezeTrackerPosition
-    );
-
-    if (!result) return;
-
-    if (document.activeElement instanceof HTMLElement) {
-      document.activeElement.blur();
-    }
-    ev.preventDefault();
+      isPaginated,
+      isVertical: $verticalMode$,
+      multiplierOffsetFn: (x) => multiplier$.next(multiplier$.getValue() + x),
+      readerController,
+      scrollToBookmark,
+      shortcutsDisabled: readerActionPending || $skipKeyDownListener$,
+      toggleTracker: toggleTrackerPause
+    });
   }
 
   function beginReaderAction() {
