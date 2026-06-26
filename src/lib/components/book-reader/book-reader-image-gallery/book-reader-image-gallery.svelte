@@ -1,12 +1,8 @@
 <script lang="ts">
-  import { onKeyDownReaderImageGallery } from '../../../../routes/b/on-keydown-reader';
   import { faChevronLeft, faChevronRight, faXmark } from '@fortawesome/free-solid-svg-icons';
+  import { handleImageGalleryKeydown } from '$lib/components/book-reader/book-reader-image-gallery/book-reader-image-gallery-keybind';
   import { readerImageGallery } from '$lib/components/book-reader/book-reader-image-gallery/book-reader-image-gallery-state.svelte';
-  import {
-    hideSpoilerImage$,
-    readerImageGalleryKeybindMap$,
-    skipKeyDownListener$
-  } from '$lib/data/store';
+  import { hideSpoilerImage$, skipKeyDownListener$ } from '$lib/data/store';
   import { onMount } from 'svelte';
   import { quintInOut } from 'svelte/easing';
   import Fa from 'svelte-fa';
@@ -47,22 +43,14 @@
     };
   });
 
-  function onKeyDown(ev: KeyboardEvent) {
-    const result = onKeyDownReaderImageGallery(
-      ev,
-      readerImageGalleryKeybindMap$.getValue(),
-      previousImage,
+  function onKeydown(ev: KeyboardEvent) {
+    // The gallery is the active shortcut surface while open; it sets `skipKeyDownListener$`
+    // to disable background reader shortcuts, not its own Escape/arrow handling.
+    handleImageGalleryKeydown(ev, {
+      close: closeReaderImageGallery,
       nextImage,
-      closeReaderImageGallery
-    );
-
-    if (!result) return;
-
-    if (document.activeElement instanceof HTMLElement) {
-      document.activeElement.blur();
-    }
-
-    ev.preventDefault();
+      previousImage
+    });
   }
 
   function onWheel(ev: WheelEvent) {
@@ -116,7 +104,7 @@
   }
 </script>
 
-<svelte:window onkeydown={onKeyDown} />
+<svelte:window onkeydown={onKeydown} />
 <div class="flex size-full writing-horizontal-tb fixed top-0 left-0 z-60" style:color={fontColor}>
   <div
     tabindex="-1"

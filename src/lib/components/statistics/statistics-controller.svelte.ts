@@ -1,4 +1,4 @@
-import { onKeyUpStatisticsTab } from '../../../routes/b/on-keydown-reader';
+import { handleStatisticsKeydown } from '$lib/components/statistics/statistics-keybind';
 import { aggregateStatistics } from '$lib/components/statistics/statistics-aggregation';
 import type {
   StatisticsDeleteRequest,
@@ -34,8 +34,7 @@ import {
   lastStatisticsRangeTemplate$,
   lastStatisticsStartDate$,
   skipKeyDownListener$,
-  startDayHoursForTracker$,
-  statisticsTabKeybindMap$
+  startDayHoursForTracker$
 } from '$lib/data/store';
 import {
   advanceDateDays,
@@ -284,32 +283,12 @@ export class StatisticsController {
     return titles;
   }
 
-  handleKeyUp(ev: KeyboardEvent) {
-    if (
-      this.#skipKeyDownListener.current ||
-      ev.altKey ||
-      ev.ctrlKey ||
-      ev.shiftKey ||
-      ev.metaKey ||
-      ev.repeat
-    ) {
-      return;
-    }
-
-    const result = onKeyUpStatisticsTab(
-      ev,
-      statisticsTabKeybindMap$.getValue(),
-      () => this.toggleStatisticsRangeTemplate(),
-      () => this.toggleStatisticsDataAggregationMode()
-    );
-
-    if (!result) return;
-
-    if (document.activeElement instanceof HTMLElement) {
-      document.activeElement.blur();
-    }
-
-    ev.preventDefault();
+  handleKeydown(ev: KeyboardEvent) {
+    handleStatisticsKeydown(ev, {
+      shortcutsDisabled: this.#skipKeyDownListener.current,
+      toggleAggregationMode: () => this.toggleStatisticsDataAggregationMode(),
+      toggleStatisticsRangeTemplate: () => this.toggleStatisticsRangeTemplate()
+    });
   }
 
   copyStatisticsData(dataKeyToCopy: keyof BookStatistic) {

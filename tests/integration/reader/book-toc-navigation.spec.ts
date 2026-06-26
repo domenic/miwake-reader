@@ -22,6 +22,27 @@ test('table of contents navigation jumps to the selected chapter', async ({ page
   await expectCurrentFooterPage(page).toBeGreaterThan(1_000);
 });
 
+test('reader chapter shortcuts navigate between chapters', async ({ page }) => {
+  await useReaderSettings(page, {
+    viewMode: 'Paginated',
+    writingMode: 'Horizontal'
+  });
+  await importBookFixtures(page, [LONG_BOOK]);
+  await openBookFromManage(page, LONG_BOOK);
+  await expectBookReaderText(page, LONG_BOOK);
+
+  await expectCurrentFooterPage(page).toBe(0);
+
+  await page.keyboard.press('Shift+M');
+  await expectCurrentFooterPage(page).toBe(0);
+
+  await page.keyboard.press('m');
+  await expectCurrentFooterPage(page).toBe(longBookChapterStartCharacter(2));
+
+  await page.keyboard.press('n');
+  await expectCurrentFooterPage(page).toBe(0);
+});
+
 test('table of contents shows imported chapter bounds and resets progress after navigation', async ({
   page
 }) => {

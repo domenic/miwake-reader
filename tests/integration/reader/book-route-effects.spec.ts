@@ -96,9 +96,10 @@ test('continuous reader lets users set and show a custom reading point', async (
   await openBookFromManage(page, LONG_BOOK);
   await expectBookReaderText(page, LONG_BOOK);
 
-  const header = await showReaderHeader(page);
-  await header.getByRole('button', { name: /Point/ }).click();
-  await page.getByRole('button', { name: 'Set Point', exact: true }).click();
+  await page.keyboard.press('Shift+T');
+  await expect(page.locator('body')).not.toHaveClass(/cursor-crosshair/);
+
+  await page.keyboard.press('t');
   await expect(page.locator('body')).toHaveClass(/cursor-crosshair/);
 
   const bookContentBox = await page.locator('.book-content').boundingBox();

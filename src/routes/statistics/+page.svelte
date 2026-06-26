@@ -126,7 +126,7 @@
 <svelte:head>
   <title>{formatPageTitle(statisticsPageTitle)}</title>
 </svelte:head>
-<svelte:window onkeyup={(ev) => controller.handleKeyUp(ev)} />
+<svelte:window onkeydown={(ev) => controller.handleKeydown(ev)} />
 <StatisticsHeader
   {activeView}
   titleFilterEnabled={controller.titleFilterEnabled}

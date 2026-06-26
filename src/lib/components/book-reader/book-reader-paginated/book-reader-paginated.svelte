@@ -588,36 +588,6 @@
     pageManager.flipPage(nextPage ? 1 : -1);
   }
 
-  function onKeydown(ev: KeyboardEvent) {
-    if (
-      !pageManager ||
-      $skipKeyDownListener$ ||
-      ev.altKey ||
-      ev.ctrlKey ||
-      ev.shiftKey ||
-      ev.metaKey ||
-      ev.repeat
-    )
-      return;
-    switch (ev.code) {
-      case 'ArrowLeft':
-      case 'KeyA':
-        pageManager[verticalMode ? 'nextPage' : 'prevPage']();
-        break;
-      case 'ArrowRight':
-      case 'KeyD':
-        pageManager[verticalMode ? 'prevPage' : 'nextPage']();
-        break;
-      case 'ArrowUp':
-        pageManager.prevPage();
-        break;
-      case 'ArrowDown':
-        pageManager.nextPage();
-        break;
-      default:
-    }
-  }
-
   function goToChapter(chapterId: string) {
     const nextSectionIndex = sections.findIndex(
       (section) => section.id === chapterId || section.querySelector(`[id="${chapterId}"]`)
@@ -710,7 +680,7 @@
   </div>
 {/if}
 
-<svelte:window onkeydown={onKeydown} onresize={handleResize} />
+<svelte:window onresize={handleResize} />
 
 <style>
   @import '../styles.css';
