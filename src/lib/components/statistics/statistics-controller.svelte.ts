@@ -21,6 +21,7 @@ import { showConfirmDialog } from '$lib/components/confirm-dialog.svelte';
 import { showErrorDialog } from '$lib/components/log-report-dialog.svelte';
 import { logger } from '$lib/data/logger';
 import { getDateRangeLabel } from '$lib/data/reading-goal';
+import { appShortcuts } from '$lib/data/app-shortcuts.svelte';
 import { getSyncEndpoint } from '$lib/data/storage/storage-handler-factory';
 import { userDeleteStatisticEntries, userUpdateStatistic } from '$lib/data/library';
 import { StorageDataType, SyncEndpointType } from '$lib/data/storage/storage-types';
@@ -33,7 +34,6 @@ import {
   lastStatisticsEndDate$,
   lastStatisticsRangeTemplate$,
   lastStatisticsStartDate$,
-  skipKeyDownListener$,
   startDayHoursForTracker$
 } from '$lib/data/store';
 import {
@@ -90,7 +90,6 @@ export class StatisticsController {
   #lastStatisticsEndDate = fromSubject(lastStatisticsEndDate$);
   #lastStatisticsRangeTemplate = fromSubject(lastStatisticsRangeTemplate$);
   #lastStatisticsStartDate = fromSubject(lastStatisticsStartDate$);
-  #skipKeyDownListener = fromSubject(skipKeyDownListener$);
   #startDayHoursForTracker = fromSubject(startDayHoursForTracker$);
   #bookIdsByTitle = new SvelteMap<string, number[]>();
   #bookTitlesById = new SvelteMap<number, string>();
@@ -285,7 +284,7 @@ export class StatisticsController {
 
   handleKeydown(ev: KeyboardEvent) {
     handleStatisticsKeydown(ev, {
-      shortcutsDisabled: this.#skipKeyDownListener.current,
+      shortcutsDisabled: appShortcuts.disabled,
       toggleAggregationMode: () => this.toggleStatisticsDataAggregationMode(),
       toggleStatisticsRangeTemplate: () => this.toggleStatisticsRangeTemplate()
     });

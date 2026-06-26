@@ -6,7 +6,7 @@ import {
   LONG_BOOK,
   openBookFromManage
 } from '../helpers/fixtures.ts';
-import { showReaderHeader } from '../helpers/reader.ts';
+import { openTOC, showReaderHeader } from '../helpers/reader.ts';
 import { useReaderSettings, enableStatistics } from '../helpers/workflows.ts';
 
 test('continuous reader auto-scroll starts and stops from the keyboard shortcut', async ({
@@ -124,6 +124,37 @@ test('continuous reader bookmark shortcuts create and return to a bookmark', asy
   await expect.poll(() => scrollY(page)).toBe(bookmarkedScrollY);
 });
 
+test('reader shortcuts are ignored while the table of contents is open', async ({ page }) => {
+  await useContinuousReader(page);
+  await importBookFixtures(page, [LONG_BOOK]);
+  await openBookFromManage(page, LONG_BOOK);
+  await expectBookReaderText(page, LONG_BOOK);
+
+  await openTOC(page);
+  await page.keyboard.press('b');
+  await page.getByTitle('Close table of contents').click();
+
+  const header = await showReaderHeader(page);
+  await expect(header.getByRole('button', { name: 'Return to Bookmark' })).toHaveCount(0);
+});
+
+test('reader shortcuts are ignored while the jump dialog is open', async ({ page }) => {
+  await useContinuousReader(page);
+  await importBookFixtures(page, [LONG_BOOK]);
+  await openBookFromManage(page, LONG_BOOK);
+  await expectBookReaderText(page, LONG_BOOK);
+
+  const header = await showReaderHeader(page);
+  await header.getByRole('button', { name: 'Jump' }).click();
+
+  const dialog = page.getByRole('dialog', { name: 'Jump to character' });
+  await dialog.getByLabel('Character position').focus();
+  await page.keyboard.press('b');
+  await dialog.getByRole('button', { name: 'Cancel' }).click();
+
+  await expect(header.getByRole('button', { name: 'Return to Bookmark' })).toHaveCount(0);
+});
+
 test('continuous reader tracker toggle shortcut pauses and resumes tracking', async ({ page }) => {
   await enableStatistics(page);
   await useContinuousReader(page);
@@ -153,6 +184,20 @@ test('continuous reader tracker freeze shortcut freezes the current position', a
   await page.keyboard.press('f');
   await page.getByRole('button', { name: 'Open reading statistics' }).click();
   await expect(page.getByText('Frozen Position')).toBeVisible();
+});
+
+test.describe('touch devices', () => {
+  test.use({ hasTouch: true, viewport: { width: 900, height: 700 } });
+
+  test('continuous reader hides the desktop auto-scroll multiplier', async ({ page }) => {
+    await useContinuousReader(page);
+    await importBookFixtures(page, [LONG_BOOK]);
+    await openBookFromManage(page, LONG_BOOK);
+    await expectBookReaderText(page, LONG_BOOK);
+
+    const header = await showReaderHeader(page);
+    await expect(header.getByText('20x', { exact: true })).toHaveCount(0);
+  });
 });
 
 async function useContinuousReader(

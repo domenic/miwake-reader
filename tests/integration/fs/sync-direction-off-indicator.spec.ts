@@ -16,3 +16,18 @@ test('sync indicator shows a neutral off state and links to sync direction setti
   await expect(syncDirection).toBeVisible();
   await expect(syncDirection.getByLabel('Off')).toBeChecked();
 });
+
+test('sync indicator reacts to browser online state', async ({ context, page }) => {
+  await connectFS(page);
+  await navigateToManage(page);
+
+  await expect(page.getByRole('button', { name: /^(Up to date|Synced)/ })).toBeVisible();
+
+  await context.setOffline(true);
+  await expect(
+    page.getByRole('button', { name: "Offline — changes will sync when you're back online" })
+  ).toBeVisible();
+
+  await context.setOffline(false);
+  await expect(page.getByRole('button', { name: /^(Up to date|Synced)/ })).toBeVisible();
+});

@@ -8,7 +8,7 @@
   import { baseHeaderClasses, headerDividerClasses } from '$lib/css-classes';
   import { SortDirection } from '$lib/data/sort-types';
   import { FilesystemStorageHandler } from '$lib/data/storage/handler/filesystem-handler';
-  import { booklistSortOptions$, fileCountData$ } from '$lib/data/store';
+  import { booklistSortOptions$ } from '$lib/data/store';
   import { inputAllowDirectory } from '$lib/functions/file-dom/input-allow-directory';
   import { inputFile } from '$lib/functions/file-dom/input-file';
   import {
@@ -40,6 +40,7 @@
     replicationToProgress: number;
     replicationProgressRemaining: string;
     cancelTooltip: string;
+    fileCountData?: Record<string, number>;
     onselectAllClick?: () => void;
     onremoveClick?: () => void;
     onbugReportClick?: () => void;
@@ -56,6 +57,7 @@
     replicationToProgress,
     replicationProgressRemaining,
     cancelTooltip,
+    fileCountData = $bindable(),
     onselectAllClick,
     onremoveClick,
     onbugReportClick,
@@ -89,7 +91,7 @@
 
   async function setCountData(fileList: FileList) {
     try {
-      $fileCountData$ = JSON.parse(await FilesystemStorageHandler.readFileObject(fileList[0]));
+      fileCountData = JSON.parse(await FilesystemStorageHandler.readFileObject(fileList[0]));
     } catch ({ message }: any) {
       console.error(`failed to read file: ${message}`);
     }
@@ -267,7 +269,7 @@
           {#if showLoadCount}
             <button
               type="button"
-              style:color={$fileCountData$ ? 'red' : null}
+              style:color={fileCountData ? 'red' : undefined}
               onclick={() => countImportElm?.click()}>C</button
             >
           {/if}

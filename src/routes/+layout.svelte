@@ -7,9 +7,8 @@
   import { userFontsCacheName, type UserFont } from '$lib/data/fonts';
   import { reconcileUserFontCache } from '$lib/functions/reconcile-user-font-cache';
   import { loadConnectionsFromDb } from '$lib/data/sync/source-manager';
-  import { syncEngineStart } from '$lib/data/sync/sync-engine';
-  import { fontFamilyGroupOne$, isOnline$, userFonts$ } from '$lib/data/store';
-  import { isMobile, isMobile$ } from '$lib/functions/utils';
+  import { syncEngineHandleOnline, syncEngineStart } from '$lib/data/sync/sync-engine';
+  import { fontFamilyGroupOne$, userFonts$ } from '$lib/data/store';
   import { MetaTags } from 'svelte-meta-tags';
   import '../app.css';
 
@@ -23,7 +22,6 @@
 
   $effect(() => {
     if (browser) {
-      isMobile$.next(isMobile(window));
       addUserFonts($userFonts$);
     }
   });
@@ -80,7 +78,7 @@
   }
 </script>
 
-<svelte:window bind:online={$isOnline$} />
+<svelte:window ononline={syncEngineHandleOnline} />
 
 <MetaTags
   title={appName}

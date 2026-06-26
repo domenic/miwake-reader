@@ -13,6 +13,7 @@
   import BookReaderPaginated from './book-reader-paginated/book-reader-paginated.svelte';
   import { enableReaderWakeLock$, enableTapEdgeToFlip$ } from '$lib/data/store';
   import { onDestroy } from 'svelte';
+  import { MediaQuery } from 'svelte/reactivity';
 
   interface BoxEdges {
     bottom: number;
@@ -66,6 +67,8 @@
     onisbookmarkscreenchange?: (value: boolean) => void;
     onbookmark?: () => void;
   }
+
+  const pwaFullscreenDisplayMode = new MediaQuery('display-mode: fullscreen');
 
   let {
     htmlContent,
@@ -275,7 +278,7 @@
   function isInPWADisplayMode() {
     // The manifest uses `display: fullscreen`, so this is PWA display mode, not the browser
     // Fullscreen API. Toggling reader fullscreen should not enable PWA-only image behavior.
-    return navigator.standalone || window.matchMedia('(display-mode: fullscreen)').matches;
+    return navigator.standalone || pwaFullscreenDisplayMode.current;
   }
 </script>
 

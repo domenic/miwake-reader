@@ -25,12 +25,13 @@
   } from '$lib/components/book-reader/book-reading-tracker/tracker-state.svelte';
   import Popover from '$lib/components/popover/popover.svelte';
   import { showErrorDialog } from '$lib/components/log-report-dialog.svelte';
-  import { autoReplication$, isOnline$, statisticsEnabled$ } from '$lib/data/store';
+  import { autoReplication$, statisticsEnabled$ } from '$lib/data/store';
   import { connectCloud } from '$lib/data/sync/source-manager';
   import { retryAfterReconnect } from '$lib/data/sync/sync-engine';
   import { deriveIndicatorState } from '$lib/data/sync/sync-state';
   import { syncState } from '$lib/data/sync/sync-store.svelte';
   import { formatRelativeTimeLive } from '$lib/components/settings/sync/sync-utils';
+  import { online } from 'svelte/reactivity/window';
 
   let reconnecting = $state(false);
 
@@ -38,7 +39,7 @@
     deriveIndicatorState({
       location: syncState.location,
       health: syncState.health,
-      online: $isOnline$,
+      online: online.current !== false,
       direction: $autoReplication$,
       pending: syncState.isSyncPending,
       syncing: syncState.isSyncing

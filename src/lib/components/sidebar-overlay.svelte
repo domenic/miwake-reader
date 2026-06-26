@@ -1,13 +1,8 @@
-<script module lang="ts">
-  let openOverlayCount = 0;
-  let skipKeyDownBeforeOverlay = false;
-</script>
-
 <script lang="ts">
   import type { Snippet } from 'svelte';
   import { browser } from '$app/environment';
   import DialogFormButton from '$lib/components/dialog-form-button.svelte';
-  import { skipKeyDownListener$ } from '$lib/data/store';
+  import { appShortcuts } from '$lib/data/app-shortcuts.svelte';
   import { onDestroy } from 'svelte';
 
   interface Props {
@@ -32,29 +27,19 @@
 
   let dialogElement = $state<HTMLDialogElement>();
   let wasOpen = $state(false);
+  let restoreAppShortcuts: (() => void) | undefined;
   const closeButtonClasses = $derived(
     `absolute top-4 z-10 flex items-center transition-colors hover:text-red-500 focus-visible:text-red-500 ${side === 'left' ? 'right-4' : 'left-4'}`
   );
 
-  function startSkipKeyDownListener() {
-    if (openOverlayCount === 0) {
-      skipKeyDownBeforeOverlay = skipKeyDownListener$.getValue();
-    }
-
-    openOverlayCount += 1;
-    skipKeyDownListener$.next(true);
+  function disableAppShortcuts() {
+    restoreAppShortcuts?.();
+    restoreAppShortcuts = appShortcuts.disable();
   }
 
-  function stopSkipKeyDownListener() {
-    if (openOverlayCount === 0) {
-      return;
-    }
-
-    openOverlayCount -= 1;
-
-    if (openOverlayCount === 0) {
-      skipKeyDownListener$.next(skipKeyDownBeforeOverlay);
-    }
+  function enableAppShortcuts() {
+    restoreAppShortcuts?.();
+    restoreAppShortcuts = undefined;
   }
 
   $effect(() => {
@@ -79,9 +64,9 @@
     }
 
     if (open && !wasOpen) {
-      startSkipKeyDownListener();
+      disableAppShortcuts();
     } else if (!open && wasOpen) {
-      stopSkipKeyDownListener();
+      enableAppShortcuts();
     }
 
     wasOpen = open;
@@ -89,7 +74,7 @@
 
   onDestroy(() => {
     if (wasOpen) {
-      stopSkipKeyDownListener();
+      enableAppShortcuts();
     }
   });
 </script>

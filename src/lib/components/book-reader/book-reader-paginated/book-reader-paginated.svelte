@@ -2,20 +2,20 @@
   import { browser } from '$app/environment';
   import { bookTOCState } from '$lib/components/book-reader/book-toc/book-toc-state.svelte';
   import type { BooksDbBookmarkData } from '$lib/data/database/books-db/versions/books-db';
+  import { deviceEnvironment } from '$lib/data/device-environment.svelte';
   import { isStoredFont } from '$lib/data/fonts';
   import { FuriganaStyle } from '$lib/data/furigana-style';
   import { logger } from '$lib/data/logger';
+  import { appShortcuts } from '$lib/data/app-shortcuts.svelte';
   import type { TextMarginMode } from '$lib/data/text-margin-mode';
   import {
     disableWheelNavigation$,
     firstDimensionMargin$,
     selectionToBookmarkEnabled$,
-    skipKeyDownListener$,
     swipeThreshold$,
     userFonts$
   } from '$lib/data/store';
   import { clearRange, createRange, pulseElement } from '$lib/functions/range-util';
-  import { isMobile$ } from '$lib/functions/utils';
   import { faBookmark, faSpinner } from '@fortawesome/free-solid-svg-icons';
   import Fa from 'svelte-fa';
   import { useSwipe, type SwipeCustomEvent } from 'svelte-gestures';
@@ -369,7 +369,7 @@
   onMount(() => {
     let lastWheelFlip = 0;
     const handleWheel = (ev: WheelEvent) => {
-      if ($disableWheelNavigation$ || $skipKeyDownListener$) return;
+      if ($disableWheelNavigation$ || appShortcuts.disabled) return;
 
       const now = performance.now();
       if (now - lastWheelFlip < 50) return;
@@ -541,8 +541,8 @@
         bookmarkRightAdjustment = undefined;
         bookmarkLeftAdjustment =
           result.bookmarkPos.left > 0
-            ? `calc(${result.bookmarkPos.left}px - ${$isMobile$ ? '15' : '20'}px)`
-            : `calc(${Math.max($isMobile$ ? 15 : 20, dimentionAdjustment)}px)`;
+            ? `calc(${result.bookmarkPos.left}px - ${deviceEnvironment.isMobile ? '15' : '20'}px)`
+            : `calc(${Math.max(deviceEnvironment.isMobile ? 15 : 20, dimentionAdjustment)}px)`;
       }
     } else {
       setDefaultBookmarkPositions(0);
@@ -581,7 +581,7 @@
   }
 
   function onSwipe(ev: SwipeCustomEvent) {
-    if (!pageManager || $skipKeyDownListener$) return;
+    if (!pageManager || appShortcuts.disabled) return;
     if (ev.detail.direction !== 'left' && ev.detail.direction !== 'right') return;
     const swipeLeft = ev.detail.direction === 'left';
     const nextPage = verticalMode ? !swipeLeft : swipeLeft;

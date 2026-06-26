@@ -2,9 +2,11 @@
   import { faChevronLeft, faChevronRight, faXmark } from '@fortawesome/free-solid-svg-icons';
   import { handleImageGalleryKeydown } from '$lib/components/book-reader/book-reader-image-gallery/book-reader-image-gallery-keybind';
   import { readerImageGallery } from '$lib/components/book-reader/book-reader-image-gallery/book-reader-image-gallery-state.svelte';
-  import { hideSpoilerImage$, skipKeyDownListener$ } from '$lib/data/store';
+  import { appShortcuts } from '$lib/data/app-shortcuts.svelte';
+  import { hideSpoilerImage$ } from '$lib/data/store';
   import { onMount } from 'svelte';
   import { quintInOut } from 'svelte/easing';
+  import { MediaQuery } from 'svelte/reactivity';
   import Fa from 'svelte-fa';
   import { fly } from 'svelte/transition';
 
@@ -18,7 +20,8 @@
 
   let contentContainer: HTMLElement = $state(undefined as any);
   let imageContainer: HTMLElement = $state(undefined as any);
-  let selectedImageIndex = $state(window.matchMedia('(min-width: 1024px)').matches ? 0 : -1);
+  const galleryPreviewVisible = new MediaQuery('min-width: 1024px');
+  let selectedImageIndex = $state(galleryPreviewVisible.current ? 0 : -1);
 
   let selectedImage = $derived(readerImageGallery.pictures[selectedImageIndex]);
 
@@ -29,7 +32,7 @@
   });
 
   onMount(() => {
-    $skipKeyDownListener$ = true;
+    const restoreAppShortcuts = appShortcuts.disable();
 
     const handleWheel = (ev: WheelEvent) => {
       onWheel(ev);
@@ -38,14 +41,14 @@
     window.addEventListener('wheel', handleWheel, { passive: false });
 
     return () => {
-      $skipKeyDownListener$ = false;
+      restoreAppShortcuts();
       window.removeEventListener('wheel', handleWheel);
     };
   });
 
   function onKeydown(ev: KeyboardEvent) {
-    // The gallery is the active shortcut surface while open; it sets `skipKeyDownListener$`
-    // to disable background reader shortcuts, not its own Escape/arrow handling.
+    // The gallery is the active shortcut surface while open; it disables background reader
+    // shortcuts, not its own Escape/arrow handling.
     handleImageGalleryKeydown(ev, {
       close: closeReaderImageGallery,
       nextImage,
@@ -135,7 +138,7 @@
             title="Preview image"
             aria-label={`Preview image ${urlIndex + 1}`}
             onclick={() => {
-              if (window.matchMedia('(min-width: 1024px)').matches) {
+              if (galleryPreviewVisible.current) {
                 selectedImageIndex = urlIndex;
               }
             }}

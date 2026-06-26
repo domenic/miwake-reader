@@ -20,7 +20,6 @@ import type { MergeMode } from '$lib/data/merge-mode';
 import type { ReadingGoal } from '$lib/data/reading-goal';
 import { SortDirection, type SortOption } from '$lib/data/sort-types';
 import { AutoReplicationType } from '$lib/functions/replication/replication-options';
-import { writableSubject } from '$lib/functions/svelte/store';
 import { map } from 'rxjs';
 import { DatabaseService } from './database/books-db/database.service.svelte';
 import { createBooksDb } from './database/books-db/factory';
@@ -350,8 +349,6 @@ export const lastStatisticsSummarySortDirection$ =
     SortDirection.DESC
   );
 
-export const fileCountData$ = writableSubject<Record<string, number> | undefined>(undefined);
-
 const db = browser ? createBooksDb() : import('fake-indexeddb/auto').then(() => createBooksDb());
 
 export const database = new DatabaseService(db);
@@ -370,9 +367,5 @@ export const horizontalCustomReadingPosition$ = writableNumberLocalStorageSubjec
   'horizontalCustomReadingPosition',
   0
 );
-
-export const isOnline$ = writableSubject<boolean>(true);
-
-export const skipKeyDownListener$ = writableSubject<boolean>(false);
 
 export const userFonts$ = writableArrayLocalStorageSubject<UserFont>()('userfonts', []);

@@ -8,17 +8,14 @@
   import { isStoredFont } from '$lib/data/fonts';
   import { FuriganaStyle } from '$lib/data/furigana-style';
   import { logger } from '$lib/data/logger';
+  import { appShortcuts } from '$lib/data/app-shortcuts.svelte';
   import type { TextMarginMode } from '$lib/data/text-margin-mode';
-  import {
-    customReadingPointEnabled$,
-    disableWheelNavigation$,
-    skipKeyDownListener$,
-    userFonts$
-  } from '$lib/data/store';
+  import { customReadingPointEnabled$, disableWheelNavigation$, userFonts$ } from '$lib/data/store';
   import { getReferencePoints } from '$lib/functions/range-util';
   import { faBookmark, faSpinner } from '@fortawesome/free-solid-svg-icons';
   import { onDestroy, onMount, untrack } from 'svelte';
-  import { SvelteMap } from 'svelte/reactivity';
+  import { MediaQuery, SvelteMap } from 'svelte/reactivity';
+  import { innerWidth } from 'svelte/reactivity/window';
   import Fa from 'svelte-fa';
   import type { BookReaderController } from '../book-reader-controller.svelte';
   import { AutoScrollerContinuous } from './auto-scroller-continuous.svelte';
@@ -154,6 +151,7 @@
   let autoPositionTimer: number | undefined;
 
   let autoPositionFrame: number | undefined;
+  const compactViewport = new MediaQuery('max-width: 639.98px');
 
   let fullLengthDimension = $derived(verticalMode ? 'height' : 'width');
 
@@ -168,7 +166,7 @@
   );
 
   let bookmarkAdjustment = $derived.by(() => {
-    const base = window.matchMedia('(min-width: 640px)').matches ? '0.5rem' : '0.25rem';
+    const base = compactViewport.current ? '0.25rem' : '0.5rem';
 
     if (secondDimensionMaxValue && contentEl) {
       const dimensionAdjustment = Number(
@@ -353,7 +351,7 @@
         elRightReferencePoint - 2
       );
       customReadingPointScrollOffset =
-        window.innerWidth - firstDimensionMarginValue - customReadingPointLeft;
+        innerWidth.current! - firstDimensionMarginValue - customReadingPointLeft;
 
       return;
     }
@@ -497,7 +495,7 @@
             Math.max(
               rect.right +
                 (firstDimensionMargin || 0) -
-                window.innerWidth +
+                innerWidth.current! +
                 customReadingPointScrollOffset,
               0
             ),
@@ -525,8 +523,8 @@
   }
 
   function onWheel(ev: WheelEvent) {
-    if (verticalMode && !$disableWheelNavigation$ && !$skipKeyDownListener$) {
-      scrollFn(ev, fontSize, window.innerWidth);
+    if (verticalMode && !$disableWheelNavigation$ && !appShortcuts.disabled) {
+      scrollFn(ev, fontSize, innerWidth.current!);
     }
   }
 
@@ -609,7 +607,7 @@
     if (verticalMode) {
       window.scrollBy(
         -(
-          window.innerWidth -
+          innerWidth.current! -
           rect.right -
           (firstDimensionMargin || 0) -
           customReadingPointScrollOffset -
