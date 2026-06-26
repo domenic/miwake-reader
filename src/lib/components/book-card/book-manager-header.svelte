@@ -226,7 +226,7 @@
                     class:hover:text-gray-700={isCurrentSortAsc}
                     class:hover:text-red-500={!isCurrentSortAsc}
                     onclick={() => {
-                      booklistSortOptions$.next({
+                      booklistSortOptions$.set({
                         property: sortMenuItem.property as Exclude<
                           keyof BookCardProps,
                           'imagePath' | 'isPlaceholder'
@@ -249,7 +249,7 @@
                     class:hover:text-gray-700={isCurrentSort && !isCurrentSortAsc}
                     class:hover:text-red-500={!isCurrentSort || isCurrentSortAsc}
                     onclick={() => {
-                      booklistSortOptions$.next({
+                      booklistSortOptions$.set({
                         property: sortMenuItem.property as Exclude<
                           keyof BookCardProps,
                           'imagePath' | 'isPlaceholder'

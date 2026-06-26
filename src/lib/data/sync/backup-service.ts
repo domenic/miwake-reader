@@ -7,13 +7,14 @@ import type {
 import { resolve } from '$app/paths';
 import { BlobReader, ZipReader } from '@zip.js/zip.js';
 import { database, lastReadingGoalsModified$ } from '$lib/data/store';
-import { localStoragePreferences } from '$lib/data/internal/writable-storage-subject';
+import { localStoragePreferences } from '$lib/data/internal/persistent-local-storage-store';
 import { BackupStorageHandler } from '$lib/data/storage/handler/backup-handler';
 import { BaseStorageHandler } from '$lib/data/storage/handler/base-handler';
 import { getLocalEndpoint, getSyncEndpoint } from '$lib/data/storage/storage-handler-factory';
 import { StorageDataType, SyncEndpointType } from '$lib/data/storage/storage-types';
 import { replicateData } from '$lib/functions/replication/replicator';
 import { mirrorLocalLibraryToSource, scopedSettings } from '$lib/data/sync/sync-engine';
+import { get } from 'svelte/store';
 
 /**
  * Reading-goal data lives in two places: archived goals in IDB's
@@ -26,7 +27,7 @@ const READING_GOAL_LOCALSTORAGE_KEYS = ['readingGoal', 'lastReadingGoalsModified
 
 /**
  * Whether a localStorage key belongs to the App-settings checkbox.
- * The set comes from the registry maintained by writableStorageSubject —
+ * The set comes from the registry maintained by the persistent localStorage stores —
  * every preference store self-registers, every runtime store opts out.
  * Reading-goal keys are preferences-of-a-sort but owned by the
  * Reading-goals checkbox, not App settings.
@@ -116,11 +117,7 @@ export async function exportBackup(selection: BackupSelection): Promise<void> {
   if (selection.readingGoals) {
     const goals = await db.getAll('readingGoal');
     if (goals.length > 0) {
-      await backupHandler.saveReadingGoals(
-        goals,
-        lastReadingGoalsModified$.getValue(),
-        exportSettings
-      );
+      await backupHandler.saveReadingGoals(goals, get(lastReadingGoalsModified$), exportSettings);
     }
     // Current-goal-in-localStorage travels alongside, owned by the
     // Reading-goals checkbox.
@@ -262,7 +259,7 @@ export async function importBackup(
   if (selection.readingGoals && catalog.hasReadingGoals) {
     // Snapshot the pre-import timestamp — replicateData below routes
     // through storeReadingGoals, which writes
-    // `lastReadingGoalsModified` via its rxjs subject. Reading after
+    // `lastReadingGoalsModified` via its persistent store. Reading after
     // would compare the ZIP's value to itself.
     const localTsBeforeImport = Number(localStorage.getItem('lastReadingGoalsModified') ?? 0);
 
@@ -307,12 +304,12 @@ export async function importBackup(
     if (snapshot) {
       // ZIP-wins for app settings = wipe, then restore. Keep-newest =
       // additive merge (only set keys we don't already have).
-      // localStorage-backed BehaviorSubjects don't react to
-      // out-of-band writes, so we'll have to reload either way. Both
-      // reading-goal and runtime-sync keys are filtered: reading-goal
-      // travels with its own checkbox, runtime-sync is rebuilt from
-      // IndexedDB at boot. Skipping them here also defends against
-      // older ZIPs that bundled them.
+      // App-settings import writes localStorage directly from one tab,
+      // so reload after the import to give every route a fresh
+      // boot-time snapshot. Both reading-goal and runtime-sync keys
+      // are filtered: reading-goal travels with its own checkbox,
+      // runtime-sync is rebuilt from IndexedDB at boot. Skipping them
+      // here also defends against older ZIPs that bundled them.
       if (direction === 'zip-wins') {
         for (let i = localStorage.length - 1; i >= 0; i -= 1) {
           const key = localStorage.key(i);
@@ -339,11 +336,10 @@ export async function importBackup(
     await mirrorLocalLibraryToSource();
   }
 
-  // localStorage-backed stores don't observe storage events, so we
-  // need a hard reload for app-settings to take effect. Even without
-  // app settings, a reload guarantees the library and tracker re-read
-  // fresh state — cheaper than tracking down every component that
-  // should refresh.
+  // A reload gives freshly imported app settings, library data, and
+  // tracker state one clear boot boundary instead of relying on every
+  // currently mounted route to reconcile direct localStorage/IDB
+  // writes.
   if (booksImported > 0 || readingGoalsImported || appSettingsImported) {
     setTimeout(() => window.location.replace(resolve('/manage')), 0);
   }

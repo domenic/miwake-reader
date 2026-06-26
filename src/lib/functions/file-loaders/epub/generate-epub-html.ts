@@ -11,6 +11,7 @@ import { ImportHTMLFixMode } from '$lib/data/import-html-fix-mode';
 import { getCharacterCount } from '$lib/functions/get-character-count';
 import { getParagraphNodes } from '../../../components/book-reader/get-paragraph-nodes';
 import path from 'path-browserify';
+import { get } from 'svelte/store';
 
 export const prependValue = 'miwake-';
 
@@ -61,8 +62,8 @@ export default function generateEpubHtml(
   contentsDirectory: string
 ) {
   const fallbackData = new Map<string, string>();
-  const importHTMLFixMode = importHTMLFixMode$.getValue();
-  const restrictImportFixToAnchor = restrictImportFixToAnchor$.getValue();
+  const importHTMLFixMode = get(importHTMLFixMode$);
+  const restrictImportFixToAnchor = get(restrictImportFixToAnchor$);
   const applyImportFixes = importHTMLFixMode !== ImportHTMLFixMode.OFF;
   const selfClosingContentTagsToFix =
     applyImportFixes && !restrictImportFixToAnchor ? selfClosingContentTags : [];

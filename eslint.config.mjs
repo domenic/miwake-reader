@@ -2,7 +2,6 @@ import eslint from '@eslint/js';
 import eslintPluginPrettierRecommended from 'eslint-plugin-prettier/recommended';
 import betterTailwindcss from 'eslint-plugin-better-tailwindcss';
 import globals from 'globals';
-import rxjs from 'eslint-plugin-rxjs';
 import tseslint from 'typescript-eslint';
 import eslintPluginSvelte from 'eslint-plugin-svelte';
 
@@ -47,8 +46,7 @@ export default tseslint.config(
     },
     name: 'root',
     plugins: {
-      'better-tailwindcss': betterTailwindcss,
-      rxjs
+      'better-tailwindcss': betterTailwindcss
     },
     settings: {
       'better-tailwindcss': {

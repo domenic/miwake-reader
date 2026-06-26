@@ -469,8 +469,8 @@
             role="button"
             class="ml-4 hover:underline"
             onclick={() => {
-              verticalCustomReadingPosition$.next(100);
-              horizontalCustomReadingPosition$.next(0);
+              $verticalCustomReadingPosition$ = 100;
+              $horizontalCustomReadingPosition$ = 0;
             }}
             onkeyup={dummyFn}
           >

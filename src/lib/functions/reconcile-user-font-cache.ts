@@ -1,6 +1,7 @@
 import { userFontsCacheName } from '$lib/data/fonts';
 import { logger } from '$lib/data/logger';
 import { userFonts$ } from '$lib/data/store';
+import { get } from 'svelte/store';
 
 /**
  * Reconciles the userFonts$ store (localStorage) with the actual Cache API contents.
@@ -13,11 +14,11 @@ export async function reconcileUserFontCache() {
 
     const cache = await caches.open(userFontsCacheName);
     const cachedPaths = (await cache.keys()).map((r) => new URL(r.url).pathname);
-    const userFonts = userFonts$.getValue();
+    const userFonts = get(userFonts$);
 
     const validFonts = userFonts.filter((uf) => cachedPaths.includes(uf.path));
     if (validFonts.length !== userFonts.length) {
-      userFonts$.next(validFonts);
+      userFonts$.set(validFonts);
     }
 
     for (const path of cachedPaths) {
