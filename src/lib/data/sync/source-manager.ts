@@ -23,9 +23,10 @@ import {
   reconcileAfterAuthoritativeListing
 } from '$lib/data/sync/placeholder-reconciler';
 import { cloudSourceName, FS_SOURCE_NAME, isCustomCloudName } from '$lib/data/sync/sync-helpers';
+import { get } from 'svelte/store';
 
 function readCustomCreds(provider: CloudProviderType): CustomOAuthCredentials | undefined {
-  return cloudCustomCredentials$.getValue()[provider];
+  return get(cloudCustomCredentials$)[provider];
 }
 
 /**
@@ -404,7 +405,7 @@ async function teardownPriorLocation(
  * if nothing is connected. Drops in-memory OAuth tokens (for cloud) so
  * a same-tab reconnect re-runs the popup, deletes the IDB storageSource
  * record, drops placeholder rows (their source is gone), and clears
- * the connection + health subjects.
+ * the connection + health state.
  *
  * If `opts.clearLibrary` is true, also wipes the user's books,
  * bookmarks, statistics, and reading goals from this device — see

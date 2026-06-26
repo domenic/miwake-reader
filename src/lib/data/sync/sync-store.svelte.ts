@@ -1,4 +1,4 @@
-import { writableObjectLocalStorageSubject } from '$lib/data/internal/writable-object-local-storage-subject';
+import { objectLocalStorageStore } from '$lib/data/internal/persistent-local-storage-store';
 import { SyncEndpointType } from '$lib/data/storage/storage-types';
 
 export type CloudProviderType = SyncEndpointType.GDRIVE | SyncEndpointType.ONEDRIVE;
@@ -83,6 +83,6 @@ export const syncState = $state<{
 // Custom OAuth credentials are real user config — kept across
 // reconnects, switched providers, etc. — so they DO travel with
 // app-settings backups.
-export const cloudCustomCredentials$ = writableObjectLocalStorageSubject<
+export const cloudCustomCredentials$ = objectLocalStorageStore<
   Partial<Record<CloudProviderType, CustomOAuthCredentials>>
->()('sync.cloudCustomCredentials', {});
+>('sync.cloudCustomCredentials', {});

@@ -778,7 +778,7 @@
       handleSetCustomReadingPoint,
       isPaginated,
       isVertical: $verticalMode$,
-      multiplierOffsetFn: (x) => multiplier$.next(multiplier$.getValue() + x),
+      multiplierOffsetFn: (x) => multiplier$.update((multiplier) => multiplier + x),
       readerController,
       scrollToBookmark,
       shortcutsDisabled: readerActionPending || appShortcuts.disabled,
@@ -1005,7 +1005,7 @@
                   100
               );
 
-              verticalCustomReadingPosition$.next(newPercentage);
+              $verticalCustomReadingPosition$ = newPercentage;
             } else {
               newPercentage = Math.ceil(
                 (Math.max(0, customReadingPointTop - elTopReferencePoint) /
@@ -1013,7 +1013,7 @@
                   100
               );
 
-              horizontalCustomReadingPosition$.next(newPercentage);
+              $horizontalCustomReadingPosition$ = newPercentage;
             }
 
             customReadingPoint = newPercentage;
@@ -1248,10 +1248,10 @@
       if (isPaginated) {
         customReadingPointRange = undefined;
       } else if ($verticalMode$) {
-        verticalCustomReadingPosition$.next(100);
+        $verticalCustomReadingPosition$ = 100;
         customReadingPoint = 100;
       } else {
-        horizontalCustomReadingPosition$.next(0);
+        $horizontalCustomReadingPosition$ = 0;
         customReadingPoint = 0;
       }
 

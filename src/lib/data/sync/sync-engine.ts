@@ -27,6 +27,7 @@ import {
 } from '$lib/data/sync/placeholder-reconciler';
 import { logger } from '$lib/data/logger';
 import { online } from 'svelte/reactivity/window';
+import { get } from 'svelte/store';
 
 declare global {
   var __miwakeTestSyncPushDebounceMs: number | undefined;
@@ -68,8 +69,8 @@ export function scopedSettings({ winnerTakesAll = false } = {}): ScopedSettings 
   // modes ARE user-tunable (Advanced > merge mode).
   return {
     saveBehavior: ReplicationSaveBehavior.NewOnly,
-    statisticsMergeMode: statisticsMergeMode$.getValue(),
-    readingGoalsMergeMode: readingGoalsMergeMode$.getValue()
+    statisticsMergeMode: get(statisticsMergeMode$),
+    readingGoalsMergeMode: get(readingGoalsMergeMode$)
   };
 }
 
@@ -79,7 +80,7 @@ export function scopedSettings({ winnerTakesAll = false } = {}): ScopedSettings 
  * `listSyncTitles` / `ensureRoot` directly — not via the factory.
  */
 function endpointFor(location: SyncLocation): SyncEndpoint {
-  const settings = { cacheStorageData: cacheStorageData$.getValue() };
+  const settings = { cacheStorageData: get(cacheStorageData$) };
   if (location.kind === 'cloud') {
     const name = cloudSourceName(location.provider, location.usesCustomCredentials);
     return location.provider === SyncEndpointType.GDRIVE
@@ -375,14 +376,14 @@ function queueGoalsPush(): void {
 }
 
 function isPushAllowed(): boolean {
-  const direction = autoReplication$.getValue();
+  const direction = get(autoReplication$);
   if (direction === AutoReplicationType.Off || direction === AutoReplicationType.Down) return false;
   if (!syncState.location) return false;
   return true;
 }
 
 function isPullAllowed(): boolean {
-  const direction = autoReplication$.getValue();
+  const direction = get(autoReplication$);
   return direction === AutoReplicationType.Down || direction === AutoReplicationType.All;
 }
 
@@ -767,7 +768,7 @@ async function drainReplayQueue(): Promise<void> {
 export async function reconcileForBookOpen(context: ReplicationContext): Promise<void> {
   if (!isPullAllowed()) {
     logger.debug(
-      `reconcileForBookOpen: skipping (autoReplication=${autoReplication$.getValue()}) for ${JSON.stringify(context.title)}`
+      `reconcileForBookOpen: skipping (autoReplication=${get(autoReplication$)}) for ${JSON.stringify(context.title)}`
     );
     return;
   }

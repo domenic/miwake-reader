@@ -949,7 +949,7 @@ export class DatabaseService {
       await Promise.all(tasks);
       await tx.done;
 
-      lastReadingGoalsModified$.next(Date.now());
+      lastReadingGoalsModified$.set(Date.now());
     } catch (error: any) {
       try {
         tx.abort();
@@ -1022,11 +1022,11 @@ export class DatabaseService {
       await Promise.all(tasks);
       await tx.done;
 
-      lastReadingGoalsModified$.next(newReadingGoalModified);
+      lastReadingGoalsModified$.set(newReadingGoalModified);
 
       const currentUserGoal = await getCurrentReadingGoal();
 
-      readingGoal$.next(currentUserGoal);
+      readingGoal$.set(currentUserGoal);
     } catch (error: any) {
       try {
         tx.abort();
@@ -1048,6 +1048,6 @@ export class DatabaseService {
       await db.clear('readingGoal');
     }
 
-    lastReadingGoalsModified$.next(Date.now());
+    lastReadingGoalsModified$.set(Date.now());
   }
 }

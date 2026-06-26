@@ -23,6 +23,9 @@ test('manager derives card progress and sort order from library state', async ({
 
   await selectSort(page, 'Title', 'descending');
   await expectBookOrder(page, [PLAIN_TEXT_BOOK, LONG_BOOK, COVER_REFRESH_BOOK]);
+
+  await page.reload();
+  await expectBookOrder(page, [PLAIN_TEXT_BOOK, LONG_BOOK, COVER_REFRESH_BOOK]);
 });
 
 async function selectSort(page: Page, label: string, direction: 'ascending' | 'descending') {

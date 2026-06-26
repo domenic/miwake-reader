@@ -52,30 +52,9 @@ import { untrack } from 'svelte';
 import { fromStore } from 'svelte/store';
 import { SvelteMap, SvelteSet } from 'svelte/reactivity';
 
-interface SubjectBackedStore<T> {
-  subscribe(run: (value: T) => void): { unsubscribe(): void };
-  next(value: T): void;
-  getValue(): T;
-}
-
 interface BookFilterURLState {
   shouldUpdate: boolean;
   bookIds?: number[];
-}
-
-function fromSubject<T>(subject: SubjectBackedStore<T>) {
-  return fromStore({
-    subscribe(run: (value: T) => void) {
-      const subscription = subject.subscribe(run);
-      return () => subscription.unsubscribe();
-    },
-    set(value: T) {
-      subject.next(value);
-    },
-    update(updater: (value: T) => T) {
-      subject.next(updater(subject.getValue()));
-    }
-  });
 }
 
 function formatJapaneseHTML(value: string) {
@@ -84,13 +63,13 @@ function formatJapaneseHTML(value: string) {
 }
 
 export class StatisticsController {
-  #confirmStatisticsDeletion = fromSubject(confirmStatisticsDeletion$);
-  #lastPrimaryReadingDataAggregationMode = fromSubject(lastPrimaryReadingDataAggregationMode$);
-  #lastStartDayOfWeek = fromSubject(lastStartDayOfWeek$);
-  #lastStatisticsEndDate = fromSubject(lastStatisticsEndDate$);
-  #lastStatisticsRangeTemplate = fromSubject(lastStatisticsRangeTemplate$);
-  #lastStatisticsStartDate = fromSubject(lastStatisticsStartDate$);
-  #startDayHoursForTracker = fromSubject(startDayHoursForTracker$);
+  #confirmStatisticsDeletion = fromStore(confirmStatisticsDeletion$);
+  #lastPrimaryReadingDataAggregationMode = fromStore(lastPrimaryReadingDataAggregationMode$);
+  #lastStartDayOfWeek = fromStore(lastStartDayOfWeek$);
+  #lastStatisticsEndDate = fromStore(lastStatisticsEndDate$);
+  #lastStatisticsRangeTemplate = fromStore(lastStatisticsRangeTemplate$);
+  #lastStatisticsStartDate = fromStore(lastStatisticsStartDate$);
+  #startDayHoursForTracker = fromStore(startDayHoursForTracker$);
   #bookIdsByTitle = new SvelteMap<string, number[]>();
   #bookTitlesById = new SvelteMap<number, string>();
 

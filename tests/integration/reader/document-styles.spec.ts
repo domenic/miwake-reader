@@ -13,10 +13,13 @@ test('reader applies document styles while mounted and cleans them up on exit', 
   page
 }) => {
   await useReaderSettings(page, {
+    fontSize: '24',
+    lineHeight: '1.8',
     theme: 'dark-theme',
     viewMode: 'Continuous',
     writingMode: 'Horizontal'
   });
+  await page.reload();
   await importBookFixtures(page, [LONG_BOOK]);
 
   await expectDocumentReaderStyles(page, { backgroundColor: '', writingMode: '' });
@@ -27,11 +30,45 @@ test('reader applies document styles while mounted and cleans them up on exit', 
     backgroundColor: 'rgb(18, 18, 18)',
     writingMode: 'horizontal-tb'
   });
+  await expectBookContentStyles(page, {
+    fontSize: '24px',
+    lineHeight: '1.8'
+  });
 
   const header = await showReaderHeader(page);
   await header.getByRole('button', { name: 'Manager', exact: true }).click();
 
   await expectDocumentReaderStyles(page, { backgroundColor: '', writingMode: '' });
+});
+
+test('reader reacts to settings changed in another tab', async ({ page }) => {
+  await useReaderSettings(page, {
+    theme: 'light-theme',
+    viewMode: 'Continuous',
+    writingMode: 'Horizontal'
+  });
+  await importBookFixtures(page, [LONG_BOOK]);
+  await openBookFromManage(page, LONG_BOOK);
+  await expectBookReaderText(page, LONG_BOOK);
+  await expectDocumentReaderStyles(page, {
+    backgroundColor: 'rgb(255, 255, 255)',
+    writingMode: 'horizontal-tb'
+  });
+
+  const settingsPage = await page.context().newPage();
+  try {
+    await useReaderSettings(settingsPage, {
+      theme: 'dark-theme',
+      writingMode: 'Vertical'
+    });
+
+    await expectDocumentReaderStyles(page, {
+      backgroundColor: 'rgb(18, 18, 18)',
+      writingMode: 'vertical-rl'
+    });
+  } finally {
+    await settingsPage.close();
+  }
 });
 
 async function expectDocumentReaderStyles(
@@ -46,4 +83,21 @@ function documentReaderStyles(page: Page) {
     backgroundColor: document.body.style.backgroundColor,
     writingMode: document.documentElement.style.writingMode
   }));
+}
+
+async function expectBookContentStyles(
+  page: Page,
+  expected: { fontSize: string; lineHeight: string }
+) {
+  await expect.poll(() => bookContentStyles(page)).toEqual(expected);
+}
+
+function bookContentStyles(page: Page) {
+  return page.locator('.book-content').evaluate((el) => {
+    const content = el as HTMLElement;
+    return {
+      fontSize: content.style.fontSize,
+      lineHeight: content.style.lineHeight
+    };
+  });
 }

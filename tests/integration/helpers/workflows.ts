@@ -18,8 +18,10 @@ interface ReaderSettings {
   autoPositionOnResize?: string;
   blurImage?: string;
   customReadingPoint?: string;
+  fontSize?: string;
   fontVPAL?: string;
   furigana?: string;
+  lineHeight?: string;
   readerMaxWidth?: string;
   showFooterChapterCharacters?: string;
   showFooterChapterPercentage?: string;
@@ -108,6 +110,12 @@ export async function useReaderSettings(page: Page, settings: ReaderSettings) {
       })
       .getByTitle(settings.theme)
       .click();
+  }
+  if (settings.fontSize) {
+    await fillReaderNumberSetting(page, /^Font size$/i, settings.fontSize);
+  }
+  if (settings.lineHeight) {
+    await fillReaderNumberSetting(page, /^Line Height$/i, settings.lineHeight);
   }
   if (settings.writingMode) {
     await selectReaderSetting(page, /Writing mode/i, settings.writingMode);

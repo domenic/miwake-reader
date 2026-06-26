@@ -14,6 +14,7 @@ import type {
   ScopedBookOperations,
   ScopedSettings
 } from '$lib/data/storage/handler/handler-roles';
+import { get } from 'svelte/store';
 
 /**
  * Local-IDB-backed implementation of the BookOperations contract,
@@ -69,7 +70,7 @@ export class LocalReplicationEndpoint implements LocalReplicationEndpointRole {
       BaseStorageHandler.reportProgress();
       return undefined;
     }
-    const lastGoalModified = lastReadingGoalsModified$.getValue();
+    const lastGoalModified = get(lastReadingGoalsModified$);
     const fileName = lastGoalModified
       ? BaseStorageHandler.getReadingGoalsFileName(lastGoalModified)
       : undefined;
@@ -83,7 +84,7 @@ export class LocalReplicationEndpoint implements LocalReplicationEndpointRole {
       BaseStorageHandler.reportProgress();
       return Promise.resolve(false);
     }
-    const existingLastModified = lastReadingGoalsModified$.getValue();
+    const existingLastModified = get(lastReadingGoalsModified$);
     const fileName = existingLastModified
       ? BaseStorageHandler.getReadingGoalsFileName(existingLastModified)
       : undefined;
@@ -100,7 +101,7 @@ export class LocalReplicationEndpoint implements LocalReplicationEndpointRole {
 
   async getReadingGoals() {
     const readingGoals = await database.getReadingGoals();
-    const lastGoalModified = lastReadingGoalsModified$.getValue();
+    const lastGoalModified = get(lastReadingGoalsModified$);
     BaseStorageHandler.reportProgress();
     if (!lastGoalModified) {
       return { readingGoals: undefined, lastGoalModified: 0 };
