@@ -18,7 +18,6 @@
     booklistSortOptions$,
     confirmStatisticsDeletion$,
     database,
-    fileCountData$,
     keepLocalStatisticsOnDeletion$
   } from '$lib/data/store';
   import { cloneMutateSet } from '$lib/functions/clone-mutate-set';
@@ -46,6 +45,7 @@
   let abortController = $state(new AbortController());
   let signal = $derived(abortController.signal);
   let cancelTooltip = $state('');
+  let fileCountData = $state<Record<string, number>>();
 
   $effect(() => {
     if (!selectMode) {
@@ -192,7 +192,7 @@
     initializeReplicationProgressData();
 
     try {
-      await userImportBooks(document, files, signal, $fileCountData$);
+      await userImportBooks(document, files, signal, fileCountData);
     } catch (error) {
       showErrorDialog({ title: errorTitle, error });
     } finally {
@@ -316,6 +316,7 @@
     replicationToProgress={replicationProgressState.toProgress}
     replicationProgressRemaining={replicationProgressState.remaining}
     {cancelTooltip}
+    bind:fileCountData
     bind:selectMode
     onselectAllClick={onSelectAllBooks}
     onremoveClick={() => removeBooks(Array.from(selectedBookIds))}

@@ -39,7 +39,6 @@
     viewMode$,
     selectionToBookmarkEnabled$,
     lineHeight$,
-    skipKeyDownListener$,
     confirmClose$,
     verticalCustomReadingPosition$,
     horizontalCustomReadingPosition$,
@@ -84,9 +83,11 @@
     type BooksDbBookmarkData,
     type BooksDbStatistic
   } from '$lib/data/database/books-db/versions/books-db';
+  import { deviceEnvironment } from '$lib/data/device-environment.svelte';
   import { PAGE_CHANGE } from '$lib/data/events';
   import { fullscreenManager } from '$lib/data/fullscreen-manager';
   import { logger } from '$lib/data/logger';
+  import { appShortcuts } from '$lib/data/app-shortcuts.svelte';
   import { showConfirmDialog } from '$lib/components/confirm-dialog.svelte';
   import { showErrorDialog } from '$lib/components/log-report-dialog.svelte';
   import {
@@ -113,9 +114,11 @@
   import { syncState } from '$lib/data/sync/sync-store.svelte';
   import { getDateKey } from '$lib/functions/statistic-util';
   import { clickOutside } from '$lib/functions/use-click-outside';
-  import { convertRemToPixels, dummyFn, isMobile$, limitToRange } from '$lib/functions/utils';
+  import { convertRemToPixels, dummyFn, limitToRange } from '$lib/functions/utils';
   import { handleReaderKeydown } from '$lib/components/book-reader/book-reader-keybind';
   import { onDestroy, tick, untrack } from 'svelte';
+  import { innerHeight, innerWidth } from 'svelte/reactivity/window';
+  import { MediaQuery } from 'svelte/reactivity';
   import Fa from 'svelte-fa';
   import {
     clearRange,
@@ -128,6 +131,7 @@
   type ReaderExitRoute = Extract<RouteId, '/manage' | '/settings' | '/statistics'>;
 
   const READER_STATISTICS_SYNC_THROTTLE_MS = 60_000;
+  const trackerMenuFitsBesideReader = new MediaQuery('min-width: 900px');
 
   let showSpinner = $state(true);
   let showHeader = $state(false);
@@ -487,7 +491,7 @@
 
   let firstDimensionMargin = $derived(
     browser && $enableTapEdgeToFlip$ && isPaginated && $verticalMode$
-      ? limitToRange(convertRemToPixels(window, 0.5), window.innerWidth, $firstDimensionMargin$)
+      ? limitToRange(convertRemToPixels(window, 0.5), innerWidth.current!, $firstDimensionMargin$)
       : ($firstDimensionMargin$ ?? 0)
   );
 
@@ -531,17 +535,20 @@
     }
 
     pauseTracker('jump');
-    skipKeyDownListener$.next(true);
+    const restoreAppShortcuts = appShortcuts.disable();
+    let target: number | undefined;
 
-    const target = await showNumberDialog({
-      title: 'Jump to character',
-      label: 'Character position',
-      actionLabel: 'Jump',
-      minValue: 1,
-      maxValue: bookCharCount || 1
-    });
-
-    skipKeyDownListener$.next(false);
+    try {
+      target = await showNumberDialog({
+        title: 'Jump to character',
+        label: 'Character position',
+        actionLabel: 'Jump',
+        minValue: 1,
+        maxValue: bookCharCount || 1
+      });
+    } finally {
+      restoreAppShortcuts();
+    }
 
     if (typeof target !== 'number') {
       restartTrackerAfterCharacterChangeOrTime('jump', 1);
@@ -676,7 +683,7 @@
       if ($statisticsEnabled$ && $openTrackerOnCompletion$) {
         confettiWidthModifier = 36;
         confettiMaxRuns = 0;
-        bookCompleted = window.matchMedia('(min-width: 900px)').matches;
+        bookCompleted = trackerMenuFitsBesideReader.current;
         openTrackerMenu();
       } else {
         confettiWidthModifier = 0;
@@ -774,7 +781,7 @@
       multiplierOffsetFn: (x) => multiplier$.next(multiplier$.getValue() + x),
       readerController,
       scrollToBookmark,
-      shortcutsDisabled: readerActionPending || $skipKeyDownListener$,
+      shortcutsDisabled: readerActionPending || appShortcuts.disabled,
       toggleTracker: toggleTrackerPause
     });
   }
@@ -949,8 +956,8 @@
     }
 
     if (isPaginated) {
-      customReadingPointTop = window.innerHeight / 2 - 2;
-      customReadingPointLeft = window.innerWidth / 2 - 2;
+      customReadingPointTop = innerHeight.current! / 2 - 2;
+      customReadingPointLeft = innerWidth.current! / 2 - 2;
     }
 
     showHeader = false;
@@ -1357,7 +1364,7 @@
   />
 {/if}
 
-{#if (isSelectingCustomReadingPoint && !$isMobile$) || (!isPaginated && showCustomReadingPoint)}
+{#if (isSelectingCustomReadingPoint && !deviceEnvironment.isMobile) || (!isPaginated && showCustomReadingPoint)}
   <div
     class="fixed left-0 z-20 h-px w-full border border-red-500"
     style:top={`${customReadingPointTop}px`}
@@ -1368,7 +1375,7 @@
   ></div>
 {/if}
 
-{#if $enableTapEdgeToFlip$ && isPaginated && !$skipKeyDownListener$}
+{#if $enableTapEdgeToFlip$ && isPaginated && !appShortcuts.disabled}
   <button
     class="fixed left-0 z-10 w-5"
     aria-label={$verticalMode$ ? 'Next page' : 'Previous page'}

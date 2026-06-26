@@ -1,5 +1,6 @@
 import { resolve } from '$app/paths';
 import type { BooksDbStorageSource } from '$lib/data/database/books-db/versions/books-db';
+import { deviceEnvironment } from '$lib/data/device-environment.svelte';
 import {
   gDriveAuthEndpoint,
   gDriveClientId,
@@ -22,7 +23,6 @@ import { StorageSourceDefault, SyncEndpointType } from '$lib/data/storage/storag
 import { database } from '$lib/data/store';
 import { showMessageDialog } from '$lib/components/message-dialog.svelte';
 import { convertAuthErrorResponse } from '$lib/functions/replication/error-handler';
-import { isMobile } from '$lib/functions/utils';
 
 interface OAuthTokenData {
   accessToken: string;
@@ -504,7 +504,7 @@ export class StorageOAuthManager {
   }
 
   static createWindow(url: string, title: string, w: number, h: number, window: Window) {
-    const onMobile = isMobile(window);
+    const onMobile = deviceEnvironment.isMobile;
     const screenX = typeof window.screenX !== 'undefined' ? window.screenX : window.screenLeft;
     const screenY = typeof window.screenY !== 'undefined' ? window.screenY : window.screenTop;
     const outerWidth =

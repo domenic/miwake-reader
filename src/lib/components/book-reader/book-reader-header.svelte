@@ -15,9 +15,9 @@
   import HeaderMenuButton from '$lib/components/header-menu-button.svelte';
   import HeaderNavTabs from '$lib/components/header-nav-tabs.svelte';
   import { baseHeaderClasses, headerDividerClasses } from '$lib/css-classes';
+  import { deviceEnvironment } from '$lib/data/device-environment.svelte';
   import { customReadingPointEnabled$, viewMode$ } from '$lib/data/store';
   import { ViewMode } from '$lib/data/view-mode';
-  import { isMobile$ } from '$lib/functions/utils';
 
   interface Props {
     hasChapterData: boolean;
@@ -100,7 +100,7 @@
         onclick={() => onscrollToBookmarkClick?.()}
       />
     {/if}
-    {#if $viewMode$ === ViewMode.Continuous && !$isMobile$}
+    {#if $viewMode$ === ViewMode.Continuous && !deviceEnvironment.isMobile}
       <div class="flex items-center px-4 text-xl" title="Current autoscroll speed">
         {autoScrollMultiplier}x
       </div>

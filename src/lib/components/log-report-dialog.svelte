@@ -114,7 +114,6 @@
     adjustStatisticsAfterIdleTime$,
     readingGoal$,
     lastReadingGoalsModified$,
-    isOnline$,
     multiplier$,
     showCharacterCounter$,
     showPercentage$,
@@ -122,6 +121,7 @@
     showFooterChapterPercentage$,
     enableReaderWakeLock$
   } from '$lib/data/store';
+  import { online } from 'svelte/reactivity/window';
 
   interface Props {
     title: string;
@@ -203,7 +203,7 @@
           adjustStatisticsAfterIdleTime: adjustStatisticsAfterIdleTime$.getValue(),
           readingGoal: readingGoal$.getValue(),
           lastReadingGoalsModified: lastReadingGoalsModified$.getValue(),
-          isOnline: isOnline$.getValue(),
+          isOnline: online.current !== false,
           multiplier: multiplier$.getValue()
         },
         log: logger.history

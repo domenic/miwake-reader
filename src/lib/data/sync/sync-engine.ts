@@ -16,7 +16,6 @@ import {
   autoReplication$,
   cacheStorageData$,
   database,
-  isOnline$,
   readingGoalsMergeMode$,
   statisticsMergeMode$
 } from '$lib/data/store';
@@ -27,6 +26,7 @@ import {
   reconcileAfterAuthoritativeListing
 } from '$lib/data/sync/placeholder-reconciler';
 import { logger } from '$lib/data/logger';
+import { online } from 'svelte/reactivity/window';
 
 declare global {
   var __miwakeTestSyncPushDebounceMs: number | undefined;
@@ -534,7 +534,7 @@ async function pushOne(context: ReplicationContext, types: BookDataType[]): Prom
   // the new source's id (which the push never wrote to).
   const expectedSourceInstanceId = location.sourceInstanceId;
 
-  if (location.kind === 'cloud' && !isOnline$.getValue()) {
+  if (location.kind === 'cloud' && online.current === false) {
     // Offline — queue for replay and leave syncHealth$ alone so the
     // indicator shows the offline state rather than a spurious
     // "Sync failed" error on every edit.
@@ -593,7 +593,7 @@ async function syncReadingGoals(direction: 'push' | 'pull', reason: string): Pro
   const location = syncState.location;
   if (!location) return;
 
-  if (direction === 'push' && location.kind === 'cloud' && !isOnline$.getValue()) {
+  if (direction === 'push' && location.kind === 'cloud' && online.current === false) {
     logger.debug('push (goals): offline, queueing for replay');
     enqueueReplay(() => syncReadingGoals(direction, reason));
     return;
@@ -637,7 +637,7 @@ async function deleteRemoteBooks(titles: string[], signal: AbortSignal): Promise
   const location = syncState.location;
   if (!titles.length || !location || !isPushAllowed()) return;
 
-  if (location.kind === 'cloud' && !isOnline$.getValue()) {
+  if (location.kind === 'cloud' && online.current === false) {
     logger.debug(`delete books: offline, queueing for replay (${titles.length} title(s))`);
     enqueueReplay(() => deleteRemoteBooks([...titles], new AbortController().signal));
     return;
@@ -665,7 +665,7 @@ async function pushDeletedStatistics(titles: string[]): Promise<void> {
   const location = syncState.location;
   if (!titles.length || !location || !isPushAllowed()) return;
 
-  if (location.kind === 'cloud' && !isOnline$.getValue()) {
+  if (location.kind === 'cloud' && online.current === false) {
     logger.debug(
       `push deleted statistics: offline, queueing for replay (${titles.length} title(s))`
     );
@@ -703,7 +703,7 @@ async function pushDeletedReadingGoals(): Promise<void> {
   const location = syncState.location;
   if (!location || !isPushAllowed()) return;
 
-  if (location.kind === 'cloud' && !isOnline$.getValue()) {
+  if (location.kind === 'cloud' && online.current === false) {
     logger.debug('push deleted reading goals: offline, queueing for replay');
     enqueueReplay(() => pushDeletedReadingGoals());
     return;
@@ -968,18 +968,13 @@ export function isSyncingOrPending(): boolean {
  * independent.
  */
 export async function syncEngineStart(): Promise<void> {
-  // Drain queued pushes when we come back online. Ambient pushes while
-  // offline enqueue instead of erroring — this is where they flush.
-  let wasOnline = isOnline$.getValue();
-  isOnline$.subscribe((online) => {
-    if (online && !wasOnline) {
-      logger.debug('syncEngine: back online, draining replay queue');
-      void drainReplayQueue();
-    }
-    wasOnline = online;
-  });
-
   await reconcileBooksOnBoot();
+}
+
+export function syncEngineHandleOnline(): void {
+  // Ambient pushes while offline enqueue instead of erroring; browser `online` is where they flush.
+  logger.debug('syncEngine: back online, draining replay queue');
+  void drainReplayQueue();
 }
 
 /**
