@@ -17,6 +17,7 @@ const NOT_AN_EPUB_BOOK = 'not-an-epub-book';
 export const COVER_REFRESH_BOOK = 'cover-refresh-book';
 export const LONG_BOOK = 'long-book';
 export const LONG_BOOK_CHAPTER_CHARACTERS = 7519;
+export const MEDIA_SIZING_BOOK = 'media-sizing-book';
 export const PLAIN_TEXT_BOOK = 'plain-text-book';
 export const SPOILER_IMAGE_GALLERY_BOOK = 'spoiler-image-gallery-book';
 export const VALID_BOOK = 'valid-book';
@@ -26,6 +27,7 @@ export type LibraryBookFixture =
   | typeof COVER_REFRESH_BOOK
   | typeof VALID_BOOK
   | typeof LONG_BOOK
+  | typeof MEDIA_SIZING_BOOK
   | typeof SPOILER_IMAGE_GALLERY_BOOK
   | typeof PLAIN_TEXT_BOOK;
 export type InvalidImportBookFixture = typeof NOT_A_ZIP_BOOK | typeof NOT_AN_EPUB_BOOK;
@@ -104,6 +106,14 @@ const fixtureMetadata = new Map<BookFixture, BookFixtureMetadata>([
         minimumFooterPage: 1_000,
         progressValue: '38'
       }
+    }
+  ],
+  [
+    MEDIA_SIZING_BOOK,
+    {
+      title: 'Media sizing book',
+      path: resolve(fixtureRoot, 'media-sizing-book.epub'),
+      readerText: 'This chapter exercises oversized media and an inline glyph'
     }
   ],
   [

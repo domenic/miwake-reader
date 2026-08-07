@@ -127,6 +127,37 @@ await writeOut(
 );
 
 await writeOut(
+  'media-sizing-book.epub',
+  await buildEPUB({
+    title: 'Media sizing book',
+    author: 'Test Author',
+    identifier: 'urn:uuid:00000000-0000-4000-8000-000000000005',
+    language: 'en',
+    images: {
+      'images/portrait-illustration.bmp': bitmapBytes({ red: 45, green: 95, blue: 210 }, 87, 128),
+      'images/inline-glyph.bmp': bitmapBytes({ red: 65, green: 165, blue: 80 }, 16, 16)
+    },
+    chapters: [
+      {
+        title: 'Oversized media',
+        bodyHTML: `
+  <p>
+    This chapter exercises oversized media and an inline glyph
+    <img src="images/inline-glyph.bmp" alt="Inline glyph" style="width: 1em; height: 1em" />.
+  </p>
+  <figure>
+    <img
+      src="images/portrait-illustration.bmp"
+      alt="Oversized portrait illustration"
+      style="width: 43.5em; height: 64em"
+    />
+  </figure>`
+      }
+    ]
+  })
+);
+
+await writeOut(
   'plain-text-book.txt',
   enc.encode(`This plain text fixture gives the library another real imported book.
 

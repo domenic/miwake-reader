@@ -165,6 +165,14 @@
     verticalMode && secondDimensionMaxValue ? secondDimensionMaxValue : undefined
   );
 
+  let imageMaxWidth = $derived(
+    !verticalMode && secondDimensionMaxValue ? Math.min(width, secondDimensionMaxValue) : width
+  );
+
+  let imageMaxHeight = $derived(
+    verticalMode && secondDimensionMaxValue ? Math.min(height, secondDimensionMaxValue) : height
+  );
+
   let bookmarkAdjustment = $derived.by(() => {
     const base = compactViewport.current ? '0.25rem' : '0.5rem';
 
@@ -659,6 +667,8 @@
   style:--book-content-hint-furigana-font-color={hintFuriganaFontColor}
   style:--book-content-hint-furigana-shadow-color={hintFuriganaShadowColor}
   style:--book-content-child-height="{maxHeight || height}px"
+  style:--book-content-image-max-width="{imageMaxWidth}px"
+  style:--book-content-image-max-height="{imageMaxHeight}px"
   style:--book-content-text-margin="{textMarginValue ?? 0}rem"
   style:--book-content-text-intendation="{textIndentation ?? 0}rem"
   style:font-feature-settings={fontFeatureSettings}
@@ -744,7 +754,9 @@
   .book-content {
     :global(svg),
     :global(img) {
-      max-height: 100vh;
+      max-width: var(--book-content-image-max-width, 100vw);
+      max-height: var(--book-content-image-max-height, 100vh);
+      object-fit: contain;
     }
   }
 
@@ -752,10 +764,6 @@
     height: 100%;
     > :global(*) {
       margin-left: 6rem;
-    }
-
-    :global(img) {
-      max-height: var(--book-content-child-height, 100%);
     }
   }
 

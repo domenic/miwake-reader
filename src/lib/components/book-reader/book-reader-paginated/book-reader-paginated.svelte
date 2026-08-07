@@ -711,6 +711,7 @@
     :global(img) {
       max-width: var(--book-content-image-max-width, 100vw);
       max-height: var(--book-content-child-height, 100vh);
+      object-fit: contain;
     }
 
     &.book-content--avoid-page-break {
