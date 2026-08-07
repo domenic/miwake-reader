@@ -23,7 +23,7 @@ _Note: the refreshed interface, especially the top bars, has not yet been adapte
 
 ### Book content presentation fixes
 
-- Inline images (fractions, symbols, decorative glyphs) are no longer broken out of text flow, or included in the image gallery.
+- Images preserve both their role and proportions: inline fractions, symbols, and decorative glyphs stay in text flow and out of the image gallery, while oversized illustrations fit within the viewport without distortion.
 - The "after table of contents" spoiler mode no longer hides cover pages in books with no table of contents.
 - Section-break margins in EPUBs are now preserved correctly in vertical writing mode.
 - Furigana on the rightmost line of text is no longer clipped in vertical paginated mode.
