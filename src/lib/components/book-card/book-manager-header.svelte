@@ -16,8 +16,11 @@
     faArrowDownWideShort,
     faBug,
     faCalendarXmark,
+    faChartLine,
     faCircleXmark,
+    faDownload,
     faFile,
+    faFlag,
     faFolder,
     faSortDown,
     faSortUp,
@@ -29,8 +32,10 @@
 
   interface Props {
     selectMode: boolean;
+    bookCount: number;
     selectedCount: number;
-    hasBooks: boolean;
+    selectedCompletedCount: number;
+    selectedPlaceholderCount: number;
     /**
      * When non-zero, the header takes over to show a progress bar
      * and a cancel button. Imports of large libraries and bulk
@@ -42,6 +47,9 @@
     cancelTooltip: string;
     fileCountData?: Record<string, number>;
     onselectAllClick?: () => void;
+    onviewStatistics?: () => void | Promise<void>;
+    oncompletionChange?: (completed: boolean) => void | Promise<void>;
+    ondownloadClick?: () => void | Promise<void>;
     onremoveClick?: () => void;
     onbugReportClick?: () => void;
     onfilesChange?: (fileList: FileList) => void;
@@ -51,14 +59,19 @@
 
   let {
     selectMode = $bindable(),
+    bookCount,
     selectedCount,
-    hasBooks,
+    selectedCompletedCount,
+    selectedPlaceholderCount,
     replicationProgress,
     replicationToProgress,
     replicationProgressRemaining,
     cancelTooltip,
     fileCountData = $bindable(),
     onselectAllClick,
+    onviewStatistics,
+    oncompletionChange,
+    ondownloadClick,
     onremoveClick,
     onbugReportClick,
     onfilesChange,
@@ -84,6 +97,11 @@
     { property: 'progress', label: 'Progress' },
     { property: 'lastBookmarkModified', label: 'Bookmarked' }
   ];
+
+  let allBooksSelected = $derived(bookCount > 0 && selectedCount === bookCount);
+  let allSelectedBooksCompleted = $derived(
+    selectedCount > 0 && selectedCompletedCount === selectedCount
+  );
 
   function dispatchFilesChange(fileList: FileList) {
     onfilesChange?.(fileList);
@@ -129,7 +147,7 @@
           title={selectMode ? 'Disable book selection' : 'Enable book selection'}
           label="Select"
           selected={selectMode}
-          onclick={() => (selectMode = hasBooks && !selectMode)}
+          onclick={() => (selectMode = bookCount > 0 && !selectMode)}
         >
           {#snippet icon()}
             <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" class="size-3.5">
@@ -140,15 +158,8 @@
             </svg>
           {/snippet}
         </HeaderButton>
-        {#if selectMode}
-          <span
-            class="flex items-center px-2 text-xl font-medium"
-            title="{selectedCount} {selectedCount === 1 ? 'book' : 'books'} selected"
-            >{selectedCount}</span
-          >
-        {/if}
-        <div class={headerDividerClasses}></div>
         {#if !selectMode}
+          <div class={headerDividerClasses}></div>
           <HeaderButton
             faIcon={faFile}
             title="Import book files"
@@ -170,7 +181,20 @@
             onclick={() => onbugReportClick?.()}
           />
         {:else}
-          <HeaderButton title="Select all books" label="All" onclick={() => onselectAllClick?.()}>
+          <span
+            class="flex w-12 shrink-0 items-center justify-center text-xl font-medium tabular-nums"
+            title="{selectedCount} {selectedCount === 1 ? 'book' : 'books'} selected"
+            aria-live="polite"
+          >
+            {selectedCount}
+          </span>
+          <HeaderButton
+            title={allBooksSelected ? 'Clear book selection' : 'Select all books'}
+            label={allBooksSelected ? 'Clear All' : 'Select All'}
+            selected={allBooksSelected}
+            width="wide"
+            onclick={() => onselectAllClick?.()}
+          >
             {#snippet icon()}
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="size-3.5">
                 <path
@@ -181,16 +205,41 @@
             {/snippet}
           </HeaderButton>
           {#if selectedCount > 0}
+            <div class={headerDividerClasses}></div>
+            <HeaderButton
+              faIcon={faChartLine}
+              title="View statistics for selected books"
+              label="View Stats"
+              onclick={() => onviewStatistics?.()}
+            />
+            <HeaderButton
+              faIcon={faFlag}
+              title={allSelectedBooksCompleted
+                ? 'Mark selected books as in progress'
+                : 'Mark selected books as complete'}
+              label={allSelectedBooksCompleted ? 'In Progress' : 'Complete'}
+              width="wide"
+              onclick={() => oncompletionChange?.(!allSelectedBooksCompleted)}
+            />
+            {#if selectedPlaceholderCount > 0}
+              <HeaderButton
+                faIcon={faDownload}
+                title="Download selected books to this device"
+                label="Download"
+                onclick={() => ondownloadClick?.()}
+              />
+            {/if}
+            <div class={headerDividerClasses}></div>
             <HeaderButton
               faIcon={faCalendarXmark}
               title="Delete statistics for selected books"
-              label="Delete Statistics"
+              label="Delete Stats"
               onclick={() => ondeleteStatistics?.()}
             />
             <HeaderButton
               faIcon={faTrash}
-              title="Delete selected books"
-              label="Delete Book"
+              title="Remove selected books from the library"
+              label="Remove"
               onclick={() => onremoveClick?.()}
             />
           {/if}

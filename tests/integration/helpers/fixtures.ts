@@ -196,7 +196,7 @@ export async function expectBooksInManage(
 
   const expectedBookCount = placeholderFixtures.size + downloadedFixtures.size;
 
-  await expect(page.locator('[role="banner"]')).toHaveCount(expectedBookCount, {
+  await expect(page.locator('article')).toHaveCount(expectedBookCount, {
     timeout: SYNC_ASSERTION_TIMEOUT
   });
   await Promise.all([
@@ -296,7 +296,11 @@ export async function deleteBookFromManage(page: Page, fixture: LibraryBookFixtu
 
   await page.getByRole('button', { name: 'Select' }).click();
   await bookTitle.click();
-  await page.getByRole('button', { name: 'Delete Book' }).click();
+  await page.getByRole('button', { name: 'Remove', exact: true }).click();
+  const dialog = page.locator('dialog[open]').filter({
+    has: page.getByRole('heading', { name: 'Remove book from library?' })
+  });
+  await dialog.getByRole('button', { name: 'Remove', exact: true }).click();
 
   await expect(bookTitle).toHaveCount(0);
 }
@@ -423,7 +427,7 @@ export async function expectImportFailedForFixture(page: Page, fixture: InvalidI
 }
 
 export function bookCard(page: Page, fixture: LibraryBookFixture) {
-  return page.locator('[role="banner"]').filter({
+  return page.locator('article').filter({
     has: page.getByText(fixtureTitle(fixture), { exact: true })
   });
 }
