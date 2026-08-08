@@ -15,19 +15,18 @@ export interface EpubSpineItemRef {
   '@_idref': string;
 }
 
+type EpubMetadataValue =
+  | string
+  | {
+      '#text': string;
+    };
+
 export interface EpubContent {
   package: {
     metadata: {
-      'dc:title':
-        | string
-        | {
-            '#text': string;
-          };
-      'dc:language':
-        | string
-        | {
-            '#text': string;
-          };
+      'dc:title': EpubMetadataValue | EpubMetadataValue[];
+      'dc:creator'?: EpubMetadataValue | EpubMetadataValue[];
+      'dc:language': EpubMetadataValue | EpubMetadataValue[];
       meta?: EpubMetadataMeta | EpubMetadataMeta[];
     };
     manifest: {
@@ -42,16 +41,9 @@ export interface EpubContent {
 export interface EpubOPFContent {
   'opf:package': {
     'opf:metadata': {
-      'dc:title':
-        | string
-        | {
-            '#text': string;
-          };
-      'dc:language':
-        | string
-        | {
-            '#text': string;
-          };
+      'dc:title': EpubMetadataValue | EpubMetadataValue[];
+      'dc:creator'?: EpubMetadataValue | EpubMetadataValue[];
+      'dc:language': EpubMetadataValue | EpubMetadataValue[];
       'opf:meta'?: EpubMetadataMeta | EpubMetadataMeta[];
     };
     'opf:manifest': {

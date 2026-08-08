@@ -16,6 +16,7 @@ export default async function loadEpub(
 
   const displayData = {
     title: file.name,
+    author: '',
     language: '',
     hasThumb: true,
     styleSheet: generateEpubStyleSheet(data, contents)
@@ -32,6 +33,9 @@ export default async function loadEpub(
     const titleValues = Array.isArray(metadata['dc:title'])
       ? metadata['dc:title']
       : [metadata['dc:title']];
+    const authorValues = Array.isArray(metadata['dc:creator'])
+      ? metadata['dc:creator']
+      : [metadata['dc:creator']];
 
     for (const dcTitle of titleValues) {
       if (typeof dcTitle === 'string') {
@@ -43,13 +47,23 @@ export default async function loadEpub(
       }
     }
 
+    for (const dcCreator of authorValues) {
+      if (typeof dcCreator === 'string') {
+        displayData.author = dcCreator;
+        break;
+      } else if (dcCreator?.['#text']) {
+        displayData.author = dcCreator['#text'];
+        break;
+      }
+    }
+
     displayData.language =
-      languageValues.reduce((languages, dcLanguage) => {
+      languageValues.reduce<string[]>((languages, dcLanguage) => {
         try {
           if (typeof dcLanguage === 'string') {
             languages.push(...Intl.getCanonicalLocales(dcLanguage.trim()));
           } else if (dcLanguage && dcLanguage['#text']) {
-            languages.push(...Intl.getCanonicalLocales(dcLanguage.trim()));
+            languages.push(...Intl.getCanonicalLocales(dcLanguage['#text'].trim()));
           }
         } catch (_) {
           //no-op
