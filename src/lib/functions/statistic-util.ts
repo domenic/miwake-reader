@@ -93,15 +93,19 @@ export function getDateString(date: Date) {
   )}-${`${date.getDate()}`.padStart(2, '0')}`;
 }
 
-export function getDateTimeString(timeInMs: number) {
+export function getDateTimeString(
+  timeInMs: number,
+  { includeSeconds = true }: { includeSeconds?: boolean } = {}
+) {
   const date = new Date(timeInMs);
-  return `${date.getFullYear()}-${`${date.getMonth() + 1}`.padStart(
+  const minuteDateTime = `${getDateString(date)} ${`${date.getHours()}`.padStart(
     2,
     '0'
-  )}-${`${date.getDate()}`.padStart(2, '0')} ${`${date.getHours()}`.padStart(
-    2,
-    '0'
-  )}:${`${date.getMinutes()}`.padStart(2, '0')}:${`${date.getSeconds()}`.padStart(2, '0')}`;
+  )}:${`${date.getMinutes()}`.padStart(2, '0')}`;
+
+  return includeSeconds
+    ? `${minuteDateTime}:${`${date.getSeconds()}`.padStart(2, '0')}`
+    : minuteDateTime;
 }
 
 export function getWeekNumber(referenceDate: number, startDate: number) {
