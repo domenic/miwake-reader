@@ -432,7 +432,7 @@ export abstract class BaseStorageHandler implements SyncEndpoint {
         | 'lastBookOpen'
         | 'lastSeenSourceInstanceId'
       >
-    > = ['title', 'styleSheet', 'elementHtml', 'htmlBackup', 'sections'];
+    > = ['title', 'author', 'styleSheet', 'elementHtml', 'htmlBackup', 'sections'];
     const staticData: Record<string, string | Section[] | undefined> = {};
     const limiter = pLimit(1);
     const cover = bookdata.coverImage;
@@ -600,6 +600,7 @@ export abstract class BaseStorageHandler implements SyncEndpoint {
                 BaseStorageHandler.getBookMetadata(filename);
 
               bookObject.title = staticData.title;
+              bookObject.author = staticData.author;
               bookObject.elementHtml = staticData.elementHtml;
               bookObject.styleSheet = staticData.styleSheet || '';
               bookObject.sections = staticData.sections || [];

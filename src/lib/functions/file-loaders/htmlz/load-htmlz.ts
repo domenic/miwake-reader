@@ -17,11 +17,18 @@ export default async function loadHtmlz(
 
   const displayData = {
     title: file.name,
+    author: '',
     hasThumb: true,
     styleSheet: data['style.css']
   };
   if (metadata && metadata['dc:title']) {
     displayData.title = metadata['dc:title'];
+  }
+  const creator = metadata?.['dc:creator'];
+  if (typeof creator === 'string') {
+    displayData.author = creator;
+  } else if (typeof creator?.['#text'] === 'string') {
+    displayData.author = creator['#text'];
   }
   const blobData = reduceObjToBlobs(data);
   const coverImageFilename = getHtmlzCoverImageFilename();

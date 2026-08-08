@@ -7,6 +7,7 @@ import type { SyncEndpointType } from '$lib/data/storage/storage-types';
 interface BooksDbV7BookData {
   id: number;
   title: string;
+  author?: string;
   language?: string;
   styleSheet: string;
   elementHtml: string;

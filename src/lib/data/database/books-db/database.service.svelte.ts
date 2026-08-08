@@ -92,6 +92,7 @@ export class DatabaseService {
     return data.map((book) => ({
       id: book.id,
       title: book.title,
+      author: book.author,
       imagePath: book.coverImage || '',
       characters: BaseStorageHandler.getBookCharacters(book.characters || 0, book.sections || []),
       lastBookModified: book.lastBookModified || 0,
