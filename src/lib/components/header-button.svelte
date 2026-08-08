@@ -1,13 +1,12 @@
 <script lang="ts">
   import type { IconDefinition } from '@fortawesome/free-solid-svg-icons';
   import { ripple } from '$lib/components/ripple';
-  import { quintOut } from 'svelte/easing';
   import type { MouseEventHandler } from 'svelte/elements';
   import type { Snippet } from 'svelte';
-  import { scale } from 'svelte/transition';
   import Fa from 'svelte-fa';
 
   type Variant = 'action' | 'tab';
+  type Width = 'default' | 'wide';
 
   interface Props {
     faIcon?: IconDefinition;
@@ -16,6 +15,7 @@
     disabled?: boolean;
     selected?: boolean;
     variant?: Variant;
+    width?: Width;
     onclick?: MouseEventHandler<HTMLButtonElement>;
     icon?: Snippet;
   }
@@ -27,35 +27,29 @@
     disabled = false,
     selected = false,
     variant = 'action',
+    width = 'default',
     onclick,
     icon
   }: Props = $props();
 
   const iconClasses = 'flex items-center justify-center leading-none mb-0.5';
   const faIconClasses = `${iconClasses} text-sm`;
-  const inAnimationParams = {
-    delay: 150,
-    duration: 150,
-    easing: quintOut
-  };
-  const outAnimationParams = {
-    duration: 150,
-    easing: quintOut
-  };
   const variantClasses = {
     action: 'opacity-60 transition-opacity',
     tab: ''
   } satisfies Record<Variant, string>;
+  const widthClasses = {
+    default: '',
+    wide: 'w-20 shrink-0'
+  } satisfies Record<Width, string>;
 </script>
 
 <button
   use:ripple
   type="button"
-  in:scale={inAnimationParams}
-  out:scale={outAnimationParams}
   {title}
   {disabled}
-  class={`flex h-12 min-w-16 flex-col items-center justify-center px-2 text-center text-xs select-none ${variantClasses[variant]}`}
+  class={`flex h-12 min-w-16 flex-col items-center justify-center px-2 text-center text-xs select-none ${variantClasses[variant]} ${widthClasses[width]}`}
   class:opacity-100={variant === 'action' && selected}
   class:bg-gray-900={variant === 'tab' && selected}
   class:hover:bg-gray-800={variant === 'tab' && selected}
