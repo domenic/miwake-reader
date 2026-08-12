@@ -1,7 +1,13 @@
 export type StatisticsView = 'heatmap' | 'summary';
 
 export const defaultStatisticsView: StatisticsView = 'heatmap';
-export const statisticsBookQueryParam = 'b';
+export const statisticsBookQueryParam = 't';
+/**
+ * Pre-title URLs filtered by the per-device numeric IDB id (`?b=20`). There
+ * is nothing stable to map those to, so the page strips them and shows the
+ * unfiltered view.
+ */
+export const statisticsLegacyBookQueryParam = 'b';
 export const statisticsViewQueryParam = 'view';
 export const statisticsViews: StatisticsView[] = [defaultStatisticsView, 'summary'];
 
@@ -11,13 +17,13 @@ export function getValidStatisticsView(view?: string | null): StatisticsView {
     : defaultStatisticsView;
 }
 
-export function getStatisticsURL(view: StatisticsView, bookIds?: readonly number[]) {
+export function getStatisticsURL(view: StatisticsView, bookTitles?: readonly string[]) {
   const searchParams = new URLSearchParams({ [statisticsViewQueryParam]: view });
 
-  if (bookIds !== undefined) {
-    if (bookIds.length) {
-      for (const bookId of bookIds) {
-        searchParams.append(statisticsBookQueryParam, bookId.toString());
+  if (bookTitles !== undefined) {
+    if (bookTitles.length) {
+      for (const bookTitle of bookTitles) {
+        searchParams.append(statisticsBookQueryParam, bookTitle);
       }
     } else {
       searchParams.append(statisticsBookQueryParam, '');
@@ -27,26 +33,26 @@ export function getStatisticsURL(view: StatisticsView, bookIds?: readonly number
   return `/statistics?${searchParams.toString()}` as `/statistics?${string}`;
 }
 
-export function getBookStatisticsURL(bookId: number) {
-  const searchParams = new URLSearchParams({ [statisticsBookQueryParam]: bookId.toString() });
+export function getBookStatisticsURL(bookTitle: string) {
+  const searchParams = new URLSearchParams({ [statisticsBookQueryParam]: bookTitle });
 
   return `/statistics?${searchParams.toString()}` as `/statistics?${string}`;
 }
 
-export function getStatisticsBookIds(searchParams: URLSearchParams) {
+export function getStatisticsBookTitles(searchParams: URLSearchParams) {
   const values = searchParams.getAll(statisticsBookQueryParam);
 
   if (!values.length) {
     return undefined;
   }
 
-  const bookIds = values
-    .map((value) => Number(value))
-    .filter((bookId) => Number.isInteger(bookId) && bookId > 0);
+  // A single empty value is the "nothing selected" sentinel; it (and any
+  // other empty strings) must not survive as a filter entry.
+  const bookTitles = values.filter((value) => value);
 
-  return [...new Set(bookIds)].sort((a, b) => a - b);
+  return [...new Set(bookTitles)].sort((a, b) => a.localeCompare(b, 'ja-JP', { numeric: true }));
 }
 
-export function getStatisticsBookFilterKey(bookIds?: readonly number[]) {
-  return bookIds === undefined ? 'all' : `books:${bookIds.join(',')}`;
+export function getStatisticsBookFilterKey(bookTitles?: readonly string[]) {
+  return bookTitles === undefined ? 'all' : `books:${JSON.stringify(bookTitles)}`;
 }

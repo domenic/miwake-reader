@@ -419,7 +419,6 @@ async function pushAllLocalBooks(): Promise<void> {
   for (const book of all) {
     if (!book.elementHtml) continue;
     const context: ReplicationContext = {
-      id: book.id,
       title: book.title,
       imagePath: book.coverImage || ''
     };
@@ -570,8 +569,8 @@ async function pushOne(context: ReplicationContext, types: BookDataType[]): Prom
     // stamp the book with that id so a later reconcile can tell
     // remote-deleted from never-pushed. The stamp is guarded against
     // a mid-flight source switch via expectedSourceInstanceId.
-    if (context.id && types.includes(StorageDataType.DATA)) {
-      await markBookMirroredToSource(context.id, expectedSourceInstanceId);
+    if (types.includes(StorageDataType.DATA)) {
+      await markBookMirroredToSource(context.title, expectedSourceInstanceId);
     }
     markSynced();
     logger.debug(
@@ -782,9 +781,7 @@ export async function reconcileForBookOpen(context: ReplicationContext): Promise
   // If the local row is a placeholder (no elementHtml), the book hasn't
   // been downloaded yet — include DATA in the pull so the reader has
   // something to render.
-  const localBook = context.id
-    ? await database.getData(context.id)
-    : await database.getDataByTitle(context.title);
+  const localBook = await database.getDataByTitle(context.title);
   const isPlaceholder = !!localBook && !localBook.elementHtml;
   const types = [
     ...(isPlaceholder ? [StorageDataType.DATA] : []),
@@ -885,7 +882,6 @@ export async function forceFullResync(direction: ForceResyncDirection): Promise<
 
     const allBooks = await (await database.db).getAll('data');
     const pullContexts: ReplicationContext[] = allBooks.map((b) => ({
-      id: b.id,
       title: b.title,
       imagePath: b.coverImage ?? ''
     }));
@@ -894,7 +890,7 @@ export async function forceFullResync(direction: ForceResyncDirection): Promise<
     // Filter pushContexts to books we actually hold content for.
     const pushContexts: ReplicationContext[] = allBooks
       .filter((b) => !!b.elementHtml)
-      .map((b) => ({ id: b.id, title: b.title, imagePath: b.coverImage ?? '' }));
+      .map((b) => ({ title: b.title, imagePath: b.coverImage ?? '' }));
 
     logger.debug(
       `forceFullResync: direction=${direction}, ` +
@@ -931,7 +927,7 @@ export async function forceFullResync(direction: ForceResyncDirection): Promise<
         // mid-flight source switch by re-checking against the
         // current syncState before writing.
         for (const ctx of pushContexts) {
-          if (ctx.id) await markBookMirroredToSource(ctx.id, location.sourceInstanceId);
+          await markBookMirroredToSource(ctx.title, location.sourceInstanceId);
         }
       }
       markSynced();

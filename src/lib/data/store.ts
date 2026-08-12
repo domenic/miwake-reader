@@ -149,8 +149,10 @@ export const autoReplication$ = stringLocalStorageStore<AutoReplicationType>(
   AutoReplicationType.All
 );
 
-export const keepLocalStatisticsOnDeletion$ = booleanLocalStorageStore(
-  'keepLocalStatisticsOnDeletion',
+// Renamed from `keepLocalStatisticsOnDeletion` when it grew to also cover
+// bookmarks; the old stored value is deliberately not migrated.
+export const keepLocalReadingDataOnDeletion$ = booleanLocalStorageStore(
+  'keepLocalReadingDataOnDeletion',
   true
 );
 

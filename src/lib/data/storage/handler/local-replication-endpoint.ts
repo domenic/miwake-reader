@@ -40,8 +40,8 @@ export class LocalReplicationEndpoint implements LocalReplicationEndpointRole {
   async deleteBookData(
     booksToDelete: string[],
     signal: AbortSignal,
-    keepLocalStatistics: boolean
-  ): Promise<number[]> {
+    keepLocalReadingData: boolean
+  ): Promise<string[]> {
     const ids: number[] = [];
     const idToTitle = new Map<number, string>();
 
@@ -54,7 +54,8 @@ export class LocalReplicationEndpoint implements LocalReplicationEndpointRole {
     }
 
     try {
-      return await database.deleteData(ids, idToTitle, signal, keepLocalStatistics);
+      const deletedIds = await database.deleteData(ids, idToTitle, signal, keepLocalReadingData);
+      return deletedIds.map((id) => idToTitle.get(id) as string);
     } finally {
       // On partial failure the AggregateError loses the per-id
       // deleted list, but IDB still reflects whatever got through.
@@ -231,20 +232,16 @@ class ScopedLocalReplicationEndpoint
   }
 
   async getBook(): Promise<BooksDbBookData | undefined> {
-    const book = this.context.id
-      ? await database.getData(this.context.id)
-      : await database.getDataByTitle(this.title);
+    const book = await database.getDataByTitle(this.title);
 
     BaseStorageHandler.reportProgress();
     return book;
   }
 
   async getProgress() {
-    const dataId = this.context.id || (await database.getDataByTitle(this.title))?.id;
     BaseStorageHandler.reportProgress(0.5);
-    if (!dataId) return undefined;
 
-    const bookmark = await database.getBookmark(dataId);
+    const bookmark = await database.getBookmark(this.title);
     // Placeholder bookmarks carry source-side progress for /manage to display,
     // but lack the actual reading position. Treat them as "no progress" for
     // sync purposes so isProgressPresentAndUpToDate returns false (forcing a
@@ -280,11 +277,16 @@ class ScopedLocalReplicationEndpoint
   }
 
   async saveProgress(data: BooksDbBookmarkData) {
-    const dataId = this.context.id || (await database.getDataByTitle(this.title))?.id;
+    const book = await database.getDataByTitle(this.title);
     BaseStorageHandler.reportProgress(0.5);
-    if (dataId) {
-      data.dataId = dataId;
-      await database.putBookmark(data);
+    if (book) {
+      // Progress JSON written by another device carries that device's idea of
+      // the identity field — including a legacy numeric `dataId` from pre-v8
+      // clients. The scope's title is authoritative; strip anything else.
+      const { dataId: _legacyDataId, ...bookmark } = data as BooksDbBookmarkData & {
+        dataId?: number;
+      };
+      await database.putBookmark({ ...bookmark, title: this.title });
     }
   }
 

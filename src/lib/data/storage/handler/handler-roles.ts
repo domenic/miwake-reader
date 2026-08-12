@@ -72,8 +72,8 @@ export interface BookOperations {
   deleteBookData(
     booksToDelete: string[],
     signal: AbortSignal,
-    keepLocalStatistics: boolean
-  ): Promise<number[]>;
+    keepLocalReadingData: boolean
+  ): Promise<string[]>;
 
   /**
    * Reading goals are app-global (no per-book context). The settings

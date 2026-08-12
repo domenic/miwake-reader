@@ -176,14 +176,22 @@
       .join(', ')
   );
 
-  let bookId = $derived(browser ? Number(page.url.searchParams.get('id')) : 0);
+  let bookTitle = $derived(browser ? (page.url.searchParams.get('t') ?? '') : '');
+  let hasLegacyBookId = $derived(browser && page.url.searchParams.has('id'));
   let rawBookData = $state<BooksDbBookData>();
   let bookData = $state<LoadedBookData>();
   $effect(() => {
     if (!browser) return;
 
+    if (hasLegacyBookId) {
+      // Pre-title URLs carried the per-device numeric IDB id; there is
+      // nothing stable to map it to, so send the visitor to the library.
+      void goto(resolve(mergeEntries.MANAGE.routeId), { replaceState: true });
+      return;
+    }
+
     const abortController = new AbortController();
-    void loadReaderBook(bookId, abortController.signal);
+    void loadReaderBook(bookTitle, abortController.signal);
 
     return () => {
       abortController.abort();
@@ -218,7 +226,7 @@
     return cleanup;
   });
 
-  async function loadReaderBook(id: number, signal: AbortSignal) {
+  async function loadReaderBook(title: string, signal: AbortSignal) {
     let loadedBook: BooksDbBookData | undefined;
 
     showSpinner = true;
@@ -228,13 +236,13 @@
     bookmarkData = Promise.resolve(undefined);
 
     try {
-      loadedBook = await loadReaderBookData(id);
+      loadedBook = await loadReaderBookData(title);
       if (signal.aborted) return;
 
       rawBookData = loadedBook;
 
       if (loadedBook) {
-        bookmarkData = database.getBookmark(loadedBook.id);
+        bookmarkData = database.getBookmark(loadedBook.title);
       } else {
         await goto(resolve(mergeEntries.MANAGE.routeId));
       }
@@ -255,16 +263,14 @@
     }
   }
 
-  async function loadReaderBookData(id: number) {
+  async function loadReaderBookData(title: string) {
     let book: BooksDbBookData | undefined;
-    logger.debug(`reader/rawBookData: start id=${id}`);
+    logger.debug(`reader/rawBookData: start title=${JSON.stringify(title)}`);
 
-    book = await openBook(id);
+    book = await openBook(title);
     logger.debug(
       `reader/rawBookData: getBook -> ${
-        book
-          ? `{id:${book.id}, title:${JSON.stringify(book.title)}, hasHtml:${!!book.elementHtml}}`
-          : 'undefined'
+        book ? `{title:${JSON.stringify(book.title)}, hasHtml:${!!book.elementHtml}}` : 'undefined'
       }`
     );
 
@@ -273,7 +279,6 @@
     }
 
     const currentContext = {
-      id: book.id,
       title: book.title,
       imagePath: book.coverImage
     };
@@ -289,7 +294,7 @@
     // If we started from a placeholder, `reconcileForBookOpen` should have written real content
     // into the `data` row. Re-read so the renderer sees the hydrated book.
     if (!book.elementHtml) {
-      const refreshed = await openBook(id);
+      const refreshed = await openBook(title);
       if (refreshed) {
         book = refreshed;
       }
@@ -530,7 +535,7 @@
   }
 
   async function handleJump() {
-    if (!readerController.canBookmark || !bookId) {
+    if (!readerController.canBookmark || !bookTitle) {
       return;
     }
 
@@ -559,7 +564,7 @@
 
     readerController.scrollToBookmark(
       {
-        dataId: bookId,
+        title: bookTitle,
         exploredCharCount: target,
         lastBookmarkModified: new Date().getTime(),
         progress: 0
@@ -671,7 +676,7 @@
 
       if (readerController.canBookmark && ctx) {
         const data = {
-          ...readerController.formatBookmarkData(rawBookData.id, customReadingPointScrollOffset),
+          ...readerController.formatBookmarkData(rawBookData.title, customReadingPointScrollOffset),
           completed: true
         };
 
@@ -706,10 +711,10 @@
 
     try {
       const ctx = bookReplicationContext();
-      if (!bookId || !ctx || !readerController.canBookmark) return;
+      if (!bookTitle || !ctx || !readerController.canBookmark) return;
 
       const data = {
-        ...readerController.formatBookmarkData(bookId, customReadingPointScrollOffset),
+        ...readerController.formatBookmarkData(bookTitle, customReadingPointScrollOffset),
         completed: false
       };
 
@@ -800,7 +805,7 @@
   }
 
   async function bookmarkPage() {
-    if (!bookId || !readerController.canBookmark) return;
+    if (!bookTitle || !readerController.canBookmark) return;
 
     let data: BooksDbBookmarkData;
 
@@ -814,13 +819,13 @@
 
       pulseElement(bookmarkRange?.endContainer?.parentElement, 'add', 0.5, 500);
 
-      data = readerController.formatBookmarkDataByRange(bookId, bookmarkRange);
+      data = readerController.formatBookmarkDataByRange(bookTitle, bookmarkRange);
 
       if (userSelectedRange) {
         clearRange(window);
       }
     } else {
-      data = readerController.formatBookmarkData(bookId, customReadingPointScrollOffset);
+      data = readerController.formatBookmarkData(bookTitle, customReadingPointScrollOffset);
     }
 
     const existingData = await bookmarkData;
@@ -928,8 +933,8 @@
         showErrorDialog({ title: 'Error saving reader state', error });
       }
 
-      if (routeId === mergeEntries.STATISTICS.routeId && bookId) {
-        await goto(resolve(getBookStatisticsURL(bookId)));
+      if (routeId === mergeEntries.STATISTICS.routeId && bookTitle) {
+        await goto(resolve(getBookStatisticsURL(bookTitle)));
       } else {
         await goto(resolve(routeId));
       }
@@ -1137,7 +1142,6 @@
   function bookReplicationContext(): ReplicationContext | undefined {
     if (!rawBookData) return undefined;
     return {
-      id: rawBookData.id,
       title: rawBookData.title,
       imagePath: rawBookData.coverImage
     };

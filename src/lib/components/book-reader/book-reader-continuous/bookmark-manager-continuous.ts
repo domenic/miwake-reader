@@ -26,7 +26,7 @@ export class BookmarkManagerContinuous implements BookmarkManager {
     this.window.scrollTo(scrollToData);
   }
 
-  formatBookmarkData(bookId: number, customReadingPointScrollOffset = 0): BooksDbBookmarkData {
+  formatBookmarkData(bookTitle: string, customReadingPointScrollOffset = 0): BooksDbBookmarkData {
     const exploredCharCount = this.calculator.calcExploredCharCount(customReadingPointScrollOffset);
     const bookCharCount = this.calculator.charCount;
 
@@ -34,7 +34,7 @@ export class BookmarkManagerContinuous implements BookmarkManager {
     const scrollAxis = verticalMode ? 'scrollX' : 'scrollY';
 
     return {
-      dataId: bookId,
+      title: bookTitle,
       exploredCharCount,
       progress: exploredCharCount / bookCharCount,
       [scrollAxis]: this.window[scrollAxis],
@@ -42,8 +42,8 @@ export class BookmarkManagerContinuous implements BookmarkManager {
     };
   }
 
-  formatBookmarkDataByRange(bookId: number): BooksDbBookmarkData {
-    return this.formatBookmarkData(bookId);
+  formatBookmarkDataByRange(bookTitle: string): BooksDbBookmarkData {
+    return this.formatBookmarkData(bookTitle);
   }
 
   getBookmarkBarPosition(bookmarkData: BooksDbBookmarkData): BookmarkPosData | undefined {

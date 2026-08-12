@@ -65,14 +65,14 @@ export async function detachSourceKeepingLibrary(): Promise<void> {
  * the id and now.
  */
 export async function markBookMirroredToSource(
-  bookId: number,
+  title: string,
   expectedSourceInstanceId: string
 ): Promise<void> {
   if (!isStillActive(expectedSourceInstanceId)) return;
   const db = await database.db;
   const tx = db.transaction('data', 'readwrite');
   const store = tx.objectStore('data');
-  const book = await store.get(bookId);
+  const book = await store.index('title').get(title);
   if (!book || book.lastSeenSourceInstanceId === expectedSourceInstanceId) {
     await tx.done;
     return;
@@ -118,7 +118,7 @@ async function deleteMatchingBooks(
     ids,
     idsToTitles,
     new AbortController().signal,
-    /* keepLocalStatistics */ true
+    /* keepLocalReadingData */ true
   );
   return deleted.length;
 }
@@ -158,9 +158,9 @@ async function ensurePlaceholders(
       // so the book-open path still pulls the full bookmark JSON with
       // exact reading position.
       await maybeWritePlaceholderBookmark(
-        existing.id,
+        existing.title,
         card,
-        await database.getBookmark(existing.id)
+        await database.getBookmark(existing.title)
       );
       continue;
     }
@@ -185,7 +185,7 @@ async function ensurePlaceholders(
       },
       ReplicationSaveBehavior.NewOnly
     );
-    await maybeWritePlaceholderBookmark(stored.id, card);
+    await maybeWritePlaceholderBookmark(stored.title, card);
     touched += 1;
   }
 
@@ -193,7 +193,7 @@ async function ensurePlaceholders(
 }
 
 async function maybeWritePlaceholderBookmark(
-  dataId: number,
+  title: string,
   card: SyncTitle,
   existing?: BooksDbBookmarkData
 ) {
@@ -223,7 +223,7 @@ async function maybeWritePlaceholderBookmark(
   }
 
   await database.putBookmark({
-    dataId,
+    title,
     progress,
     lastBookmarkModified,
     completed,

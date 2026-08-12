@@ -56,19 +56,19 @@ export class BookmarkManagerPaginated implements BookmarkManager {
     this.#setIntendedCharCount(charCount);
   }
 
-  formatBookmarkData(bookId: number): BooksDbBookmarkData {
-    return this.formatBookmarkDataByRange(bookId, undefined);
+  formatBookmarkData(bookTitle: string): BooksDbBookmarkData {
+    return this.formatBookmarkDataByRange(bookTitle, undefined);
   }
 
   formatBookmarkDataByRange(
-    bookId: number,
+    bookTitle: string,
     customReadingPointRange: Range | undefined
   ): BooksDbBookmarkData {
     const exploredCharCount = this.#calculator.calcExploredCharCount(customReadingPointRange);
     const bookCharCount = this.#calculator.charCount;
 
     return {
-      dataId: bookId,
+      title: bookTitle,
       exploredCharCount,
       progress: exploredCharCount / bookCharCount,
       lastBookmarkModified: new Date().getTime()

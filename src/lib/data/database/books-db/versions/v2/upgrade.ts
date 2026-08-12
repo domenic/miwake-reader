@@ -2,6 +2,7 @@ import type { IDBPDatabase, IDBPTransaction, StoreNames } from 'idb';
 
 import type { BooksDb, BooksDbBookData } from '../books-db';
 import type BooksDbV2 from './books-db-v2';
+import type BooksDbV7 from '../v7/books-db-v7';
 
 export default async function upgradeBooksDbFromV2(
   oldDb: IDBPDatabase<BooksDb>,
@@ -23,6 +24,13 @@ export default async function upgradeBooksDbFromV2(
 
   const oldDbV2 = oldDb as unknown as IDBPDatabase<BooksDbV2>;
   const transactionV2 = transaction as unknown as IDBPTransaction<BooksDbV2>;
+  // This stage still writes v7-shaped `bookmark` / `lastItem` rows (keyed by
+  // `dataId`); the v8 stage that always follows it re-keys them by title.
+  const transactionV7 = transaction as unknown as IDBPTransaction<
+    BooksDbV7,
+    StoreNames<BooksDbV7>[],
+    'versionchange'
+  >;
 
   const oldValues: {
     data: Record<string, string>;
@@ -70,7 +78,7 @@ export default async function upgradeBooksDbFromV2(
 
         const scrollX = oldValues.scrollX[key];
         if (scrollX) {
-          await transaction.objectStore('bookmark').put({
+          await transactionV7.objectStore('bookmark').put({
             dataId,
             scrollX: +scrollX,
             progress: '0%',
@@ -79,7 +87,7 @@ export default async function upgradeBooksDbFromV2(
         }
 
         if (oldValues.lastItem === key) {
-          transaction.objectStore('lastItem').put(
+          transactionV7.objectStore('lastItem').put(
             {
               dataId
             },

@@ -13,7 +13,6 @@ import {
   StatisticsRangeTemplate
 } from '$lib/components/statistics/statistics-types';
 import type {
-  BooksDbBookData,
   BooksDbReadingGoal,
   BooksDbStatistic
 } from '$lib/data/database/books-db/versions/books-db';
@@ -53,8 +52,8 @@ import { fromStore } from 'svelte/store';
 import { SvelteMap, SvelteSet } from 'svelte/reactivity';
 
 interface BookFilterURLState {
-  shouldUpdate: boolean;
-  bookIds?: number[];
+  /** Absent when every (or no) title is selected — the URL carries no filter. */
+  bookTitles?: string[];
 }
 
 function formatJapaneseHTML(value: string) {
@@ -70,8 +69,6 @@ export class StatisticsController {
   #lastStatisticsRangeTemplate = fromStore(lastStatisticsRangeTemplate$);
   #lastStatisticsStartDate = fromStore(lastStatisticsStartDate$);
   #startDayHoursForTracker = fromStore(startDayHoursForTracker$);
-  #bookIdsByTitle = new SvelteMap<string, number[]>();
-  #bookTitlesById = new SvelteMap<number, string>();
 
   isLoading = $state(true);
   statisticsTitleFilters = $state(new SvelteMap<string, boolean>());
@@ -115,22 +112,20 @@ export class StatisticsController {
     });
   }
 
-  async init(prefilterBookIds?: readonly number[]) {
+  async init(prefilterBookTitles?: readonly string[]) {
     this.titleFilterEnabled = false;
 
     try {
       const db = await database.db;
-      const hasPrefilteredBooks = prefilterBookIds !== undefined;
+      const hasPrefilteredBooks = prefilterBookTitles !== undefined;
       const initialTitleFilterSelections = new SvelteMap<string, boolean>();
 
-      const [statistics, readingGoalData, bookData] = await Promise.all([
+      const [statistics, readingGoalData] = await Promise.all([
         db.getAllFromIndex('statistic', 'dateKey'),
-        database.getReadingGoals(),
-        db.getAll('data')
+        database.getReadingGoals()
       ]);
-      this.#indexBookFilters(bookData);
 
-      const prefilteredTitles = this.#getTitlesForBookIds(prefilterBookIds);
+      const prefilteredTitles = new SvelteSet(prefilterBookTitles ?? []);
 
       this.statisticsData = statistics.map((statistic) => {
         if (statistic.readingTime) {
@@ -165,11 +160,11 @@ export class StatisticsController {
     }
   }
 
-  applyBookFilterIds(bookIds?: readonly number[]) {
-    const selectedTitles = this.#getTitlesForBookIds(bookIds);
+  applyBookFilterTitles(bookTitles?: readonly string[]) {
+    const selectedTitles = new SvelteSet(bookTitles ?? []);
 
     for (const title of this.statisticsTitleFilters.keys()) {
-      this.statisticsTitleFilters.set(title, bookIds === undefined || selectedTitles.has(title));
+      this.statisticsTitleFilters.set(title, bookTitles === undefined || selectedTitles.has(title));
     }
 
     this.updateStatisticsData();
@@ -192,7 +187,7 @@ export class StatisticsController {
 
   getBookFilterURLState(): BookFilterURLState {
     if (!this.statisticsTitleFilters.size) {
-      return { shouldUpdate: true };
+      return {};
     }
 
     const selectedTitles = [...this.statisticsTitleFilters]
@@ -200,65 +195,12 @@ export class StatisticsController {
       .map(([title]) => title);
 
     if (selectedTitles.length === this.statisticsTitleFilters.size) {
-      return { shouldUpdate: true };
+      return {};
     }
 
-    const bookIds = new SvelteSet<number>();
-
-    for (const title of selectedTitles) {
-      const titleBookIds = this.#bookIdsByTitle.get(title);
-
-      if (!titleBookIds?.length) {
-        return { shouldUpdate: false };
-      }
-
-      for (const bookId of titleBookIds) {
-        bookIds.add(bookId);
-      }
-    }
-
-    return { shouldUpdate: true, bookIds: [...bookIds].sort((a, b) => a - b) };
-  }
-
-  #indexBookFilters(bookData: BooksDbBookData[]) {
-    this.#bookIdsByTitle = new SvelteMap();
-    this.#bookTitlesById = new SvelteMap();
-
-    for (const book of bookData) {
-      const bookId = book.id;
-
-      if (bookId === undefined) {
-        continue;
-      }
-
-      this.#bookTitlesById.set(bookId, book.title);
-
-      const bookIds = this.#bookIdsByTitle.get(book.title) ?? [];
-      bookIds.push(bookId);
-      this.#bookIdsByTitle.set(book.title, bookIds);
-    }
-
-    for (const bookIds of this.#bookIdsByTitle.values()) {
-      bookIds.sort((a, b) => a - b);
-    }
-  }
-
-  #getTitlesForBookIds(bookIds?: readonly number[]) {
-    const titles = new SvelteSet<string>();
-
-    if (bookIds === undefined) {
-      return titles;
-    }
-
-    for (const bookId of bookIds) {
-      const title = this.#bookTitlesById.get(bookId);
-
-      if (title) {
-        titles.add(title);
-      }
-    }
-
-    return titles;
+    return {
+      bookTitles: selectedTitles.sort((a, b) => a.localeCompare(b, 'ja-JP', { numeric: true }))
+    };
   }
 
   handleKeydown(ev: KeyboardEvent) {

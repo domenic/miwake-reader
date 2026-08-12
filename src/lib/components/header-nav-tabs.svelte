@@ -42,13 +42,13 @@
   }
 </script>
 
-{#if database.lastItemId !== undefined}
+{#if database.lastItemTitle !== undefined}
   <HeaderButton
     faIcon={faBookOpen}
     label="Book"
     selected={page.route.id === '/b'}
     variant="tab"
-    onclick={() => handleClick('/b', `?id=${database.lastItemId}`)}
+    onclick={() => handleClick('/b', `?${new URLSearchParams({ t: database.lastItemTitle! })}`)}
   />
 {/if}
 {#each tabs as tab (tab.routeId)}

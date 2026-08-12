@@ -16,12 +16,12 @@
 
   interface Props {
     bookCard: BookCardProps;
-    onread?: (data: { id: number }) => void | Promise<void>;
-    onstatistics?: (data: { id: number }) => void | Promise<void>;
-    ondownload?: (data: { id: number }) => void | Promise<void>;
-    oncomplete?: (data: { id: number; completed: boolean }) => void | Promise<void>;
-    ondeletestatistics?: (data: { id: number }) => void | Promise<void>;
-    onremove?: (data: { id: number }) => void | Promise<void>;
+    onread?: (data: { title: string }) => void | Promise<void>;
+    onstatistics?: (data: { title: string }) => void | Promise<void>;
+    ondownload?: (data: { title: string }) => void | Promise<void>;
+    oncomplete?: (data: { title: string; completed: boolean }) => void | Promise<void>;
+    ondeletestatistics?: (data: { title: string }) => void | Promise<void>;
+    onremove?: (data: { title: string }) => void | Promise<void>;
   }
 
   let {
@@ -98,12 +98,12 @@
 
 <div class="mt-2.5 grid grid-cols-[1fr_1fr_auto] gap-1">
   {@render cardAction(faChartLine, 'Stats', `View statistics for ${bookCard.title}`, () =>
-    onstatistics?.({ id: bookCard.id })
+    onstatistics?.({ title: bookCard.title })
   )}
 
   {#if bookCard.isPlaceholder}
     {@render cardAction(faDownload, 'Download', `Download ${bookCard.title}`, () =>
-      ondownload?.({ id: bookCard.id })
+      ondownload?.({ title: bookCard.title })
     )}
   {:else}
     <Popover
@@ -153,14 +153,14 @@
     {#snippet content()}
       <div class="inline-flex min-w-56 flex-col py-2">
         <div class="max-w-72 truncate px-4 pb-2 text-xs font-medium">{bookCard.title}</div>
-        {@render menuAction(faBookOpen, 'Read book', () => onread?.({ id: bookCard.id }))}
+        {@render menuAction(faBookOpen, 'Read book', () => onread?.({ title: bookCard.title }))}
         {@render menuAction(faChartLine, 'View statistics', () =>
-          onstatistics?.({ id: bookCard.id })
+          onstatistics?.({ title: bookCard.title })
         )}
         {@render menuAction(
           faFlag,
           bookCard.completed ? 'Mark as in progress' : 'Mark as complete',
-          () => oncomplete?.({ id: bookCard.id, completed: !bookCard.completed })
+          () => oncomplete?.({ title: bookCard.title, completed: !bookCard.completed })
         )}
         {#if !bookCard.isPlaceholder}
           {@render menuAction(faCircleInfo, 'Book details', () => detailsPopover?.toggleOpen())}
@@ -169,18 +169,18 @@
         {#if bookCard.isPlaceholder}
           <hr class="mx-4 my-1 border-white/20" />
           {@render menuAction(faDownload, 'Download to this device', () =>
-            ondownload?.({ id: bookCard.id })
+            ondownload?.({ title: bookCard.title })
           )}
         {/if}
 
         <hr class="mx-4 my-1 border-white/20" />
         {@render menuAction(faCalendarXmark, 'Delete statistics', () =>
-          ondeletestatistics?.({ id: bookCard.id })
+          ondeletestatistics?.({ title: bookCard.title })
         )}
         {@render menuAction(
           faTrash,
           'Remove from library',
-          () => onremove?.({ id: bookCard.id }),
+          () => onremove?.({ title: bookCard.title }),
           true
         )}
       </div>

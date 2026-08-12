@@ -44,7 +44,7 @@ export class DatabaseService {
     listLoading: browser,
     dataList: [] as BookCardProps[],
     bookmarks: [] as BooksDbBookmarkData[],
-    lastItemId: undefined as number | undefined,
+    lastItemTitle: undefined as string | undefined,
     lastItemLoaded: false
   });
 
@@ -63,8 +63,8 @@ export class DatabaseService {
     return this.#state.bookmarks;
   }
 
-  get lastItemId() {
-    return this.#state.lastItemId;
+  get lastItemTitle() {
+    return this.#state.lastItemTitle;
   }
 
   get lastItemLoaded() {
@@ -90,9 +90,9 @@ export class DatabaseService {
     const db = await this.db;
     const data = await db.getAll('data');
     return data.map((book) => ({
-      id: book.id,
       title: book.title,
       author: book.author,
+      addedOrder: book.id,
       imagePath: book.coverImage || '',
       characters: BaseStorageHandler.getBookCharacters(book.characters || 0, book.sections || []),
       lastBookModified: book.lastBookModified || 0,
@@ -122,10 +122,12 @@ export class DatabaseService {
    * Use this when something has mutated the `data` store directly
    * (sync engine seeding placeholders, importers, etc.). `dataList`
    * reads IndexedDB on every refresh so no handler-cache invalidation is
-   * needed.
+   * needed. Await the returned promise when subsequent logic must observe
+   * the refreshed `dataList` (e.g. /manage's post-delete selection
+   * reconciliation).
    */
-  notifyDataListChanged(): void {
-    void this.#refreshBookCards();
+  notifyDataListChanged(): Promise<void> {
+    return this.#refreshBookCards();
   }
 
   notifyBookmarksChanged(): void {
@@ -178,13 +180,13 @@ export class DatabaseService {
       const db = await this.db;
       const lastItem = await db.get('lastItem', LAST_ITEM_KEY);
       if (refreshId === this.#lastItemRefreshId) {
-        this.#state.lastItemId = lastItem?.dataId;
+        this.#state.lastItemTitle = lastItem?.title;
         this.#state.lastItemLoaded = true;
       }
     } catch (error) {
       if (refreshId === this.#lastItemRefreshId) {
         showErrorDialog({ title: 'Error loading last-opened book', error });
-        this.#state.lastItemId = undefined;
+        this.#state.lastItemTitle = undefined;
         this.#state.lastItemLoaded = true;
       }
     }
@@ -195,14 +197,6 @@ export class DatabaseService {
     const result = await db.get('lastModified', [title, dataType]);
 
     return result?.lastModifiedValue || 0;
-  }
-
-  async getData(dataId: number) {
-    if (!Number.isNaN(dataId)) {
-      const db = await this.db;
-      return db.get('data', dataId);
-    }
-    return undefined;
   }
 
   async getDataByTitle(title: string) {
@@ -330,13 +324,9 @@ export class DatabaseService {
     dataIds: number[],
     idsToTitles: Map<number, string>,
     signal: AbortSignal,
-    keepLocalStatistics: boolean
+    keepLocalReadingData: boolean
   ): Promise<number[]> {
     const db = await this.db;
-    const lastItemObj = await db.get('lastItem', LAST_ITEM_KEY);
-    const bookmarkIdData = await db.getAllKeys('bookmark');
-    const lastItem = lastItemObj?.dataId;
-    const bookmarkIds = new SvelteSet(bookmarkIdData);
     const deleted: number[] = [];
     const errors: Error[] = [];
     const limiter = pLimit(1);
@@ -350,16 +340,14 @@ export class DatabaseService {
           try {
             signal.throwIfAborted();
             deleted.push(
-              await this.#deleteSingleData(
-                db,
-                id,
-                idsToTitles.get(id),
-                { lastItem, bookmarkIds },
-                !keepLocalStatistics
-              )
+              await this.#deleteSingleData(db, id, idsToTitles.get(id), !keepLocalReadingData)
             );
           } catch (error: any) {
-            handleErrorDuringReplication(error, `Error deleting Book with id ${id}: `, [limiter]);
+            handleErrorDuringReplication(
+              error,
+              `Error deleting ${idsToTitles.get(id) ?? `book with internal id ${id}`}: `,
+              [limiter]
+            );
             errors.push(error);
           }
         })
@@ -370,15 +358,22 @@ export class DatabaseService {
       if (err.name === 'AbortError') throw err;
     });
 
+    if (!keepLocalReadingData) {
+      // The in-memory bookmark list drives /manage's progress join (by
+      // title); left stale, a deleted bookmark would re-attach to a
+      // re-imported same-title book within the session.
+      await this.#refreshBookmarks();
+    }
+
     if (errors.length) {
       throw new AggregateError(errors, errors[0].message);
     }
     return deleted;
   }
 
-  async getBookmark(dataId: number) {
+  async getBookmark(title: string) {
     const db = await this.db;
-    return db.get('bookmark', dataId);
+    return db.get('bookmark', title);
   }
 
   async putBookmark(bookmarkData: BooksDbBookmarkData) {
@@ -388,10 +383,10 @@ export class DatabaseService {
     return result;
   }
 
-  async putLastItem(dataId: number) {
+  async putLastItem(title: string) {
     const db = await this.db;
-    const result = await db.put('lastItem', { dataId }, LAST_ITEM_KEY);
-    this.#state.lastItemId = dataId;
+    const result = await db.put('lastItem', { title }, LAST_ITEM_KEY);
+    this.#state.lastItemTitle = title;
     this.#state.lastItemLoaded = true;
     return result;
   }
@@ -399,7 +394,7 @@ export class DatabaseService {
   async deleteLastItem() {
     const db = await this.db;
     await db.delete('lastItem', LAST_ITEM_KEY);
-    this.#state.lastItemId = undefined;
+    this.#state.lastItemTitle = undefined;
     this.#state.lastItemLoaded = true;
   }
 
@@ -407,46 +402,33 @@ export class DatabaseService {
     db: IDBPDatabase<BooksDb>,
     dataId: number,
     title: string | undefined,
-    cachedData: { bookmarkIds: Set<number>; lastItem: number | undefined },
-    shouldDeleteStatistics: boolean
+    shouldDeleteLocalReadingData: boolean
   ) {
     const storeNames: ('data' | 'bookmark' | 'statistic' | 'lastItem' | 'lastModified')[] = [
-      'data'
+      'data',
+      'lastItem'
     ];
-    const shouldDeleteLastItem = cachedData.lastItem === dataId;
-    const shouldDeleteBookmark = cachedData.bookmarkIds.has(dataId);
 
-    let bookTitle = title;
-
-    if (shouldDeleteLastItem) {
-      storeNames.push('lastItem');
-    }
-
-    if (shouldDeleteBookmark) {
+    if (shouldDeleteLocalReadingData) {
       storeNames.push('bookmark');
-    }
-
-    if (shouldDeleteStatistics) {
       storeNames.push('statistic');
       storeNames.push('lastModified');
     }
 
     const tx = db.transaction(storeNames, 'readwrite');
+    let deletedLastItem = false;
 
     try {
-      if (!bookTitle) {
-        bookTitle = (await tx.objectStore('data').get(dataId))?.title;
-      }
+      const bookTitle = title || (await tx.objectStore('data').get(dataId))?.title;
+      const lastItem = await tx.objectStore('lastItem').get(LAST_ITEM_KEY);
 
-      if (shouldDeleteLastItem) {
+      if (bookTitle !== undefined && lastItem?.title === bookTitle) {
         await tx.objectStore('lastItem').delete(LAST_ITEM_KEY);
+        deletedLastItem = true;
       }
 
-      if (shouldDeleteBookmark) {
-        await tx.objectStore('bookmark').delete(dataId);
-      }
-
-      if (shouldDeleteStatistics && bookTitle) {
+      if (shouldDeleteLocalReadingData && bookTitle !== undefined) {
+        await tx.objectStore('bookmark').delete(bookTitle);
         await tx.objectStore('statistic').delete(IDBKeyRange.bound([bookTitle], [bookTitle, []]));
         await tx.objectStore('lastModified').delete([bookTitle, StorageDataType.STATISTICS]);
       }
@@ -454,8 +436,8 @@ export class DatabaseService {
       await tx.objectStore('data').delete(dataId);
       await tx.done;
 
-      if (shouldDeleteLastItem) {
-        this.#state.lastItemId = undefined;
+      if (deletedLastItem) {
+        this.#state.lastItemTitle = undefined;
         this.#state.lastItemLoaded = true;
       }
     } catch (error: any) {
@@ -668,12 +650,18 @@ export class DatabaseService {
     }
   }
 
-  async clearZombieStatistics() {
+  /**
+   * Delete reading data (statistics, lastModified markers, bookmarks) whose
+   * title no longer matches any book in the library — the leftovers of
+   * deleting books with "keep local reading data" enabled.
+   */
+  async deleteOrphanedReadingData() {
     const db = await this.db;
     const books = await db.getAll('data');
     const titles = new SvelteSet(books.map((book) => book.title));
     const statistics = await db.getAll('statistic');
     const lastModifiedForStatistics = await db.getAll('lastModified');
+    const bookmarks = await db.getAll('bookmark');
     const statisticsToDelete: BooksDbStatistic[] = [];
     const lastModifiedItemsToDelete = new SvelteSet<string>();
 
@@ -694,6 +682,21 @@ export class DatabaseService {
     }
 
     await this.deleteStatistics(statisticsToDelete, [...lastModifiedItemsToDelete]);
+
+    let deletedBookmarks = false;
+
+    for (let index = 0, { length } = bookmarks; index < length; index += 1) {
+      const entry = bookmarks[index];
+
+      if (!titles.has(entry.title)) {
+        await db.delete('bookmark', entry.title);
+        deletedBookmarks = true;
+      }
+    }
+
+    if (deletedBookmarks) {
+      await this.#refreshBookmarks();
+    }
   }
 
   async deleteStatistics(statistics: BooksDbStatistic[], lastModifiedTitlesToDelete: string[]) {

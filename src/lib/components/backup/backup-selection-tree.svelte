@@ -4,8 +4,8 @@
 
   interface Props {
     catalog: BackupCatalog;
-    /** Set of item IDs that are disabled because the source doesn't contain them. */
-    disabledItems?: { appSettings?: boolean; readingGoals?: boolean; books?: Set<number> };
+    /** Items that are disabled because the source doesn't contain them (books by title). */
+    disabledItems?: { appSettings?: boolean; readingGoals?: boolean; books?: Set<string> };
     selection: BackupSelection;
     onchange: (next: BackupSelection) => void;
   }
@@ -13,7 +13,7 @@
   let { catalog, disabledItems = {}, selection, onchange }: Props = $props();
 
   function isBookSelected(book: BackupBook) {
-    return selection.perBook.has(book.id);
+    return selection.perBook.has(book.title);
   }
 
   function updatePerBookEntry(
@@ -21,7 +21,7 @@
     update: Partial<{ book: boolean; bookmarks: boolean; statistics: boolean }>
   ) {
     const next = { ...selection, perBook: new Map(selection.perBook) };
-    const existing = next.perBook.get(book.id) ?? {
+    const existing = next.perBook.get(book.title) ?? {
       book: true as const,
       bookmarks: false,
       statistics: false
@@ -30,9 +30,9 @@
     const merged = { ...existing, ...update };
 
     if (!merged.book) {
-      next.perBook.delete(book.id);
+      next.perBook.delete(book.title);
     } else {
-      next.perBook.set(book.id, {
+      next.perBook.set(book.title, {
         book: true,
         bookmarks: merged.bookmarks && book.hasBookmark,
         statistics: merged.statistics && book.hasStatistics
@@ -48,18 +48,18 @@
       next.perBook.clear();
     } else {
       for (const b of catalog.books) {
-        if (disabledItems.books?.has(b.id)) continue;
-        if (!next.perBook.has(b.id)) {
-          next.perBook.set(b.id, { book: true, bookmarks: false, statistics: false });
+        if (disabledItems.books?.has(b.title)) continue;
+        if (!next.perBook.has(b.title)) {
+          next.perBook.set(b.title, { book: true, bookmarks: false, statistics: false });
         }
       }
     }
     onchange(next);
   }
 
-  let selectableBooks = $derived(catalog.books.filter((b) => !disabledItems.books?.has(b.id)));
+  let selectableBooks = $derived(catalog.books.filter((b) => !disabledItems.books?.has(b.title)));
   let allBooksSelected = $derived(
-    selectableBooks.length > 0 && selectableBooks.every((b) => selection.perBook.has(b.id))
+    selectableBooks.length > 0 && selectableBooks.every((b) => selection.perBook.has(b.title))
   );
   let anyBookSelected = $derived(selection.perBook.size > 0);
 
@@ -74,8 +74,8 @@
   function summarizeBulk(field: BulkField): BulkSummary {
     let available = 0;
     let chosen = 0;
-    for (const [bookId, entry] of selection.perBook) {
-      const book = catalog.books.find((b) => b.id === bookId);
+    for (const [bookTitle, entry] of selection.perBook) {
+      const book = catalog.books.find((b) => b.title === bookTitle);
       const hasField = book && (field === 'bookmarks' ? book.hasBookmark : book.hasStatistics);
       if (!hasField) continue;
       available += 1;
@@ -89,11 +89,11 @@
     // Indeterminate or empty → check all; fully checked → uncheck all.
     const target = summary.chosen < summary.available;
     const next = { ...selection, perBook: new Map(selection.perBook) };
-    for (const [bookId, entry] of next.perBook) {
-      const book = catalog.books.find((b) => b.id === bookId);
+    for (const [bookTitle, entry] of next.perBook) {
+      const book = catalog.books.find((b) => b.title === bookTitle);
       const hasField = book && (field === 'bookmarks' ? book.hasBookmark : book.hasStatistics);
       if (!hasField) continue;
-      next.perBook.set(bookId, { ...entry, [field]: target });
+      next.perBook.set(bookTitle, { ...entry, [field]: target });
     }
     onchange(next);
   }
@@ -199,10 +199,10 @@
       <div class="py-6 text-center text-xs text-gray-500">No books available.</div>
     {:else}
       <ul class="mt-2 max-h-64 divide-y divide-black/5 overflow-y-auto px-1">
-        {#each catalog.books as book (book.id)}
+        {#each catalog.books as book (book.title)}
           {@const selected = isBookSelected(book)}
-          {@const entry = selection.perBook.get(book.id)}
-          {@const disabled = disabledItems.books?.has(book.id) ?? false}
+          {@const entry = selection.perBook.get(book.title)}
+          {@const disabled = disabledItems.books?.has(book.title) ?? false}
           {@const bookTitleLang = japaneseLangIfNeeded(book.title)}
           <li class="py-2">
             <label class="flex items-center gap-3">

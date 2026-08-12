@@ -1,5 +1,4 @@
 export interface BackupBook {
-  id: number;
   title: string;
   hasBookmark: boolean;
   hasStatistics: boolean;
@@ -14,7 +13,7 @@ export interface BackupCatalog {
 export interface BackupSelection {
   appSettings: boolean;
   readingGoals: boolean;
-  perBook: Map<number, { book: true; bookmarks: boolean; statistics: boolean }>;
+  perBook: Map<string, { book: true; bookmarks: boolean; statistics: boolean }>;
 }
 
 export type BackupImportDirection = 'newest' | 'zip-wins';
