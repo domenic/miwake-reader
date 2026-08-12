@@ -44,12 +44,12 @@ import { scopedSettings, syncAfterLocalMutation } from '$lib/data/sync/sync-engi
 import pLimit from 'p-limit';
 
 /**
- * Look up a book by its local IDB id. The reader uses this on book
+ * Look up a book by its canonical title. The reader uses this on book
  * open; sync-engine reconciliation happens separately via
  * `reconcileForBookOpen` so the open path can be local-fast.
  */
-export function openBook(id: number): Promise<BooksDbBookData | undefined> {
-  return database.getData(id);
+export function openBook(title: string): Promise<BooksDbBookData | undefined> {
+  return database.getDataByTitle(title);
 }
 
 /**
@@ -142,7 +142,7 @@ export async function userImportBooks(
             signal
           );
 
-          const dataId = await scoped.saveBook(bookContent, false);
+          await scoped.saveBook(bookContent, false);
 
           checkCancelAndProgress(signal, false);
 
@@ -156,7 +156,6 @@ export async function userImportBooks(
           syncAfterLocalMutation({
             kind: 'book-data',
             context: {
-              id: dataId,
               title: bookContent.title,
               imagePath: bookContent.coverImage
             }
@@ -291,14 +290,14 @@ export async function userDeleteReadingGoal(date: string | undefined): Promise<v
 export async function userDeleteBooks(
   titles: string[],
   signal: AbortSignal,
-  keepLocalStatistics: boolean
+  keepLocalReadingData: boolean
 ): Promise<void> {
   const local = getLocalEndpoint();
-  // Local delete throws on any per-id failure; the surviving deleted
-  // ids stay in IDB and the book-card list already refreshed, so the
+  // Local delete throws on any per-book failure; the surviving books
+  // stay in IDB and the book-card list already refreshed, so the
   // UI re-renders without needing the partial set threaded through the
   // return.
-  await local.deleteBookData(titles, signal, keepLocalStatistics);
+  await local.deleteBookData(titles, signal, keepLocalReadingData);
 
   await syncAfterLocalMutation({ kind: 'books-deleted', titles, signal });
 }

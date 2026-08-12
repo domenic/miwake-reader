@@ -16,7 +16,7 @@
     addCharactersOnCompletion$,
     adjustStatisticsAfterIdleTime$,
     database,
-    keepLocalStatisticsOnDeletion$,
+    keepLocalReadingDataOnDeletion$,
     openTrackerOnCompletion$,
     overwriteBookCompletion$,
     startDayHoursForTracker$,
@@ -62,12 +62,12 @@
     }
   });
 
-  async function clearZombieStatistics() {
+  async function deleteOrphanedReadingData() {
     showSpinner = true;
     try {
-      await database.clearZombieStatistics();
+      await database.deleteOrphanedReadingData();
     } catch (error) {
-      showErrorDialog({ title: 'Error clearing zombie statistics', error });
+      showErrorDialog({ title: 'Error deleting orphaned reading data', error });
     } finally {
       showSpinner = false;
     }
@@ -81,15 +81,15 @@
 <div class="grid grid-cols-1 items-center sm:grid-cols-2 sm:gap-6 lg:gap-8 lg:grid-cols-3">
   <SettingsItemGroup
     title="Keep Local Data on Deletion"
-    tooltip="Determines if local statistics will be deleted or not when removing a local book copy"
+    tooltip="Determines if local reading data (statistics and reading position) will be deleted or not when removing a local book copy"
   >
     <div class="flex items-center">
       <ButtonToggleGroup
         options={optionsForToggle}
-        bind:selectedOptionId={$keepLocalStatisticsOnDeletion$}
+        bind:selectedOptionId={$keepLocalReadingDataOnDeletion$}
       />
-      <button type="button" class="ml-4 hover:underline" onclick={clearZombieStatistics}>
-        Clear Zombie Statistics
+      <button type="button" class="ml-4 hover:underline" onclick={deleteOrphanedReadingData}>
+        Delete Orphaned Reading Data
       </button>
     </div>
   </SettingsItemGroup>

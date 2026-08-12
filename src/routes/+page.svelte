@@ -3,12 +3,13 @@
   import { resolve } from '$app/paths';
   import { database } from '$lib/data/store';
   import { formatPageTitle } from '$lib/functions/format-page-title';
+  import { getBookURL } from '$lib/functions/book-url';
 
   $effect(() => {
     if (!database.lastItemLoaded) return;
 
     void goto(
-      resolve(database.lastItemId === undefined ? '/manage' : `/b?id=${database.lastItemId}`)
+      resolve(database.lastItemTitle === undefined ? '/manage' : getBookURL(database.lastItemTitle))
     );
   });
 </script>

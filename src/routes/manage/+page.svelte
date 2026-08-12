@@ -29,8 +29,9 @@
     booklistSortOptions$,
     confirmStatisticsDeletion$,
     database,
-    keepLocalStatisticsOnDeletion$
+    keepLocalReadingDataOnDeletion$
   } from '$lib/data/store';
+  import { getBookURL } from '$lib/functions/book-url';
   import { cloneMutateSet } from '$lib/functions/clone-mutate-set';
   import { getDropEventFiles } from '$lib/functions/file-dom/get-drop-event-files';
   import { inputFile } from '$lib/functions/file-dom/input-file';
@@ -51,9 +52,9 @@
     getBookCards(database.dataList, database.bookmarks, $booklistSortOptions$)
   );
 
-  let selectedBookIds: ReadonlySet<number> = $state(new Set());
+  let selectedBookTitles: ReadonlySet<string> = $state(new Set());
   let selectMode = $state(false);
-  let selectedBookCards = $derived(bookCards.filter((book) => selectedBookIds.has(book.id)));
+  let selectedBookCards = $derived(bookCards.filter((book) => selectedBookTitles.has(book.title)));
   let selectedCompletedCount = $derived(selectedBookCards.filter((book) => book.completed).length);
   let selectedPlaceholderCount = $derived(
     selectedBookCards.filter((book) => book.isPlaceholder).length
@@ -65,7 +66,7 @@
 
   $effect(() => {
     if (!selectMode) {
-      selectedBookIds = new Set();
+      selectedBookTitles = new Set();
     }
   });
 
@@ -75,12 +76,12 @@
     sortProp: SortOption
   ) {
     const isTitleSort = sortProp.property === 'title';
-    const bookmarkMap = keyBy(bookmarks, 'dataId');
+    const bookmarkMap = keyBy(bookmarks, 'title');
 
     return dataList
       .map((d) => ({
         ...d,
-        ...bookmarkToProgress(bookmarkMap.get(d.id))
+        ...bookmarkToProgress(bookmarkMap.get(d.title))
       }))
       .sort((card1: BookCardProps, card2: BookCardProps) =>
         sortBookCards(card1, card2, sortProp, isTitleSort)
@@ -125,48 +126,47 @@
     return sortDiff;
   }
 
-  async function onBookClick(bookId: number) {
+  async function onBookClick(title: string) {
     if (!operationAllowed()) {
       return;
     }
 
     if (selectMode) {
-      selectedBookIds = cloneMutateSet(selectedBookIds, (set) => {
-        if (set.has(bookId)) {
-          set.delete(bookId);
+      selectedBookTitles = cloneMutateSet(selectedBookTitles, (set) => {
+        if (set.has(title)) {
+          set.delete(title);
           return;
         }
-        set.add(bookId);
+        set.add(title);
       });
       return;
     }
 
-    await readBook(bookId);
+    await readBook(title);
   }
 
-  async function readBook(bookId: number) {
+  async function readBook(title: string) {
     if (!operationAllowed()) return;
 
-    const bookItem = bookCards.find((book) => book.id === bookId);
+    const bookItem = bookCards.find((book) => book.title === title);
     if (!bookItem || !(await placeholderActionAvailable(bookItem, 'open'))) return;
 
-    await openBook(bookId);
+    await openBook(title);
   }
 
-  async function downloadBook(bookId: number) {
+  async function downloadBook(title: string) {
     if (!operationAllowed()) return;
 
-    const bookItem = bookCards.find((book) => book.id === bookId);
+    const bookItem = bookCards.find((book) => book.title === title);
     if (!bookItem || !bookItem.isPlaceholder) return;
 
     if (!(await placeholderActionAvailable(bookItem, 'download'))) return;
 
     await reconcileForBookOpen({
-      id: bookItem.id,
       title: bookItem.title,
       imagePath: bookItem.imagePath
     });
-    database.notifyDataListChanged();
+    void database.notifyDataListChanged();
   }
 
   async function placeholderActionAvailable(book: BookCardProps, action: 'open' | 'download') {
@@ -183,36 +183,36 @@
     return false;
   }
 
-  function openBookStatistics(bookId: number) {
-    return goto(resolve(getBookStatisticsURL(bookId)));
+  function openBookStatistics(title: string) {
+    return goto(resolve(getBookStatisticsURL(title)));
   }
 
   function openSelectedBookStatistics() {
-    const bookIds = selectedBookCards.map((book) => book.id);
-    if (!bookIds.length) return;
+    const bookTitles = selectedBookCards.map((book) => book.title);
+    if (!bookTitles.length) return;
 
-    return goto(resolve(getStatisticsURL(defaultStatisticsView, bookIds)));
+    return goto(resolve(getStatisticsURL(defaultStatisticsView, bookTitles)));
   }
 
-  async function setBookCompleted(bookId: number, completed: boolean) {
+  async function setBookCompleted(title: string, completed: boolean) {
     if (!operationAllowed()) return;
 
-    const bookItem = bookCards.find((book) => book.id === bookId);
+    const bookItem = bookCards.find((book) => book.title === title);
     if (!bookItem) return;
 
     try {
-      const existingBookmark = await database.getBookmark(bookId);
+      const existingBookmark = await database.getBookmark(title);
       // Session and completion statistics are recorded in the reader. The library action only
       // changes the durable completion marker while preserving the reader's current position.
       await userSaveBookmark(
         {
           ...existingBookmark,
-          dataId: bookId,
+          title,
           progress: existingBookmark?.progress ?? 0,
           completed,
           lastBookmarkModified: Date.now()
         },
-        { id: bookId, title: bookItem.title, imagePath: bookItem.imagePath }
+        { title: bookItem.title, imagePath: bookItem.imagePath }
       );
     } catch (error) {
       showErrorDialog({
@@ -224,13 +224,13 @@
 
   async function setSelectedBooksCompleted(completed: boolean) {
     for (const book of selectedBookCards) {
-      await setBookCompleted(book.id, completed);
+      await setBookCompleted(book.title, completed);
     }
   }
 
   async function downloadSelectedBooks() {
     for (const book of selectedBookCards.filter((candidate) => candidate.isPlaceholder)) {
-      await downloadBook(book.id);
+      await downloadBook(book.title);
     }
   }
 
@@ -249,13 +249,13 @@
     cancelTooltip = '';
   }
 
-  async function openBook(bookId: number) {
-    if (!bookId) {
+  async function openBook(title: string) {
+    if (!title) {
       return;
     }
 
-    await database.putLastItem(bookId);
-    await goto(resolve(`/b?id=${bookId}`));
+    await database.putLastItem(title);
+    await goto(resolve(getBookURL(title)));
   }
 
   async function onFilesChange(fileList: FileList | File[]) {
@@ -286,25 +286,18 @@
   }
 
   function onToggleAllBooks() {
-    if (selectedBookIds.size === bookCards.length) {
-      selectedBookIds = new Set();
+    if (selectedBookTitles.size === bookCards.length) {
+      selectedBookTitles = new Set();
       return;
     }
 
-    selectedBookIds = cloneMutateSet(selectedBookIds, (set) => {
-      bookCards.forEach((x) => set.add(x.id));
+    selectedBookTitles = cloneMutateSet(selectedBookTitles, (set) => {
+      bookCards.forEach((x) => set.add(x.title));
     });
   }
 
-  function getBookTitles(bookIds: readonly number[]) {
-    const bookIdSet = new Set(bookIds);
-    return bookCards.filter((book) => bookIdSet.has(book.id)).map((book) => book.title);
-  }
-
-  async function removeBooks(bookIds: number[]) {
+  async function removeBooks(titlesToDelete: string[]) {
     if (!operationAllowed()) return;
-
-    const titlesToDelete = getBookTitles(bookIds);
 
     if (!titlesToDelete.length) return;
 
@@ -326,31 +319,33 @@
     initializeReplicationProgressData();
 
     try {
-      await userDeleteBooks(titlesToDelete, signal, $keepLocalStatisticsOnDeletion$);
+      await userDeleteBooks(titlesToDelete, signal, $keepLocalReadingDataOnDeletion$);
     } catch (error) {
       showErrorDialog({ title: 'Error deleting books', error });
     } finally {
       resetProgress();
+      // The refresh triggered by the delete itself is fire-and-forget;
+      // await one explicitly so the reconciliation below observes the
+      // post-delete book set instead of a stale snapshot.
+      await database.notifyDataListChanged();
       await tick();
       // Reconcile selection state with whatever is actually in IDB
-      // now: ids that no longer exist on the cards list (i.e. were
-      // successfully deleted) drop out of the selection set; ids that
+      // now: titles that no longer exist on the cards list (i.e. were
+      // successfully deleted) drop out of the selection set; titles that
       // still exist (failed deletes) stay selected so the user can
       // retry. Works for both full success and partial failure.
-      const stillPresent = new Set(bookCards.map((card) => card.id));
-      selectedBookIds = cloneMutateSet(selectedBookIds, (set) => {
-        set.forEach((id) => {
-          if (!stillPresent.has(id)) set.delete(id);
+      const stillPresent = new Set(bookCards.map((card) => card.title));
+      selectedBookTitles = cloneMutateSet(selectedBookTitles, (set) => {
+        set.forEach((title) => {
+          if (!stillPresent.has(title)) set.delete(title);
         });
       });
-      if (selectedBookIds.size === 0) selectMode = false;
+      if (selectedBookTitles.size === 0) selectMode = false;
     }
   }
 
-  async function onDeleteStatistics(bookIds = Array.from(selectedBookIds)) {
+  async function onDeleteStatistics(titles = Array.from(selectedBookTitles)) {
     if (!operationAllowed()) return;
-
-    const titles = getBookTitles(bookIds);
 
     if (!titles.length) return;
 
@@ -421,7 +416,7 @@
 <div class="elevation-4 fixed inset-x-0 top-0 z-10">
   <BookManagerHeader
     bookCount={bookCards.length}
-    selectedCount={selectedBookIds.size}
+    selectedCount={selectedBookTitles.size}
     {selectedCompletedCount}
     {selectedPlaceholderCount}
     replicationProgress={replicationProgressState.progress}
@@ -434,7 +429,7 @@
     onviewStatistics={openSelectedBookStatistics}
     oncompletionChange={setSelectedBooksCompleted}
     ondownloadClick={downloadSelectedBooks}
-    onremoveClick={() => removeBooks(Array.from(selectedBookIds))}
+    onremoveClick={() => removeBooks(Array.from(selectedBookTitles))}
     onfilesChange={onFilesChange}
     onbugReportClick={showBugReportDialog}
     ondeleteStatistics={onDeleteStatistics}
@@ -462,17 +457,17 @@
     Loading...
   {:else if bookCards.length}
     <BookCardList
-      currentBookId={database.lastItemId}
+      currentBookTitle={database.lastItemTitle}
       {selectMode}
-      {selectedBookIds}
+      {selectedBookTitles}
       {bookCards}
-      onbookClick={({ id }) => onBookClick(id)}
-      onreadBookClick={({ id }) => readBook(id)}
-      onstatisticsClick={({ id }) => openBookStatistics(id)}
-      ondownloadBookClick={({ id }) => downloadBook(id)}
-      oncompleteBookClick={({ id, completed }) => setBookCompleted(id, completed)}
-      ondeleteStatisticsClick={({ id }) => onDeleteStatistics([id])}
-      onremoveBookClick={({ id }) => removeBooks([id])}
+      onbookClick={({ title }) => onBookClick(title)}
+      onreadBookClick={({ title }) => readBook(title)}
+      onstatisticsClick={({ title }) => openBookStatistics(title)}
+      ondownloadBookClick={({ title }) => downloadBook(title)}
+      oncompleteBookClick={({ title, completed }) => setBookCompleted(title, completed)}
+      ondeleteStatisticsClick={({ title }) => onDeleteStatistics([title])}
+      onremoveBookClick={({ title }) => removeBooks([title])}
     />
   {:else}
     <div class="flex h-full flex-col items-center gap-6 pt-8 text-center">

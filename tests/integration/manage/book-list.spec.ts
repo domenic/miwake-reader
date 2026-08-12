@@ -69,7 +69,7 @@ test('manager exposes per-book actions without entering selection mode', async (
   await card
     .getByRole('button', { name: `View statistics for ${fixtureTitle(VALID_BOOK)}` })
     .click();
-  await page.waitForURL((url) => url.pathname === '/statistics' && url.searchParams.has('b'));
+  await page.waitForURL((url) => url.pathname === '/statistics' && url.searchParams.has('t'));
 });
 
 test('manager confirms before removing a book from the library', async ({ page }) => {

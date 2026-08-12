@@ -2,7 +2,6 @@ import type { Entry } from '@zip.js/zip.js';
 
 export interface ReplicationContext {
   title: string;
-  id?: number;
   imagePath?: string | Blob | Entry;
 }
 

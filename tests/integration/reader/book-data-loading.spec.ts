@@ -109,7 +109,7 @@ test('book data loading formats reader images and keeps spoiler gallery state in
 });
 
 test('reader route returns to the manager when the book is missing', async ({ page }) => {
-  await page.goto('/b?id=999999');
+  await page.goto('/b?t=no-such-book');
 
   await expect(page).toHaveURL(/\/manage$/);
 });

@@ -6,22 +6,22 @@
 
   interface Props {
     bookCards?: BookCardProps[];
-    currentBookId?: number | undefined;
-    selectedBookIds: ReadonlySet<number>;
+    currentBookTitle?: string | undefined;
+    selectedBookTitles: ReadonlySet<string>;
     selectMode?: boolean;
-    onbookClick?: (data: { id: number }) => void | Promise<void>;
-    onreadBookClick?: (data: { id: number }) => void | Promise<void>;
-    onstatisticsClick?: (data: { id: number }) => void | Promise<void>;
-    ondownloadBookClick?: (data: { id: number }) => void | Promise<void>;
-    oncompleteBookClick?: (data: { id: number; completed: boolean }) => void | Promise<void>;
-    ondeleteStatisticsClick?: (data: { id: number }) => void | Promise<void>;
-    onremoveBookClick?: (data: { id: number }) => void | Promise<void>;
+    onbookClick?: (data: { title: string }) => void | Promise<void>;
+    onreadBookClick?: (data: { title: string }) => void | Promise<void>;
+    onstatisticsClick?: (data: { title: string }) => void | Promise<void>;
+    ondownloadBookClick?: (data: { title: string }) => void | Promise<void>;
+    oncompleteBookClick?: (data: { title: string; completed: boolean }) => void | Promise<void>;
+    ondeleteStatisticsClick?: (data: { title: string }) => void | Promise<void>;
+    onremoveBookClick?: (data: { title: string }) => void | Promise<void>;
   }
 
   let {
     bookCards = [],
-    currentBookId,
-    selectedBookIds,
+    currentBookTitle,
+    selectedBookTitles,
     selectMode = false,
     onbookClick,
     onreadBookClick,
@@ -40,15 +40,15 @@
 </script>
 
 <div class="grid grid-cols-2 gap-x-5 gap-y-9 pb-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-  {#each bookCards as bookCard (bookCard.id)}
+  {#each bookCards as bookCard (bookCard.title)}
     <article class="relative min-w-0">
       <BookCard
         {...bookCard}
-        current={bookCard.id === currentBookId}
-        selected={selectedBookIds.has(bookCard.id)}
+        current={bookCard.title === currentBookTitle}
+        selected={selectedBookTitles.has(bookCard.title)}
         selectionMode={selectMode}
         tooltip={bookCard.isPlaceholder ? placeholderTooltip : undefined}
-        onclick={() => onbookClick?.({ id: bookCard.id })}
+        onclick={() => onbookClick?.({ title: bookCard.title })}
       />
 
       <BookCardActions

@@ -96,11 +96,9 @@ export class FilesystemStorageHandler extends BaseStorageHandler {
       await rootDirectory.removeEntry(BaseStorageHandler.sanitizeForFilename(title), {
         recursive: true
       });
-      const deletedId = this.titleToBookCard.get(title)?.id;
       this.titleToDirectory.delete(title);
       this.titleToFiles.delete(title);
       this.titleToBookCard.delete(title);
-      return deletedId;
     });
   }
 
@@ -275,7 +273,6 @@ export class FilesystemStorageHandler extends BaseStorageHandler {
             }
 
             const bookCard: BookCardProps = {
-              id: BaseStorageHandler.getDummyId(),
               title: BaseStorageHandler.desanitizeFilename(directory.name),
               imagePath: '',
               characters: 0,

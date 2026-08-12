@@ -281,7 +281,7 @@ export async function deleteAllStatisticsFromSummary(page: Page) {
 export async function openBookFromManage(page: Page, fixture: LibraryBookFixture) {
   await navigateToManage(page);
   await bookCard(page, fixture).click();
-  await page.waitForURL((url) => url.pathname === '/b' && url.searchParams.has('id'));
+  await page.waitForURL((url) => url.pathname === '/b' && url.searchParams.has('t'));
 }
 
 export async function expectBookReaderText(page: Page, fixture: LibraryBookFixture) {

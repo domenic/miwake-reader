@@ -134,12 +134,10 @@ export abstract class ApiStorageHandler extends BaseStorageHandler {
       if (externalId) {
         await this.executeDelete(externalId, signal);
       }
-      const deletedId = this.titleToBookCard.get(title)?.id;
       this.titleToFiles.delete(title);
       this.titleToId.delete(title);
       this.titleToBookCard.delete(title);
       database.notifyDataListChanged();
-      return deletedId;
     });
   }
 

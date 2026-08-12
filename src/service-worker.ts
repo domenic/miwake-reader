@@ -2,7 +2,6 @@
 
 import { build, files, prerendered, version } from '$service-worker';
 
-import { toSearchParams } from '$lib/functions/to-search-params';
 import { userFontsCacheName } from '$lib/data/fonts';
 
 const worker = self as unknown as ServiceWorkerGlobalScope;
@@ -133,10 +132,12 @@ function selfHostParameterizedUrlResponse(request: Request) {
   const appPathname =
     base && url.pathname.startsWith(`${base}/`) ? url.pathname.slice(base.length) : url.pathname;
 
-  const readerRegex = /\/b\/(?<id>\d+)\/?(\?|$)/;
-  const readerRegexResult = readerRegex.exec(appPathname);
-  if (readerRegexResult?.groups) {
-    return createRedirectResponse(`${base}/b?${toSearchParams(readerRegexResult.groups)}`);
+  // Ancient path-style reader URLs (`/b/<n>`) carried the per-device numeric
+  // IDB id, just like the retired `/b?id=<n>` query shape; there is nothing
+  // stable to map either to, so send the visitor to the library directly.
+  const readerRegex = /\/b\/\d+\/?(\?|$)/;
+  if (readerRegex.test(appPathname)) {
+    return createRedirectResponse(`${base}/manage`);
   }
   return undefined;
 }

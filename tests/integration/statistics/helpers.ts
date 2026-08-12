@@ -28,7 +28,7 @@ export async function setStatisticsFilterBook(
 
 export async function expectStatisticsBookFilterCount(page: Page, count: number) {
   await expect
-    .poll(() => new URL(page.url()).searchParams.getAll('b').length, {
+    .poll(() => new URL(page.url()).searchParams.getAll('t').filter((title) => title).length, {
       timeout: SYNC_ASSERTION_TIMEOUT
     })
     .toBe(count);

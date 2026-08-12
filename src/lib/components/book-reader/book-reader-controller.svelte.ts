@@ -80,19 +80,22 @@ export class BookReaderController {
     this.#requirePageManager().updateSectionDataByOffset(offset);
   }
 
-  formatBookmarkData(bookId: number, customReadingPointScrollOffset: number): BooksDbBookmarkData {
+  formatBookmarkData(
+    bookTitle: string,
+    customReadingPointScrollOffset: number
+  ): BooksDbBookmarkData {
     return this.#requireBookmarkManager().formatBookmarkData(
-      bookId,
+      bookTitle,
       customReadingPointScrollOffset
     );
   }
 
   formatBookmarkDataByRange(
-    bookId: number,
+    bookTitle: string,
     customReadingPointRange: Range | undefined
   ): BooksDbBookmarkData {
     return this.#requireBookmarkManager().formatBookmarkDataByRange(
-      bookId,
+      bookTitle,
       customReadingPointRange
     );
   }

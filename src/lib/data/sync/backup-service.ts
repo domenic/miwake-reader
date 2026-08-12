@@ -46,7 +46,7 @@ export async function buildCurrentCatalog(): Promise<BackupCatalog> {
     db.getAll('readingGoal')
   ]);
 
-  const bookmarkIds = new Set(allBookmarks.map((b) => b.dataId));
+  const bookmarkTitles = new Set(allBookmarks.map((b) => b.title));
   const statTitles = new Set(allStats.map((s) => s.title));
 
   // Skip placeholders — no content to export — same reason /b refuses to
@@ -54,9 +54,8 @@ export async function buildCurrentCatalog(): Promise<BackupCatalog> {
   const books: BackupBook[] = allBooks
     .filter((b) => !!b.elementHtml)
     .map((b) => ({
-      id: b.id,
       title: b.title,
-      hasBookmark: bookmarkIds.has(b.id),
+      hasBookmark: bookmarkTitles.has(b.title),
       hasStatistics: statTitles.has(b.title)
     }))
     .sort((a, b) => a.title.localeCompare(b.title));
@@ -87,11 +86,11 @@ export async function exportBackup(selection: BackupSelection): Promise<void> {
   // by the BackupStorageHandler save paths but required by the type.
   const exportSettings = scopedSettings({ winnerTakesAll: true });
 
-  for (const [bookId, choices] of selection.perBook) {
-    const book = await database.getData(bookId);
+  for (const [title, choices] of selection.perBook) {
+    const book = await database.getDataByTitle(title);
     if (!book) continue;
     const scoped = backupHandler.scoped(
-      { id: 0, title: book.title, imagePath: book.coverImage ?? '' },
+      { title: book.title, imagePath: book.coverImage ?? '' },
       exportSettings
     );
     await scoped.saveBook(book);
@@ -99,7 +98,7 @@ export async function exportBackup(selection: BackupSelection): Promise<void> {
       await scoped.saveCover(book.coverImage);
     }
     if (choices.bookmarks) {
-      const bookmark = await database.getBookmark(book.id);
+      const bookmark = await database.getBookmark(book.title);
       if (bookmark) await scoped.saveProgress(bookmark);
     }
     if (choices.statistics) {
@@ -165,7 +164,6 @@ export async function parseBackupZIP(file: File): Promise<BackupCatalog> {
     const books = new Map<string, BackupBook>();
     let hasReadingGoals = false;
     let hasAppSettings = false;
-    let nextId = 1;
 
     for (const entry of entries) {
       const parts = entry.filename.split('/');
@@ -185,8 +183,7 @@ export async function parseBackupZIP(file: File): Promise<BackupCatalog> {
       const inner = parts.slice(1).join('/');
       let book = books.get(title);
       if (!book) {
-        book = { id: nextId, title, hasBookmark: false, hasStatistics: false };
-        nextId += 1;
+        book = { title, hasBookmark: false, hasStatistics: false };
         books.set(title, book);
       }
       if (inner.startsWith('progress_')) book.hasBookmark = true;
@@ -232,9 +229,8 @@ export async function importBackup(
   let bookmarksImported = 0;
   let statisticsImported = 0;
 
-  for (const [bookId, choices] of selection.perBook) {
-    const book = catalog.books.find((b) => b.id === bookId);
-    const ctx = book ? contextsByTitle.get(book.title) : undefined;
+  for (const [title, choices] of selection.perBook) {
+    const ctx = contextsByTitle.get(title);
     if (!ctx) continue;
     const types: StorageDataType[] = [StorageDataType.DATA];
     if (choices.bookmarks) types.push(StorageDataType.PROGRESS);

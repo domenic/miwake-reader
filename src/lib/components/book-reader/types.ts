@@ -11,12 +11,12 @@ export type ChapterNavigator = (chapterId: string) => void;
 
 export interface BookmarkManager {
   formatBookmarkData: (
-    bookId: number,
+    bookTitle: string,
     customReadingPointScrollOffset: number
   ) => BooksDbBookmarkData;
 
   formatBookmarkDataByRange: (
-    bookId: number,
+    bookTitle: string,
     customReadingPointRange: Range | undefined
   ) => BooksDbBookmarkData;
 

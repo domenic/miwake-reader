@@ -1,10 +1,9 @@
 import type { BookCardProps } from '$lib/components/book-card/book-card-props';
-import {
-  currentDbVersion,
-  type BooksDbBookData,
-  type BooksDbBookmarkData,
-  type BooksDbReadingGoal,
-  type BooksDbStatistic
+import type {
+  BooksDbBookData,
+  BooksDbBookmarkData,
+  BooksDbReadingGoal,
+  BooksDbStatistic
 } from '$lib/data/database/books-db/versions/books-db';
 import type { ChapterSection, Section } from '$lib/data/database/books-db/versions/v4/books-db-v4';
 import { storageRootName } from '$lib/data/env';
@@ -30,6 +29,17 @@ import {
   ZipWriter,
   type Entry
 } from '@zip.js/zip.js';
+
+/**
+ * Version stamp embedded in every remote filename (`bookdata_1_7_*`,
+ * `progress_1_7_*`, …). Historically this was `currentDbVersion`, but the
+ * wire format does not change when the local IndexedDB schema does — no
+ * parser compares this field — and reusing the DB version would pointlessly
+ * rename every remote file on each schema bump. Frozen at the value in use
+ * when the two were decoupled; bump only on an actual filename-format change
+ * (though `exporterVersion` is the more likely knob for that).
+ */
+const syncFilenameVersion = 7;
 
 export interface ExternalFile {
   id: string;
@@ -66,8 +76,8 @@ export abstract class BaseStorageHandler implements SyncEndpoint {
   abstract deleteBookData(
     booksToDelete: string[],
     signal: AbortSignal,
-    keepLocalStatistics: boolean
-  ): Promise<number[]>;
+    keepLocalReadingData: boolean
+  ): Promise<string[]>;
 
   /**
    * Bind a (context, settings) pair for a sequence of per-book
@@ -146,7 +156,6 @@ export abstract class BaseStorageHandler implements SyncEndpoint {
   addBookCard(title: string, dataToAdd: Record<string, any>) {
     const bookCard: BookCardProps = {
       ...(this.titleToBookCard.get(title) || {
-        id: BaseStorageHandler.getDummyId(),
         title,
         imagePath: '',
         characters: 0,
@@ -165,9 +174,8 @@ export abstract class BaseStorageHandler implements SyncEndpoint {
 
   /**
    * Shared scaffold for `deleteBookData` impls: sequential per-title
-   * loop with the standard progress/cancel/error reporting. The
-   * subclass provides `deleteOne`, which returns the deleted book-card
-   * id (or undefined if there was no matching card to surface).
+   * loop with the standard progress/cancel/error reporting. Returns
+   * the titles that were actually deleted.
    * Throws AggregateError on any per-title failure (the partial
    * `deleted` list is lost; callers should re-derive UI from a fresh
    * listing rather than from the thrown error).
@@ -175,9 +183,9 @@ export abstract class BaseStorageHandler implements SyncEndpoint {
   protected async deleteSequentially(
     booksToDelete: string[],
     signal: AbortSignal,
-    deleteOne: (title: string) => Promise<number | undefined>
-  ): Promise<number[]> {
-    const deleted: number[] = [];
+    deleteOne: (title: string) => Promise<void>
+  ): Promise<string[]> {
+    const deleted: string[] = [];
     const errors: Error[] = [];
     const limiter = pLimit(1);
 
@@ -187,8 +195,8 @@ export abstract class BaseStorageHandler implements SyncEndpoint {
       limiter(async () => {
         try {
           signal.throwIfAborted();
-          const id = await deleteOne(title);
-          if (id !== undefined) deleted.push(id);
+          await deleteOne(title);
+          deleted.push(title);
           BaseStorageHandler.reportProgress();
         } catch (err: any) {
           handleErrorDuringReplication(err, `Error deleting ${title}: `, [limiter]);
@@ -332,7 +340,7 @@ export abstract class BaseStorageHandler implements SyncEndpoint {
       ? Math.ceil((3600 * averageWeightedCharactersRead) / averageWeightedReadingTime)
       : 0;
 
-    return `statistics_${exporterVersion}_${currentDbVersion}_${lastStatisticModified}_${charactersRead}_${readingTime}_${minReadingSpeed}_${altMinReadingSpeed}_${lastReadingSpeed}_${maxReadingSpeed}_${averageReadingTime}_${averageWeightedReadingTime}_${averageCharactersRead}_${averageWeightedCharactersRead}_${averageReadingSpeed}_${averageWeightedReadingSpeed}_${finishDate}.json`;
+    return `statistics_${exporterVersion}_${syncFilenameVersion}_${lastStatisticModified}_${charactersRead}_${readingTime}_${minReadingSpeed}_${altMinReadingSpeed}_${lastReadingSpeed}_${maxReadingSpeed}_${averageReadingTime}_${averageWeightedReadingTime}_${averageCharactersRead}_${averageWeightedCharactersRead}_${averageReadingSpeed}_${averageWeightedReadingSpeed}_${finishDate}.json`;
   }
 
   /**
@@ -370,7 +378,7 @@ export abstract class BaseStorageHandler implements SyncEndpoint {
   }
 
   static getReadingGoalsFileName(lastGoalModified: number) {
-    return `${BaseStorageHandler.readingGoalsFilePrefix}${exporterVersion}_${currentDbVersion}_${lastGoalModified}.json`;
+    return `${BaseStorageHandler.readingGoalsFilePrefix}${exporterVersion}_${syncFilenameVersion}_${lastGoalModified}.json`;
   }
 
   static getImageMimeTypeFromExtension(value: string) {
@@ -658,10 +666,6 @@ export abstract class BaseStorageHandler implements SyncEndpoint {
     return jsonData;
   }
 
-  static getDummyId() {
-    return Math.floor(Date.now() * Math.random());
-  }
-
   static sanitizeForFilename(title: string) {
     return title
       .replace(/[ ]$/, '~ttu-spc~')
@@ -686,7 +690,7 @@ export abstract class BaseStorageHandler implements SyncEndpoint {
       const { characters, lastBookModified, lastBookOpen } =
         BaseStorageHandler.getBookMetadata(existingFilename);
 
-      return `bookdata_${exporterVersion}_${currentDbVersion}_${
+      return `bookdata_${exporterVersion}_${syncFilenameVersion}_${
         characters ||
         BaseStorageHandler.getBookCharacters(book.characters || 0, book.sections || [])
       }_${book.lastBookModified || lastBookModified || 0}_${
@@ -694,7 +698,7 @@ export abstract class BaseStorageHandler implements SyncEndpoint {
       }.zip`;
     }
 
-    return `bookdata_${exporterVersion}_${currentDbVersion}_${BaseStorageHandler.getBookCharacters(
+    return `bookdata_${exporterVersion}_${syncFilenameVersion}_${BaseStorageHandler.getBookCharacters(
       book.characters || 0,
       book.sections || []
     )}_${book.lastBookModified || 0}_${book.lastBookOpen || 0}.zip`;
@@ -707,7 +711,7 @@ export abstract class BaseStorageHandler implements SyncEndpoint {
 
     const completedSuffix = progress.completed ? '_completed' : '';
 
-    return `progress_${exporterVersion}_${currentDbVersion}_${progress.lastBookmarkModified || 0}_${
+    return `progress_${exporterVersion}_${syncFilenameVersion}_${progress.lastBookmarkModified || 0}_${
       progress.progress || 0
     }${completedSuffix}.json`;
   }
@@ -715,7 +719,7 @@ export abstract class BaseStorageHandler implements SyncEndpoint {
   static async getCoverFileName(cover: Blob) {
     const type = (await BaseStorageHandler.determineImageExtension(cover)) || 'jpeg';
 
-    return `cover_${exporterVersion}_${currentDbVersion}.${type}`;
+    return `cover_${exporterVersion}_${syncFilenameVersion}.${type}`;
   }
 
   static getBookMetadata(filename: string) {

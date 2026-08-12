@@ -1,5 +1,10 @@
 import { defineConfig } from '@playwright/test';
 
+// Without a UTF-8 locale, Chromium silently aliases non-ASCII OPFS directory
+// names to their parent directory, breaking every sync spec:
+// https://issues.chromium.org/issues/545336271
+process.env.LC_ALL = 'C.UTF-8';
+
 const isCI = !!process.env.CI;
 const ciServerURL = 'http://localhost:4173';
 const localServerURL =
@@ -27,6 +32,11 @@ export default defineConfig({
       }
     : {
         command: 'npm run dev',
+        // Playwright forces FORCE_COLOR=1 on the spawned server, and vite 8
+        // then embeds ANSI escapes inside the printed URL (bold port number),
+        // which the wait regex below can never match. NO_COLOR wins over
+        // FORCE_COLOR in vite's color detection.
+        env: { NO_COLOR: '1' },
         wait: {
           stdout: localServerURL,
           stderr: localServerURL

@@ -1,5 +1,6 @@
 import { expect, SYNC_ASSERTION_TIMEOUT, test } from '../helpers/harness.ts';
 import {
+  fixtureTitle,
   importBookFixtures,
   LONG_BOOK,
   openBookFromManage,
@@ -40,10 +41,10 @@ test('reader statistics navigation preserves the active tab and filters to the c
   await expect(page).toHaveURL(/\/statistics/);
   await expectStatisticsView(page, 'heatmap');
   await expect
-    .poll(() => new URL(page.url()).searchParams.get('b'), {
+    .poll(() => new URL(page.url()).searchParams.get('t'), {
       timeout: SYNC_ASSERTION_TIMEOUT
     })
-    .toMatch(/^\d+$/);
+    .toBe(fixtureTitle(PLAIN_TEXT_BOOK));
 
   await page.getByRole('button', { name: 'Summary', exact: true }).click();
   await expectStatisticsView(page, 'summary');

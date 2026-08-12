@@ -1,12 +1,11 @@
 <script lang="ts">
   import { browser } from '$app/environment';
-  import type { BookCardProps } from '$lib/components/book-card/book-card-props';
   import HeaderButton from '$lib/components/header-button.svelte';
   import HeaderMenuButton from '$lib/components/header-menu-button.svelte';
   import HeaderNavTabs from '$lib/components/header-nav-tabs.svelte';
   import Popover from '$lib/components/popover/popover.svelte';
   import { baseHeaderClasses, headerDividerClasses } from '$lib/css-classes';
-  import { SortDirection } from '$lib/data/sort-types';
+  import { SortDirection, type SortOption } from '$lib/data/sort-types';
   import { FilesystemStorageHandler } from '$lib/data/storage/handler/filesystem-handler';
   import { booklistSortOptions$ } from '$lib/data/store';
   import { inputAllowDirectory } from '$lib/functions/file-dom/input-allow-directory';
@@ -88,8 +87,8 @@
     showLoadCount = new URLSearchParams(window.location.search).has('count');
   }
 
-  const sortMenuItems = [
-    { property: 'id', label: 'Added (id)' },
+  const sortMenuItems: { property: SortOption['property']; label: string }[] = [
+    { property: 'addedOrder', label: 'Added' },
     { property: 'title', label: 'Title' },
     { property: 'characters', label: 'Characters' },
     { property: 'lastBookModified', label: 'Last Update' },
@@ -276,10 +275,7 @@
                     class:hover:text-red-500={!isCurrentSortAsc}
                     onclick={() => {
                       booklistSortOptions$.set({
-                        property: sortMenuItem.property as Exclude<
-                          keyof BookCardProps,
-                          'imagePath' | 'isPlaceholder'
-                        >,
+                        property: sortMenuItem.property,
                         direction: SortDirection.ASC
                       });
                       close();
@@ -299,10 +295,7 @@
                     class:hover:text-red-500={!isCurrentSort || isCurrentSortAsc}
                     onclick={() => {
                       booklistSortOptions$.set({
-                        property: sortMenuItem.property as Exclude<
-                          keyof BookCardProps,
-                          'imagePath' | 'isPlaceholder'
-                        >,
+                        property: sortMenuItem.property,
                         direction: SortDirection.DESC
                       });
                       close();

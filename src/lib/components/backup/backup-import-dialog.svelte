@@ -78,7 +78,7 @@
       readingGoals: catalog.hasReadingGoals,
       perBook: new Map(
         catalog.books.map((b) => [
-          b.id,
+          b.title,
           { book: true as const, bookmarks: b.hasBookmark, statistics: b.hasStatistics }
         ])
       )

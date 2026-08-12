@@ -14,9 +14,10 @@
   import { StatisticsController } from '$lib/components/statistics/statistics-controller.svelte';
   import {
     getStatisticsBookFilterKey,
-    getStatisticsBookIds,
+    getStatisticsBookTitles,
     getStatisticsURL,
     getValidStatisticsView,
+    statisticsLegacyBookQueryParam,
     statisticsViewQueryParam,
     type StatisticsView
   } from '$lib/components/statistics/statistics-view';
@@ -35,9 +36,10 @@
 
   let appliedBookFilterKey = $state<string>();
   let searchParams = $derived(browser ? page.url.searchParams : new URLSearchParams());
-  let requestedStatisticsBookIds = $derived(getStatisticsBookIds(searchParams));
+  let hasLegacyBookIds = $derived(searchParams.has(statisticsLegacyBookQueryParam));
+  let requestedStatisticsBookTitles = $derived(getStatisticsBookTitles(searchParams));
   let requestedStatisticsBookFilterKey = $derived(
-    getStatisticsBookFilterKey(requestedStatisticsBookIds)
+    getStatisticsBookFilterKey(requestedStatisticsBookTitles)
   );
   let requestedStatisticsView = $derived(searchParams.get(statisticsViewQueryParam));
   let activeView = $derived(
@@ -48,14 +50,25 @@
   );
 
   onMount(() => {
-    void controller.init(requestedStatisticsBookIds);
+    void controller.init(requestedStatisticsBookTitles);
   });
 
   $effect(() => {
     if (!browser) return;
 
+    if (hasLegacyBookIds) {
+      // Pre-title URLs filtered by the per-device numeric id; nothing stable
+      // to map it to, so drop the filter and show the unfiltered view.
+      goto(resolve(getStatisticsURL(activeView)), {
+        replaceState: true,
+        noScroll: true,
+        keepFocus: true
+      });
+      return;
+    }
+
     if (requestedStatisticsView !== activeView) {
-      goto(resolve(getStatisticsURL(activeView, requestedStatisticsBookIds)), {
+      goto(resolve(getStatisticsURL(activeView, requestedStatisticsBookTitles)), {
         replaceState: true,
         noScroll: true,
         keepFocus: true
@@ -69,7 +82,7 @@
   });
 
   $effect(() => {
-    if (controller.isLoading) return;
+    if (controller.isLoading || hasLegacyBookIds) return;
 
     const filterKey = requestedStatisticsBookFilterKey;
 
@@ -78,7 +91,7 @@
     }
 
     appliedBookFilterKey = filterKey;
-    controller.applyBookFilterIds(requestedStatisticsBookIds);
+    controller.applyBookFilterTitles(requestedStatisticsBookTitles);
   });
 
   function navigateToStatisticsTab(view: StatisticsView) {
@@ -86,13 +99,15 @@
       return;
     }
 
-    const filterURLState = controller.getBookFilterURLState();
-    const bookIds = filterURLState.shouldUpdate
-      ? filterURLState.bookIds
-      : requestedStatisticsBookIds;
+    // Prefer the controller's live filter state, but when it reports "no
+    // filter" — every title selected, e.g. because a URL prefilter happens to
+    // cover every book with statistics — keep the URL's explicit titles.
+    // Filter toggles sync to the URL immediately, so the URL is authoritative
+    // whenever the controller has nothing narrower to say.
+    const { bookTitles } = controller.getBookFilterURLState();
 
     $lastStatisticsView$ = view;
-    goto(resolve(getStatisticsURL(view, bookIds)), {
+    goto(resolve(getStatisticsURL(view, bookTitles ?? requestedStatisticsBookTitles)), {
       keepFocus: true,
       noScroll: true
     });
@@ -109,13 +124,7 @@
   }
 
   function updateBookFilterURL() {
-    const filterURLState = controller.getBookFilterURLState();
-
-    if (!filterURLState.shouldUpdate) {
-      return;
-    }
-
-    goto(resolve(getStatisticsURL(activeView, filterURLState.bookIds)), {
+    goto(resolve(getStatisticsURL(activeView, controller.getBookFilterURLState().bookTitles)), {
       replaceState: true,
       noScroll: true,
       keepFocus: true
