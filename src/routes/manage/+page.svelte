@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { goto } from '$app/navigation';
   import { resolve } from '$app/paths';
   import { faUpload } from '@fortawesome/free-solid-svg-icons';
   import BookCardList from '$lib/components/book-card/book-card-list.svelte';
@@ -7,7 +6,6 @@
   import BookManagerHeader from '$lib/components/book-card/book-manager-header.svelte';
   import {
     defaultStatisticsView,
-    getBookStatisticsURL,
     getStatisticsURL
   } from '$lib/components/statistics/statistics-view';
   import { showBugReportDialog, showErrorDialog } from '$lib/components/log-report-dialog.svelte';
@@ -31,7 +29,6 @@
     database,
     keepLocalReadingDataOnDeletion$
   } from '$lib/data/store';
-  import { getBookURL } from '$lib/functions/book-url';
   import { cloneMutateSet } from '$lib/functions/clone-mutate-set';
   import { getDropEventFiles } from '$lib/functions/file-dom/get-drop-event-files';
   import { inputFile } from '$lib/functions/file-dom/input-file';
@@ -47,7 +44,7 @@
   // The unified library view always reads from the local IndexedDB
   // (browser storage). Placeholder books (not-yet-downloaded cloud
   // content) stay in the list with a Download action and are
-  // downloaded transparently when clicked; see onBookClick below.
+  // downloaded transparently when opened in the reader.
   let bookCards = $derived(
     getBookCards(database.dataList, database.bookmarks, $booklistSortOptions$)
   );
@@ -59,6 +56,12 @@
   let selectedPlaceholderCount = $derived(
     selectedBookCards.filter((book) => book.isPlaceholder).length
   );
+  let selectedStatisticsHref = $derived.by(() => {
+    const bookTitles = selectedBookCards.map((book) => book.title);
+    return bookTitles.length
+      ? resolve(getStatisticsURL(defaultStatisticsView, bookTitles))
+      : undefined;
+  });
   let abortController = $state(new AbortController());
   let signal = $derived(abortController.signal);
   let cancelTooltip = $state('');
@@ -126,32 +129,14 @@
     return sortDiff;
   }
 
-  async function onBookClick(title: string) {
-    if (!operationAllowed()) {
-      return;
-    }
-
-    if (selectMode) {
-      selectedBookTitles = cloneMutateSet(selectedBookTitles, (set) => {
-        if (set.has(title)) {
-          set.delete(title);
-          return;
-        }
-        set.add(title);
-      });
-      return;
-    }
-
-    await readBook(title);
-  }
-
-  async function readBook(title: string) {
-    if (!operationAllowed()) return;
-
-    const bookItem = bookCards.find((book) => book.title === title);
-    if (!bookItem || !(await placeholderActionAvailable(bookItem, 'open'))) return;
-
-    await openBook(title);
+  function selectBook(title: string) {
+    selectedBookTitles = cloneMutateSet(selectedBookTitles, (set) => {
+      if (set.has(title)) {
+        set.delete(title);
+        return;
+      }
+      set.add(title);
+    });
   }
 
   async function downloadBook(title: string) {
@@ -160,7 +145,7 @@
     const bookItem = bookCards.find((book) => book.title === title);
     if (!bookItem || !bookItem.isPlaceholder) return;
 
-    if (!(await placeholderActionAvailable(bookItem, 'download'))) return;
+    if (!(await placeholderDownloadAvailable())) return;
 
     await reconcileForBookOpen({
       title: bookItem.title,
@@ -169,29 +154,16 @@
     void database.notifyDataListChanged();
   }
 
-  async function placeholderActionAvailable(book: BookCardProps, action: 'open' | 'download') {
-    if (!book.isPlaceholder) return true;
-
+  async function placeholderDownloadAvailable() {
     const db = await database.db;
     if ((await db.count('storageSource')) > 0) return true;
 
     showMessageDialog({
-      title: `Can't ${action} book`,
+      title: "Can't download book",
       message:
         "This book's content isn't downloaded and no sync source is connected. Connect one from Settings → Sync to download."
     });
     return false;
-  }
-
-  function openBookStatistics(title: string) {
-    return goto(resolve(getBookStatisticsURL(title)));
-  }
-
-  function openSelectedBookStatistics() {
-    const bookTitles = selectedBookCards.map((book) => book.title);
-    if (!bookTitles.length) return;
-
-    return goto(resolve(getStatisticsURL(defaultStatisticsView, bookTitles)));
   }
 
   async function setBookCompleted(title: string, completed: boolean) {
@@ -247,15 +219,6 @@
   function resetProgress() {
     replicationProgressState.reset();
     cancelTooltip = '';
-  }
-
-  async function openBook(title: string) {
-    if (!title) {
-      return;
-    }
-
-    await database.putLastItem(title);
-    await goto(resolve(getBookURL(title)));
   }
 
   async function onFilesChange(fileList: FileList | File[]) {
@@ -425,8 +388,8 @@
     {cancelTooltip}
     bind:fileCountData
     bind:selectMode
+    statisticsHref={selectedStatisticsHref}
     onselectAllClick={onToggleAllBooks}
-    onviewStatistics={openSelectedBookStatistics}
     oncompletionChange={setSelectedBooksCompleted}
     ondownloadClick={downloadSelectedBooks}
     onremoveClick={() => removeBooks(Array.from(selectedBookTitles))}
@@ -442,6 +405,9 @@
   />
 </div>
 
+<!-- The drag handlers live outside the inert subtree: while replication runs, drag events fall
+  through inert content to this wrapper, which must still cancel them or the browser would
+  navigate to the dropped file. -->
 <div
   role="application"
   class="{pxScreen} h-full pt-16"
@@ -453,47 +419,47 @@
     getDropEventFiles(ev).then(onFilesChange);
   }}
 >
-  {#if database.listLoading}
-    Loading...
-  {:else if bookCards.length}
-    <BookCardList
-      currentBookTitle={database.lastItemTitle}
-      {selectMode}
-      {selectedBookTitles}
-      {bookCards}
-      onbookClick={({ title }) => onBookClick(title)}
-      onreadBookClick={({ title }) => readBook(title)}
-      onstatisticsClick={({ title }) => openBookStatistics(title)}
-      ondownloadBookClick={({ title }) => downloadBook(title)}
-      oncompleteBookClick={({ title, completed }) => setBookCompleted(title, completed)}
-      ondeleteStatisticsClick={({ title }) => onDeleteStatistics([title])}
-      onremoveBookClick={({ title }) => removeBooks([title])}
-    />
-  {:else}
-    <div class="flex h-full flex-col items-center gap-6 pt-8 text-center">
-      <h1 class="text-2xl font-bold">{appName}</h1>
-      <p class="max-w-3xl px-8 text-gray-500">
-        An online ebook reader for Japanese language learners. Read EPUB and TXT files in your
-        browser with support for dictionary extensions like Yomitan.
-      </p>
-      <label
-        class="mt-8 flex cursor-pointer flex-col items-center gap-4 text-gray-400/40 transition-colors hover:text-gray-400/60"
-      >
-        <div class="flex w-32 justify-center">
-          <Fa icon={faUpload} style="width: 100%; height: auto" />
+  <div class="h-full" inert={!!replicationProgressState.toProgress}>
+    {#if database.listLoading}
+      Loading...
+    {:else if bookCards.length}
+      <BookCardList
+        currentBookTitle={database.lastItemTitle}
+        {selectMode}
+        {selectedBookTitles}
+        {bookCards}
+        onbookSelect={({ title }) => selectBook(title)}
+        ondownloadBookClick={({ title }) => downloadBook(title)}
+        oncompleteBookClick={({ title, completed }) => setBookCompleted(title, completed)}
+        ondeleteStatisticsClick={({ title }) => onDeleteStatistics([title])}
+        onremoveBookClick={({ title }) => removeBooks([title])}
+      />
+    {:else}
+      <div class="flex h-full flex-col items-center gap-6 pt-8 text-center">
+        <h1 class="text-2xl font-bold">{appName}</h1>
+        <p class="max-w-3xl px-8 text-gray-500">
+          An online ebook reader for Japanese language learners. Read EPUB and TXT files in your
+          browser with support for dictionary extensions like Yomitan.
+        </p>
+        <label
+          class="mt-8 flex cursor-pointer flex-col items-center gap-4 text-gray-400/40 transition-colors hover:text-gray-400/60"
+        >
+          <div class="flex w-32 justify-center">
+            <Fa icon={faUpload} style="width: 100%; height: auto" />
+          </div>
+          <span class="text-sm text-gray-500">Drop files here or click to upload</span>
+          <input
+            type="file"
+            accept="application/epub+zip,.epub,.htmlz,plain/text,.txt"
+            multiple
+            hidden
+            use:inputFile={onFilesChange}
+          />
+        </label>
+        <div class="mt-auto pb-4 text-xs text-gray-400">
+          <a href={resolve('/privacy')} class="underline">Privacy Policy</a>
         </div>
-        <span class="text-sm text-gray-500">Drop files here or click to upload</span>
-        <input
-          type="file"
-          accept="application/epub+zip,.epub,.htmlz,plain/text,.txt"
-          multiple
-          hidden
-          use:inputFile={onFilesChange}
-        />
-      </label>
-      <div class="mt-auto pb-4 text-xs text-gray-400">
-        <a href={resolve('/privacy')} class="underline">Privacy Policy</a>
       </div>
-    </div>
-  {/if}
+    {/if}
+  </div>
 </div>

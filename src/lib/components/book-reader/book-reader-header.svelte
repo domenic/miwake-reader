@@ -20,6 +20,7 @@
   import { ViewMode } from '$lib/data/view-mode';
 
   interface Props {
+    currentBookTitle?: string;
     hasChapterData: boolean;
     hasText: boolean;
     autoScrollMultiplier: number;
@@ -38,13 +39,11 @@
     onshowCustomReadingPoint?: () => void;
     onsetCustomReadingPoint?: () => void;
     onresetCustomReadingPoint?: () => void;
-    onstatisticsClick?: () => void;
     onreaderImageGalleryClick?: () => void;
-    onsettingsClick?: () => void;
-    onbookManagerClick?: () => void;
   }
 
   let {
+    currentBookTitle,
     hasChapterData,
     hasText,
     autoScrollMultiplier,
@@ -63,10 +62,7 @@
     onshowCustomReadingPoint,
     onsetCustomReadingPoint,
     onresetCustomReadingPoint,
-    onstatisticsClick,
-    onreaderImageGalleryClick,
-    onsettingsClick,
-    onbookManagerClick
+    onreaderImageGalleryClick
   }: Props = $props();
 
   let customReadingPointMenuItems = $derived([
@@ -148,13 +144,6 @@
       />
       <div class={headerDividerClasses}></div>
     {/if}
-    <HeaderNavTabs
-      disableNavigation
-      onnavigate={(routeId) => {
-        if (routeId === '/statistics') onstatisticsClick?.();
-        else if (routeId === '/settings') onsettingsClick?.();
-        else if (routeId === '/manage') onbookManagerClick?.();
-      }}
-    />
+    <HeaderNavTabs {currentBookTitle} />
   </div>
 </div>

@@ -1,7 +1,6 @@
 <script lang="ts">
   import { faImage } from '@fortawesome/free-regular-svg-icons';
   import { onDestroy } from 'svelte';
-  import type { MouseEventHandler } from 'svelte/elements';
   import Fa from 'svelte-fa';
   import { japaneseLangIfNeeded } from '$lib/functions/japanese-language';
 
@@ -14,9 +13,6 @@
     current?: boolean;
     isPlaceholder?: boolean;
     selected?: boolean;
-    selectionMode?: boolean;
-    tooltip?: string;
-    onclick?: MouseEventHandler<HTMLButtonElement>;
   }
 
   let {
@@ -27,10 +23,7 @@
     completed,
     current = false,
     isPlaceholder = false,
-    selected = false,
-    selectionMode = false,
-    tooltip,
-    onclick
+    selected = false
   }: Props = $props();
 
   let objectURL = '';
@@ -77,68 +70,56 @@
   let progressPercentage = $derived(completed ? 100 : Math.round(progress * 100));
 </script>
 
-<button
-  type="button"
-  class="block w-full min-w-0 rounded-sm text-left"
-  class:outline-2={selected}
-  class:outline-offset-4={selected}
-  class:outline-blue-400={selected}
-  title={tooltip}
-  aria-label={title}
-  aria-pressed={selectionMode ? selected : undefined}
-  {onclick}
+<span
+  class="mdc-elevation--z1 hover:mdc-elevation--z8 group-hover:mdc-elevation--z8 mdc-elevation-transition relative block aspect-2/3 w-full overflow-hidden text-5xl sm:text-7xl"
+  class:rounded-tl-xl={current}
+  class:mdc-elevation--z4={selected || current}
+  class:opacity-60={isPlaceholder}
 >
-  <span
-    class="mdc-elevation--z1 hover:mdc-elevation--z8 mdc-elevation-transition relative block aspect-2/3 w-full overflow-hidden text-5xl sm:text-7xl"
-    class:rounded-tl-xl={current}
-    class:mdc-elevation--z4={selected || current}
-    class:opacity-60={isPlaceholder}
-  >
-    {#if imageLoading}
-      <Fa class="absolute top-1/2 left-1/2 -translate-1/2" icon={faImage} />
-    {/if}
+  {#if imageLoading}
+    <Fa class="absolute top-1/2 left-1/2 -translate-1/2" icon={faImage} />
+  {/if}
 
-    {#if imagePath}
-      <img
-        decoding="async"
-        loading="lazy"
-        referrerpolicy="no-referrer"
-        class="book-cover relative size-full object-cover transition delay-150 duration-700 ease-out"
-        class:blur={imageLoading}
-        src={mapImagePath(imagePath)}
-        alt=""
-        onload={() => (imageLoading = false)}
-        onerror={() => (imageLoading = false)}
-      />
-    {/if}
+  {#if imagePath}
+    <img
+      decoding="async"
+      loading="lazy"
+      referrerpolicy="no-referrer"
+      class="book-cover relative size-full object-cover transition delay-150 duration-700 ease-out"
+      class:blur={imageLoading}
+      src={mapImagePath(imagePath)}
+      alt=""
+      onload={() => (imageLoading = false)}
+      onerror={() => (imageLoading = false)}
+    />
+  {/if}
 
-    <progress
-      class="reading-progress"
-      class:completed
-      aria-label={`Reading progress for ${title}`}
-      value={progressPercentage}
-      max="100"
-    ></progress>
-  </span>
+  <progress
+    class="reading-progress"
+    class:completed
+    aria-label={`Reading progress for ${title}`}
+    value={progressPercentage}
+    max="100"
+  ></progress>
+</span>
 
-  <span
-    class="mt-3 grid h-14.5 min-w-0 grid-cols-[minmax(0,1fr)_2rem] items-start gap-2 overflow-hidden"
-  >
-    <span class="min-w-0">
-      <span class="line-clamp-2 text-sm font-medium" lang={titleLanguage}>{title}</span>
-      <span class="mt-0.5 block truncate text-xs text-gray-500" lang={authorLanguage}>
-        {author}
-      </span>
-    </span>
-    <span
-      class="pt-0.5 text-right text-xs font-medium tabular-nums"
-      class:text-emerald-700={completed}
-      class:text-blue-700={!completed}
-    >
-      {progressPercentage}%
+<span
+  class="mt-3 grid h-14.5 min-w-0 grid-cols-[minmax(0,1fr)_2rem] items-start gap-2 overflow-hidden"
+>
+  <span class="min-w-0">
+    <span class="line-clamp-2 text-sm font-medium" lang={titleLanguage}>{title}</span>
+    <span class="mt-0.5 block truncate text-xs text-gray-500" lang={authorLanguage}>
+      {author}
     </span>
   </span>
-</button>
+  <span
+    class="pt-0.5 text-right text-xs font-medium tabular-nums"
+    class:text-emerald-700={completed}
+    class:text-blue-700={!completed}
+  >
+    {progressPercentage}%
+  </span>
+</span>
 
 <style>
   .reading-progress {

@@ -36,7 +36,7 @@ test('reader applies document styles while mounted and cleans them up on exit', 
   });
 
   const header = await showReaderHeader(page);
-  await header.getByRole('button', { name: 'Manager', exact: true }).click();
+  await header.getByRole('link', { name: 'Manager', exact: true }).click();
 
   await expectDocumentReaderStyles(page, { backgroundColor: '', writingMode: '' });
 });

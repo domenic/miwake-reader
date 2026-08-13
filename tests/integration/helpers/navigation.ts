@@ -59,7 +59,7 @@ export async function navigateToStatisticsSummary(page: Page, options?: Navigati
     }
 
     if (currentStatisticsView(page) !== 'summary') {
-      await page.getByRole('button', { name: 'Summary', exact: true }).click();
+      await page.getByRole('link', { name: 'Summary', exact: true }).click();
     }
   }
   await expectPath(page, '/statistics');
@@ -84,7 +84,7 @@ async function navigateToSettingsSection(
       );
     }
 
-    await page.getByRole('button', { name: tabName, exact: true }).first().click();
+    await page.getByRole('link', { name: tabName, exact: true }).first().click();
   }
   await expectPath(page, path);
 }
@@ -103,7 +103,7 @@ async function navigateWithGlobalTab(
   if (readerMounted) {
     await navigateFromReader(page, tabName, options);
   } else {
-    await page.getByRole('button', { name: tabName, exact: true }).last().click();
+    await page.getByRole('link', { name: tabName, exact: true }).last().click();
   }
   await expect
     .poll(async () => isExpectedPath(currentPath(page)) && !(await readerIsMounted(page)), {
@@ -121,7 +121,7 @@ async function navigateFromReader(
   if ((await header.getAttribute('inert')) !== null) {
     header = await showReaderHeader(page);
   }
-  await header.getByRole('button', { name: tabName, exact: true }).click();
+  await header.getByRole('link', { name: tabName, exact: true }).click();
   await assertExpectedReaderExitDialog(page, readerExitDialog);
 }
 

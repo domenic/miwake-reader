@@ -2,9 +2,9 @@
   // Bottom-left controls cluster — always shows the sync status pill;
   // in reader mode, stacks a play/pause and a stats-menu button above
   // it. The sync pill stays anchored in the lower-left corner across every route so users always know where to find it.
-  import { goto } from '$app/navigation';
   import { resolve } from '$app/paths';
   import { page } from '$app/state';
+  import type { Snippet } from 'svelte';
   import Fa from 'svelte-fa';
   import {
     faArrowsRotate,
@@ -112,10 +112,20 @@
     isReaderRoute && $statisticsEnabled$ && trackerStatus.available
   );
 
-  async function onSyncClick() {
-    if (!syncClickable) return;
+  function isPlainPrimaryClick(event: MouseEvent) {
+    return (
+      event.button === 0 && !event.ctrlKey && !event.metaKey && !event.shiftKey && !event.altKey
+    );
+  }
+
+  async function onSyncClick(event: MouseEvent) {
     const location = syncState.location;
-    if (syncState.health.status === 'reauth-required' && location?.kind === 'cloud') {
+    if (
+      isPlainPrimaryClick(event) &&
+      syncState.health.status === 'reauth-required' &&
+      location?.kind === 'cloud'
+    ) {
+      event.preventDefault();
       reconnecting = true;
       try {
         await connectCloud(location.provider, {
@@ -127,13 +137,7 @@
       } finally {
         reconnecting = false;
       }
-      return;
     }
-    await goto(
-      indicator.kind === 'off'
-        ? resolve('/settings/sync#sync-direction')
-        : resolve('/settings/sync')
-    );
   }
 
   // The hit target size comes from the shared sync-indicator CSS variables.
@@ -142,17 +146,7 @@
     'sync-indicator-size flex items-center justify-center rounded-full text-base transition-colors hover:bg-black/5 sm:text-lg';
 </script>
 
-{#snippet clusterButton(
-  label: string,
-  icon: IconDefinition,
-  opts: {
-    onClick: () => void;
-    clickable?: boolean;
-    colorClass?: string;
-    spin?: boolean;
-  }
-)}
-  {@const clickable = opts.clickable ?? true}
+{#snippet clusterPopover(label: string, control: Snippet)}
   <Popover
     eventType="pointer"
     placement="right"
@@ -161,37 +155,55 @@
     contentStyles="padding: 0.4rem 0.6rem; font-size: 0.75rem; font-weight: 500;"
   >
     {#snippet content()}{label}{/snippet}
-    <button
-      type="button"
-      aria-label={label}
-      class="{buttonClass} {opts.colorClass ?? ''}"
-      class:cursor-pointer={clickable}
-      class:cursor-default={!clickable}
-      onclick={opts.onClick}
-      tabindex={clickable ? 0 : -1}
-    >
-      <Fa {icon} class={opts.spin ? 'animate-spin' : ''} />
-    </button>
+    {@render control()}
   </Popover>
 {/snippet}
 
+{#snippet actionButton(label: string, icon: IconDefinition, onClick: (event: MouseEvent) => void)}
+  {#snippet control()}
+    <button
+      type="button"
+      aria-label={label}
+      class="{buttonClass} cursor-pointer text-gray-600"
+      onclick={onClick}
+    >
+      <Fa {icon} />
+    </button>
+  {/snippet}
+  {@render clusterPopover(label, control)}
+{/snippet}
+
+{#snippet syncControl()}
+  {#if syncClickable}
+    <a
+      aria-label={syncLabel}
+      class="{buttonClass} {wrapperVariantClasses[indicator.kind]} cursor-pointer"
+      href={resolve(indicator.kind === 'off' ? '/settings/sync#sync-direction' : '/settings/sync')}
+      onclick={onSyncClick}
+    >
+      <Fa icon={icons[indicator.kind]} />
+    </a>
+  {:else}
+    <button
+      type="button"
+      aria-label={syncLabel}
+      class="{buttonClass} {wrapperVariantClasses[indicator.kind]} cursor-default"
+      tabindex={-1}
+    >
+      <Fa icon={icons[indicator.kind]} class={indicator.kind === 'syncing' ? 'animate-spin' : ''} />
+    </button>
+  {/if}
+{/snippet}
+
 <div class="sync-indicator-inset writing-horizontal-tb fixed z-40 flex flex-col-reverse gap-2">
-  {@render clusterButton(syncLabel, icons[indicator.kind], {
-    onClick: onSyncClick,
-    clickable: syncClickable,
-    colorClass: wrapperVariantClasses[indicator.kind],
-    spin: indicator.kind === 'syncing'
-  })}
+  {@render clusterPopover(syncLabel, syncControl)}
 
   {#if showTrackerButtons}
-    {@render clusterButton(
+    {@render actionButton(
       trackerStatus.paused ? 'Resume reading tracker' : 'Pause reading tracker',
       trackerStatus.paused ? faPlay : faPause,
-      { onClick: toggleTrackerPauseByUser, colorClass: 'text-gray-600' }
+      toggleTrackerPauseByUser
     )}
-    {@render clusterButton('Open reading statistics', faChartBar, {
-      onClick: openTrackerMenu,
-      colorClass: 'text-gray-600'
-    })}
+    {@render actionButton('Open reading statistics', faChartBar, openTrackerMenu)}
   {/if}
 </div>

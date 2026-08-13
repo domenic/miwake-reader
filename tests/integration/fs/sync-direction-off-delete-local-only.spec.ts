@@ -13,7 +13,7 @@ test('deleting a book with sync "Off" leaves the source copy intact', async ({ p
   await setSyncDirection(page, 'Off');
   await clearRemoveEntryLog(page);
   await deleteBookFromManage(page, VALID_BOOK);
-  await expect(page.getByRole('button', { name: 'Sync is off' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Sync is off' })).toBeVisible();
 
   await expectSourceBookRemoveNotLogged(page, VALID_BOOK);
   await expectBooksInSyncRoot(page, [VALID_BOOK]);

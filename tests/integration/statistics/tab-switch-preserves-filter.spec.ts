@@ -21,7 +21,7 @@ test('switching tabs keeps the title filter when it covers every book', async ({
   const title = fixtureTitle(LONG_BOOK);
   await page.goto(`/statistics?${new URLSearchParams({ view: 'heatmap', t: title })}`);
 
-  await page.getByRole('button', { name: 'Summary', exact: true }).click();
+  await page.getByRole('link', { name: 'Summary', exact: true }).click();
 
   await expect(page).toHaveURL(`/statistics?${new URLSearchParams({ view: 'summary', t: title })}`);
 });

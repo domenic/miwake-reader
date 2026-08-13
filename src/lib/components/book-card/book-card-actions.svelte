@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { resolve } from '$app/paths';
+  import type { ResolvedPathname } from '$app/types';
   import {
     faBookOpen,
     faCalendarXmark,
@@ -10,29 +12,21 @@
   } from '@fortawesome/free-solid-svg-icons';
   import type { IconDefinition } from '@fortawesome/free-solid-svg-icons';
   import type { BookCardProps } from '$lib/components/book-card/book-card-props';
+  import { getBookStatisticsURL } from '$lib/components/statistics/statistics-view';
   import Popover from '$lib/components/popover/popover.svelte';
+  import { getBookURL } from '$lib/functions/book-url';
   import { getDateTimeString } from '$lib/functions/statistic-util';
   import Fa from 'svelte-fa';
 
   interface Props {
     bookCard: BookCardProps;
-    onread?: (data: { title: string }) => void | Promise<void>;
-    onstatistics?: (data: { title: string }) => void | Promise<void>;
     ondownload?: (data: { title: string }) => void | Promise<void>;
     oncomplete?: (data: { title: string; completed: boolean }) => void | Promise<void>;
     ondeletestatistics?: (data: { title: string }) => void | Promise<void>;
     onremove?: (data: { title: string }) => void | Promise<void>;
   }
 
-  let {
-    bookCard,
-    onread,
-    onstatistics,
-    ondownload,
-    oncomplete,
-    ondeletestatistics,
-    onremove
-  }: Props = $props();
+  let { bookCard, ondownload, oncomplete, ondeletestatistics, onremove }: Props = $props();
 
   let detailsPopover = $state<Popover>();
   let morePopover = $state<Popover>();
@@ -66,45 +60,76 @@
   icon: IconDefinition,
   label: string,
   ariaLabel: string,
-  action?: () => void | Promise<void>,
+  action: { href: ResolvedPathname } | { href?: never; onClick?: () => void | Promise<void> },
   fullWidth = false
 )}
-  <button
-    type="button"
-    class={`${actionButtonClasses} ${fullWidth ? 'w-full' : ''}`}
-    aria-label={ariaLabel}
-    onclick={() => action?.()}
-  >
-    <Fa {icon} />
-    <span>{label}</span>
-  </button>
+  {#if action.href !== undefined}
+    <!-- Destinations are resolved by the caller before reaching this snippet. -->
+    <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
+    <a
+      class={`${actionButtonClasses} ${fullWidth ? 'w-full' : ''}`}
+      aria-label={ariaLabel}
+      href={action.href}
+    >
+      <Fa {icon} />
+      <span>{label}</span>
+    </a>
+  {:else}
+    <button
+      type="button"
+      class={`${actionButtonClasses} ${fullWidth ? 'w-full' : ''}`}
+      aria-label={ariaLabel}
+      onclick={() => action.onClick?.()}
+    >
+      <Fa {icon} />
+      <span>{label}</span>
+    </button>
+  {/if}
 {/snippet}
 
 {#snippet menuAction(
   icon: IconDefinition,
   label: string,
-  action: () => void | Promise<void>,
+  action: { href: ResolvedPathname } | { href?: never; onClick: () => void | Promise<void> },
   danger = false
 )}
-  <button
-    type="button"
-    class={`${menuButtonClasses} ${danger ? 'text-red-300 hover:text-red-700' : ''}`}
-    onclick={() => runMenuAction(action)}
-  >
-    <Fa {icon} />
-    <span>{label}</span>
-  </button>
+  {#if action.href !== undefined}
+    <!-- Close the popover on activation like the button items; on a plain click the ensuing
+      navigation unmounts it anyway, but a modified click stays on this page. -->
+    <!-- Destinations are resolved by the caller before reaching this snippet. -->
+    <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
+    <a
+      class={`${menuButtonClasses} ${danger ? 'text-red-300 hover:text-red-700' : ''}`}
+      href={action.href}
+      onclick={() => morePopover?.toggleOpen()}
+      onauxclick={(event) => {
+        if (event.button === 1) morePopover?.toggleOpen();
+      }}
+    >
+      <Fa {icon} />
+      <span>{label}</span>
+    </a>
+  {:else}
+    <button
+      type="button"
+      class={`${menuButtonClasses} ${danger ? 'text-red-300 hover:text-red-700' : ''}`}
+      onclick={() => runMenuAction(action.onClick)}
+    >
+      <Fa {icon} />
+      <span>{label}</span>
+    </button>
+  {/if}
 {/snippet}
 
 <div class="mt-2.5 grid grid-cols-[1fr_1fr_auto] gap-1">
-  {@render cardAction(faChartLine, 'Stats', `View statistics for ${bookCard.title}`, () =>
-    onstatistics?.({ title: bookCard.title })
-  )}
+  {@render cardAction(faChartLine, 'Stats', `View statistics for ${bookCard.title}`, {
+    href: resolve(getBookStatisticsURL(bookCard.title))
+  })}
 
   {#if bookCard.isPlaceholder}
-    {@render cardAction(faDownload, 'Download', `Download ${bookCard.title}`, () =>
-      ondownload?.({ title: bookCard.title })
-    )}
+    {@render cardAction(faDownload, 'Download', `Download ${bookCard.title}`, {
+      onClick: () => ondownload?.({ title: bookCard.title })
+    })}
   {:else}
     <Popover
       bind:this={detailsPopover}
@@ -113,13 +138,7 @@
       yOffset={5}
     >
       {#snippet icon()}
-        {@render cardAction(
-          faCircleInfo,
-          'Details',
-          `Details for ${bookCard.title}`,
-          undefined,
-          true
-        )}
+        {@render cardAction(faCircleInfo, 'Details', `Details for ${bookCard.title}`, {}, true)}
       {/snippet}
       {#snippet content()}
         <div class="w-80 max-w-[calc(100vw-2rem)] p-4 font-normal">
@@ -153,34 +172,38 @@
     {#snippet content()}
       <div class="inline-flex min-w-56 flex-col py-2">
         <div class="max-w-72 truncate px-4 pb-2 text-xs font-medium">{bookCard.title}</div>
-        {@render menuAction(faBookOpen, 'Read book', () => onread?.({ title: bookCard.title }))}
-        {@render menuAction(faChartLine, 'View statistics', () =>
-          onstatistics?.({ title: bookCard.title })
-        )}
+        {@render menuAction(faBookOpen, 'Read book', { href: resolve(getBookURL(bookCard.title)) })}
+        {@render menuAction(faChartLine, 'View statistics', {
+          href: resolve(getBookStatisticsURL(bookCard.title))
+        })}
         {@render menuAction(
           faFlag,
           bookCard.completed ? 'Mark as in progress' : 'Mark as complete',
-          () => oncomplete?.({ title: bookCard.title, completed: !bookCard.completed })
+          {
+            onClick: () => oncomplete?.({ title: bookCard.title, completed: !bookCard.completed })
+          }
         )}
         {#if !bookCard.isPlaceholder}
-          {@render menuAction(faCircleInfo, 'Book details', () => detailsPopover?.toggleOpen())}
+          {@render menuAction(faCircleInfo, 'Book details', {
+            onClick: () => detailsPopover?.toggleOpen()
+          })}
         {/if}
 
         {#if bookCard.isPlaceholder}
           <hr class="mx-4 my-1 border-white/20" />
-          {@render menuAction(faDownload, 'Download to this device', () =>
-            ondownload?.({ title: bookCard.title })
-          )}
+          {@render menuAction(faDownload, 'Download to this device', {
+            onClick: () => ondownload?.({ title: bookCard.title })
+          })}
         {/if}
 
         <hr class="mx-4 my-1 border-white/20" />
-        {@render menuAction(faCalendarXmark, 'Delete statistics', () =>
-          ondeletestatistics?.({ title: bookCard.title })
-        )}
+        {@render menuAction(faCalendarXmark, 'Delete statistics', {
+          onClick: () => ondeletestatistics?.({ title: bookCard.title })
+        })}
         {@render menuAction(
           faTrash,
           'Remove from library',
-          () => onremove?.({ title: bookCard.title }),
+          { onClick: () => onremove?.({ title: bookCard.title }) },
           true
         )}
       </div>

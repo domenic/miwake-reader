@@ -58,4 +58,5 @@ test('fresh-device placeholders preserve varied UI-created progress and surface 
   await expect(dialog).not.toContainText('Connect its sync location');
   await expect(dialog.getByRole('link', { name: 'Open Issue Tracker' })).toBeVisible();
   await expect(dialog.getByRole('link', { name: 'Download Logs' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Book', exact: true })).toHaveCount(0);
 });

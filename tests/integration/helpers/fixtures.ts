@@ -291,11 +291,12 @@ export async function expectBookReaderText(page: Page, fixture: LibraryBookFixtu
 
 export async function deleteBookFromManage(page: Page, fixture: LibraryBookFixture) {
   await navigateToManage(page);
-  const bookTitle = page.getByText(fixtureTitle(fixture), { exact: true });
+  const title = fixtureTitle(fixture);
+  const bookTitle = page.getByText(title, { exact: true });
   await expect(bookTitle).toBeVisible();
 
   await page.getByRole('button', { name: 'Select' }).click();
-  await bookTitle.click();
+  await bookCard(page, fixture).getByRole('button', { name: title, exact: true }).click();
   await page.getByRole('button', { name: 'Remove', exact: true }).click();
   const dialog = page.locator('dialog[open]').filter({
     has: page.getByRole('heading', { name: 'Remove book from library?' })
