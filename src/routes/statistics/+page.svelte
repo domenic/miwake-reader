@@ -94,11 +94,7 @@
     controller.applyBookFilterTitles(requestedStatisticsBookTitles);
   });
 
-  function navigateToStatisticsTab(view: StatisticsView) {
-    if (view === activeView && requestedStatisticsView === view) {
-      return;
-    }
-
+  function getStatisticsTabHref(view: StatisticsView) {
     // Prefer the controller's live filter state, but when it reports "no
     // filter" — every title selected, e.g. because a URL prefilter happens to
     // cover every book with statistics — keep the URL's explicit titles.
@@ -106,12 +102,11 @@
     // whenever the controller has nothing narrower to say.
     const { bookTitles } = controller.getBookFilterURLState();
 
-    $lastStatisticsView$ = view;
-    goto(resolve(getStatisticsURL(view, bookTitles ?? requestedStatisticsBookTitles)), {
-      keepFocus: true,
-      noScroll: true
-    });
+    return resolve(getStatisticsURL(view, bookTitles ?? requestedStatisticsBookTitles));
   }
+
+  let summaryHref = $derived(getStatisticsTabHref('summary'));
+  let heatmapHref = $derived(getStatisticsTabHref('heatmap'));
 
   function handleTitleFilterToggle(title: string, isSelected: boolean) {
     controller.setTitleFilterSelection(title, isSelected);
@@ -142,7 +137,8 @@
   oncopydata={(dataKey) => controller.copyStatisticsData(dataKey)}
   onopenfilter={() => (controller.titleFilterIsOpen = true)}
   onopensettings={() => (controller.showStatisticsSettings = true)}
-  onselecttab={navigateToStatisticsTab}
+  {summaryHref}
+  {heatmapHref}
 />
 
 <div class="{pxScreen} flex min-h-full flex-col pt-16">

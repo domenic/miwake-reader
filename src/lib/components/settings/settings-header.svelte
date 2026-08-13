@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { resolve } from '$app/paths';
   import type { RouteId } from '$app/types';
   import { faBookOpenReader, faClock, faCloudArrowUp } from '@fortawesome/free-solid-svg-icons';
   import HeaderButton from '$lib/components/header-button.svelte';
@@ -8,7 +9,6 @@
 
   interface Props {
     activeRouteId?: RouteId | null;
-    onselect?: (href: SettingsRoute) => void;
   }
 
   interface SettingItem {
@@ -17,7 +17,7 @@
     icon: typeof faBookOpenReader;
   }
 
-  let { activeRouteId, onselect }: Props = $props();
+  let { activeRouteId }: Props = $props();
 
   const settingItems: SettingItem[] = [
     {
@@ -40,14 +40,14 @@
 
 <div class={baseHeaderClasses}>
   <div class="flex h-full justify-between">
-    <div class="flex">
+    <div class="flex" data-sveltekit-keepfocus data-sveltekit-noscroll>
       {#each settingItems as settingItem (settingItem.label)}
         <HeaderButton
           faIcon={settingItem.icon}
           label={settingItem.label}
           selected={activeRouteId === settingItem.href}
           variant="tab"
-          onclick={() => onselect?.(settingItem.href)}
+          href={resolve(settingItem.href)}
         />
       {/each}
     </div>

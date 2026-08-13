@@ -1,24 +1,28 @@
 <script lang="ts">
+  import type { ResolvedPathname } from '$app/types';
   import type { IconDefinition } from '@fortawesome/free-solid-svg-icons';
   import { ripple } from '$lib/components/ripple';
-  import type { MouseEventHandler } from 'svelte/elements';
   import type { Snippet } from 'svelte';
   import Fa from 'svelte-fa';
 
   type Variant = 'action' | 'tab';
   type Width = 'default' | 'wide';
 
-  interface Props {
+  interface CommonProps {
     faIcon?: IconDefinition;
     label?: string;
     title?: string;
-    disabled?: boolean;
     selected?: boolean;
     variant?: Variant;
     width?: Width;
-    onclick?: MouseEventHandler<HTMLButtonElement>;
     icon?: Snippet;
   }
+
+  type Props = CommonProps &
+    (
+      | { href: ResolvedPathname; disabled?: never; onclick?: never }
+      | { href?: undefined; disabled?: boolean; onclick?: (event: MouseEvent) => void }
+    );
 
   let {
     faIcon,
@@ -28,6 +32,7 @@
     selected = false,
     variant = 'action',
     width = 'default',
+    href,
     onclick,
     icon
   }: Props = $props();
@@ -42,23 +47,24 @@
     default: '',
     wide: 'w-20 shrink-0'
   } satisfies Record<Width, string>;
+
+  let classes = $derived(
+    [
+      'flex h-12 min-w-16 flex-col items-center justify-center px-2 text-center text-xs select-none',
+      variantClasses[variant],
+      widthClasses[width],
+      variant === 'action' && selected ? 'opacity-100' : '',
+      variant === 'tab' && selected ? 'bg-gray-900 hover:bg-gray-800' : '',
+      variant === 'tab' && !selected ? 'hover:bg-gray-900' : '',
+      variant === 'action' && !disabled ? 'hover:opacity-100' : '',
+      disabled ? 'cursor-not-allowed opacity-30' : ''
+    ]
+      .filter(Boolean)
+      .join(' ')
+  );
 </script>
 
-<button
-  use:ripple
-  type="button"
-  {title}
-  {disabled}
-  class={`flex h-12 min-w-16 flex-col items-center justify-center px-2 text-center text-xs select-none ${variantClasses[variant]} ${widthClasses[width]}`}
-  class:opacity-100={variant === 'action' && selected}
-  class:bg-gray-900={variant === 'tab' && selected}
-  class:hover:bg-gray-800={variant === 'tab' && selected}
-  class:hover:bg-gray-900={variant === 'tab' && !selected}
-  class:hover:opacity-100={variant === 'action' && !disabled}
-  class:cursor-not-allowed={disabled}
-  class:opacity-30={disabled}
-  {onclick}
->
+{#snippet content()}
   {#if icon}
     <span class={iconClasses}>
       {@render icon()}
@@ -70,4 +76,16 @@
   {#if label}
     <span>{label}</span>
   {/if}
-</button>
+{/snippet}
+
+{#if href !== undefined}
+  <!-- Internal destinations are resolved by the caller before reaching this renderer. -->
+  <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
+  <a use:ripple {href} {title} class={classes} aria-current={selected ? 'page' : undefined}>
+    {@render content()}
+  </a>
+{:else}
+  <button use:ripple type="button" {title} {disabled} class={classes} {onclick}>
+    {@render content()}
+  </button>
+{/if}

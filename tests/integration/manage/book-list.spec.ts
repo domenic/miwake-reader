@@ -36,15 +36,15 @@ test('manager exposes per-book actions without entering selection mode', async (
   const card = page.locator('article').filter({ hasText: fixtureTitle(VALID_BOOK) });
   await expect(card.getByText('テスト 太郎', { exact: true })).toBeVisible();
   await expect(
-    card.getByRole('button', { name: `View statistics for ${fixtureTitle(VALID_BOOK)}` })
+    card.getByRole('link', { name: `View statistics for ${fixtureTitle(VALID_BOOK)}` })
   ).toBeVisible();
   await expect(
     card.getByRole('button', { name: `Details for ${fixtureTitle(VALID_BOOK)}` })
   ).toBeVisible();
 
   await card.getByRole('button', { name: `More actions for ${fixtureTitle(VALID_BOOK)}` }).click();
-  await expect(page.getByRole('button', { name: 'Read book' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'View statistics', exact: true })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Read book' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'View statistics', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Book details' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Export book backup' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Delete statistics' })).toBeVisible();
@@ -66,9 +66,7 @@ test('manager exposes per-book actions without entering selection mode', async (
   );
   await expect(card.getByText('100%', { exact: true })).toBeVisible();
 
-  await card
-    .getByRole('button', { name: `View statistics for ${fixtureTitle(VALID_BOOK)}` })
-    .click();
+  await card.getByRole('link', { name: `View statistics for ${fixtureTitle(VALID_BOOK)}` }).click();
   await page.waitForURL((url) => url.pathname === '/statistics' && url.searchParams.has('t'));
 });
 
@@ -93,6 +91,25 @@ test('manager confirms before removing a book from the library', async ({ page }
   await page.getByRole('button', { name: 'Remove from library' }).click();
   await dialog.getByRole('button', { name: 'Remove', exact: true }).click();
   await expect(card).toHaveCount(0);
+});
+
+test('selection mode keeps book cards mounted', async ({ page }) => {
+  await importBookFixtures(page, [VALID_BOOK]);
+  await navigateToManage(page);
+
+  const title = fixtureTitle(VALID_BOOK);
+  const card = page.locator('article').filter({ hasText: title });
+  const presentation = card.getByRole('progressbar', { name: /Reading progress/ }).locator('..');
+  await expect(presentation).toBeVisible();
+  await presentation.evaluate((element) => (element.dataset.mountMarker = 'original'));
+
+  await page.getByRole('button', { name: 'Select', exact: true }).click();
+  await expect(card.getByRole('button', { name: title, exact: true })).toBeVisible();
+  await expect(presentation).toHaveAttribute('data-mount-marker', 'original');
+
+  await page.getByRole('button', { name: 'Select', exact: true }).click();
+  await expect(card.getByRole('link', { name: title, exact: true })).toBeVisible();
+  await expect(presentation).toHaveAttribute('data-mount-marker', 'original');
 });
 
 test('selection mode exposes the applicable per-book actions in bulk', async ({ page }) => {
@@ -123,20 +140,20 @@ test('selection mode exposes the applicable per-book actions in bulk', async ({ 
   await page.getByRole('button', { name: 'Clear All' }).click();
   await expect(selectedCount).toHaveText('0');
   await expect(page.getByRole('button', { name: 'Select All' })).toBeVisible();
-  await card.getByText(title, { exact: true }).click();
+  await card.getByRole('button', { name: title, exact: true }).click();
 
   await expect(card.getByRole('button', { name: title, exact: true })).toHaveAttribute(
     'aria-pressed',
     'true'
   );
-  await expect(card.getByRole('button', { name: `View statistics for ${title}` })).toBeVisible();
+  await expect(card.getByRole('link', { name: `View statistics for ${title}` })).toBeVisible();
   await expect(card.getByRole('button', { name: `Details for ${title}` })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'View Stats', exact: true })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'View Stats', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Complete', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Export', exact: true })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Delete Stats', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Remove', exact: true })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Read book' })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: 'Read book' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Book details' })).toHaveCount(0);
 
   const completeWidth = await page

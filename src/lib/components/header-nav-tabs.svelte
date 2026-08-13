@@ -1,23 +1,21 @@
 <script lang="ts">
   import type { RouteId } from '$app/types';
-  import { goto } from '$app/navigation';
   import { resolve } from '$app/paths';
   import { page } from '$app/state';
   import { faBookOpen, faChartLine, faCog, faSignOutAlt } from '@fortawesome/free-solid-svg-icons';
   import type { IconDefinition } from '@fortawesome/free-solid-svg-icons';
   import HeaderButton from '$lib/components/header-button.svelte';
+  import { getBookStatisticsURL } from '$lib/components/statistics/statistics-view';
   import { database } from '$lib/data/store';
+  import { getBookURL } from '$lib/functions/book-url';
 
   type HeaderRouteId = Extract<RouteId, '/b' | '/statistics' | '/settings' | '/manage'>;
-  type HeaderRouteWithQuery = HeaderRouteId | `${HeaderRouteId}?${string}`;
-  type QueryString = `?${string}` | '';
 
   interface Props {
-    disableNavigation?: boolean;
-    onnavigate?: (routeId: HeaderRouteId) => void;
+    currentBookTitle?: string;
   }
 
-  let { disableNavigation = false, onnavigate }: Props = $props();
+  let { currentBookTitle }: Props = $props();
 
   const tabs = [
     { routeId: '/statistics', label: 'Statistics', icon: faChartLine },
@@ -29,16 +27,12 @@
     return page.route.id === routeId || page.route.id?.startsWith(`${routeId}/`);
   }
 
-  function handleClick(routeId: HeaderRouteId, query: QueryString = '') {
-    onnavigate?.(routeId);
-
-    if (!disableNavigation) {
-      goto(resolve(getRouteWithQuery(routeId, query)));
+  function getTabHref(routeId: HeaderRouteId) {
+    if (routeId === '/statistics' && page.route.id === '/b' && currentBookTitle) {
+      return getBookStatisticsURL(currentBookTitle);
     }
-  }
 
-  function getRouteWithQuery(routeId: HeaderRouteId, query: QueryString): HeaderRouteWithQuery {
-    return query ? `${routeId}${query}` : routeId;
+    return routeId;
   }
 </script>
 
@@ -48,7 +42,7 @@
     label="Book"
     selected={page.route.id === '/b'}
     variant="tab"
-    onclick={() => handleClick('/b', `?${new URLSearchParams({ t: database.lastItemTitle! })}`)}
+    href={resolve(getBookURL(database.lastItemTitle))}
   />
 {/if}
 {#each tabs as tab (tab.routeId)}
@@ -57,6 +51,6 @@
     label={tab.label}
     selected={isSelectedRoute(tab.routeId)}
     variant="tab"
-    onclick={() => handleClick(tab.routeId)}
+    href={resolve(getTabHref(tab.routeId))}
   />
 {/each}

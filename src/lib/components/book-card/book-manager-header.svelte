@@ -1,5 +1,6 @@
 <script lang="ts">
   import { browser } from '$app/environment';
+  import type { ResolvedPathname } from '$app/types';
   import HeaderButton from '$lib/components/header-button.svelte';
   import HeaderMenuButton from '$lib/components/header-menu-button.svelte';
   import HeaderNavTabs from '$lib/components/header-nav-tabs.svelte';
@@ -45,8 +46,8 @@
     replicationProgressRemaining: string;
     cancelTooltip: string;
     fileCountData?: Record<string, number>;
+    statisticsHref?: ResolvedPathname;
     onselectAllClick?: () => void;
-    onviewStatistics?: () => void | Promise<void>;
     oncompletionChange?: (completed: boolean) => void | Promise<void>;
     ondownloadClick?: () => void | Promise<void>;
     onremoveClick?: () => void;
@@ -67,8 +68,8 @@
     replicationProgressRemaining,
     cancelTooltip,
     fileCountData = $bindable(),
+    statisticsHref,
     onselectAllClick,
-    onviewStatistics,
     oncompletionChange,
     ondownloadClick,
     onremoveClick,
@@ -205,12 +206,14 @@
           </HeaderButton>
           {#if selectedCount > 0}
             <div class={headerDividerClasses}></div>
-            <HeaderButton
-              faIcon={faChartLine}
-              title="View statistics for selected books"
-              label="View Stats"
-              onclick={() => onviewStatistics?.()}
-            />
+            {#if statisticsHref}
+              <HeaderButton
+                faIcon={faChartLine}
+                title="View statistics for selected books"
+                label="View Stats"
+                href={statisticsHref}
+              />
+            {/if}
             <HeaderButton
               faIcon={faFlag}
               title={allSelectedBooksCompleted

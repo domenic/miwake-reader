@@ -17,6 +17,7 @@ interface ReaderSettings {
   autoBookmarkTime?: string;
   autoPositionOnResize?: string;
   blurImage?: string;
+  closeConfirmation?: string;
   customReadingPoint?: string;
   fontSize?: string;
   fontVPAL?: string;
@@ -163,6 +164,9 @@ export async function useReaderSettings(page: Page, settings: ReaderSettings) {
   }
   if (settings.autoPositionOnResize) {
     await selectReaderSetting(page, /^Auto position on resize$/i, settings.autoPositionOnResize);
+  }
+  if (settings.closeConfirmation) {
+    await selectReaderSetting(page, /^Close Confirmation$/i, settings.closeConfirmation);
   }
   if (settings.customReadingPoint) {
     await selectReaderSetting(page, /^Custom Reading Point$/i, settings.customReadingPoint);
@@ -358,7 +362,7 @@ export async function importBackup(
  * account; it does not prove ambient pushes, boot reconcile, or force re-sync work has finished.
  */
 export async function waitForSyncIdle(page: Page) {
-  await expect(page.getByRole('button', { name: /^(Synced|Up to date)/ })).toBeVisible({
+  await expect(page.getByRole('link', { name: /^(Synced|Up to date)/ })).toBeVisible({
     timeout: SYNC_ASSERTION_TIMEOUT
   });
 }
@@ -368,7 +372,7 @@ export async function waitForSyncIdle(page: Page) {
  * source operation, not merely an idle "Up to date" state with sync disabled or disconnected.
  */
 export async function waitForSuccessfulSync(page: Page) {
-  await expect(page.getByRole('button', { name: /^Synced/ })).toBeVisible({
+  await expect(page.getByRole('link', { name: /^Synced/ })).toBeVisible({
     timeout: SYNC_ASSERTION_TIMEOUT
   });
 }

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import type { ResolvedPathname } from '$app/types';
   import {
     faCalendarDays,
     faCopy,
@@ -22,7 +23,8 @@
     oncopydata: (dataKey: keyof BookStatistic) => void;
     onopenfilter: () => void;
     onopensettings: () => void;
-    onselecttab: (view: StatisticsView) => void;
+    summaryHref: ResolvedPathname;
+    heatmapHref: ResolvedPathname;
   }
 
   let {
@@ -31,7 +33,8 @@
     oncopydata,
     onopenfilter,
     onopensettings,
-    onselecttab
+    summaryHref,
+    heatmapHref
   }: Props = $props();
 
   const copyStatisticsDataItems: StatisticsDataSource[] = [
@@ -46,14 +49,14 @@
 <div class="elevation-4 fixed inset-x-0 top-0 z-10">
   <div class={baseHeaderClasses}>
     <div class="flex h-full justify-between">
-      <div class="flex">
+      <div class="flex" data-sveltekit-keepfocus data-sveltekit-noscroll>
         <HeaderButton
           faIcon={faCalendarDays}
           label="Summary"
           selected={summarySelected}
           variant="tab"
           title={summarySelected ? undefined : 'Switch to Summary tab'}
-          onclick={() => onselecttab('summary')}
+          href={summaryHref}
         />
         <HeaderButton
           faIcon={faMap}
@@ -61,7 +64,7 @@
           selected={heatmapSelected}
           variant="tab"
           title={heatmapSelected ? undefined : 'Switch to Heatmap tab'}
-          onclick={() => onselecttab('heatmap')}
+          href={heatmapHref}
         />
         <div class={headerDividerClasses}></div>
         <HeaderButton

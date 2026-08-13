@@ -12,7 +12,7 @@ test('statistics heatmap expands day cells to fill desktop width', async ({ page
   await recordStatisticForBook(page, VALID_BOOK, LATER_STAT_DATE);
 
   await navigateToStatisticsSummary(page);
-  await page.getByRole('button', { name: 'Heatmap', exact: true }).click();
+  await page.getByRole('link', { name: 'Heatmap', exact: true }).click();
 
   const heatmap = page.getByRole('grid', { name: 'Reading Data for 2026' });
   const dayCell = heatmap.getByRole('cell', { name: new RegExp(`^${LATER_STAT_DATE},`) });

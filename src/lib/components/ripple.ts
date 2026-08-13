@@ -57,9 +57,18 @@ function setOverlayVisible(overlay: HTMLElement, visible: boolean) {
   overlay.style.opacity = visible ? (overlay.dataset.rippleOpacity ?? '0') : '0';
 }
 
+function addPaintContainment(contain: string) {
+  if (contain === 'strict' || contain === 'content' || contain.split(' ').includes('paint')) {
+    return contain;
+  }
+
+  return contain === 'none' ? 'paint' : `${contain} paint`;
+}
+
 export function ripple(node: HTMLElement) {
-  const hadRelativeClass = node.classList.contains('relative');
-  const hadOverflowHiddenClass = node.classList.contains('overflow-hidden');
+  const originalContain = node.style.getPropertyValue('contain');
+  const originalContainPriority = node.style.getPropertyPriority('contain');
+  const computedContain = getComputedStyle(node).contain;
   const surface = createSurface();
   const holdOverlay = createOverlay(0.25);
   const focusOverlay = createOverlay(0.1);
@@ -67,7 +76,7 @@ export function ripple(node: HTMLElement) {
   let hold = false;
   let focus = false;
 
-  node.classList.add('relative', 'overflow-hidden');
+  node.style.setProperty('contain', addPaintContainment(computedContain), originalContainPriority);
   surface.append(holdOverlay, focusOverlay);
   node.append(surface);
 
@@ -172,14 +181,7 @@ export function ripple(node: HTMLElement) {
       node.removeEventListener('touchcancel', handleTouchEnd);
 
       surface.remove();
-
-      if (!hadRelativeClass) {
-        node.classList.remove('relative');
-      }
-
-      if (!hadOverflowHiddenClass) {
-        node.classList.remove('overflow-hidden');
-      }
+      node.style.setProperty('contain', originalContain, originalContainPriority);
     }
   };
 }

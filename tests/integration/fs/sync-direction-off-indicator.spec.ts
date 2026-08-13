@@ -9,7 +9,7 @@ test('sync indicator shows a neutral off state and links to sync direction setti
   await setSyncDirection(page, 'Off');
 
   await navigateToManage(page);
-  await page.getByRole('button', { name: 'Sync is off' }).click();
+  await page.getByRole('link', { name: 'Sync is off' }).click();
 
   await expect(page).toHaveURL('/settings/sync#sync-direction');
   const syncDirection = page.getByRole('group', { name: 'Sync direction' });
@@ -21,7 +21,7 @@ test('sync indicator reacts to browser online state', async ({ context, page }) 
   await connectFS(page);
   await navigateToManage(page);
 
-  await expect(page.getByRole('button', { name: /^(Up to date|Synced)/ })).toBeVisible();
+  await expect(page.getByRole('link', { name: /^(Up to date|Synced)/ })).toBeVisible();
 
   await context.setOffline(true);
   await expect(
@@ -29,5 +29,5 @@ test('sync indicator reacts to browser online state', async ({ context, page }) 
   ).toBeVisible();
 
   await context.setOffline(false);
-  await expect(page.getByRole('button', { name: /^(Up to date|Synced)/ })).toBeVisible();
+  await expect(page.getByRole('link', { name: /^(Up to date|Synced)/ })).toBeVisible();
 });

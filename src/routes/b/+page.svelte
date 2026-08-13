@@ -1,9 +1,9 @@
 <script lang="ts">
   import { browser } from '$app/environment';
   import { page } from '$app/state';
-  import { goto } from '$app/navigation';
+  import { beforeNavigate, goto } from '$app/navigation';
   import { resolve } from '$app/paths';
-  import type { RouteId } from '$app/types';
+  import type { BeforeNavigate } from '@sveltejs/kit';
   import { faSpinner } from '@fortawesome/free-solid-svg-icons';
   import { BookReaderController } from '$lib/components/book-reader/book-reader-controller.svelte';
   import BookReader from '$lib/components/book-reader/book-reader.svelte';
@@ -77,7 +77,6 @@
   import { showNumberDialog } from '$lib/components/number-dialog.svelte';
   import { mergeEntries } from '$lib/components/merged-header-icon/merged-entries';
   import SidebarOverlay from '$lib/components/sidebar-overlay.svelte';
-  import { getBookStatisticsURL } from '$lib/components/statistics/statistics-view';
   import {
     type BooksDbBookData,
     type BooksDbBookmarkData,
@@ -127,8 +126,6 @@
     getReferencePoints,
     pulseElement
   } from '$lib/functions/range-util';
-
-  type ReaderExitRoute = Extract<RouteId, '/manage' | '/settings' | '/statistics'>;
 
   const READER_STATISTICS_SYNC_THROTTLE_MS = 60_000;
   const trackerMenuFitsBesideReader = new MediaQuery('min-width: 900px');
@@ -180,6 +177,51 @@
   let hasLegacyBookId = $derived(browser && page.url.searchParams.has('id'));
   let rawBookData = $state<BooksDbBookData>();
   let bookData = $state<LoadedBookData>();
+  // Async exit work cancels the first navigation and stores its target here so only the exact
+  // replay may bypass the guard. Consumed by every navigation (and expired on a timer when a
+  // popstate replay never fires) so a stale value can't exempt a later, unrelated exit.
+  let allowedNavigationURL: string | undefined;
+
+  beforeNavigate((navigation) => {
+    const destination = navigation.to;
+    const pendingExitHref = allowedNavigationURL;
+    allowedNavigationURL = undefined;
+
+    if (navigation.willUnload || !destination) {
+      return;
+    }
+
+    if (destination.route.id === '/b' && destination.url.searchParams.get('t') === bookTitle) {
+      // The reader header's own Book tab links to the current URL; suppress that no-op
+      // navigation so SvelteKit doesn't scroll a continuous-mode reader back to the top.
+      if (navigation.type === 'link' && navigation.from?.url.href === destination.url.href) {
+        navigation.cancel();
+      }
+      return;
+    }
+
+    if (!rawBookData) {
+      // Nothing to save while the book is still loading, but the user leaving for the library
+      // or home must still clear the last-item record — the home route otherwise redirects
+      // straight back into the abandoned book. Internal `goto` bounces (e.g. a failed load
+      // returning to the manager) keep the record so the previous book stays reachable.
+      if (
+        navigation.type !== 'goto' &&
+        (destination.route.id === '/' || destination.route.id === '/manage')
+      ) {
+        void database.deleteLastItem();
+      }
+      return;
+    }
+
+    if (pendingExitHref === destination.url.href) {
+      return;
+    }
+
+    navigation.cancel();
+    void leaveReader(navigation);
+  });
+
   $effect(() => {
     if (!browser) return;
 
@@ -236,7 +278,7 @@
     bookmarkData = Promise.resolve(undefined);
 
     try {
-      loadedBook = await loadReaderBookData(title);
+      loadedBook = await loadReaderBookData(title, signal);
       if (signal.aborted) return;
 
       rawBookData = loadedBook;
@@ -263,7 +305,7 @@
     }
   }
 
-  async function loadReaderBookData(title: string) {
+  async function loadReaderBookData(title: string, signal: AbortSignal) {
     let book: BooksDbBookData | undefined;
     logger.debug(`reader/rawBookData: start title=${JSON.stringify(title)}`);
 
@@ -276,6 +318,18 @@
 
     if (!book) {
       return book;
+    }
+
+    if (!book.elementHtml) {
+      // A placeholder can only hydrate when a sync source is connected; bail before recording
+      // the book as opened so a failed open leaves no trace in the library or sync data.
+      const db = await database.db;
+      if ((await db.count('storageSource')) === 0) {
+        throw new Error(
+          "This book's content hasn't been downloaded yet. " +
+            'Connect its sync location in Settings → Sync, then try again.'
+        );
+      }
     }
 
     const currentContext = {
@@ -318,6 +372,14 @@
         scheduleReplication(StorageDataType.STATISTICS);
       }
     }
+
+    if (signal.aborted) {
+      return book;
+    }
+
+    // Only a fully loaded book becomes the last-opened book. Checking immediately before the
+    // write also prevents an older, slower load from replacing a newer route's last-item record.
+    await database.putLastItem(book.title);
 
     return book;
   }
@@ -889,8 +951,9 @@
     readerController.goToChapter(nextChapter.reference);
   }
 
-  async function leaveReader(routeId: ReaderExitRoute, deleteLastItem = true) {
-    if (!beginReaderAction()) {
+  async function leaveReader(navigation: BeforeNavigate) {
+    const destination = navigation.to;
+    if (!destination || !beginReaderAction()) {
       return;
     }
 
@@ -916,7 +979,8 @@
           await tick();
         }
 
-        if (deleteLastItem) {
+        // The home route otherwise redirects straight back to the last-opened book.
+        if (destination.route.id === '/' || destination.route.id === '/manage') {
           await database.deleteLastItem();
         }
 
@@ -933,10 +997,20 @@
         showErrorDialog({ title: 'Error saving reader state', error });
       }
 
-      if (routeId === mergeEntries.STATISTICS.routeId && bookTitle) {
-        await goto(resolve(getBookStatisticsURL(bookTitle)));
+      allowedNavigationURL = destination.url.href;
+      if (navigation.type === 'popstate') {
+        history.go(navigation.delta);
+        // If the target entry vanished (extra Back/Forward presses while the confirm dialog was
+        // up), the replay never fires; expire the bypass so a later exit still saves state.
+        setTimeout(() => {
+          if (allowedNavigationURL === destination.url.href) {
+            allowedNavigationURL = undefined;
+          }
+        }, 1000);
       } else {
-        await goto(resolve(routeId));
+        // `destination.url` is the already-resolved target supplied by SvelteKit.
+        // eslint-disable-next-line svelte/no-navigation-without-resolve
+        await goto(destination.url);
       }
     } finally {
       endReaderAction();
@@ -1218,6 +1292,7 @@
   use:clickOutside={() => (showHeader = false)}
 >
   <BookReaderHeader
+    currentBookTitle={rawBookData?.title}
     hasChapterData={bookTOCState.hasChapters}
     hasText={!!bookCharCount}
     hasCustomReadingPoint={!!(
@@ -1269,13 +1344,10 @@
       showHeader = false;
       scrollToBookmark();
     }}
-    onstatisticsClick={() => leaveReader(mergeEntries.STATISTICS.routeId, false)}
     onreaderImageGalleryClick={() => {
       showHeader = false;
       showReaderImageGallery = true;
     }}
-    onsettingsClick={() => leaveReader(mergeEntries.SETTINGS.routeId, false)}
-    onbookManagerClick={() => leaveReader(mergeEntries.MANAGE.routeId)}
   />
 </div>
 

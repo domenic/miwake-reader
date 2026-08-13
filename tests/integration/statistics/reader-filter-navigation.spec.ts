@@ -32,21 +32,27 @@ test('reader statistics navigation preserves the active tab and filters to the c
   await recordStatisticForBook(page, VALID_BOOK, LATER_STAT_DATE);
 
   await navigateToStatisticsSummary(page);
-  await page.getByRole('button', { name: 'Heatmap', exact: true }).click();
+  await page.getByRole('link', { name: 'Heatmap', exact: true }).click();
   await expectStatisticsView(page, 'heatmap');
 
   await openBookFromManage(page, PLAIN_TEXT_BOOK);
   const header = await showReaderHeader(page);
-  await header.getByRole('button', { name: 'Statistics', exact: true }).click();
+  const statisticsLink = header.getByRole('link', { name: 'Statistics', exact: true });
+  const bookTitle = fixtureTitle(PLAIN_TEXT_BOOK);
+  await expect(statisticsLink).toHaveAttribute(
+    'href',
+    `/statistics?${new URLSearchParams({ t: bookTitle })}`
+  );
+  await statisticsLink.click();
   await expect(page).toHaveURL(/\/statistics/);
   await expectStatisticsView(page, 'heatmap');
   await expect
     .poll(() => new URL(page.url()).searchParams.get('t'), {
       timeout: SYNC_ASSERTION_TIMEOUT
     })
-    .toBe(fixtureTitle(PLAIN_TEXT_BOOK));
+    .toBe(bookTitle);
 
-  await page.getByRole('button', { name: 'Summary', exact: true }).click();
+  await page.getByRole('link', { name: 'Summary', exact: true }).click();
   await expectStatisticsView(page, 'summary');
 
   await expectSummaryBookVisible(page, PLAIN_TEXT_BOOK);
