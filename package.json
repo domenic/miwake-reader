@@ -73,8 +73,7 @@
     "path-browserify": "^1.0.1",
     "svelte-fa": "^4.0.4",
     "svelte-gestures": "^5.2.2",
-    "svelte-meta-tags": "^4.7.0",
-    "ua-parser-js": "^2.0.10"
+    "svelte-meta-tags": "^4.7.0"
   },
   "lint-staged": {
     "*.{js,cjs,mjs,ts,svelte}": [
