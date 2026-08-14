@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { compareBookTitles, displayTitle } from '../../src/lib/functions/book-title.ts';
+import { bookOrder, byTitle, displayTitle } from '../../src/lib/functions/book-title.ts';
 import { simplifyBookTitles$ } from '../../src/lib/data/book-title-settings.ts';
+import { byNumber, SortDirection } from '../../src/lib/functions/sorting.ts';
 
 afterEach(() => {
   simplifyBookTitles$.set(true);
@@ -55,14 +56,42 @@ describe('displayTitle', () => {
   });
 });
 
-describe('compareBookTitles', () => {
+describe('byTitle', () => {
+  const book = (title: string) => ({ title });
+
   it('breaks display-title ties using the stored title', () => {
-    expect(compareBookTitles('コンビニ人間', 'コンビニ人間 (文春文庫)')).toBeLessThan(0);
-    expect(compareBookTitles('コンビニ人間 (文春文庫)', 'コンビニ人間')).toBeGreaterThan(0);
-    expect(compareBookTitles('コンビニ人間 (文春文庫)', 'コンビニ人間 (文春文庫)')).toBe(0);
+    expect(byTitle(book('コンビニ人間'), book('コンビニ人間 (文春文庫)'))).toBeLessThan(0);
+    expect(byTitle(book('コンビニ人間 (文春文庫)'), book('コンビニ人間'))).toBeGreaterThan(0);
+    expect(byTitle(book('コンビニ人間 (文春文庫)'), book('コンビニ人間 (文春文庫)'))).toBe(0);
   });
 
   it('compares numbered volumes numerically', () => {
-    expect(compareBookTitles('作品名 2巻 (文春文庫)', '作品名 10巻 (文春文庫)')).toBeLessThan(0);
+    expect(byTitle(book('作品名 2巻 (文春文庫)'), book('作品名 10巻 (文春文庫)'))).toBeLessThan(0);
+  });
+});
+
+describe('bookOrder', () => {
+  interface Row {
+    title: string;
+    characters: number;
+  }
+
+  const rows: Row[] = [
+    { title: 'い', characters: 1 },
+    { title: 'う', characters: 2 },
+    { title: 'あ', characters: 1 }
+  ];
+  const byCharacters = byNumber((row: Row) => row.characters);
+
+  it('sorts by the primary comparator with a title tiebreak', () => {
+    const sorted = [...rows].sort(bookOrder(byCharacters, SortDirection.ASC));
+
+    expect(sorted.map((row) => row.title)).toEqual(['あ', 'い', 'う']);
+  });
+
+  it('keeps the title tiebreak ascending under a descending primary', () => {
+    const sorted = [...rows].sort(bookOrder(byCharacters, SortDirection.DESC));
+
+    expect(sorted.map((row) => row.title)).toEqual(['う', 'あ', 'い']);
   });
 });

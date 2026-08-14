@@ -1,5 +1,6 @@
 import { fromStore } from 'svelte/store';
 import { simplifyBookTitles$ } from '$lib/data/book-title-settings';
+import { SortDirection, type Comparator } from '$lib/functions/sorting';
 
 const editionMarkerPattern =
   /(?:文庫|新書|単行本|コミックス?)(?:[\p{Script=Katakana}ーA-ZＡ-Ｚ0-9０-９]*)$|MFC$|版$/iu;
@@ -44,12 +45,25 @@ export function displayTitle(title: string) {
 }
 
 /**
- * Order stored book titles by their displayed form, falling back to
- * the stored form so books whose display titles collide sort stably.
+ * Order rows by their displayed title, falling back to the stored
+ * title so books whose display titles collide sort stably.
  */
-export function compareBookTitles(first: string, second: string) {
-  return (
-    displayTitle(first).localeCompare(displayTitle(second), 'ja-JP', { numeric: true }) ||
-    first.localeCompare(second, 'ja-JP', { numeric: true })
-  );
+export const byTitle: Comparator<{ title: string }> = (first, second) =>
+  displayTitle(first.title).localeCompare(displayTitle(second.title), 'ja-JP', {
+    numeric: true
+  }) || first.title.localeCompare(second.title, 'ja-JP', { numeric: true });
+
+/**
+ * The ordering every sorted book list uses: the chosen column in the
+ * chosen direction, then an always-ascending title tiebreak so ties
+ * order deterministically regardless of direction.
+ */
+export function bookOrder<T extends { title: string }>(
+  primary: Comparator<T>,
+  direction: SortDirection
+): Comparator<T> {
+  const directed: Comparator<T> =
+    direction === SortDirection.DESC ? (first, second) => primary(second, first) : primary;
+
+  return (first, second) => directed(first, second) || byTitle(first, second);
 }
