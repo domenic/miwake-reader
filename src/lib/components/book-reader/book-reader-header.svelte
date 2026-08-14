@@ -3,6 +3,7 @@
   import {
     faBookmark as fasBookmark,
     faCrosshairs,
+    faEllipsis,
     faExpand,
     faFlag,
     faHashtag,
@@ -11,7 +12,7 @@
     faRotateLeft
   } from '@fortawesome/free-solid-svg-icons';
   import { readerImageGallery } from '$lib/components/book-reader/book-reader-image-gallery/book-reader-image-gallery-state.svelte';
-  import HeaderButton from '$lib/components/header-button.svelte';
+  import HeaderButton, { type HeaderAction } from '$lib/components/header-button.svelte';
   import HeaderMenuButton from '$lib/components/header-menu-button.svelte';
   import HeaderNavTabs from '$lib/components/header-nav-tabs.svelte';
   import { baseHeaderClasses, headerDividerClasses } from '$lib/css-classes';
@@ -20,7 +21,6 @@
   import { ViewMode } from '$lib/data/view-mode';
 
   interface Props {
-    currentBookTitle?: string;
     hasChapterData: boolean;
     hasText: boolean;
     autoScrollMultiplier: number;
@@ -43,7 +43,6 @@
   }
 
   let {
-    currentBookTitle,
     hasChapterData,
     hasText,
     autoScrollMultiplier,
@@ -66,14 +65,64 @@
   }: Props = $props();
 
   let customReadingPointMenuItems = $derived([
-    ...(hasCustomReadingPoint ? [{ label: 'Show Point', action: onshowCustomReadingPoint }] : []),
-    { label: 'Set Point', action: onsetCustomReadingPoint },
-    ...(hasCustomReadingPoint ? [{ label: 'Reset Point', action: onresetCustomReadingPoint }] : [])
+    ...(hasCustomReadingPoint ? [{ label: 'Show Point', onclick: onshowCustomReadingPoint }] : []),
+    { label: 'Set Point', onclick: onsetCustomReadingPoint },
+    ...(hasCustomReadingPoint ? [{ label: 'Reset Point', onclick: onresetCustomReadingPoint }] : [])
+  ]);
+  let showCustomReadingPointMenu = $derived(
+    $customReadingPointEnabled$ || $viewMode$ === ViewMode.Paginated
+  );
+  let secondaryActions: HeaderAction[] = $derived([
+    {
+      faIcon: faFlag,
+      label: isBookCompleted ? 'Undo Complete' : 'Complete Book',
+      title: isBookCompleted ? 'Mark book as not completed' : 'Mark book as completed',
+      onclick: () => (isBookCompleted ? onuncompleteBook?.() : oncompleteBook?.())
+    },
+    ...(showFullscreenButton
+      ? [
+          {
+            faIcon: faExpand,
+            label: 'Fullscreen',
+            title: 'Toggle fullscreen',
+            onclick: () => onfullscreenClick?.()
+          }
+        ]
+      : []),
+    ...(hasText
+      ? [
+          {
+            faIcon: faHashtag,
+            label: 'Jump',
+            menuLabel: 'Jump to Character',
+            title: 'Jump to character',
+            onclick: () => onjumpClick?.()
+          }
+        ]
+      : []),
+    ...(readerImageGallery.hasPictures
+      ? [
+          {
+            faIcon: faImages,
+            label: 'Images',
+            menuLabel: 'Open Image Gallery',
+            title: 'Open image gallery',
+            onclick: () => onreaderImageGalleryClick?.()
+          }
+        ]
+      : [])
+  ]);
+  let mobileMenuItems = $derived([
+    ...secondaryActions,
+    ...(showCustomReadingPointMenu ? customReadingPointMenuItems : [])
   ]);
 </script>
 
-<div class="flex justify-between {baseHeaderClasses}">
-  <div class="flex">
+<div
+  data-mobile-actions
+  class="grid grid-flow-col auto-cols-fr md:flex md:justify-between {baseHeaderClasses}"
+>
+  <div class="contents md:flex">
     {#if hasChapterData}
       <HeaderButton
         faIcon={faList}
@@ -93,57 +142,41 @@
         faIcon={faRotateLeft}
         title="Return to bookmark"
         label="Return to Bookmark"
+        mobileLabel="Return"
         onclick={() => onscrollToBookmarkClick?.()}
       />
     {/if}
     {#if $viewMode$ === ViewMode.Continuous && !deviceEnvironment.isMobile}
-      <div class="flex items-center px-4 text-xl" title="Current autoscroll speed">
+      <div class="hidden items-center px-4 text-xl md:flex" title="Current autoscroll speed">
         {autoScrollMultiplier}x
       </div>
     {/if}
-    <HeaderButton
-      faIcon={faFlag}
-      title={isBookCompleted ? 'Mark book as not completed' : 'Mark book as completed'}
-      label={isBookCompleted ? 'Undo Complete' : 'Complete Book'}
-      onclick={() => (isBookCompleted ? onuncompleteBook?.() : oncompleteBook?.())}
-    />
-    {#if showFullscreenButton}
-      <HeaderButton
-        faIcon={faExpand}
-        title="Toggle fullscreen"
-        label="Fullscreen"
-        onclick={() => onfullscreenClick?.()}
+    <div class="hidden md:contents">
+      {#each secondaryActions as secondaryAction (secondaryAction.label)}
+        <HeaderButton {...secondaryAction} />
+      {/each}
+    </div>
+    <div class="contents md:hidden">
+      <HeaderMenuButton
+        faIcon={faEllipsis}
+        title="More reader actions"
+        label="More"
+        fill
+        items={mobileMenuItems}
       />
-    {/if}
-    {#if hasText}
-      <HeaderButton
-        faIcon={faHashtag}
-        title="Jump to character"
-        label="Jump"
-        onclick={() => onjumpClick?.()}
-      />
-    {/if}
-    {#if readerImageGallery.hasPictures}
-      <HeaderButton
-        faIcon={faImages}
-        title="Open image gallery"
-        label="Images"
-        onclick={() => onreaderImageGalleryClick?.()}
-      />
-    {/if}
+    </div>
   </div>
 
-  <div class="flex">
-    {#if $customReadingPointEnabled$ || $viewMode$ === ViewMode.Paginated}
+  <div class="hidden md:flex">
+    {#if showCustomReadingPointMenu}
       <HeaderMenuButton
         faIcon={faCrosshairs}
         title="Open custom point actions"
         label="Point"
         items={customReadingPointMenuItems}
-        onselect={(actionItem) => actionItem.action?.()}
       />
       <div class={headerDividerClasses}></div>
     {/if}
-    <HeaderNavTabs {currentBookTitle} />
+    <HeaderNavTabs />
   </div>
 </div>

@@ -1,29 +1,25 @@
 <script lang="ts">
   import { browser } from '$app/environment';
   import type { ResolvedPathname } from '$app/types';
-  import HeaderButton from '$lib/components/header-button.svelte';
+  import BookSortMenuButton from '$lib/components/book-card/book-sort-menu-button.svelte';
+  import HeaderButton, { type HeaderAction } from '$lib/components/header-button.svelte';
   import HeaderMenuButton from '$lib/components/header-menu-button.svelte';
   import HeaderNavTabs from '$lib/components/header-nav-tabs.svelte';
   import Popover from '$lib/components/popover/popover.svelte';
   import { baseHeaderClasses, headerDividerClasses } from '$lib/css-classes';
-  import { SortDirection, type SortOption } from '$lib/functions/sorting';
   import { FilesystemStorageHandler } from '$lib/data/storage/handler/filesystem-handler';
-  import { booklistSortOptions$ } from '$lib/data/store';
   import { inputAllowDirectory } from '$lib/functions/file-dom/input-allow-directory';
   import { inputFile } from '$lib/functions/file-dom/input-file';
   import {
-    faArrowDownShortWide,
-    faArrowDownWideShort,
     faBug,
     faCalendarXmark,
     faChartLine,
     faCircleXmark,
     faDownload,
+    faEllipsis,
     faFile,
     faFlag,
     faFolder,
-    faSortDown,
-    faSortUp,
     faTrash
   } from '@fortawesome/free-solid-svg-icons';
   import Fa from 'svelte-fa';
@@ -88,20 +84,80 @@
     showLoadCount = new URLSearchParams(window.location.search).has('count');
   }
 
-  const sortMenuItems: { property: SortOption['property']; label: string }[] = [
-    { property: 'addedOrder', label: 'Added' },
-    { property: 'title', label: 'Title' },
-    { property: 'characters', label: 'Characters' },
-    { property: 'lastBookModified', label: 'Last Update' },
-    { property: 'lastBookOpen', label: 'Last Read' },
-    { property: 'progress', label: 'Progress' },
-    { property: 'lastBookmarkModified', label: 'Bookmarked' }
-  ];
-
   let allBooksSelected = $derived(bookCount > 0 && selectedCount === bookCount);
   let allSelectedBooksCompleted = $derived(
     selectedCount > 0 && selectedCompletedCount === selectedCount
   );
+
+  const importActions: HeaderAction[] = [
+    {
+      faIcon: faFile,
+      label: 'Import Files',
+      title: 'Import book files',
+      onclick: () => fileImportElm?.click()
+    },
+    ...(supportsDirectoryPicking
+      ? [
+          {
+            faIcon: faFolder,
+            label: 'Import Folder',
+            title: 'Import books from a folder',
+            onclick: () => folderImportElm?.click()
+          }
+        ]
+      : [])
+  ];
+
+  let primarySelectionActions: HeaderAction[] = $derived([
+    ...(statisticsHref
+      ? [
+          {
+            faIcon: faChartLine,
+            label: 'View Stats',
+            menuLabel: 'View Statistics',
+            title: 'View statistics for selected books',
+            href: statisticsHref
+          }
+        ]
+      : []),
+    {
+      faIcon: faFlag,
+      label: allSelectedBooksCompleted ? 'In Progress' : 'Complete',
+      menuLabel: allSelectedBooksCompleted ? 'Mark In Progress' : 'Mark Complete',
+      title: allSelectedBooksCompleted
+        ? 'Mark selected books as in progress'
+        : 'Mark selected books as complete',
+      width: 'wide' as const,
+      onclick: () => oncompletionChange?.(!allSelectedBooksCompleted)
+    },
+    ...(selectedPlaceholderCount > 0
+      ? [
+          {
+            faIcon: faDownload,
+            label: 'Download',
+            title: 'Download selected books to this device',
+            onclick: () => ondownloadClick?.()
+          }
+        ]
+      : [])
+  ]);
+  const destructiveSelectionActions: HeaderAction[] = [
+    {
+      faIcon: faCalendarXmark,
+      label: 'Delete Stats',
+      menuLabel: 'Delete Statistics',
+      title: 'Delete statistics for selected books',
+      onclick: () => ondeleteStatistics?.()
+    },
+    {
+      faIcon: faTrash,
+      label: 'Remove',
+      menuLabel: 'Remove Books',
+      title: 'Remove selected books from the library',
+      onclick: () => onremoveClick?.()
+    }
+  ];
+  let selectionMenuItems = $derived([...primarySelectionActions, ...destructiveSelectionActions]);
 
   function dispatchFilesChange(fileList: FileList) {
     onfilesChange?.(fileList);
@@ -139,15 +195,20 @@
   use:inputFile={setCountData}
   bind:this={countImportElm}
 />
-<div class={baseHeaderClasses}>
+<div class={baseHeaderClasses} role="toolbar" aria-label="Library controls">
   {#if !replicationToProgress}
-    <div class="flex h-full justify-between">
-      <div class="flex">
+    <div
+      data-mobile-actions
+      class="grid h-full grid-flow-col auto-cols-fr md:flex md:justify-between"
+    >
+      <div class="contents md:flex">
         <HeaderButton
           title={selectMode ? 'Disable book selection' : 'Enable book selection'}
           label="Select"
           selected={selectMode}
-          onclick={() => (selectMode = bookCount > 0 && !selectMode)}
+          onclick={() => {
+            selectMode = bookCount > 0 && !selectMode;
+          }}
         >
           {#snippet icon()}
             <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" class="size-3.5">
@@ -159,30 +220,32 @@
           {/snippet}
         </HeaderButton>
         {#if !selectMode}
-          <div class={headerDividerClasses}></div>
-          <HeaderButton
-            faIcon={faFile}
-            title="Import book files"
-            label="Import Files"
-            onclick={() => fileImportElm?.click()}
-          />
-          {#if supportsDirectoryPicking}
-            <HeaderButton
-              faIcon={faFolder}
-              title="Import books from a folder"
-              label="Import Folder"
-              onclick={() => folderImportElm?.click()}
+          <div class="hidden md:block {headerDividerClasses}"></div>
+          <div class="hidden md:contents">
+            {#each importActions as importAction (importAction.label)}
+              <HeaderButton {...importAction} />
+            {/each}
+          </div>
+          <div class="contents md:hidden">
+            <HeaderMenuButton
+              faIcon={faFile}
+              label="Import"
+              fill
+              title="Import books"
+              items={importActions}
             />
-          {/if}
+          </div>
+          <!-- On narrow viewports the sort menu (from the trailing cluster) slots in before this. -->
           <HeaderButton
             faIcon={faBug}
             title="Report a bug"
             label="Bug Report"
+            class="max-md:order-last"
             onclick={() => onbugReportClick?.()}
           />
         {:else}
           <span
-            class="flex w-12 shrink-0 items-center justify-center text-xl font-medium tabular-nums"
+            class="flex w-full items-center justify-center text-xl font-medium tabular-nums md:w-12 md:shrink-0"
             title="{selectedCount} {selectedCount === 1 ? 'book' : 'books'} selected"
             aria-live="polite"
           >
@@ -205,121 +268,47 @@
             {/snippet}
           </HeaderButton>
           {#if selectedCount > 0}
-            <div class={headerDividerClasses}></div>
-            {#if statisticsHref}
-              <HeaderButton
-                faIcon={faChartLine}
-                title="View statistics for selected books"
-                label="View Stats"
-                href={statisticsHref}
+            <div class="hidden md:contents">
+              <div class={headerDividerClasses}></div>
+              {#each primarySelectionActions as selectionAction (selectionAction.label)}
+                <HeaderButton {...selectionAction} />
+              {/each}
+              <div class={headerDividerClasses}></div>
+              {#each destructiveSelectionActions as selectionAction (selectionAction.label)}
+                <HeaderButton {...selectionAction} />
+              {/each}
+            </div>
+            <div class="contents md:hidden">
+              <HeaderMenuButton
+                faIcon={faEllipsis}
+                label="Actions"
+                fill
+                title="Actions for selected books"
+                items={selectionMenuItems}
               />
-            {/if}
-            <HeaderButton
-              faIcon={faFlag}
-              title={allSelectedBooksCompleted
-                ? 'Mark selected books as in progress'
-                : 'Mark selected books as complete'}
-              label={allSelectedBooksCompleted ? 'In Progress' : 'Complete'}
-              width="wide"
-              onclick={() => oncompletionChange?.(!allSelectedBooksCompleted)}
-            />
-            {#if selectedPlaceholderCount > 0}
-              <HeaderButton
-                faIcon={faDownload}
-                title="Download selected books to this device"
-                label="Download"
-                onclick={() => ondownloadClick?.()}
-              />
-            {/if}
-            <div class={headerDividerClasses}></div>
-            <HeaderButton
-              faIcon={faCalendarXmark}
-              title="Delete statistics for selected books"
-              label="Delete Stats"
-              onclick={() => ondeleteStatistics?.()}
-            />
-            <HeaderButton
-              faIcon={faTrash}
-              title="Remove selected books from the library"
-              label="Remove"
-              onclick={() => onremoveClick?.()}
-            />
+            </div>
           {/if}
         {/if}
       </div>
 
-      <div class="flex">
+      <div class="contents md:flex">
         {#if !selectMode}
-          <div class="relative transform-gpu">
-            <HeaderMenuButton
-              title="Select sort options"
-              label="Sort"
-              faIcon={$booklistSortOptions$.direction === SortDirection.ASC
-                ? faArrowDownShortWide
-                : faArrowDownWideShort}
-              items={sortMenuItems}
-            >
-              {#snippet item(sortMenuItem, close)}
-                {@const isCurrentSort = $booklistSortOptions$.property === sortMenuItem.property}
-                {@const isCurrentSortAsc =
-                  isCurrentSort && $booklistSortOptions$.direction === SortDirection.ASC}
-                <div
-                  class="grid cursor-default grid-cols-[auto_auto_auto] text-sm hover:bg-white hover:text-gray-700"
-                  class:bg-white={isCurrentSort}
-                  class:text-gray-700={isCurrentSort}
-                  class:hover:opacity-70={isCurrentSort}
-                >
-                  <button
-                    type="button"
-                    aria-label={`Sort by ${sortMenuItem.label} ascending`}
-                    class="self-center justify-self-start"
-                    class:text-red-500={isCurrentSortAsc}
-                    class:hover:text-gray-700={isCurrentSortAsc}
-                    class:hover:text-red-500={!isCurrentSortAsc}
-                    onclick={() => {
-                      booklistSortOptions$.set({
-                        property: sortMenuItem.property,
-                        direction: SortDirection.ASC
-                      });
-                      close();
-                    }}
-                  >
-                    <Fa icon={faSortUp} class="px-4" />
-                  </button>
-                  <div class="py-2">
-                    {sortMenuItem.label}
-                  </div>
-                  <button
-                    type="button"
-                    aria-label={`Sort by ${sortMenuItem.label} descending`}
-                    class="justify-self-end hover:text-red-500"
-                    class:text-red-500={isCurrentSort && !isCurrentSortAsc}
-                    class:hover:text-gray-700={isCurrentSort && !isCurrentSortAsc}
-                    class:hover:text-red-500={!isCurrentSort || isCurrentSortAsc}
-                    onclick={() => {
-                      booklistSortOptions$.set({
-                        property: sortMenuItem.property,
-                        direction: SortDirection.DESC
-                      });
-                      close();
-                    }}
-                  >
-                    <Fa icon={faSortDown} class="mt-1 px-4" />
-                  </button>
-                </div>
-              {/snippet}
-            </HeaderMenuButton>
+          <div class="contents md:relative md:block md:transform-gpu">
+            <BookSortMenuButton />
           </div>
-          <div class={headerDividerClasses}></div>
+          <div class="hidden md:block {headerDividerClasses}"></div>
           {#if showLoadCount}
             <button
               type="button"
+              class="hidden md:block"
               style:color={fileCountData ? 'red' : undefined}
               onclick={() => countImportElm?.click()}>C</button
             >
           {/if}
         {/if}
-        <HeaderNavTabs />
+        <div class="hidden md:contents">
+          <HeaderNavTabs />
+        </div>
       </div>
     </div>
   {:else}

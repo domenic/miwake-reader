@@ -83,6 +83,7 @@
     type BooksDbStatistic
   } from '$lib/data/database/books-db/versions/books-db';
   import { deviceEnvironment } from '$lib/data/device-environment.svelte';
+  import { readerChrome } from '$lib/data/reader-chrome.svelte';
   import { PAGE_CHANGE } from '$lib/data/events';
   import { fullscreenManager } from '$lib/data/fullscreen-manager';
   import { logger } from '$lib/data/logger';
@@ -134,6 +135,14 @@
   let showSpinner = $state(true);
   let showHeader = $state(false);
   let readerActionPending = $state(false);
+
+  // Set synchronously (not just in the `$effect` below) so the mobile bottom navigation never
+  // flashes during the first frame after navigating into the reader.
+  readerChrome.hidden = true;
+
+  $effect(() => {
+    readerChrome.hidden = !showHeader || readerActionPending;
+  });
   let isBookmarkScreen = $state(false);
   let showFooter = $state(true);
   let exploredCharCount = $state(0);
@@ -1293,7 +1302,6 @@
   use:clickOutside={() => (showHeader = false)}
 >
   <BookReaderHeader
-    currentBookTitle={rawBookData?.title}
     hasChapterData={bookTOCState.hasChapters}
     hasText={!!bookCharCount}
     hasCustomReadingPoint={!!(
@@ -1482,6 +1490,7 @@
   tabindex="0"
   role="button"
   class="writing-horizontal-tb fixed bottom-0 left-0 z-10 flex h-8 w-full items-center justify-end text-xs leading-none"
+  style:bottom="var(--mobile-navigation-height)"
   style:color={themeOption.tooltipTextFontColor}
   onclick={() => (showFooter = !showFooter)}
   onkeyup={dummyFn}
@@ -1500,6 +1509,7 @@
       role="button"
       title="Click to copy progress"
       class="writing-horizontal-tb fixed bottom-2 right-2 z-10 text-xs leading-none select-none whitespace-pre"
+      style:bottom="calc(var(--mobile-navigation-height) + 0.5rem)"
       class:invisible={!$showCharacterCounter$ &&
         !$showPercentage$ &&
         !$showFooterChapterCharacterCounter$ &&

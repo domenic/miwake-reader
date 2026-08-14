@@ -1,4 +1,4 @@
-export const baseHeaderClasses = 'relative h-12 bg-gray-700 text-white';
+export const baseHeaderClasses = 'relative h-(--header-height) bg-gray-700 text-white';
 export const pxScreen = 'sync-safe-px max-w-6xl mx-auto';
 export const inputClasses =
   'mt-1 block w-full px-0.5 bg-background-color border-0 border-b-2 border-b-gray-400/50 focus:ring-0 focus:border-b-black focus:outline-hidden transition-colors';
