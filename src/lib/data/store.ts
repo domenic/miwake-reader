@@ -18,7 +18,7 @@ import { BlurMode } from '$lib/data/blur-mode';
 import type { UserFont } from '$lib/data/fonts';
 import type { MergeMode } from '$lib/data/merge-mode';
 import type { ReadingGoal } from '$lib/data/reading-goal';
-import { SortDirection, type SortOption } from '$lib/data/sort-types';
+import { SortDirection, type SortOption } from '$lib/functions/sorting';
 import { AutoReplicationType } from '$lib/functions/replication/replication-options';
 import { derived } from 'svelte/store';
 import { DatabaseService } from './database/books-db/database.service.svelte';

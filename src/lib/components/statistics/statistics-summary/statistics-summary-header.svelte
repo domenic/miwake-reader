@@ -9,7 +9,7 @@
     BookStatistic,
     StatisticsDataSource
   } from '$lib/components/statistics/statistics-types';
-  import { SortDirection } from '$lib/data/sort-types';
+  import { SortDirection } from '$lib/functions/sorting';
   import {
     lastStatisticsSummarySortDirection$,
     lastStatisticsSummarySortProperty$

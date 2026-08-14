@@ -22,8 +22,8 @@
   import { reconcileForBookOpen } from '$lib/data/sync/sync-engine';
   import { showConfirmDialog } from '$lib/components/confirm-dialog.svelte';
   import { showMessageDialog } from '$lib/components/message-dialog.svelte';
-  import { SortDirection, type SortOption } from '$lib/data/sort-types';
-  import { compareBookTitles, displayTitle } from '$lib/functions/book-title';
+  import { bookOrder, byTitle, displayTitle } from '$lib/functions/book-title';
+  import { byNumber, type Comparator, type SortOption } from '$lib/functions/sorting';
   import {
     booklistSortOptions$,
     confirmStatisticsDeletion$,
@@ -74,12 +74,23 @@
     }
   });
 
+  // One comparator per sort-menu entry; adding a menu entry without
+  // deciding its comparator is a type error.
+  const cardComparators: Record<SortOption['property'], Comparator<BookCardProps>> = {
+    title: byTitle,
+    addedOrder: byNumber((card) => card.addedOrder ?? 0),
+    characters: byNumber((card) => card.characters),
+    lastBookModified: byNumber((card) => card.lastBookModified),
+    lastBookOpen: byNumber((card) => card.lastBookOpen),
+    progress: byNumber((card) => card.progress),
+    lastBookmarkModified: byNumber((card) => card.lastBookmarkModified)
+  };
+
   function getBookCards(
     dataList: BookCardProps[],
     bookmarks: BooksDbBookmarkData[],
     sortProp: SortOption
   ) {
-    const isTitleSort = sortProp.property === 'title';
     const bookmarkMap = keyBy(bookmarks, 'title');
 
     return dataList
@@ -87,9 +98,7 @@
         ...d,
         ...bookmarkToProgress(bookmarkMap.get(d.title))
       }))
-      .sort((card1: BookCardProps, card2: BookCardProps) =>
-        sortBookCards(card1, card2, sortProp, isTitleSort)
-      );
+      .sort(bookOrder(cardComparators[sortProp.property] ?? byTitle, sortProp.direction));
   }
 
   function bookmarkToProgress(b: BooksDbBookmarkData | undefined) {
@@ -100,34 +109,6 @@
           lastBookmarkModified: b.lastBookmarkModified || 0
         }
       : { progress: 0, completed: false, lastBookmarkModified: 0 };
-  }
-
-  function sortBookCards(
-    card1: BookCardProps,
-    card2: BookCardProps,
-    sortProp: SortOption,
-    isTitleSort: boolean
-  ) {
-    const card1Prop = card1[sortProp.property] || (isTitleSort ? '' : 0);
-    const card2Prop = card2[sortProp.property] || (isTitleSort ? '' : 0);
-
-    let sortDiff: number;
-
-    if (sortProp.direction === SortDirection.ASC) {
-      sortDiff = isTitleSort
-        ? compareBookTitles(card1.title, card2.title)
-        : +card1Prop - +card2Prop;
-    } else {
-      sortDiff = isTitleSort
-        ? compareBookTitles(card2.title, card1.title)
-        : +card2Prop - +card1Prop;
-    }
-
-    if (!sortDiff) {
-      sortDiff = compareBookTitles(card1.title, card2.title);
-    }
-
-    return sortDiff;
   }
 
   function selectBook(title: string) {

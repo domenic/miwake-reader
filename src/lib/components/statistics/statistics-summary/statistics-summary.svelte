@@ -23,8 +23,8 @@
     dateDataSources,
     titleDataSources
   } from '$lib/components/statistics/statistics-types';
-  import { SortDirection } from '$lib/data/sort-types';
-  import { compareBookTitles, displayTitle } from '$lib/functions/book-title';
+  import { bookOrder, byTitle, displayTitle } from '$lib/functions/book-title';
+  import { byNumber, SortDirection, type Comparator } from '$lib/functions/sorting';
   import { japaneseLangIfNeeded } from '$lib/functions/japanese-language';
   import {
     lastBlurredTrackerItems$,
@@ -61,11 +61,14 @@
   let rowInEditResetMinMaxValues = $state(false);
 
   // Derive sorted data from the raw statistics + sort settings
-  let sortedData = $derived.by(() => {
-    const data = [...aggregatedStatistics];
-    data.sort(sortTable);
-    return data;
-  });
+  let sortedData = $derived.by(() =>
+    [...aggregatedStatistics].sort(
+      bookOrder(
+        statisticComparator($lastStatisticsSummarySortProperty$),
+        $lastStatisticsSummarySortDirection$
+      )
+    )
+  );
 
   // When new data arrives, reset edit mode.
   $effect(() => {
@@ -190,43 +193,16 @@
     $lastStatisticsSummarySortProperty$ = property;
   }
 
-  function sortTable(row1: BookStatistic, row2: BookStatistic) {
-    const isTitleSort = $lastStatisticsSummarySortProperty$ === 'title';
-    const isDateKeySort = $lastStatisticsSummarySortProperty$ === 'dateKey';
-    const row1Prop = row1[$lastStatisticsSummarySortProperty$] || (isTitleSort ? '' : 0);
-    const row2Prop = row2[$lastStatisticsSummarySortProperty$] || (isTitleSort ? '' : 0);
-
-    let sortDiff: number;
-
-    if ($lastStatisticsSummarySortDirection$ === SortDirection.ASC) {
-      if (isTitleSort) {
-        sortDiff = compareBookTitles(row1.title, row2.title);
-      } else if (isDateKeySort) {
-        if (row1Prop === row2Prop) {
-          sortDiff = 0;
-        } else {
-          sortDiff = row1Prop > row2Prop ? 1 : -1;
-        }
-      } else {
-        sortDiff = +row1Prop - +row2Prop;
-      }
-    } else if (isTitleSort) {
-      sortDiff = compareBookTitles(row2.title, row1.title);
-    } else if (isDateKeySort) {
-      if (row1Prop === row2Prop) {
-        sortDiff = 0;
-      } else {
-        sortDiff = row2Prop > row1Prop ? 1 : -1;
-      }
-    } else {
-      sortDiff = +row2Prop - +row1Prop;
+  function statisticComparator(property: keyof BookStatistic): Comparator<BookStatistic> {
+    switch (property) {
+      case 'title':
+        return byTitle;
+      case 'dateKey':
+        return (row1, row2) =>
+          row1.dateKey === row2.dateKey ? 0 : row1.dateKey > row2.dateKey ? 1 : -1;
+      default:
+        return byNumber((row) => Number(row[property]) || 0);
     }
-
-    if (!sortDiff) {
-      sortDiff = compareBookTitles(row1.title, row2.title);
-    }
-
-    return sortDiff;
   }
 
   function setRowInEditMode(row?: BookStatistic) {

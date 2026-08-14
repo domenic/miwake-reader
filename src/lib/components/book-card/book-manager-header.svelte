@@ -6,7 +6,7 @@
   import HeaderNavTabs from '$lib/components/header-nav-tabs.svelte';
   import Popover from '$lib/components/popover/popover.svelte';
   import { baseHeaderClasses, headerDividerClasses } from '$lib/css-classes';
-  import { SortDirection, type SortOption } from '$lib/data/sort-types';
+  import { SortDirection, type SortOption } from '$lib/functions/sorting';
   import { FilesystemStorageHandler } from '$lib/data/storage/handler/filesystem-handler';
   import { booklistSortOptions$ } from '$lib/data/store';
   import { inputAllowDirectory } from '$lib/functions/file-dom/input-allow-directory';
