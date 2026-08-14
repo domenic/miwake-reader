@@ -1,37 +1,66 @@
-<script lang="ts">
+<script lang="ts" module>
   import type { ResolvedPathname } from '$app/types';
   import type { IconDefinition } from '@fortawesome/free-solid-svg-icons';
-  import { ripple } from '$lib/components/ripple';
   import type { Snippet } from 'svelte';
-  import Fa from 'svelte-fa';
 
   type Variant = 'action' | 'tab';
   type Width = 'default' | 'wide';
 
+  /**
+   * Wider than a DOM click handler so the same function can back a button, which passes the
+   * `MouseEvent` through, and a `HeaderMenuButton` entry, which awaits the result before closing
+   * the menu.
+   */
+  export type HeaderClickHandler = (event: MouseEvent) => void | Promise<void>;
+
   interface CommonProps {
     faIcon?: IconDefinition;
-    label?: string;
+    label: string;
+    /** Replaces `label` below the `md` breakpoint, where horizontal space is scarce. */
+    mobileLabel?: string;
     title?: string;
     selected?: boolean;
+    fill?: boolean;
     variant?: Variant;
     width?: Width;
+    class?: string;
     icon?: Snippet;
   }
 
   type Props = CommonProps &
     (
       | { href: ResolvedPathname; disabled?: never; onclick?: never }
-      | { href?: undefined; disabled?: boolean; onclick?: (event: MouseEvent) => void }
+      | { href?: undefined; disabled?: boolean; onclick?: HeaderClickHandler }
     );
+
+  /**
+   * A header control described as data, so a header can spread it straight onto a `HeaderButton`
+   * on wide viewports and pass it as a `HeaderMenuButton` item below the `md` breakpoint.
+   * `faIcon` and `title` are required here even though buttons render without them: a data record
+   * cannot carry the `icon` snippet alternative, and only tab-style usages go without tooltips.
+   */
+  export type HeaderAction = Props &
+    Required<Pick<CommonProps, 'faIcon' | 'title'>> & {
+      /** Menu entries have room for longer labels; falls back to `label`. */
+      menuLabel?: string;
+    };
+</script>
+
+<script lang="ts">
+  import { ripple } from '$lib/components/ripple';
+  import Fa from 'svelte-fa';
 
   let {
     faIcon,
     label,
+    mobileLabel,
     title,
     disabled = false,
     selected = false,
+    fill = false,
     variant = 'action',
     width = 'default',
+    class: extraClasses = '',
     href,
     onclick,
     icon
@@ -43,21 +72,26 @@
     action: 'opacity-60 transition-opacity',
     tab: ''
   } satisfies Record<Variant, string>;
+  // `fill` and `wide` only shape their own breakpoints: below `md` a button either stretches to
+  // its container (`fill`) or keeps its natural minimum, while `wide` reserves extra room for
+  // labels that toggle (e.g. "Complete"/"In Progress") without shifting neighboring buttons.
   const widthClasses = {
     default: '',
-    wide: 'w-20 shrink-0'
+    wide: 'md:w-20 md:shrink-0'
   } satisfies Record<Width, string>;
 
   let classes = $derived(
     [
-      'flex h-12 min-w-16 flex-col items-center justify-center px-2 text-center text-xs select-none',
+      'flex h-(--header-height) min-w-16 flex-col items-center justify-center px-2 text-center text-xs select-none',
+      fill ? 'max-md:w-full max-md:min-w-0' : '',
       variantClasses[variant],
       widthClasses[width],
       variant === 'action' && selected ? 'opacity-100' : '',
       variant === 'tab' && selected ? 'bg-gray-900 hover:bg-gray-800' : '',
       variant === 'tab' && !selected ? 'hover:bg-gray-900' : '',
       variant === 'action' && !disabled ? 'hover:opacity-100' : '',
-      disabled ? 'cursor-not-allowed opacity-30' : ''
+      disabled ? 'cursor-not-allowed opacity-30' : '',
+      extraClasses
     ]
       .filter(Boolean)
       .join(' ')
@@ -74,7 +108,12 @@
   {/if}
 
   {#if label}
-    <span>{label}</span>
+    {#if mobileLabel !== undefined && mobileLabel !== label}
+      <span class="md:hidden">{mobileLabel}</span>
+      <span class="hidden md:inline">{label}</span>
+    {:else}
+      <span>{label}</span>
+    {/if}
   {/if}
 {/snippet}
 
