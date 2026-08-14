@@ -114,7 +114,7 @@ export abstract class ApiStorageHandler extends BaseStorageHandler {
     if (clearAll) {
       this.rootId = '';
       this.titleToId.clear();
-      this.titleToBookCard.clear();
+      this.syncTitles.clear();
       this.dataListFetched = false;
     }
   }
@@ -136,7 +136,7 @@ export abstract class ApiStorageHandler extends BaseStorageHandler {
       }
       this.titleToFiles.delete(title);
       this.titleToId.delete(title);
-      this.titleToBookCard.delete(title);
+      this.syncTitles.delete(title);
       database.notifyDataListChanged();
     });
   }
@@ -540,7 +540,7 @@ export class ScopedApiHandler
       title: this.title
     });
 
-    this.handler.addBookCard(this.title, { characters, lastBookModified, lastBookOpen });
+    this.handler.addSyncTitle(this.title, { characters, lastBookModified, lastBookOpen });
 
     return 0;
   }
@@ -561,7 +561,7 @@ export class ScopedApiHandler
       title: this.title
     });
 
-    this.handler.addBookCard(this.title, { lastBookmarkModified, progress, completed });
+    this.handler.addSyncTitle(this.title, { lastBookmarkModified, progress, completed });
   }
 
   async saveStatistics(statistics: BooksDbStatistic[], lastStatisticModified: number) {
@@ -600,7 +600,7 @@ export class ScopedApiHandler
       title: this.title
     });
 
-    this.handler.addBookCard(this.title, {});
+    this.handler.addSyncTitle(this.title, {});
   }
 
   async saveCover(data: Blob | undefined) {
@@ -625,8 +625,8 @@ export class ScopedApiHandler
       });
     }
 
-    if (this.handler.titleToBookCard.has(this.title)) {
-      this.handler.addBookCard(this.title, { imagePath: data });
+    if (this.handler.syncTitles.has(this.title)) {
+      this.handler.addSyncTitle(this.title, { coverImage: data });
     }
   }
 

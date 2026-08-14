@@ -12,24 +12,27 @@ export enum SyncEndpointType {
 }
 
 /**
- * Lean shape returned by a sync endpoint's listSyncTitles(): just
- * enough to seed placeholder rows on the local side. Distinct from
- * BookCardProps (which the unified library view uses) — the source's
- * job is "tell me which titles you hold," not "render a card."
+ * Lean shape a sync endpoint caches per remote book and returns from
+ * listSyncTitles(): just enough to seed placeholder rows on the local
+ * side. Distinct from BookCardProps (which the unified library view
+ * uses) — the source's job is "tell me which titles you hold," not
+ * "render a card." Handlers fill every field, using zero values for
+ * whatever the source doesn't provide.
  */
 export interface SyncTitle {
   title: string;
-  characters?: number;
-  lastBookModified?: number;
-  lastBookOpen?: number;
+  characters: number;
+  lastBookModified: number;
+  lastBookOpen: number;
   /**
    * Cover image to surface in /manage's library view before the book
-   * itself is downloaded. Cloud handlers populate this with their
-   * thumbnail URL (refreshed on every boot reconcile, so staleness
-   * doesn't outlast a session); FS handlers populate it with a Blob
-   * read from the cover_ file in the book's directory.
+   * itself is downloaded, or '' when the source has none. Cloud
+   * handlers populate this with their thumbnail URL (refreshed on
+   * every boot reconcile, so staleness doesn't outlast a session); FS
+   * handlers populate it with a Blob read from the cover_ file in the
+   * book's directory.
    */
-  coverImage?: string | Blob;
+  coverImage: string | Blob;
   /**
    * Reading progress fields parsed from the source's progress_*
    * filename, so /manage can show real values on placeholder rows
@@ -37,9 +40,9 @@ export interface SyncTitle {
    * scroll / char-count details still come down via the per-book
    * pull on open.
    */
-  progress?: number;
-  lastBookmarkModified?: number;
-  completed?: boolean;
+  progress: number;
+  lastBookmarkModified: number;
+  completed: boolean;
 }
 
 export enum StorageDataType {

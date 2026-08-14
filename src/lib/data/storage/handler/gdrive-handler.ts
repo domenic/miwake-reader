@@ -1,8 +1,7 @@
-import type { BookCardProps } from '$lib/components/book-card/book-card-props';
 import { gDriveRefreshEndpoint } from '$lib/data/env';
 import { ApiStorageHandler, type UploadOptions } from '$lib/data/storage/handler/api-handler';
 import { BaseStorageHandler, type ExternalFile } from '$lib/data/storage/handler/base-handler';
-import { SyncEndpointType } from '$lib/data/storage/storage-types';
+import { SyncEndpointType, type SyncTitle } from '$lib/data/storage/storage-types';
 import pLimit from 'p-limit';
 
 interface GDriveFile extends ExternalFile {
@@ -84,16 +83,7 @@ export class GDriveStorageHandler extends ApiStorageHandler {
       }
     }
 
-    return [...this.titleToBookCard.values()].map((card) => ({
-      title: card.title,
-      characters: card.characters,
-      lastBookModified: card.lastBookModified,
-      lastBookOpen: card.lastBookOpen,
-      coverImage: card.imagePath || undefined,
-      progress: card.progress,
-      lastBookmarkModified: card.lastBookmarkModified,
-      completed: card.completed
-    }));
+    return [...this.syncTitles.values()];
   }
 
   async ensureTitle(name = BaseStorageHandler.rootName, parent = 'root', readOnly = false) {
@@ -336,16 +326,15 @@ export class GDriveStorageHandler extends ApiStorageHandler {
         return;
       }
 
-      const bookCard: BookCardProps = {
+      const syncTitle: SyncTitle = {
         title,
-        imagePath: '',
+        coverImage: '',
         characters: 0,
         lastBookModified: 0,
         lastBookOpen: 0,
         progress: 0,
         completed: false,
-        lastBookmarkModified: 0,
-        isPlaceholder: false
+        lastBookmarkModified: 0
       };
 
       for (let index2 = 0, { length: length2 } = files; index2 < length2; index2 += 1) {
@@ -356,23 +345,23 @@ export class GDriveStorageHandler extends ApiStorageHandler {
             file.name
           );
 
-          bookCard.characters = characters;
-          bookCard.lastBookModified = lastBookModified;
-          bookCard.lastBookOpen = lastBookOpen;
+          syncTitle.characters = characters;
+          syncTitle.lastBookModified = lastBookModified;
+          syncTitle.lastBookOpen = lastBookOpen;
         } else if (file.name.startsWith('progress_')) {
           const { progress, lastBookmarkModified, completed } =
             BaseStorageHandler.getProgressMetadata(file.name);
 
-          bookCard.progress = progress;
-          bookCard.lastBookmarkModified = lastBookmarkModified;
-          bookCard.completed = completed;
+          syncTitle.progress = progress;
+          syncTitle.lastBookmarkModified = lastBookmarkModified;
+          syncTitle.completed = completed;
         } else if (file.name.startsWith('cover_') && file.thumbnailLink) {
-          bookCard.imagePath = file.thumbnailLink.replace(/=s\d+$/, '=s720');
+          syncTitle.coverImage = file.thumbnailLink.replace(/=s\d+$/, '=s720');
         }
       }
 
       this.titleToFiles.set(title, files);
-      this.titleToBookCard.set(title, bookCard);
+      this.syncTitles.set(title, syncTitle);
     }
   }
 }

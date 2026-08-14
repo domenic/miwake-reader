@@ -10,10 +10,9 @@ import { mergeStatistics, updateStatisticToStore } from '$lib/functions/statisti
 
 import { BaseScopedHandler, BaseStorageHandler } from '$lib/data/storage/handler/base-handler';
 import type { ScopedBookOperations, ScopedSettings } from '$lib/data/storage/handler/handler-roles';
-import type { BookCardProps } from '$lib/components/book-card/book-card-props';
 import { isRemoteContext } from '$lib/data/storage/storage-source-types';
 import { NeedsPermissionGrantError } from '$lib/data/storage/errors';
-import { SyncEndpointType } from '$lib/data/storage/storage-types';
+import { SyncEndpointType, type SyncTitle } from '$lib/data/storage/storage-types';
 import { showConfirmDialog } from '$lib/components/confirm-dialog.svelte';
 import pLimit from 'p-limit';
 import type { ReplicationContext } from '$lib/functions/replication/replication-progress.svelte';
@@ -48,16 +47,7 @@ export class FilesystemStorageHandler extends BaseStorageHandler {
       this.dataListFetched = true;
     }
 
-    return [...this.titleToBookCard.values()].map((card) => ({
-      title: card.title,
-      characters: card.characters,
-      lastBookModified: card.lastBookModified,
-      lastBookOpen: card.lastBookOpen,
-      coverImage: card.imagePath || undefined,
-      progress: card.progress,
-      lastBookmarkModified: card.lastBookmarkModified,
-      completed: card.completed
-    }));
+    return [...this.syncTitles.values()];
   }
 
   authenticate(): Promise<void> {
@@ -77,7 +67,7 @@ export class FilesystemStorageHandler extends BaseStorageHandler {
     if (clearAll) {
       this.rootDirectory = undefined;
       this.titleToDirectory.clear();
-      this.titleToBookCard.clear();
+      this.syncTitles.clear();
       this.dataListFetched = false;
     }
   }
@@ -98,7 +88,7 @@ export class FilesystemStorageHandler extends BaseStorageHandler {
       });
       this.titleToDirectory.delete(title);
       this.titleToFiles.delete(title);
-      this.titleToBookCard.delete(title);
+      this.syncTitles.delete(title);
     });
   }
 
@@ -272,16 +262,15 @@ export class FilesystemStorageHandler extends BaseStorageHandler {
               return;
             }
 
-            const bookCard: BookCardProps = {
+            const syncTitle: SyncTitle = {
               title: BaseStorageHandler.desanitizeFilename(directory.name),
-              imagePath: '',
+              coverImage: '',
               characters: 0,
               lastBookModified: 0,
               lastBookOpen: 0,
               progress: 0,
               completed: false,
-              lastBookmarkModified: 0,
-              isPlaceholder: false
+              lastBookmarkModified: 0
             };
             const fileLimiter = pLimit(1);
             const fileTasks: Promise<void>[] = [];
@@ -293,17 +282,17 @@ export class FilesystemStorageHandler extends BaseStorageHandler {
                     if (file.name.startsWith('bookdata_')) {
                       const metadata = BaseStorageHandler.getBookMetadata(file.name);
 
-                      bookCard.characters = metadata.characters;
-                      bookCard.lastBookModified = metadata.lastBookModified;
-                      bookCard.lastBookOpen = metadata.lastBookOpen;
+                      syncTitle.characters = metadata.characters;
+                      syncTitle.lastBookModified = metadata.lastBookModified;
+                      syncTitle.lastBookOpen = metadata.lastBookOpen;
                     } else if (file.name.startsWith('progress_')) {
                       const metadata = BaseStorageHandler.getProgressMetadata(file.name);
 
-                      bookCard.lastBookmarkModified = metadata.lastBookmarkModified;
-                      bookCard.progress = metadata.progress;
-                      bookCard.completed = metadata.completed;
+                      syncTitle.lastBookmarkModified = metadata.lastBookmarkModified;
+                      syncTitle.progress = metadata.progress;
+                      syncTitle.completed = metadata.completed;
                     } else if (file.name.startsWith('cover_')) {
-                      bookCard.imagePath = await file.getFile();
+                      syncTitle.coverImage = await file.getFile();
                     }
                   } catch (error) {
                     fileLimiter.clearQueue();
@@ -315,9 +304,9 @@ export class FilesystemStorageHandler extends BaseStorageHandler {
 
             await Promise.all(fileTasks);
 
-            this.titleToDirectory.set(bookCard.title, directory);
-            this.titleToFiles.set(bookCard.title, files);
-            this.titleToBookCard.set(bookCard.title, bookCard);
+            this.titleToDirectory.set(syncTitle.title, directory);
+            this.titleToFiles.set(syncTitle.title, files);
+            this.syncTitles.set(syncTitle.title, syncTitle);
           } catch (error) {
             listLimiter.clearQueue();
             throw error;
@@ -583,7 +572,7 @@ class ScopedFilesystemHandler
 
     await this.writeFile(rootDirectory, filename, bookData, files, file, 0.4);
 
-    this.handler.addBookCard(this.title, { characters, lastBookModified, lastBookOpen });
+    this.handler.addSyncTitle(this.title, { characters, lastBookModified, lastBookOpen });
 
     return 0;
   }
@@ -596,7 +585,7 @@ class ScopedFilesystemHandler
 
     await this.writeFile(rootDirectory, filename, JSON.stringify(data), files, file, 0.6);
 
-    this.handler.addBookCard(this.title, { lastBookmarkModified, progress, completed });
+    this.handler.addSyncTitle(this.title, { lastBookmarkModified, progress, completed });
   }
 
   async saveStatistics(statistics: BooksDbStatistic[], lastStatisticModified: number) {
@@ -637,7 +626,7 @@ class ScopedFilesystemHandler
       0.6
     );
 
-    this.handler.addBookCard(this.title, {});
+    this.handler.addSyncTitle(this.title, {});
   }
 
   async saveCover(data: Blob | undefined) {
@@ -654,8 +643,8 @@ class ScopedFilesystemHandler
       await this.writeFile(rootDirectory, filename, data, files, undefined, 0.6);
     }
 
-    if (this.handler.titleToBookCard.has(this.title)) {
-      this.handler.addBookCard(this.title, { imagePath: data });
+    if (this.handler.syncTitles.has(this.title)) {
+      this.handler.addSyncTitle(this.title, { coverImage: data });
     }
   }
 
