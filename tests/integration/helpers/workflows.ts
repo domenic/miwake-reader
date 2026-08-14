@@ -16,7 +16,7 @@ interface ReaderSettings {
   autoBookmark?: string;
   autoBookmarkTime?: string;
   autoPositionOnResize?: string;
-  blurImage?: string;
+  blurImages?: string;
   closeConfirmation?: string;
   customReadingPoint?: string;
   fontSize?: string;
@@ -133,8 +133,8 @@ export async function useReaderSettings(page: Page, settings: ReaderSettings) {
   if (settings.furigana) {
     await selectReaderSetting(page, /Furigana/i, settings.furigana);
   }
-  if (settings.blurImage) {
-    await selectReaderSetting(page, /Blur image/i, settings.blurImage);
+  if (settings.blurImages) {
+    await selectReaderSetting(page, /^Blur images$/i, settings.blurImages);
   }
   if (settings.readerMaxWidth) {
     await fillReaderNumberSetting(page, /^Reader Max width$/i, settings.readerMaxWidth);

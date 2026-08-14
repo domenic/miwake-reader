@@ -25,7 +25,7 @@ const REMOVED_PLACEHOLDER_TEXT = 'Legacy placeholder should be removed.';
 test('book data loading formats reader images and keeps spoiler gallery state in sync', async ({
   page
 }) => {
-  await useReaderSettings(page, { viewMode: 'Continuous' });
+  await useReaderSettings(page, { viewMode: 'Continuous', blurImages: 'After ToC' });
   await importBookFixtures(page, [SPOILER_IMAGE_GALLERY_BOOK]);
   await openBookFromManage(page, SPOILER_IMAGE_GALLERY_BOOK);
   await expectBookReaderText(page, SPOILER_IMAGE_GALLERY_BOOK);
@@ -106,6 +106,26 @@ test('book data loading formats reader images and keeps spoiler gallery state in
 
   await closeImageGallery(page);
   await expect(readerSpoilerWrapper(page, SPOILER_TWO_ALT)).toHaveCount(1);
+});
+
+test('reader images are sharp by default and can all be blurred from one setting', async ({
+  page
+}) => {
+  await useReaderSettings(page, { viewMode: 'Continuous' });
+  await importBookFixtures(page, [SPOILER_IMAGE_GALLERY_BOOK]);
+  await openBookFromManage(page, SPOILER_IMAGE_GALLERY_BOOK);
+  await expectBookReaderText(page, SPOILER_IMAGE_GALLERY_BOOK);
+
+  await expect(readerSpoilerWrappers(page)).toHaveCount(0);
+
+  await useReaderSettings(page, { blurImages: 'All' });
+  await openBookFromManage(page, SPOILER_IMAGE_GALLERY_BOOK);
+  await expectBookReaderText(page, SPOILER_IMAGE_GALLERY_BOOK);
+
+  await expect(readerSpoilerWrappers(page)).toHaveCount(5);
+  await expect(readerSpoilerWrapper(page, COVER_ALT)).toHaveCount(1);
+  await expect(readerSpoilerWrapper(page, INLINE_ALT)).toHaveCount(0);
+  await expect(readerSpoilerWrapper(page, SPOILER_ONE_ALT)).toHaveCount(1);
 });
 
 test('reader route returns to the manager when the book is missing', async ({ page }) => {

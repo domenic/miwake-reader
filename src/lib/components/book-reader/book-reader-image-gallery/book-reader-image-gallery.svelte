@@ -3,7 +3,8 @@
   import { handleImageGalleryKeydown } from '$lib/components/book-reader/book-reader-image-gallery/book-reader-image-gallery-keybind';
   import { readerImageGallery } from '$lib/components/book-reader/book-reader-image-gallery/book-reader-image-gallery-state.svelte';
   import { appShortcuts } from '$lib/data/app-shortcuts.svelte';
-  import { hideSpoilerImage$ } from '$lib/data/store';
+  import { BlurMode } from '$lib/data/blur-mode';
+  import { blurImageMode$ } from '$lib/data/store';
   import { onMount } from 'svelte';
   import { quintInOut } from 'svelte/easing';
   import { MediaQuery } from 'svelte/reactivity';
@@ -130,7 +131,8 @@
     </div>
     <div class="flex flex-col overflow-auto p-2">
       {#each readerImageGallery.pictures as readerImageGalleryPicture, urlIndex (readerImageGalleryPicture.url)}
-        {@const showSpoiler = $hideSpoilerImage$ && !readerImageGalleryPicture.unspoilered}
+        {@const showSpoiler =
+          $blurImageMode$ !== BlurMode.OFF && !readerImageGalleryPicture.unspoilered}
         <div class="relative my-4 flex justify-center" class:spoiler={showSpoiler}>
           <button
             class="flex justify-center"
@@ -169,7 +171,7 @@
     bind:this={imageContainer}
   >
     {#if selectedImage}
-      {@const showSpoiler = $hideSpoilerImage$ && !selectedImage.unspoilered}
+      {@const showSpoiler = $blurImageMode$ !== BlurMode.OFF && !selectedImage.unspoilered}
       <div class="flex flex-1">
         <button
           title="Previous image"

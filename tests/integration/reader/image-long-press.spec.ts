@@ -61,7 +61,7 @@ test('spoiler image long-press follows the blur image setting and reveal state',
 }) => {
   await page.clock.install();
   await page.addInitScript(emulatePWADisplayMode);
-  await openSpoilerFixtureBook(page);
+  await openSpoilerFixtureBook(page, { blurImages: 'After ToC' });
 
   const hiddenSpoilerImage = readerImage(page, SPOILER_ONE_ALT);
   await expectLongPressNotToOpen(page, hiddenSpoilerImage);
@@ -73,7 +73,7 @@ test('spoiler image long-press follows the blur image setting and reveal state',
     await readerImageURL(page, SPOILER_ONE_ALT)
   );
 
-  await useReaderSettings(page, { blurImage: 'Off' });
+  await useReaderSettings(page, { blurImages: 'Off' });
   await openBookFromManage(page, SPOILER_IMAGE_GALLERY_BOOK);
 
   await expectLongPressToOpen(
