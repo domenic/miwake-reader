@@ -1,4 +1,3 @@
-import type { BookCardProps } from '$lib/components/book-card/book-card-props';
 import type {
   BooksDbBookData,
   BooksDbBookmarkData,
@@ -128,7 +127,7 @@ export abstract class BaseStorageHandler implements SyncEndpoint {
   rootFileListFetched = false;
 
   /** @internal Used by `BaseScopedHandler` subclasses; not for outside callers. */
-  titleToBookCard = new Map<string, BookCardProps>();
+  syncTitles = new Map<string, SyncTitle>();
 
   /** @internal Used by `BaseScopedHandler` subclasses; not for outside callers. */
   rootFiles = new Map<string, ExternalFile>();
@@ -153,23 +152,22 @@ export abstract class BaseStorageHandler implements SyncEndpoint {
   }
 
   /** @internal Used by `BaseScopedHandler` subclasses. */
-  addBookCard(title: string, dataToAdd: Record<string, any>) {
-    const bookCard: BookCardProps = {
-      ...(this.titleToBookCard.get(title) || {
+  addSyncTitle(title: string, dataToAdd: Partial<SyncTitle>) {
+    const syncTitle: SyncTitle = {
+      ...(this.syncTitles.get(title) || {
         title,
-        imagePath: '',
+        coverImage: '',
         characters: 0,
         lastBookModified: 0,
         lastBookOpen: 0,
         progress: 0,
         completed: false,
-        lastBookmarkModified: 0,
-        isPlaceholder: false
+        lastBookmarkModified: 0
       }),
       ...dataToAdd
     };
 
-    this.titleToBookCard.set(title, bookCard);
+    this.syncTitles.set(title, syncTitle);
   }
 
   /**
