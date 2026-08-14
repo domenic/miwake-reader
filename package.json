@@ -15,7 +15,9 @@
     "check:types": "svelte-check --tsconfig ./tsconfig.json",
     "lint": "eslint --fix .",
     "format": "prettier --write .",
-    "test": "playwright test",
+    "test": "npm run test:unit && npm run test:integration",
+    "test:unit": "vitest run tests/unit",
+    "test:integration": "playwright test",
     "generate-fixtures": "node scripts/generate-test-fixtures.mjs"
   },
   "devDependencies": {
@@ -54,7 +56,8 @@
     "tslib": "^2.8.1",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.60.1",
-    "vite": "^8.0.16"
+    "vite": "^8.0.16",
+    "vitest": "^4.1.10"
   },
   "dependencies": {
     "@fortawesome/fontawesome-svg-core": "^7.2.0",

@@ -3,6 +3,7 @@ import {
   bookmarkFixturePartway,
   COVER_REFRESH_BOOK,
   expectBookPartwayProgress,
+  fixtureDisplayTitle,
   fixtureTitle,
   importBookFixtures,
   LONG_BOOK,
@@ -197,6 +198,6 @@ async function expectBookOrder(page: Page, fixtures: LibraryBookFixture[]) {
   await expect(cards).toHaveCount(fixtures.length);
 
   for (const [index, fixture] of fixtures.entries()) {
-    await expect(cards.nth(index)).toContainText(fixtureTitle(fixture));
+    await expect(cards.nth(index)).toContainText(fixtureDisplayTitle(fixture));
   }
 }

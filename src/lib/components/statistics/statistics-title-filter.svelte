@@ -1,5 +1,6 @@
 <script lang="ts">
   import ToggleSwitch from '$lib/components/toggle-switch.svelte';
+  import { displayTitle } from '$lib/functions/book-title';
   import { japaneseLangIfNeeded } from '$lib/functions/japanese-language';
 
   interface Props {
@@ -24,7 +25,7 @@
   let visibleTitles = $derived(
     [...statisticsTitleFilters.keys()].filter(
       (title) =>
-        (!titleFilter || title.includes(titleFilter)) &&
+        (!titleFilter || displayTitle(title).includes(titleFilter)) &&
         (!filterDateRangeOnly || titlesInStatisticsDateRange.has(title))
     )
   );
@@ -77,7 +78,8 @@
         </thead>
         <tbody>
           {#each visibleTitles as title (title)}
-            {@const titleLang = japaneseLangIfNeeded(title)}
+            {@const displayedTitle = displayTitle(title)}
+            {@const titleLang = japaneseLangIfNeeded(displayedTitle)}
             <tr>
               <td class="py-2 pr-4">
                 <input
@@ -93,7 +95,7 @@
                 class:opacity-50={!titlesInStatisticsDateRange.has(title)}
                 lang={titleLang}
               >
-                {title}
+                {displayedTitle}
               </td>
             </tr>
           {/each}

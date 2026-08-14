@@ -2,6 +2,7 @@
   import { faImage } from '@fortawesome/free-regular-svg-icons';
   import { onDestroy } from 'svelte';
   import Fa from 'svelte-fa';
+  import { displayTitle } from '$lib/functions/book-title';
   import { japaneseLangIfNeeded } from '$lib/functions/japanese-language';
 
   interface Props {
@@ -65,7 +66,8 @@
   const mapImagePath = mapImagePathFactory();
 
   let imageLoading = $state(true);
-  let titleLanguage = $derived(japaneseLangIfNeeded(title));
+  let displayedTitle = $derived(displayTitle(title));
+  let titleLanguage = $derived(japaneseLangIfNeeded(displayedTitle));
   let authorLanguage = $derived(author ? japaneseLangIfNeeded(author) : undefined);
   let progressPercentage = $derived(completed ? 100 : Math.round(progress * 100));
 </script>
@@ -97,7 +99,7 @@
   <progress
     class="reading-progress"
     class:completed
-    aria-label={`Reading progress for ${title}`}
+    aria-label={`Reading progress for ${displayedTitle}`}
     value={progressPercentage}
     max="100"
   ></progress>
@@ -107,7 +109,7 @@
   class="mt-3 grid h-14.5 min-w-0 grid-cols-[minmax(0,1fr)_2rem] items-start gap-2 overflow-hidden"
 >
   <span class="min-w-0">
-    <span class="line-clamp-2 text-sm font-medium" lang={titleLanguage}>{title}</span>
+    <span class="line-clamp-2 text-sm font-medium" lang={titleLanguage}>{displayedTitle}</span>
     <span class="mt-0.5 block truncate text-xs text-gray-500" lang={authorLanguage}>
       {author}
     </span>

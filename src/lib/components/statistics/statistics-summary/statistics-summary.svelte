@@ -24,6 +24,7 @@
     titleDataSources
   } from '$lib/components/statistics/statistics-types';
   import { SortDirection } from '$lib/data/sort-types';
+  import { compareBookTitles, displayTitle } from '$lib/functions/book-title';
   import { japaneseLangIfNeeded } from '$lib/functions/japanese-language';
   import {
     lastBlurredTrackerItems$,
@@ -199,7 +200,7 @@
 
     if ($lastStatisticsSummarySortDirection$ === SortDirection.ASC) {
       if (isTitleSort) {
-        sortDiff = row1.title.localeCompare(row2.title, 'ja-JP', { numeric: true });
+        sortDiff = compareBookTitles(row1.title, row2.title);
       } else if (isDateKeySort) {
         if (row1Prop === row2Prop) {
           sortDiff = 0;
@@ -210,7 +211,7 @@
         sortDiff = +row1Prop - +row2Prop;
       }
     } else if (isTitleSort) {
-      sortDiff = row2.title.localeCompare(row1.title, 'ja-JP', { numeric: true });
+      sortDiff = compareBookTitles(row2.title, row1.title);
     } else if (isDateKeySort) {
       if (row1Prop === row2Prop) {
         sortDiff = 0;
@@ -222,7 +223,7 @@
     }
 
     if (!sortDiff) {
-      sortDiff = row1.title.localeCompare(row2.title, 'ja-JP', { numeric: true });
+      sortDiff = compareBookTitles(row1.title, row2.title);
     }
 
     return sortDiff;
@@ -325,7 +326,8 @@
       {#each sortedData as currentStatisticsSummaryRow (currentStatisticsSummaryRow.id)}
         {@const currentRowInEdit = rowInEdit && rowInEdit.id === currentStatisticsSummaryRow.id}
         {@const otherRowInEdit = rowInEdit && !currentRowInEdit}
-        {@const titleLang = japaneseLangIfNeeded(currentStatisticsSummaryRow.title)}
+        {@const title = displayTitle(currentStatisticsSummaryRow.title)}
+        {@const titleLang = japaneseLangIfNeeded(title)}
         <div class="col-span-2 md:col-span-1">
           <button
             class="hover:text-red-500"
@@ -370,13 +372,8 @@
         <div class="whitespace-nowrap" class:hidden={isTitleAggregation}>
           {currentStatisticsSummaryRow.dateKey}
         </div>
-        <div
-          class="line-clamp-2"
-          class:hidden={isDateAggregation}
-          title={currentStatisticsSummaryRow.title}
-          lang={titleLang}
-        >
-          {currentStatisticsSummaryRow.title}
+        <div class="line-clamp-2" class:hidden={isDateAggregation} {title} lang={titleLang}>
+          {title}
         </div>
         {#if currentRowInEdit}
           <input
