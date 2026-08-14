@@ -158,6 +158,17 @@ await writeOut(
 );
 
 await writeOut(
+  'edition-title-book.epub',
+  await buildEPUB({
+    title: '52ヘルツのクジラたち【特典付き】 (中公文庫)',
+    author: '町田そのこ',
+    identifier: 'urn:uuid:00000000-0000-4000-8000-000000000006',
+    language: 'ja',
+    chapters: [{ title: '第一章', body: 'この本は書名表示のテスト用です。' }]
+  })
+);
+
+await writeOut(
   'plain-text-book.txt',
   enc.encode(`This plain text fixture gives the library another real imported book.
 

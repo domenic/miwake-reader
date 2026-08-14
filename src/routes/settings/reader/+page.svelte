@@ -45,6 +45,7 @@
     prioritizeReaderStyles$,
     secondDimensionMaxValue$,
     selectionToBookmarkEnabled$,
+    simplifyBookTitles$,
     showCharacterCounter$,
     showFooterChapterCharacterCounter$,
     showFooterChapterPercentage$,
@@ -124,6 +125,11 @@
     { id: BlurMode.AFTER_TOC, text: 'After ToC' }
   ];
 
+  const optionsForBookTitleDisplay: ToggleOption<boolean>[] = [
+    { id: true, text: 'Simplified' },
+    { id: false, text: 'Full' }
+  ];
+
   $effect(() => {
     if ($textMarginMode$ === 'auto') {
       $textMarginValue$ = 0;
@@ -196,6 +202,15 @@
       <ButtonToggleGroup options={optionsForViewMode} bind:selectedOptionId={$viewMode$} />
     </SettingsItemGroup>
   </div>
+  <SettingsItemGroup
+    title="Book Title Display"
+    tooltip="Hide recognized edition, imprint, and bundled-content suffixes throughout the app. Stored titles are unchanged."
+  >
+    <ButtonToggleGroup
+      options={optionsForBookTitleDisplay}
+      bind:selectedOptionId={$simplifyBookTitles$}
+    />
+  </SettingsItemGroup>
   <FontPicker group="serif" bind:selectedFont={$fontFamilyGroupOne$} />
   <FontPicker group="sans-serif" bind:selectedFont={$fontFamilyGroupTwo$} />
   <SettingsItemGroup title="Font size">

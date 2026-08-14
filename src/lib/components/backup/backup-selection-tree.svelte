@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { displayTitle } from '$lib/functions/book-title';
   import { japaneseLangIfNeeded } from '$lib/functions/japanese-language';
   import type { BackupBook, BackupCatalog, BackupSelection } from './backup-types';
 
@@ -203,7 +204,8 @@
           {@const selected = isBookSelected(book)}
           {@const entry = selection.perBook.get(book.title)}
           {@const disabled = disabledItems.books?.has(book.title) ?? false}
-          {@const bookTitleLang = japaneseLangIfNeeded(book.title)}
+          {@const bookTitle = displayTitle(book.title)}
+          {@const bookTitleLang = japaneseLangIfNeeded(bookTitle)}
           <li class="py-2">
             <label class="flex items-center gap-3">
               <input
@@ -218,8 +220,8 @@
               <span
                 class="flex-1 truncate text-sm"
                 class:text-gray-400={disabled}
-                title={book.title}
-                lang={bookTitleLang}>{book.title}</span
+                title={bookTitle}
+                lang={bookTitleLang}>{bookTitle}</span
               >
             </label>
             {#if selected && (book.hasBookmark || book.hasStatistics)}

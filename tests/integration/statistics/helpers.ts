@@ -1,6 +1,6 @@
 import type { Locator, Page } from '@playwright/test';
 import { expect, SYNC_ASSERTION_TIMEOUT } from '../helpers/harness.ts';
-import { fixtureTitle, type LibraryBookFixture } from '../helpers/fixtures.ts';
+import { fixtureDisplayTitle, type LibraryBookFixture } from '../helpers/fixtures.ts';
 
 export const EARLIER_STAT_DATE = '2026-04-10';
 export const LATER_STAT_DATE = '2026-05-10';
@@ -21,7 +21,7 @@ export async function setStatisticsFilterBook(
 ) {
   await filter
     .locator('tr')
-    .filter({ hasText: fixtureTitle(fixture) })
+    .filter({ hasText: fixtureDisplayTitle(fixture) })
     .getByRole('checkbox')
     .setChecked(checked);
 }
@@ -43,11 +43,15 @@ export async function expectStatisticsView(page: Page, view: 'summary' | 'heatma
 }
 
 export async function expectSummaryBookVisible(page: Page, fixture: LibraryBookFixture) {
-  await expect(page.getByTitle(fixtureTitle(fixture)).filter({ visible: true })).toBeVisible({
-    timeout: SYNC_ASSERTION_TIMEOUT
-  });
+  await expect(page.getByTitle(fixtureDisplayTitle(fixture)).filter({ visible: true })).toBeVisible(
+    {
+      timeout: SYNC_ASSERTION_TIMEOUT
+    }
+  );
 }
 
 export async function expectSummaryBookHidden(page: Page, fixture: LibraryBookFixture) {
-  await expect(page.getByTitle(fixtureTitle(fixture)).filter({ visible: true })).toHaveCount(0);
+  await expect(page.getByTitle(fixtureDisplayTitle(fixture)).filter({ visible: true })).toHaveCount(
+    0
+  );
 }

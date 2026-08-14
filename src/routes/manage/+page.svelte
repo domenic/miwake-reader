@@ -23,6 +23,7 @@
   import { showConfirmDialog } from '$lib/components/confirm-dialog.svelte';
   import { showMessageDialog } from '$lib/components/message-dialog.svelte';
   import { SortDirection, type SortOption } from '$lib/data/sort-types';
+  import { compareBookTitles, displayTitle } from '$lib/functions/book-title';
   import {
     booklistSortOptions$,
     confirmStatisticsDeletion$,
@@ -114,16 +115,16 @@
 
     if (sortProp.direction === SortDirection.ASC) {
       sortDiff = isTitleSort
-        ? card1.title.localeCompare(card2.title, 'ja-JP', { numeric: true })
+        ? compareBookTitles(card1.title, card2.title)
         : +card1Prop - +card2Prop;
     } else {
       sortDiff = isTitleSort
-        ? card2.title.localeCompare(card1.title, 'ja-JP', { numeric: true })
+        ? compareBookTitles(card2.title, card1.title)
         : +card2Prop - +card1Prop;
     }
 
     if (!sortDiff) {
-      sortDiff = card1.title.localeCompare(card2.title, 'ja-JP', { numeric: true });
+      sortDiff = compareBookTitles(card1.title, card2.title);
     }
 
     return sortDiff;
@@ -270,7 +271,9 @@
           ? 'Remove book from library?'
           : `Remove ${titlesToDelete.length} books from library?`,
       message: `This will remove ${
-        titlesToDelete.length === 1 ? `『${titlesToDelete[0]}』` : 'the selected books'
+        titlesToDelete.length === 1
+          ? `『${displayTitle(titlesToDelete[0])}』`
+          : 'the selected books'
       } from your library. The deletion will sync to your other devices. Depending on your settings, reading statistics may also be deleted.`,
       confirmLabel: 'Remove',
       danger: true
@@ -319,7 +322,7 @@
         title: 'Delete data',
         message: `This will delete all statistics for ${
           titles.length === 1
-            ? `『${titles[0]}』`
+            ? `『${displayTitle(titles[0])}』`
             : `the selected ${pluralize(titles.length, 'book')}`
         } (which may include start and/or completion data). The deletion will sync to your other devices.`,
         confirmLabel: 'Delete',

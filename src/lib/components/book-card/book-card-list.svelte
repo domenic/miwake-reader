@@ -4,6 +4,7 @@
   import type { BookCardProps } from '$lib/components/book-card/book-card-props';
   import BookCard from '$lib/components/book-card/book-card.svelte';
   import { syncState } from '$lib/data/sync/sync-store.svelte';
+  import { displayTitle } from '$lib/functions/book-title';
   import { getBookURL } from '$lib/functions/book-url';
 
   interface Props {
@@ -42,6 +43,7 @@
 <div class="grid grid-cols-2 gap-x-5 gap-y-9 pb-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
   {#each bookCards as bookCard (bookCard.title)}
     {@const isSelected = selectMode && selectedBookTitles.has(bookCard.title)}
+    {@const displayedTitle = displayTitle(bookCard.title)}
     <article class="relative min-w-0">
       <div class="group relative min-w-0 rounded-sm">
         <BookCard
@@ -58,7 +60,7 @@
             class:outline-offset-4={isSelected}
             class:outline-blue-400={isSelected}
             title={bookCard.isPlaceholder ? placeholderTooltip : undefined}
-            aria-label={bookCard.title}
+            aria-label={displayedTitle}
             aria-pressed={isSelected}
             onclick={() => onbookSelect?.({ title: bookCard.title })}
           ></button>
@@ -66,7 +68,7 @@
           <a
             class={hitTargetClasses}
             title={bookCard.isPlaceholder ? placeholderTooltip : undefined}
-            aria-label={bookCard.title}
+            aria-label={displayedTitle}
             href={resolve(getBookURL(bookCard.title))}
           ></a>
         {/if}

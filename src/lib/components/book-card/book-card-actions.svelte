@@ -14,6 +14,7 @@
   import type { BookCardProps } from '$lib/components/book-card/book-card-props';
   import { getBookStatisticsURL } from '$lib/components/statistics/statistics-view';
   import Popover from '$lib/components/popover/popover.svelte';
+  import { displayTitle } from '$lib/functions/book-title';
   import { getBookURL } from '$lib/functions/book-url';
   import { getDateTimeString } from '$lib/functions/statistic-util';
   import Fa from 'svelte-fa';
@@ -27,6 +28,8 @@
   }
 
   let { bookCard, ondownload, oncomplete, ondeletestatistics, onremove }: Props = $props();
+
+  let title = $derived(displayTitle(bookCard.title));
 
   let detailsPopover = $state<Popover>();
   let morePopover = $state<Popover>();
@@ -122,12 +125,12 @@
 {/snippet}
 
 <div class="mt-2.5 grid grid-cols-[1fr_1fr_auto] gap-1">
-  {@render cardAction(faChartLine, 'Stats', `View statistics for ${bookCard.title}`, {
+  {@render cardAction(faChartLine, 'Stats', `View statistics for ${title}`, {
     href: resolve(getBookStatisticsURL(bookCard.title))
   })}
 
   {#if bookCard.isPlaceholder}
-    {@render cardAction(faDownload, 'Download', `Download ${bookCard.title}`, {
+    {@render cardAction(faDownload, 'Download', `Download ${title}`, {
       onClick: () => ondownload?.({ title: bookCard.title })
     })}
   {:else}
@@ -138,11 +141,11 @@
       yOffset={5}
     >
       {#snippet icon()}
-        {@render cardAction(faCircleInfo, 'Details', `Details for ${bookCard.title}`, {}, true)}
+        {@render cardAction(faCircleInfo, 'Details', `Details for ${title}`, {}, true)}
       {/snippet}
       {#snippet content()}
         <div class="w-80 max-w-[calc(100vw-2rem)] p-4 font-normal">
-          <div class="wrap-break-word font-medium">{bookCard.title}</div>
+          <div class="wrap-break-word font-medium">{title}</div>
           <dl class="mt-3 grid gap-2 text-xs">
             {#each detailRows as row (row.label)}
               <div class="grid grid-cols-[minmax(0,1fr)_auto] gap-4">
@@ -166,12 +169,12 @@
       <button
         type="button"
         class={`${actionButtonClasses} min-w-8 px-1.5 tracking-wider`}
-        aria-label={`More actions for ${bookCard.title}`}>•••</button
+        aria-label={`More actions for ${title}`}>•••</button
       >
     {/snippet}
     {#snippet content()}
       <div class="inline-flex min-w-56 flex-col py-2">
-        <div class="max-w-72 truncate px-4 pb-2 text-xs font-medium">{bookCard.title}</div>
+        <div class="max-w-72 truncate px-4 pb-2 text-xs font-medium">{title}</div>
         {@render menuAction(faBookOpen, 'Read book', { href: resolve(getBookURL(bookCard.title)) })}
         {@render menuAction(faChartLine, 'View statistics', {
           href: resolve(getBookStatisticsURL(bookCard.title))

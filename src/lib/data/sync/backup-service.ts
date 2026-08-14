@@ -7,6 +7,7 @@ import type {
 import { resolve } from '$app/paths';
 import { BlobReader, ZipReader } from '@zip.js/zip.js';
 import { database, lastReadingGoalsModified$ } from '$lib/data/store';
+import { compareBookTitles } from '$lib/functions/book-title';
 import { localStoragePreferences } from '$lib/data/internal/persistent-local-storage-store';
 import { BackupStorageHandler } from '$lib/data/storage/handler/backup-handler';
 import { BaseStorageHandler } from '$lib/data/storage/handler/base-handler';
@@ -58,7 +59,7 @@ export async function buildCurrentCatalog(): Promise<BackupCatalog> {
       hasBookmark: bookmarkTitles.has(b.title),
       hasStatistics: statTitles.has(b.title)
     }))
-    .sort((a, b) => a.title.localeCompare(b.title));
+    .sort((a, b) => compareBookTitles(a.title, b.title));
 
   return {
     hasAppSettings: localStorage.length > 0,
@@ -193,7 +194,7 @@ export async function parseBackupZIP(file: File): Promise<BackupCatalog> {
     return {
       hasAppSettings,
       hasReadingGoals,
-      books: [...books.values()].sort((a, b) => a.title.localeCompare(b.title))
+      books: [...books.values()].sort((a, b) => compareBookTitles(a.title, b.title))
     };
   } finally {
     await reader.close();

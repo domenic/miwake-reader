@@ -102,6 +102,7 @@
   import loadBookData, {
     type LoadedBookData
   } from '$lib/functions/book-data-loader/load-book-data';
+  import { displayTitle } from '$lib/functions/book-title';
   import { formatPageTitle } from '$lib/functions/format-page-title';
   import { ReplicationSaveBehavior } from '$lib/functions/replication/replication-options';
   import type { ReplicationContext } from '$lib/functions/replication/replication-progress.svelte';
@@ -1269,7 +1270,7 @@
 </script>
 
 <svelte:head>
-  <title>{formatPageTitle(rawBookData?.title ?? '')}</title>
+  <title>{formatPageTitle(rawBookData ? displayTitle(rawBookData.title) : '')}</title>
 </svelte:head>
 
 <button

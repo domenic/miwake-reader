@@ -84,6 +84,7 @@ export const enableReaderWakeLock$ = booleanLocalStorageStore('enableReaderWakeL
 export const verticalMode$ = derived(writingMode$, (writingMode) => writingMode === 'vertical-rl');
 export const showCharacterCounter$ = booleanLocalStorageStore('showCharacterCounter', true);
 export const showPercentage$ = booleanLocalStorageStore('showPercentage', true);
+export { simplifyBookTitles$ } from '$lib/data/book-title-settings';
 export const showFooterChapterCharacterCounter$ = booleanLocalStorageStore(
   'showFooterChapterCharacterCounter',
   false

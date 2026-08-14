@@ -15,6 +15,7 @@ const NOT_A_ZIP_BOOK = 'not-a-zip-book';
 const NOT_AN_EPUB_BOOK = 'not-an-epub-book';
 
 export const COVER_REFRESH_BOOK = 'cover-refresh-book';
+export const EDITION_TITLE_BOOK = 'edition-title-book';
 export const LONG_BOOK = 'long-book';
 export const LONG_BOOK_CHAPTER_CHARACTERS = 7519;
 export const MEDIA_SIZING_BOOK = 'media-sizing-book';
@@ -25,6 +26,7 @@ export const INVALID_IMPORT_BOOKS = [NOT_A_ZIP_BOOK, NOT_AN_EPUB_BOOK] as const;
 
 export type LibraryBookFixture =
   | typeof COVER_REFRESH_BOOK
+  | typeof EDITION_TITLE_BOOK
   | typeof VALID_BOOK
   | typeof LONG_BOOK
   | typeof MEDIA_SIZING_BOOK
@@ -39,6 +41,7 @@ interface BaseBookFixtureMetadata {
 
 interface LibraryBookFixtureMetadata extends BaseBookFixtureMetadata {
   title: string;
+  displayTitle?: string;
   readerText: string;
   partwayBookmark?: PartwayBookmarkMetadata;
 }
@@ -77,6 +80,15 @@ const fixtureMetadata = new Map<BookFixture, BookFixtureMetadata>([
       title: 'Cover refresh book',
       path: resolve(fixtureRoot, 'cover-refresh-book.epub'),
       readerText: 'This book has a deterministic cover image.'
+    }
+  ],
+  [
+    EDITION_TITLE_BOOK,
+    {
+      title: '52ヘルツのクジラたち【特典付き】 (中公文庫)',
+      displayTitle: '52ヘルツのクジラたち',
+      path: resolve(fixtureRoot, 'edition-title-book.epub'),
+      readerText: 'この本は書名表示のテスト用です。'
     }
   ],
   [
@@ -149,6 +161,11 @@ export function fixtureDescription(fixture: BookFixture) {
     : metadata.title;
 }
 
+export function fixtureDisplayTitle(fixture: LibraryBookFixture) {
+  const metadata = getFixtureMetadata(fixture);
+  return metadata.displayTitle ?? metadata.title;
+}
+
 export async function startImportBookFixtures(page: Page, fixtures: readonly BookFixture[]) {
   await navigateToManage(page);
   const importButton = page.getByRole('button', { name: 'Import Files' });
@@ -161,7 +178,7 @@ export async function importBookFixtures(page: Page, fixtures: readonly BookFixt
   await startImportBookFixtures(page, fixtures);
   await Promise.all(
     libraryBookFixtures(fixtures).map((fixture) =>
-      expect(page.getByText(fixtureTitle(fixture), { exact: true })).toBeVisible({
+      expect(page.getByText(fixtureDisplayTitle(fixture), { exact: true })).toBeVisible({
         timeout: SYNC_ASSERTION_TIMEOUT
       })
     )
@@ -250,7 +267,9 @@ export async function expectStatisticsInSummary(
       await expect(page.getByText(dateKey, { exact: true })).toBeVisible({
         timeout: SYNC_ASSERTION_TIMEOUT
       });
-      await expect(page.getByText(fixtureTitle(fixture), { exact: true }).first()).toBeVisible({
+      await expect(
+        page.getByText(fixtureDisplayTitle(fixture), { exact: true }).first()
+      ).toBeVisible({
         timeout: SYNC_ASSERTION_TIMEOUT
       });
     }),
@@ -291,7 +310,7 @@ export async function expectBookReaderText(page: Page, fixture: LibraryBookFixtu
 
 export async function deleteBookFromManage(page: Page, fixture: LibraryBookFixture) {
   await navigateToManage(page);
-  const title = fixtureTitle(fixture);
+  const title = fixtureDisplayTitle(fixture);
   const bookTitle = page.getByText(title, { exact: true });
   await expect(bookTitle).toBeVisible();
 
@@ -429,7 +448,7 @@ export async function expectImportFailedForFixture(page: Page, fixture: InvalidI
 
 export function bookCard(page: Page, fixture: LibraryBookFixture) {
   return page.locator('article').filter({
-    has: page.getByText(fixtureTitle(fixture), { exact: true })
+    has: page.getByText(fixtureDisplayTitle(fixture), { exact: true })
   });
 }
 
@@ -530,6 +549,7 @@ function libraryBookFixtures(fixtures: readonly BookFixture[]) {
   return fixtures.filter(
     (fixture): fixture is LibraryBookFixture =>
       fixture === COVER_REFRESH_BOOK ||
+      fixture === EDITION_TITLE_BOOK ||
       fixture === VALID_BOOK ||
       fixture === LONG_BOOK ||
       fixture === SPOILER_IMAGE_GALLERY_BOOK ||

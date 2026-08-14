@@ -18,6 +18,7 @@ import type {
 } from '$lib/data/database/books-db/versions/books-db';
 import { showConfirmDialog } from '$lib/components/confirm-dialog.svelte';
 import { showErrorDialog } from '$lib/components/log-report-dialog.svelte';
+import { displayTitle } from '$lib/functions/book-title';
 import { logger } from '$lib/data/logger';
 import { getDateRangeLabel } from '$lib/data/reading-goal';
 import { appShortcuts } from '$lib/data/app-shortcuts.svelte';
@@ -232,7 +233,7 @@ export class StatisticsController {
           : getNumberFromObject(statistic, dataKeyToCopy);
 
       if (loggedValue) {
-        dataLines.push(`.log ${logKey} ${loggedValue} ${statistic.title}`);
+        dataLines.push(`.log ${logKey} ${loggedValue} ${displayTitle(statistic.title)}`);
       }
     }
 
@@ -515,7 +516,9 @@ export class StatisticsController {
           titleLabel
         )}, which may include start and/or completion data.\n\nDeletion syncs to connected sources when upward sync is enabled.\n\n${escapeHTML(
           titleLabel
-        )}:\n${[...titlesToDelete].map(formatJapaneseHTML).join('\n\n')}`,
+        )}:\n${[...titlesToDelete]
+          .map((title) => formatJapaneseHTML(displayTitle(title)))
+          .join('\n\n')}`,
         confirmLabel: 'Delete',
         danger: true
       });
@@ -627,7 +630,7 @@ export class StatisticsController {
 
     const confirmed = await showConfirmDialog({
       title: 'Update data',
-      messageHTML: `This will update the data for ${formatJapaneseHTML(title)} on ${escapeHTML(
+      messageHTML: `This will update the data for ${formatJapaneseHTML(displayTitle(title))} on ${escapeHTML(
         dateKey
       )}.\n\nTime: ${secondsToMinutes(statistic.readingTime)} min => ${secondsToMinutes(
         newReadingTime
