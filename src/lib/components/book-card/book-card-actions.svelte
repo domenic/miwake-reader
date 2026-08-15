@@ -124,10 +124,15 @@
   {/if}
 {/snippet}
 
-<div class="mt-2.5 grid grid-cols-[1fr_1fr_auto] gap-1">
-  {@render cardAction(faChartLine, 'Stats', `View statistics for ${title}`, {
-    href: resolve(getBookStatisticsURL(bookCard.title))
-  })}
+<div
+  data-book-card-actions
+  class="mt-2.5 grid grid-cols-[1fr_auto] gap-1 sm:grid-cols-[1fr_1fr_auto]"
+>
+  <div class="hidden sm:contents">
+    {@render cardAction(faChartLine, 'Stats', `View statistics for ${title}`, {
+      href: resolve(getBookStatisticsURL(bookCard.title))
+    })}
+  </div>
 
   {#if bookCard.isPlaceholder}
     {@render cardAction(faDownload, 'Download', `Download ${title}`, {
@@ -136,15 +141,16 @@
   {:else}
     <Popover
       bind:this={detailsPopover}
-      placement="top"
-      fallbackPlacements={['right', 'left', 'bottom']}
+      innerContainerStyles="width: 100%;"
+      placement="top-start"
+      fallbackPlacements={['bottom-start', 'top-end', 'bottom-end']}
       yOffset={5}
     >
       {#snippet icon()}
         {@render cardAction(faCircleInfo, 'Details', `Details for ${title}`, {}, true)}
       {/snippet}
       {#snippet content()}
-        <div class="w-80 max-w-[calc(100vw-2rem)] p-4 font-normal">
+        <div data-book-details class="w-80 max-w-[calc(100vw-2rem)] p-4 font-normal">
           <div class="wrap-break-word font-medium">{title}</div>
           <dl class="mt-3 grid gap-2 text-xs">
             {#each detailRows as row (row.label)}

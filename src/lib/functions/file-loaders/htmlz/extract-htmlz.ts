@@ -1,8 +1,5 @@
 import { BlobReader, BlobWriter, TextWriter, ZipReader } from '@zip.js/zip.js';
-import initZipSettings from '../utils/init-zip-settings';
 import type { HtmlzContent } from './types';
-
-initZipSettings();
 
 export default async function extract(blob: Blob) {
   const reader = new ZipReader(new BlobReader(blob));

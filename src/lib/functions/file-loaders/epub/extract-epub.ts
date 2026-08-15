@@ -3,10 +3,7 @@ import { isOPFType, type EpubContent, type EpubOPFContent } from './types';
 
 import type { Entry, FileEntry } from '@zip.js/zip.js';
 import { XMLParser } from 'fast-xml-parser';
-import initZipSettings from '../utils/init-zip-settings';
 import path from 'path-browserify';
-
-initZipSettings();
 
 export default async function extractEpub(blob: Blob) {
   const reader = new ZipReader(new BlobReader(blob));

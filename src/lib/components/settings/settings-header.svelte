@@ -38,9 +38,14 @@
   ];
 </script>
 
-<div class={baseHeaderClasses}>
+<div class={baseHeaderClasses} role="toolbar" aria-label="Settings controls">
   <div class="flex h-full justify-between">
-    <div class="flex" data-sveltekit-keepfocus data-sveltekit-noscroll>
+    <div
+      data-mobile-actions
+      class="grid w-full grid-flow-col auto-cols-fr md:flex md:w-auto"
+      data-sveltekit-keepfocus
+      data-sveltekit-noscroll
+    >
       {#each settingItems as settingItem (settingItem.label)}
         <HeaderButton
           faIcon={settingItem.icon}
@@ -51,7 +56,7 @@
         />
       {/each}
     </div>
-    <div class="flex">
+    <div class="hidden md:flex">
       <HeaderNavTabs />
     </div>
   </div>

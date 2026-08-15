@@ -6,6 +6,7 @@
   import type { Instance, Placement } from '@popperjs/core';
   import flip from '@popperjs/core/lib/modifiers/flip';
   import offset from '@popperjs/core/lib/modifiers/offset';
+  import preventOverflow from '@popperjs/core/lib/modifiers/preventOverflow';
   import { createPopper } from '@popperjs/core/lib/popper-lite';
   import { tick } from 'svelte';
 
@@ -13,6 +14,7 @@
     contentText?: string;
     containerStyles?: string;
     innerContainerStyles?: string;
+    innerContainerClasses?: string;
     contentStyles?: string;
     eventType?: string;
     fallbackPlacements?: string[];
@@ -39,6 +41,7 @@
     contentText = '',
     containerStyles = '',
     innerContainerStyles = '',
+    innerContainerClasses = '',
     contentStyles = 'padding: 0',
     eventType = 'click',
     fallbackPlacements = ['left', 'bottom', 'right'],
@@ -118,6 +121,12 @@
             options: {
               offset: [xOffset, yOffset]
             }
+          },
+          {
+            ...preventOverflow,
+            options: {
+              padding: 8
+            }
           }
         ]
       });
@@ -173,13 +182,19 @@
 
 <div data-popover class="flex items-center" style={containerStyles}>
   <div
-    style={innerContainerStyles}
+    class={iconSnippet ? undefined : innerContainerClasses}
+    style={iconSnippet ? undefined : innerContainerStyles}
     use:conditionalClickHandlerAndClass={!iconSnippet}
     bind:this={contentElement}
   >
     {@render children?.()}
   </div>
-  <div use:conditionalClickHandlerAndClass={!!iconSnippet} bind:this={iconElement}>
+  <div
+    class={iconSnippet ? innerContainerClasses : undefined}
+    style={iconSnippet ? innerContainerStyles : undefined}
+    use:conditionalClickHandlerAndClass={!!iconSnippet}
+    bind:this={iconElement}
+  >
     {@render iconSnippet?.()}
   </div>
 </div>
@@ -187,7 +202,7 @@
 {#if isOpen}
   <div
     data-popover
-    class="max-w-60vw z-10 rounded-sm bg-[#333] text-sm font-bold text-white md:max-w-lg"
+    class="z-10 max-w-[calc(100vw-2rem)] rounded-sm bg-[#333] text-sm font-bold text-white md:max-w-lg"
     class:absolute={strategy === 'absolute'}
     class:fixed={strategy === 'fixed'}
     class:whitespace-pre-wrap={contentText}

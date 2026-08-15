@@ -4,6 +4,7 @@
   import { page } from '$app/state';
   import { appName, basePath, clearConsoleOnReload } from '$lib/data/env';
   import BottomLeftCluster from '$lib/components/bottom-left-cluster.svelte';
+  import MobileNavigation from '$lib/components/mobile-navigation.svelte';
   import { userFontsCacheName, type UserFont } from '$lib/data/fonts';
   import { reconcileUserFontCache } from '$lib/functions/reconcile-user-font-cache';
   import { loadConnectionsFromDb } from '$lib/data/sync/source-manager';
@@ -97,6 +98,8 @@
 />
 
 {@render children?.()}
+
+<MobileNavigation />
 
 <BottomLeftCluster />
 
