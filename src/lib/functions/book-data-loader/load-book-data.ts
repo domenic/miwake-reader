@@ -177,6 +177,10 @@ function removeSVGDimensions(el: HTMLElement) {
 }
 
 function addSpoilerTags(el: HTMLElement, document: Document, blurMode: BlurMode) {
+  if (blurMode === BlurMode.OFF) {
+    return;
+  }
+
   for (const childNode of getSpoilerCandidateChildren(el, blurMode)) {
     for (const tag of childNode.querySelectorAll('img, svg')) {
       if (shouldWrapSpoilerImage(tag)) {

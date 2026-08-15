@@ -57,10 +57,9 @@ export const fontSize$ = numberLocalStorageStore('fontSize', 20);
 export const lineHeight$ = numberLocalStorageStore('lineHeight', 1.65);
 export const textIndentation$ = numberLocalStorageStore('textIndentation', 0);
 export const textMarginValue$ = numberLocalStorageStore('textMarginValue', 0);
-export const hideSpoilerImage$ = booleanLocalStorageStore('hideSpoilerImage', true);
-export const hideSpoilerImageMode$ = stringLocalStorageStore<BlurMode>(
+export const blurImageMode$ = stringLocalStorageStore<BlurMode>(
   'hideSpoilerImageMode',
-  BlurMode.AFTER_TOC
+  BlurMode.OFF
 );
 export const furiganaStyle$ = stringLocalStorageStore<FuriganaStyle>(
   'furiganaStyle',

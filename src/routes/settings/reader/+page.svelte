@@ -38,7 +38,6 @@
     firstDimensionMargin$,
     fontSize$,
     furiganaStyle$,
-    hideSpoilerImage$,
     lineHeight$,
     pageColumns$,
     pauseTrackerOnCustomPointChange$,
@@ -56,7 +55,7 @@
     verticalTextOrientation$,
     viewMode$,
     writingMode$,
-    hideSpoilerImageMode$,
+    blurImageMode$,
     confirmClose$,
     manualBookmark$
   } from '$lib/data/store';
@@ -121,8 +120,9 @@
   ];
 
   const optionsForBlurMode: ToggleOption<BlurMode>[] = [
-    { id: BlurMode.ALL, text: 'All' },
-    { id: BlurMode.AFTER_TOC, text: 'After ToC' }
+    { id: BlurMode.OFF, text: 'Off' },
+    { id: BlurMode.AFTER_TOC, text: 'After ToC' },
+    { id: BlurMode.ALL, text: 'All' }
   ];
 
   const optionsForBookTitleDisplay: ToggleOption<boolean>[] = [
@@ -440,20 +440,12 @@
   <SettingsItemGroup title="Auto Bookmark" tooltip={autoBookmarkTooltip}>
     <ButtonToggleGroup options={optionsForToggle} bind:selectedOptionId={$autoBookmark$} />
   </SettingsItemGroup>
-  <SettingsItemGroup title="Blur image">
-    <ButtonToggleGroup options={optionsForToggle} bind:selectedOptionId={$hideSpoilerImage$} />
+  <SettingsItemGroup
+    title="Blur images"
+    tooltip="Blur all images or only those after the table of contents"
+  >
+    <ButtonToggleGroup options={optionsForBlurMode} bind:selectedOptionId={$blurImageMode$} />
   </SettingsItemGroup>
-  {#if $hideSpoilerImage$}
-    <SettingsItemGroup
-      title="Blur Mode"
-      tooltip="Determines if all or only images after the table of contents will be blurred"
-    >
-      <ButtonToggleGroup
-        options={optionsForBlurMode}
-        bind:selectedOptionId={$hideSpoilerImageMode$}
-      />
-    </SettingsItemGroup>
-  {/if}
   <SettingsItemGroup title="Furigana" tooltip={furiganaStyleTooltip}>
     <ButtonToggleGroup options={optionsForFuriganaStyle} bind:selectedOptionId={$furiganaStyle$} />
   </SettingsItemGroup>

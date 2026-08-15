@@ -22,7 +22,7 @@
     fontFamilyGroupTwo$,
     fontSize$,
     furiganaStyle$,
-    hideSpoilerImage$,
+    blurImageMode$,
     multiplier$,
     pageColumns$,
     prioritizeReaderStyles$,
@@ -51,7 +51,6 @@
     overwriteBookCompletion$,
     startDayHoursForTracker$,
     pauseTrackerOnCustomPointChange$,
-    hideSpoilerImageMode$,
     showCharacterCounter$,
     showPercentage$,
     enableVerticalFontKerning$,
@@ -83,6 +82,7 @@
     type BooksDbStatistic
   } from '$lib/data/database/books-db/versions/books-db';
   import { deviceEnvironment } from '$lib/data/device-environment.svelte';
+  import { BlurMode } from '$lib/data/blur-mode';
   import { readerChrome } from '$lib/data/reader-chrome.svelte';
   import { PAGE_CHANGE } from '$lib/data/events';
   import { fullscreenManager } from '$lib/data/fullscreen-manager';
@@ -266,7 +266,7 @@
       rawBookData,
       '.book-content',
       document,
-      $hideSpoilerImageMode$
+      $blurImageMode$
     );
 
     bookData = loadedBookData;
@@ -1398,7 +1398,7 @@
     textIndentation={$textIndentation$}
     textMarginMode={$textMarginMode$}
     textMarginValue={$textMarginValue$}
-    hideSpoilerImage={$hideSpoilerImage$}
+    hideSpoilerImage={$blurImageMode$ !== BlurMode.OFF}
     furiganaStyle={$furiganaStyle$}
     viewMode={$viewMode$}
     secondDimensionMaxValue={$secondDimensionMaxValue$}
