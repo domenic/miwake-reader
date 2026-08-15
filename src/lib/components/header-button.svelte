@@ -24,6 +24,7 @@
     variant?: Variant;
     width?: Width;
     class?: string;
+    popoverTarget?: string;
     icon?: Snippet;
   }
 
@@ -61,6 +62,7 @@
     variant = 'action',
     width = 'default',
     class: extraClasses = '',
+    popoverTarget,
     href,
     onclick,
     icon
@@ -124,7 +126,15 @@
     {@render content()}
   </a>
 {:else}
-  <button use:ripple type="button" {title} {disabled} class={classes} {onclick}>
+  <button
+    use:ripple
+    type="button"
+    {title}
+    {disabled}
+    class={classes}
+    popovertarget={popoverTarget}
+    {onclick}
+  >
     {@render content()}
   </button>
 {/if}
