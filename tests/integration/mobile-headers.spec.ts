@@ -26,6 +26,8 @@ test('mobile section headers keep labeled controls visible and expose overflow a
   await visibleControl(libraryActions, 'Import').click();
   await expect(visibleControl(libraryToolbar, 'Import Files')).toBeVisible();
   await expect(visibleControl(libraryToolbar, 'Import Folder')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(visibleControl(libraryToolbar, 'Import Files')).toBeHidden();
 
   await visibleControl(navigation, 'Settings').click();
   await page.waitForURL((url) => url.pathname.startsWith('/settings'));
@@ -55,6 +57,7 @@ test('mobile section headers keep labeled controls visible and expose overflow a
   await expect(visibleControl(statisticsToolbar, 'Copy Reading Time')).toBeVisible();
   await expect(visibleControl(statisticsToolbar, 'Copy Characters Read')).toBeVisible();
   await expect(visibleControl(statisticsToolbar, 'Statistics Settings')).toBeVisible();
+  await expectToolbarToFitViewport(statisticsActions, page);
 });
 
 test('mobile library selection and reader actions use labeled overflow menus', async ({ page }) => {
