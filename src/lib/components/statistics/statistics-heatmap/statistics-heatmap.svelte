@@ -2,12 +2,10 @@
   import {
     faChevronLeft,
     faChevronRight,
-    faClose,
     faLayerGroup,
     faRepeat
   } from '@fortawesome/free-solid-svg-icons';
   import { ReadingGoalFrequency } from '$lib/components/book-reader/book-reading-tracker/tracker-domain';
-  import Popover from '$lib/components/popover/popover.svelte';
   import {
     type HeatmapMonthLabel,
     type HeatmapStreak,
@@ -48,7 +46,7 @@
     getPreviousDayKey,
     secondsToMinutes
   } from '$lib/functions/statistic-util';
-  import { caluclatePercentage, dummyFn, limitToRange, pluralize } from '$lib/functions/utils';
+  import { caluclatePercentage, limitToRange, pluralize } from '$lib/functions/utils';
   import { onMount, tick, untrack } from 'svelte';
   import { SvelteDate, SvelteMap, SvelteSet } from 'svelte/reactivity';
   import Fa from 'svelte-fa';
@@ -80,9 +78,10 @@
   const heatmapGridTemplateRows =
     'calc(var(--heatmap-cell-size) + 4px) repeat(7, var(--heatmap-cell-size))';
   const colorRanges: HeatmapColorRange[] = [];
+  const componentId = $props.id();
+  const detailsPopoverId = `${componentId}-details`;
 
   let heatmapElement: HTMLElement = $state()!;
-  let heatmapDetailDataPopover: Popover = $state()!;
   let monthLabels: HeatmapMonthLabel[] = $state([...monthLabelList]);
   let heatmapYear = $state(getStartHoursDate($startDayHoursForTracker$).getFullYear());
   let globalHeatmapData: StatisticsHeatmapData | ReadingGoalsHeatmapData = $state()!;
@@ -841,6 +840,14 @@
     )} (${caluclatePercentage(completedReadingGoalsCount, closedReadingGoalsCount)}%)`;
   }
 
+  function getHeatmapDayAriaLabel(dayDetails: string[]) {
+    if (heatmapType === HeatmapType.STATISTICS) {
+      return `${dayDetails[0]}, Reading Time: ${dayDetails[1]}, Characters: ${dayDetails[2]}, Books: ${dayDetails[3]}`;
+    }
+
+    return dayDetails.join(', ');
+  }
+
   function updateHeatmapDayData(initialReadingGoal: ReadingGoalHeatmapGlobalDayData | undefined) {
     const mapDays: StatisticsHeatmapDayData[] = [];
 
@@ -969,8 +976,8 @@
           dayDetails: [
             dateString,
             `${secondsToMinutes(dayData.readingTime)} min`,
-            `${dayData.charactersRead} characters`,
-            pluralize(dayData.titles.size, 'book')
+            `${dayData.charactersRead}`,
+            `${dayData.titles.size}`
           ],
           readingTime: dayData.readingTime
         }
@@ -980,7 +987,7 @@
           heatmapRow,
           heatmapColumn,
           color: '',
-          dayDetails: [dateString, `0 min`, `0 characters`, `0 books`],
+          dayDetails: [dateString, `0 min`, `0`, `0`],
           readingTime: 0
         };
 
@@ -1157,8 +1164,8 @@
         !isToday &&
         (heatmapDay.dateString === $lastStatisticsStartDate$ ||
           heatmapDay.dateString === $lastStatisticsEndDate$)}
-      <div
-        tabindex="0"
+      <button
+        type="button"
         role="cell"
         class="justify-self-center fadeIn"
         class:cursor-pointer={heatmapDay.isCurrentYear}
@@ -1175,46 +1182,53 @@
         style:grid-column={`${heatmapDay.heatmapColumn}/${heatmapDay.heatmapColumn}`}
         style:background-color={heatmapDay.color || null}
         style:border-width={`${isSelected || isToday ? '3' : '1'}px`}
-        aria-label={heatmapDay.isCurrentYear ? heatmapDay.dayDetails.join(', ') : undefined}
+        aria-label={heatmapDay.isCurrentYear
+          ? getHeatmapDayAriaLabel(heatmapDay.dayDetails)
+          : undefined}
+        disabled={!heatmapDay.isCurrentYear}
         data-date={heatmapDay.dateString}
-        onclick={(event) => {
+        popovertarget={heatmapDay.isCurrentYear ? detailsPopoverId : undefined}
+        onclick={() => {
           if (!heatmapDay.isCurrentYear) {
             return;
           }
 
           popoverDetails = heatmapDay.dayDetails;
-
-          tick().then(() => {
-            if (event.target instanceof HTMLElement) {
-              heatmapDetailDataPopover.toggleOpen(event.target);
-            }
-          });
         }}
-        onkeyup={dummyFn}
-      ></div>
+      ></button>
     {/each}
-    {#if popoverDetails.length}
-      <Popover yOffset={5} bind:this={heatmapDetailDataPopover}>
-        {#snippet content()}
-          <div
-            class="p-2"
-            class:w-36={heatmapType === HeatmapType.STATISTICS}
-            class:w-42={heatmapType === HeatmapType.READING_GOALS}
-          >
-            <button
-              title="Close details"
-              class="flex w-full justify-end absolute right-2"
-              onclick={() => (popoverDetails = [])}
-            >
-              <Fa icon={faClose} />
-            </button>
-            {#each popoverDetails as popoverDetail (popoverDetail)}
-              <div class="mb-2 last:mb-0">{popoverDetail}</div>
-            {/each}
+    <div
+      popover
+      data-testid="heatmap-details"
+      id={detailsPopoverId}
+      class="popover-surface-dark heatmap-details-popover rounded-sm p-4"
+      class:w-60={heatmapType === HeatmapType.STATISTICS}
+      class:w-80={heatmapType === HeatmapType.READING_GOALS}
+    >
+      <div class="font-medium">{popoverDetails[0]}</div>
+      {#if heatmapType === HeatmapType.STATISTICS}
+        <dl class="mt-3 grid gap-2 text-xs">
+          <div class="grid grid-cols-[minmax(0,1fr)_auto] gap-4">
+            <dt class="text-gray-300">Reading Time</dt>
+            <dd class="text-right whitespace-nowrap">{popoverDetails[1]}</dd>
           </div>
-        {/snippet}
-      </Popover>
-    {/if}
+          <div class="grid grid-cols-[minmax(0,1fr)_auto] gap-4">
+            <dt class="text-gray-300">Characters</dt>
+            <dd class="text-right whitespace-nowrap">{popoverDetails[2]}</dd>
+          </div>
+          <div class="grid grid-cols-[minmax(0,1fr)_auto] gap-4">
+            <dt class="text-gray-300">Books</dt>
+            <dd class="text-right whitespace-nowrap">{popoverDetails[3]}</dd>
+          </div>
+        </dl>
+      {:else}
+        <div class="mt-3 grid gap-2 text-xs text-gray-200">
+          {#each popoverDetails.slice(1) as popoverDetail (popoverDetail)}
+            <div>{popoverDetail}</div>
+          {/each}
+        </div>
+      {/if}
+    </div>
   </div>
   <button
     title="Move forward"
@@ -1390,6 +1404,15 @@
 {/if}
 
 <style>
+  .heatmap-details-popover {
+    position-area: top span-right;
+    margin-block-end: 4px;
+    position-try-fallbacks:
+      flip-inline,
+      flip-block,
+      flip-block flip-inline;
+  }
+
   .highlight {
     box-shadow: 0px 1px 5px 1px black;
   }

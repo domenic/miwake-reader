@@ -37,7 +37,7 @@ test('statistics summary headers stay sticky while the page scrolls', async ({ p
     })
     .toBeLessThanOrEqual(1);
 
-  const readingTimeHeader = summary.getByText('Total Time', { exact: true });
+  const readingTimeHeader = summary.getByRole('button', { name: 'Total Time', exact: true });
   const headerTop = await readingTimeHeader.evaluate((el) =>
     Math.round(el.getBoundingClientRect().top)
   );
