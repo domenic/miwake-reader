@@ -1,12 +1,5 @@
 <script lang="ts">
-  import {
-    faClose,
-    faFloppyDisk,
-    faPen,
-    faTrash,
-    faXmark
-  } from '@fortawesome/free-solid-svg-icons';
-  import Popover from '$lib/components/popover/popover.svelte';
+  import { faFloppyDisk, faPen, faTrash, faXmark } from '@fortawesome/free-solid-svg-icons';
   import {
     StatisticsSummaryKey,
     type StatisticsDataSourceChange,
@@ -38,7 +31,7 @@
     lastStatisticsSummarySortProperty$
   } from '$lib/data/store';
   import { getNumberFromObject, secondsToMinutes } from '$lib/functions/statistic-util';
-  import { tick, untrack } from 'svelte';
+  import { untrack } from 'svelte';
   import Fa from 'svelte-fa';
 
   interface Props {
@@ -48,13 +41,19 @@
     onedit?: (request: StatisticsEditRequest) => void;
   }
 
+  interface SummaryPopoverDetail {
+    label: string;
+    value: string;
+  }
+
   let { aggregatedStatistics, statisticsDateRangeLabel, ondelete, onedit }: Props = $props();
 
   const statisticsSummaryBaseRowRem = 3;
   const statisticsSummaryBaseRowGap = 1.5;
 
-  let statisticsSummaryPopover = $state<Popover>();
-  let statisticsSummaryPopoverDetails: string[] = $state([]);
+  const componentId = $props.id();
+  const detailsPopoverId = `${componentId}-details`;
+  let statisticsSummaryPopoverDetails: SummaryPopoverDetail[] = $state([]);
   let rowInEdit = $state<BookStatistic>();
   let rowInEditTime = $state(0);
   let rowInEditCharacters = $state(0);
@@ -366,22 +365,24 @@
           <button
             class="text-left"
             class:blur={$lastBlurredTrackerItems$.has('readingTime')}
-            onclick={(event) => {
+            popovertarget={detailsPopoverId}
+            onclick={() => {
               statisticsSummaryPopoverDetails = [
-                `Time: ${secondsToMinutes(currentStatisticsSummaryRow.readingTime)} min`,
-                `Average Time: ${secondsToMinutes(
-                  currentStatisticsSummaryRow.averageReadingTime
-                )} min`,
-                `Weighted Time: ${secondsToMinutes(
-                  currentStatisticsSummaryRow.averageWeightedReadingTime
-                )} min`
-              ];
-
-              tick().then(() => {
-                if (event.target instanceof HTMLElement) {
-                  statisticsSummaryPopover?.toggleOpen(event.target);
+                {
+                  label: 'Total Time',
+                  value: `${secondsToMinutes(currentStatisticsSummaryRow.readingTime)} min`
+                },
+                {
+                  label: 'Average Time',
+                  value: `${secondsToMinutes(currentStatisticsSummaryRow.averageReadingTime)} min`
+                },
+                {
+                  label: 'Weighted Time',
+                  value: `${secondsToMinutes(
+                    currentStatisticsSummaryRow.averageWeightedReadingTime
+                  )} min`
                 }
-              });
+              ];
             }}
           >
             {secondsToMinutes(
@@ -404,18 +405,22 @@
           <button
             class="text-left"
             class:blur={$lastBlurredTrackerItems$.has('charactersRead')}
-            onclick={(event) => {
+            popovertarget={detailsPopoverId}
+            onclick={() => {
               statisticsSummaryPopoverDetails = [
-                `Characters: ${currentStatisticsSummaryRow.charactersRead}`,
-                `Average Characters: ${currentStatisticsSummaryRow.averageCharactersRead}`,
-                `Weighted Characters: ${currentStatisticsSummaryRow.averageWeightedCharactersRead}`
-              ];
-
-              tick().then(() => {
-                if (event.target instanceof HTMLElement) {
-                  statisticsSummaryPopover?.toggleOpen(event.target);
+                {
+                  label: 'Total Characters',
+                  value: `${currentStatisticsSummaryRow.charactersRead}`
+                },
+                {
+                  label: 'Average Characters',
+                  value: `${currentStatisticsSummaryRow.averageCharactersRead}`
+                },
+                {
+                  label: 'Weighted Characters',
+                  value: `${currentStatisticsSummaryRow.averageWeightedCharactersRead}`
                 }
-              });
+              ];
             }}
           >
             {getNumberFromObject(currentStatisticsSummaryRow, $lastCharactersDataSource$)}
@@ -430,19 +435,26 @@
           <button
             class="text-left"
             class:blur={$lastBlurredTrackerItems$.has('lastReadingSpeed')}
-            onclick={(event) => {
+            popovertarget={detailsPopoverId}
+            onclick={() => {
               statisticsSummaryPopoverDetails = [
-                `Speed: ${currentStatisticsSummaryRow.lastReadingSpeed}`,
-                `Min Speed: ${currentStatisticsSummaryRow.minReadingSpeed}`,
-                `Alt Min Speed: ${currentStatisticsSummaryRow.altMinReadingSpeed}`,
-                `Max Speed: ${currentStatisticsSummaryRow.maxReadingSpeed}`
-              ];
-
-              tick().then(() => {
-                if (event.target instanceof HTMLElement) {
-                  statisticsSummaryPopover?.toggleOpen(event.target);
+                {
+                  label: 'Speed',
+                  value: `${currentStatisticsSummaryRow.lastReadingSpeed} / h`
+                },
+                {
+                  label: 'Min Speed',
+                  value: `${currentStatisticsSummaryRow.minReadingSpeed} / h`
+                },
+                {
+                  label: 'Alt Min Speed',
+                  value: `${currentStatisticsSummaryRow.altMinReadingSpeed} / h`
+                },
+                {
+                  label: 'Max Speed',
+                  value: `${currentStatisticsSummaryRow.maxReadingSpeed} / h`
                 }
-              });
+              ];
             }}
           >
             {getNumberFromObject(currentStatisticsSummaryRow, $lastReadingSpeedDataSource$)} / h
@@ -450,32 +462,33 @@
         {/if}
       {/each}
     </div>
-    {#if statisticsSummaryPopoverDetails.length}
-      <Popover
-        placement="top-start"
-        yOffset={5}
-        containerStyles={`align-self:flex-start;display:${isDateAggregation ? 'none' : 'flex'}`}
-        bind:this={statisticsSummaryPopover}
-      >
-        {#snippet content()}
-          <div class="p-4">
-            <button
-              title="Close details"
-              class="flex w-full justify-end absolute top-1 right-2"
-              onclick={() => (statisticsSummaryPopoverDetails = [])}
-            >
-              <Fa icon={faClose} />
-            </button>
-            {#each statisticsSummaryPopoverDetails as popoverDetail, index (`${popoverDetail}-${index}`)}
-              <div class="mb-2 last:mb-0">
-                {popoverDetail}
-              </div>
-            {/each}
+    <div
+      popover
+      data-testid="statistics-summary-details"
+      id={detailsPopoverId}
+      class="popover-surface-dark summary-details-popover rounded-sm p-4"
+    >
+      <dl class="grid gap-2 text-xs">
+        {#each statisticsSummaryPopoverDetails as popoverDetail (popoverDetail.label)}
+          <div class="grid grid-cols-[minmax(0,1fr)_auto] gap-4">
+            <dt class="text-gray-300">{popoverDetail.label}</dt>
+            <dd class="text-right whitespace-nowrap">{popoverDetail.value}</dd>
           </div>
-        {/snippet}
-      </Popover>
-    {/if}
+        {/each}
+      </dl>
+    </div>
   {:else}
     No Data found for {statisticsDateRangeLabel}
   {/if}
 </div>
+
+<style>
+  .summary-details-popover {
+    position-area: top span-right;
+    margin-block-end: 4px;
+    position-try-fallbacks:
+      flip-inline,
+      flip-block,
+      flip-block flip-inline;
+  }
+</style>

@@ -157,7 +157,7 @@
     </button>
     <div
       popover
-      data-book-details
+      data-testid="book-details"
       id={detailsPopoverId}
       class="popover-surface-dark book-details-popover w-80 rounded-sm p-4"
     >
@@ -183,7 +183,7 @@
   </button>
   <div
     popover
-    data-book-actions
+    data-testid="book-actions"
     id={morePopoverId}
     class="popover-surface-dark book-actions-popover w-56 flex-col rounded-sm px-0 py-2"
     bind:this={morePopover}

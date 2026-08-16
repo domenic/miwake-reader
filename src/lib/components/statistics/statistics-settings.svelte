@@ -2,7 +2,6 @@
   import { faCircleQuestion, faLeftLong, faRightLong } from '@fortawesome/free-solid-svg-icons';
   import ButtonToggleGroup from '$lib/components/button-toggle-group/button-toggle-group.svelte';
   import { optionsForToggle } from '$lib/components/button-toggle-group/toggle-option';
-  import Popover from '$lib/components/popover/popover.svelte';
   import SettingsItemGroup from '$lib/components/settings/settings-item-group.svelte';
   import {
     type StatisticsDateChange,
@@ -51,7 +50,27 @@
   let selectedStatisticsStartDate = $derived($lastStatisticsStartDate$);
 
   let selectedStatisticsEndDate = $derived($lastStatisticsEndDate$);
+
+  const componentId = $props.id();
 </script>
+
+{#snippet settingLabel(inputId: string, label: string, helpLabel: string, helpText: string)}
+  {@const popoverId = `${componentId}-${inputId}-help`}
+  <div class="flex items-center">
+    <label for={inputId}>{label}</label>
+    <button class="mx-2" aria-label={helpLabel} popovertarget={popoverId}>
+      <Fa icon={faCircleQuestion} />
+    </button>
+    <div
+      popover
+      data-testid="statistics-help"
+      id={popoverId}
+      class="popover-surface-dark statistics-help-popover rounded-sm p-2"
+    >
+      {helpText}
+    </div>
+  </div>
+{/snippet}
 
 <div class="flex items-center justify-end p-4 pl-12">
   <button class="mr-2 sm:mr-4 hover:text-red-500" onclick={() => onexportstatisticsdata(false)}>
@@ -153,15 +172,12 @@
   </button>
   <div class="flex flex-wrap justify-between mt-4">
     <div class="flex flex-col my-2 w-full sm:w-[initial]">
-      <Popover
-        contentText="Reading Time Attribute which should be used for the Summary Tab"
-        contentStyles="padding: 0.5rem;"
-      >
-        {#snippet icon()}
-          <Fa icon={faCircleQuestion} class="mx-2" />
-        {/snippet}
-        <label for="timeDataSource">Time Data Source</label>
-      </Popover>
+      {@render settingLabel(
+        'timeDataSource',
+        'Time Data Source',
+        'About reading-time attributes',
+        'Reading Time Attribute which should be used for the Summary Tab'
+      )}
       <select id="timeDataSource" class="text-black" bind:value={$lastReadingTimeDataSource$}>
         {#each readingTimeDataSources as readingTimeDataSource (readingTimeDataSource.key)}
           <option value={readingTimeDataSource.key}>
@@ -171,15 +187,12 @@
       </select>
     </div>
     <div class="flex flex-col my-2 w-full sm:w-[initial]">
-      <Popover
-        contentText="Characters Read Attribute which should be used for the Summary Tab"
-        contentStyles="padding: 0.5rem; max-width: 20rem;"
-      >
-        {#snippet icon()}
-          <Fa icon={faCircleQuestion} class="mx-2" />
-        {/snippet}
-        <label for="charactersSource">Characters Data Source</label>
-      </Popover>
+      {@render settingLabel(
+        'charactersSource',
+        'Characters Data Source',
+        'About character-count attributes',
+        'Characters Read Attribute which should be used for the Summary Tab'
+      )}
       <select id="charactersSource" class="text-black" bind:value={$lastCharactersDataSource$}>
         {#each charactersDataSources as charactersDataSource (charactersDataSource.key)}
           <option value={charactersDataSource.key}>
@@ -189,15 +202,12 @@
       </select>
     </div>
     <div class="flex flex-col my-2 w-full sm:w-[initial]">
-      <Popover
-        contentText="Reading Speed Attribute which should be used for the Summary Tab"
-        contentStyles="padding: 0.5rem;"
-      >
-        {#snippet icon()}
-          <Fa icon={faCircleQuestion} class="mx-2" />
-        {/snippet}
-        <label for="speedSource">Speed Data Source</label>
-      </Popover>
+      {@render settingLabel(
+        'speedSource',
+        'Speed Data Source',
+        'About reading-speed attributes',
+        'Reading Speed Attribute which should be used for the Summary Tab'
+      )}
       <select id="speedSource" class="text-black" bind:value={$lastReadingSpeedDataSource$}>
         {#each readingSpeedDataSources as readingSpeedDataSource (readingSpeedDataSource.key)}
           <option value={readingSpeedDataSource.key}>
@@ -208,15 +218,12 @@
     </div>
   </div>
   <div class="flex flex-col mt-4">
-    <Popover
-      contentText="Determines on which primary Attribute the Data will be grouped for the Summary Tab"
-      contentStyles="padding: 0.5rem;"
-    >
-      {#snippet icon()}
-        <Fa icon={faCircleQuestion} class="mx-2" />
-      {/snippet}
-      <label for="primaryAggregration">Primary Aggregration</label>
-    </Popover>
+    {@render settingLabel(
+      'primaryAggregration',
+      'Primary Aggregration',
+      'About summary grouping',
+      'Determines on which primary Attribute the Data will be grouped for the Summary Tab'
+    )}
     <select
       id="primaryAggregration"
       class="text-black"
@@ -241,3 +248,15 @@
     </SettingsItemGroup>
   </div>
 </div>
+
+<style>
+  .statistics-help-popover {
+    position-area: top span-right;
+    margin-block-end: 4px;
+    margin-inline-end: 8px;
+    position-try-fallbacks:
+      flip-inline,
+      flip-block,
+      flip-block flip-inline;
+  }
+</style>

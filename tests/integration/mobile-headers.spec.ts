@@ -84,12 +84,12 @@ test('mobile library selection and reader actions use labeled overflow menus', a
   await expect(card.getByRole('button', { name: `More actions for ${title}` })).toBeVisible();
   await expectElementToFitContainer(cardActions, card);
   await card.getByRole('button', { name: `Details for ${title}` }).click();
-  await expectElementToFitViewport(card.locator('[data-book-details]'), page);
+  await expectElementToFitViewport(card.getByTestId('book-details'), page);
   await card.getByRole('button', { name: `Details for ${title}` }).click();
   await card.getByRole('button', { name: `More actions for ${title}` }).click();
-  await expectElementToFitViewport(card.locator('[data-book-actions]'), page);
+  await expectElementToFitViewport(card.getByTestId('book-actions'), page);
   await page.keyboard.press('Escape');
-  await expect(card.locator('[data-book-actions]')).toBeHidden();
+  await expect(card.getByTestId('book-actions')).toBeHidden();
 
   const libraryToolbar = page.getByRole('toolbar', { name: 'Library controls' });
   const libraryActions = libraryToolbar.locator('[data-mobile-actions]');
