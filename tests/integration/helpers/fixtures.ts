@@ -178,9 +178,9 @@ export async function importBookFixtures(page: Page, fixtures: readonly BookFixt
   await startImportBookFixtures(page, fixtures);
   await Promise.all(
     libraryBookFixtures(fixtures).map((fixture) =>
-      expect(page.getByText(fixtureDisplayTitle(fixture), { exact: true })).toBeVisible({
-        timeout: SYNC_ASSERTION_TIMEOUT
-      })
+      expect(
+        page.getByRole('link', { name: fixtureDisplayTitle(fixture), exact: true })
+      ).toBeVisible({ timeout: SYNC_ASSERTION_TIMEOUT })
     )
   );
 }
@@ -311,7 +311,7 @@ export async function expectBookReaderText(page: Page, fixture: LibraryBookFixtu
 export async function deleteBookFromManage(page: Page, fixture: LibraryBookFixture) {
   await navigateToManage(page);
   const title = fixtureDisplayTitle(fixture);
-  const bookTitle = page.getByText(title, { exact: true });
+  const bookTitle = page.getByText(title, { exact: true }).filter({ visible: true });
   await expect(bookTitle).toBeVisible();
 
   await page.getByRole('button', { name: 'Select' }).click();

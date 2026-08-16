@@ -28,9 +28,15 @@ test('manager shows replication progress while importing books', async ({ page }
     .toBeGreaterThan(0);
   await expect(progressHeader).toContainText(/~ (?:\d{2}:){2}\d{2}/);
 
-  await expect(page.getByText(fixtureTitle(COVER_REFRESH_BOOK), { exact: true })).toBeVisible();
-  await expect(page.getByText(fixtureTitle(LONG_BOOK), { exact: true })).toBeVisible();
-  await expect(page.getByText(fixtureTitle(PLAIN_TEXT_BOOK), { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole('link', { name: fixtureTitle(COVER_REFRESH_BOOK), exact: true })
+  ).toBeVisible();
+  await expect(
+    page.getByRole('link', { name: fixtureTitle(LONG_BOOK), exact: true })
+  ).toBeVisible();
+  await expect(
+    page.getByRole('link', { name: fixtureTitle(PLAIN_TEXT_BOOK), exact: true })
+  ).toBeVisible();
   await expect(progressHeader).toBeHidden();
 });
 

@@ -22,8 +22,8 @@ test('uses simplified titles by default without changing book URLs', async ({ pa
   const simplifiedTitle = fixtureDisplayTitle(EDITION_TITLE_BOOK);
 
   await startImportBookFixtures(page, [EDITION_TITLE_BOOK]);
-  await expect(page.getByText(simplifiedTitle, { exact: true })).toBeVisible();
-  await expect(page.getByText(fullTitle, { exact: true })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: simplifiedTitle, exact: true })).toBeVisible();
+  await expect(page.getByRole('link', { name: fullTitle, exact: true })).toHaveCount(0);
 
   await openBookFromManage(page, EDITION_TITLE_BOOK);
   await expect(page).toHaveTitle(`${simplifiedTitle} | Miwake Reader`);
@@ -33,8 +33,8 @@ test('uses simplified titles by default without changing book URLs', async ({ pa
   await page.getByRole('button', { name: 'Full', exact: true }).click();
   await navigateToManage(page);
 
-  await expect(page.getByText(fullTitle, { exact: true })).toBeVisible();
-  await expect(page.getByText(simplifiedTitle, { exact: true })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: fullTitle, exact: true })).toBeVisible();
+  await expect(page.getByRole('link', { name: simplifiedTitle, exact: true })).toHaveCount(0);
 });
 
 test('uses simplified titles in statistics and backup selection', async ({ page }) => {

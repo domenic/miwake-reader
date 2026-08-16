@@ -35,7 +35,7 @@ test('a v7 database migrates to title-keyed bookmarks and lastItem', async ({ pa
 
   // The duplicate pair collapsed into one card carrying the newest
   // bookmark's progress.
-  await expect(page.getByText(DUPLICATE_TITLE, { exact: true })).toHaveCount(1);
+  await expect(page.getByRole('link', { name: DUPLICATE_TITLE, exact: true })).toHaveCount(1);
   await expect(
     page
       .locator('article')
