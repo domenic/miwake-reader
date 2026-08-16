@@ -35,6 +35,22 @@
   -webkit-tap-highlight-color: transparent;
 }
 
+@utility popover-surface-dark {
+  margin: 0;
+  max-height: calc(100vh - 2rem);
+  max-width: calc(100vw - 2rem);
+  overflow: auto;
+  border: 0;
+  background-color: rgb(51 51 51);
+  color: white;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+
+  @media (width >= theme(--breakpoint-md)) {
+    max-width: 32rem;
+  }
+}
+
 @utility sync-safe-px {
   padding-inline: var(--sync-safe-inline-inset);
 }

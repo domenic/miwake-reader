@@ -202,7 +202,7 @@
 {#if isOpen}
   <div
     data-popover
-    class="z-10 max-w-[calc(100vw-2rem)] rounded-sm bg-[#333] text-sm font-bold text-white md:max-w-lg"
+    class="popover-surface-dark p-0 font-bold"
     class:absolute={strategy === 'absolute'}
     class:fixed={strategy === 'fixed'}
     class:whitespace-pre-wrap={contentText}
