@@ -13,7 +13,6 @@
   import type { IconDefinition } from '@fortawesome/free-solid-svg-icons';
   import type { BookCardProps } from '$lib/components/book-card/book-card-props';
   import { getBookStatisticsURL } from '$lib/components/statistics/statistics-view';
-  import Popover from '$lib/components/popover/popover.svelte';
   import { displayTitle } from '$lib/functions/book-title';
   import { getBookURL } from '$lib/functions/book-url';
   import { getDateTimeString } from '$lib/functions/statistic-util';
@@ -31,8 +30,11 @@
 
   let title = $derived(displayTitle(bookCard.title));
 
-  let detailsPopover = $state<Popover>();
-  let morePopover = $state<Popover>();
+  const componentId = $props.id();
+  const detailsPopoverId = `${componentId}-details`;
+  const morePopoverId = `${componentId}-more`;
+  let detailsButton = $state<HTMLButtonElement>();
+  let morePopover = $state<HTMLDivElement>();
 
   const actionButtonClasses =
     'flex h-8 min-w-0 items-center justify-center gap-1.5 rounded-sm border border-gray-400/40 px-2 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-400/10 hover:text-gray-900';
@@ -53,8 +55,12 @@
     { label: 'Last update', value: getCardDateInfo(bookCard.lastBookModified) }
   ]);
 
+  function closeMorePopover() {
+    morePopover?.hidePopover();
+  }
+
   async function runMenuAction(action?: () => void | Promise<void>) {
-    await morePopover?.toggleOpen();
+    closeMorePopover();
     await action?.();
   }
 </script>
@@ -104,9 +110,9 @@
     <a
       class={`${menuButtonClasses} ${danger ? 'text-red-300 hover:text-red-700' : ''}`}
       href={action.href}
-      onclick={() => morePopover?.toggleOpen()}
+      onclick={closeMorePopover}
       onauxclick={(event) => {
-        if (event.button === 1) morePopover?.toggleOpen();
+        if (event.button === 1) closeMorePopover();
       }}
     >
       <Fa {icon} />
@@ -139,83 +145,101 @@
       onClick: () => ondownload?.({ title: bookCard.title })
     })}
   {:else}
-    <Popover
-      bind:this={detailsPopover}
-      innerContainerStyles="width: 100%;"
-      placement="top-start"
-      fallbackPlacements={['bottom-start', 'top-end', 'bottom-end']}
-      yOffset={5}
+    <button
+      bind:this={detailsButton}
+      type="button"
+      class={`${actionButtonClasses} w-full`}
+      aria-label={`Details for ${title}`}
+      popovertarget={detailsPopoverId}
     >
-      {#snippet icon()}
-        {@render cardAction(faCircleInfo, 'Details', `Details for ${title}`, {}, true)}
-      {/snippet}
-      {#snippet content()}
-        <div data-book-details class="w-80 max-w-[calc(100vw-2rem)] p-4 font-normal">
-          <div class="wrap-break-word font-medium">{title}</div>
-          <dl class="mt-3 grid gap-2 text-xs">
-            {#each detailRows as row (row.label)}
-              <div class="grid grid-cols-[minmax(0,1fr)_auto] gap-4">
-                <dt class="text-gray-300">{row.label}</dt>
-                <dd class="text-right whitespace-nowrap">{row.value}</dd>
-              </div>
-            {/each}
-          </dl>
-        </div>
-      {/snippet}
-    </Popover>
+      <Fa icon={faCircleInfo} />
+      <span>Details</span>
+    </button>
+    <div
+      popover
+      id={detailsPopoverId}
+      class="book-details-popover m-0 max-h-[calc(100vh-2rem)] max-w-[calc(100vw-2rem)] overflow-auto rounded-sm border-0 bg-[#333] p-0 text-sm font-bold text-white md:max-w-lg"
+    >
+      <div data-book-details class="w-80 max-w-[calc(100vw-2rem)] p-4 font-normal">
+        <div class="wrap-break-word font-medium">{title}</div>
+        <dl class="mt-3 grid gap-2 text-xs">
+          {#each detailRows as row (row.label)}
+            <div class="grid grid-cols-[minmax(0,1fr)_auto] gap-4">
+              <dt class="text-gray-300">{row.label}</dt>
+              <dd class="text-right whitespace-nowrap">{row.value}</dd>
+            </div>
+          {/each}
+        </dl>
+      </div>
+    </div>
   {/if}
 
-  <Popover
-    bind:this={morePopover}
-    placement="bottom-end"
-    fallbackPlacements={['bottom', 'left', 'top-end']}
-    yOffset={5}
+  <button
+    type="button"
+    class={`${actionButtonClasses} min-w-8 px-1.5 tracking-wider`}
+    aria-label={`More actions for ${title}`}
+    popovertarget={morePopoverId}
   >
-    {#snippet icon()}
-      <button
-        type="button"
-        class={`${actionButtonClasses} min-w-8 px-1.5 tracking-wider`}
-        aria-label={`More actions for ${title}`}>•••</button
-      >
-    {/snippet}
-    {#snippet content()}
-      <div class="inline-flex min-w-56 flex-col py-2">
-        <div class="max-w-72 truncate px-4 pb-2 text-xs font-medium">{title}</div>
-        {@render menuAction(faBookOpen, 'Read book', { href: resolve(getBookURL(bookCard.title)) })}
-        {@render menuAction(faChartLine, 'View statistics', {
-          href: resolve(getBookStatisticsURL(bookCard.title))
+    •••
+  </button>
+  <div
+    popover
+    id={morePopoverId}
+    class="book-actions-popover m-0 max-h-[calc(100vh-2rem)] max-w-[calc(100vw-2rem)] overflow-auto rounded-sm border-0 bg-[#333] p-0 text-sm font-bold text-white md:max-w-lg"
+    bind:this={morePopover}
+  >
+    <div data-book-actions class="inline-flex min-w-56 flex-col py-2">
+      <div class="max-w-72 truncate px-4 pb-2 text-xs font-medium">{title}</div>
+      {@render menuAction(faBookOpen, 'Read book', { href: resolve(getBookURL(bookCard.title)) })}
+      {@render menuAction(faChartLine, 'View statistics', {
+        href: resolve(getBookStatisticsURL(bookCard.title))
+      })}
+      {@render menuAction(faFlag, bookCard.completed ? 'Mark as in progress' : 'Mark as complete', {
+        onClick: () => oncomplete?.({ title: bookCard.title, completed: !bookCard.completed })
+      })}
+      {#if !bookCard.isPlaceholder}
+        {@render menuAction(faCircleInfo, 'Book details', {
+          onClick: () => detailsButton?.click()
         })}
-        {@render menuAction(
-          faFlag,
-          bookCard.completed ? 'Mark as in progress' : 'Mark as complete',
-          {
-            onClick: () => oncomplete?.({ title: bookCard.title, completed: !bookCard.completed })
-          }
-        )}
-        {#if !bookCard.isPlaceholder}
-          {@render menuAction(faCircleInfo, 'Book details', {
-            onClick: () => detailsPopover?.toggleOpen()
-          })}
-        {/if}
+      {/if}
 
-        {#if bookCard.isPlaceholder}
-          <hr class="mx-4 my-1 border-white/20" />
-          {@render menuAction(faDownload, 'Download to this device', {
-            onClick: () => ondownload?.({ title: bookCard.title })
-          })}
-        {/if}
-
+      {#if bookCard.isPlaceholder}
         <hr class="mx-4 my-1 border-white/20" />
-        {@render menuAction(faCalendarXmark, 'Delete statistics', {
-          onClick: () => ondeletestatistics?.({ title: bookCard.title })
+        {@render menuAction(faDownload, 'Download to this device', {
+          onClick: () => ondownload?.({ title: bookCard.title })
         })}
-        {@render menuAction(
-          faTrash,
-          'Remove from library',
-          { onClick: () => onremove?.({ title: bookCard.title }) },
-          true
-        )}
-      </div>
-    {/snippet}
-  </Popover>
+      {/if}
+
+      <hr class="mx-4 my-1 border-white/20" />
+      {@render menuAction(faCalendarXmark, 'Delete statistics', {
+        onClick: () => ondeletestatistics?.({ title: bookCard.title })
+      })}
+      {@render menuAction(
+        faTrash,
+        'Remove from library',
+        { onClick: () => onremove?.({ title: bookCard.title }) },
+        true
+      )}
+    </div>
+  </div>
 </div>
+
+<style>
+  .book-details-popover {
+    position-area: bottom span-right;
+    margin-block-start: 5px;
+    position-try-fallbacks:
+      flip-inline,
+      flip-block,
+      flip-block flip-inline;
+  }
+
+  .book-actions-popover {
+    position-area: bottom span-left;
+    margin-block-start: 5px;
+    position-try-fallbacks:
+      flip-inline,
+      flip-block,
+      flip-block flip-inline;
+  }
+</style>

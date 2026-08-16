@@ -73,7 +73,7 @@ test('mobile library selection and reader actions use labeled overflow menus', a
   await chooser.setFiles(resolve(import.meta.dirname, 'fixtures/books', 'valid-japanese.epub'));
 
   const title = fixtureTitle(VALID_BOOK);
-  await expect(page.getByText(title, { exact: true })).toBeVisible();
+  await expect(page.getByRole('link', { name: title, exact: true })).toBeVisible();
 
   const card = page.locator('article').filter({ hasText: title });
   const cardActions = card.locator('[data-book-card-actions]');
@@ -86,6 +86,10 @@ test('mobile library selection and reader actions use labeled overflow menus', a
   await card.getByRole('button', { name: `Details for ${title}` }).click();
   await expectElementToFitViewport(card.locator('[data-book-details]'), page);
   await card.getByRole('button', { name: `Details for ${title}` }).click();
+  await card.getByRole('button', { name: `More actions for ${title}` }).click();
+  await expectElementToFitViewport(card.locator('[data-book-actions]'), page);
+  await page.keyboard.press('Escape');
+  await expect(card.locator('[data-book-actions]')).toBeHidden();
 
   const libraryToolbar = page.getByRole('toolbar', { name: 'Library controls' });
   const libraryActions = libraryToolbar.locator('[data-mobile-actions]');
