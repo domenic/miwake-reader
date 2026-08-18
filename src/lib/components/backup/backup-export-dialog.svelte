@@ -69,9 +69,9 @@
   {/if}
 
   {#snippet actions()}
-    <DialogButton value="cancel" disabled={exporting}>Cancel</DialogButton>
+    <DialogButton behavior="close" disabled={exporting}>Cancel</DialogButton>
     <DialogButton
-      type="button"
+      behavior="action"
       disabled={exporting || isEmptySelection(selection)}
       onclick={submit}
     >

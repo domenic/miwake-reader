@@ -3,6 +3,7 @@ import type { Page } from '@playwright/test';
 import {
   expectBookReaderText,
   importBookFixtures,
+  longBookChapterStartCharacter,
   LONG_BOOK,
   openBookFromManage
 } from '../helpers/fixtures.ts';
@@ -153,6 +154,25 @@ test('reader shortcuts are ignored while the jump dialog is open', async ({ page
   await dialog.getByRole('button', { name: 'Cancel' }).click();
 
   await expect(header.getByRole('button', { name: 'Return to Bookmark' })).toHaveCount(0);
+});
+
+test('pressing Enter in the jump dialog jumps to the entered character', async ({ page }) => {
+  await useContinuousReader(page);
+  await importBookFixtures(page, [LONG_BOOK]);
+  await openBookFromManage(page, LONG_BOOK);
+  await expectBookReaderText(page, LONG_BOOK);
+
+  const initialScrollY = await scrollY(page);
+  const header = await showReaderHeader(page);
+  await header.getByRole('button', { name: 'Jump' }).click();
+
+  const dialog = page.getByRole('dialog', { name: 'Jump to character' });
+  const characterPosition = dialog.getByLabel('Character position');
+  await characterPosition.fill(String(longBookChapterStartCharacter(4)));
+  await characterPosition.press('Enter');
+
+  await expect(dialog).toHaveCount(0);
+  await expect.poll(() => scrollY(page)).toBeGreaterThan(initialScrollY + 1_000);
 });
 
 test('continuous reader tracker toggle shortcut pauses and resumes tracking', async ({ page }) => {

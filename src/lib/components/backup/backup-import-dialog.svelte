@@ -156,14 +156,14 @@
 
   {#snippet actions()}
     {#if stage.kind === 'select'}
-      <DialogButton value="cancel">Cancel</DialogButton>
-      <DialogButton type="button" disabled={isEmptySelection(selection)} onclick={submit}
+      <DialogButton behavior="close">Cancel</DialogButton>
+      <DialogButton behavior="action" disabled={isEmptySelection(selection)} onclick={submit}
         >Import</DialogButton
       >
     {:else if stage.kind === 'done'}
-      <DialogButton value="done">Close</DialogButton>
+      <DialogButton behavior="submit">Close</DialogButton>
     {:else}
-      <DialogButton value="cancel">Cancel</DialogButton>
+      <DialogButton behavior="close">Cancel</DialogButton>
     {/if}
   {/snippet}
 </DialogContentShell>

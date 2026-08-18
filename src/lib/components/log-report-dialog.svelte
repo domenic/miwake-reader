@@ -233,6 +233,6 @@
       rel="noreferrer">Open Issue Tracker</a
     >
     <a use:ripple class={buttonClasses} href={downloadableLog} download="log.json">Download Logs</a>
-    <DialogButton value="close">Close</DialogButton>
+    <DialogButton behavior="submit">Close</DialogButton>
   {/snippet}
 </DialogContentShell>

@@ -110,7 +110,7 @@
         <Fa icon={faCircleCheck} />
         Currently signed in with these credentials
       </span>
-      <DialogButton value="revert-to-default" formnovalidate>Use default OAuth app</DialogButton>
+      <DialogButton behavior="close" value="revert-to-default">Use default OAuth app</DialogButton>
     </div>
   {:else}
     <p class="mb-3">
@@ -164,16 +164,20 @@
 
   {#snippet secondaryActions()}
     {#if hasStoredCredentials}
-      <DialogButton value="clear" danger formnovalidate>Forget custom credentials</DialogButton>
+      <DialogButton behavior="close" value="clear" danger>Forget custom credentials</DialogButton>
     {/if}
   {/snippet}
 
   {#snippet actions()}
-    <DialogButton value="cancel" formnovalidate>Cancel</DialogButton>
+    <DialogButton behavior="close">Cancel</DialogButton>
     {#if isActive}
-      <DialogButton value="save-no-activate" disabled={!canSave}>Save changes</DialogButton>
+      <DialogButton behavior="submit" value="save-no-activate" disabled={!canSave}
+        >Save changes</DialogButton
+      >
     {:else}
-      <DialogButton value="save" disabled={!canSave}>Save and connect</DialogButton>
+      <DialogButton behavior="submit" value="save" disabled={!canSave}
+        >Save and connect</DialogButton
+      >
     {/if}
   {/snippet}
 </DialogContentShell>

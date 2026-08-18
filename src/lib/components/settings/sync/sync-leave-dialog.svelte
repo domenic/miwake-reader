@@ -156,8 +156,8 @@
   {/if}
 
   {#snippet actions()}
-    <DialogButton value="cancel">Cancel</DialogButton>
-    <DialogButton value="confirm" danger={clearLibrary}>
+    <DialogButton behavior="close">Cancel</DialogButton>
+    <DialogButton behavior="submit" value="confirm" danger={clearLibrary}>
       {confirmLabel}{clearLibrary ? ' and wipe' : ''}
     </DialogButton>
   {/snippet}
