@@ -41,6 +41,6 @@
   {/if}
 
   {#snippet actions()}
-    <DialogButton value="close">OK</DialogButton>
+    <DialogButton behavior="submit">OK</DialogButton>
   {/snippet}
 </DialogContentShell>

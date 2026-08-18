@@ -60,7 +60,7 @@
   {/if}
 
   {#snippet actions()}
-    <DialogButton value="cancel">{cancelLabel}</DialogButton>
-    <DialogButton value="confirm" {danger}>{confirmLabel}</DialogButton>
+    <DialogButton behavior="close">{cancelLabel}</DialogButton>
+    <DialogButton behavior="submit" value="confirm" {danger}>{confirmLabel}</DialogButton>
   {/snippet}
 </DialogContentShell>

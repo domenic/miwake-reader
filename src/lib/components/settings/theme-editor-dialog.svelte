@@ -201,8 +201,7 @@
 <DialogContentShell
   title={isEditMode ? 'Edit theme' : 'Create theme'}
   onsubmit={(e) => {
-    const submitter = e.submitter as HTMLButtonElement | null;
-    if (submitter?.value === 'confirm' && !validateAndSave()) {
+    if (!validateAndSave()) {
       e.preventDefault();
     }
   }}
@@ -346,8 +345,8 @@
   </div>
 
   {#snippet actions()}
-    <DialogButton value="cancel" formnovalidate>Cancel</DialogButton>
-    <DialogButton value="confirm">Save theme</DialogButton>
+    <DialogButton behavior="close">Cancel</DialogButton>
+    <DialogButton behavior="submit">Save theme</DialogButton>
   {/snippet}
 </DialogContentShell>
 

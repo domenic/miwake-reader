@@ -96,7 +96,7 @@
   </div>
 
   {#snippet actions()}
-    <DialogButton value="cancel">Cancel</DialogButton>
-    <DialogButton value="confirm">{confirmLabel}</DialogButton>
+    <DialogButton behavior="close">Cancel</DialogButton>
+    <DialogButton behavior="submit" value="confirm">{confirmLabel}</DialogButton>
   {/snippet}
 </DialogContentShell>

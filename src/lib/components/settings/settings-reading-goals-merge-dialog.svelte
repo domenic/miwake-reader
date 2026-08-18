@@ -509,7 +509,9 @@
   {/if}
 
   {#snippet actions()}
-    <DialogButton value="cancel" disabled={isLoading}>Cancel</DialogButton>
-    <DialogButton value="confirm" disabled={isLoading || !!error}>Confirm</DialogButton>
+    <DialogButton behavior="close" disabled={isLoading}>Cancel</DialogButton>
+    <DialogButton behavior="submit" value="confirm" disabled={isLoading || !!error}
+      >Confirm</DialogButton
+    >
   {/snippet}
 </DialogContentShell>

@@ -60,7 +60,7 @@
   </label>
 
   {#snippet actions()}
-    <DialogButton value="cancel" formnovalidate>Cancel</DialogButton>
-    <DialogButton value="confirm">{actionLabel}</DialogButton>
+    <DialogButton behavior="close">Cancel</DialogButton>
+    <DialogButton behavior="submit" value="confirm">{actionLabel}</DialogButton>
   {/snippet}
 </DialogContentShell>
