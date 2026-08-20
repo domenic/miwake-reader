@@ -163,6 +163,18 @@
 
   let columnCount = $derived(verticalMode ? 1 : pageColumns || Math.ceil(width / 1000));
 
+  let illustrationLayoutKey = $derived(
+    [
+      verticalMode,
+      columnCount,
+      fontSize,
+      lineHeight,
+      textMarginMode,
+      textMarginValue,
+      prioritizeReaderStyles
+    ].join(':')
+  );
+
   // Extra width so the overflow:hidden padding box extends beyond the content,
   // giving furigana room on the right edge in vertical-rl mode.
   let furiganaExtra = $derived(verticalMode ? 10 : 0);
@@ -259,12 +271,16 @@
 
   // On content display change
   $effect(() => {
-    if (calculator && width && height && !loadingState) {
-      const currentCalculator = calculator;
-      requestAnimationFrame(() => {
-        onContentDisplayChange(currentCalculator);
-      });
-    }
+    const currentIllustrationLayoutKey = illustrationLayoutKey;
+    if (!calculator || !width || !height || loadingState) return undefined;
+
+    const currentCalculator = calculator;
+    const animationFrame = requestAnimationFrame(() => {
+      if (currentIllustrationLayoutKey !== illustrationLayoutKey) return;
+      onContentDisplayChange(currentCalculator);
+    });
+
+    return () => cancelAnimationFrame(animationFrame);
   });
 
   // React to customReadingPointRange changes
@@ -500,6 +516,7 @@
   }
 
   function onContentDisplayChange(_calculator: SectionCharacterStatsCalculator) {
+    updateIllustrationLimits();
     _calculator.updateParagraphPos();
     exploredCharCount = _calculator.calcExploredCharCount(customReadingPointRange);
     const section = sections[readerState.sectionIndex];
@@ -517,6 +534,61 @@
       bookmarkData.then(updateBookmarkScreen);
     }
     allowDisplay = true;
+  }
+
+  function updateIllustrationLimits() {
+    if (!contentEl) return;
+
+    const pageSize = {
+      height,
+      width: verticalMode ? width : (width + gap) / columnCount - gap
+    };
+
+    for (const container of contentEl.querySelectorAll<HTMLElement>(
+      '.ttu-illustration-container'
+    )) {
+      const containerContentSize = constrainElement(container, pageSize);
+      for (const media of container.querySelectorAll<HTMLElement | SVGElement>('img, svg')) {
+        constrainElement(media, containerContentSize);
+      }
+    }
+  }
+
+  function constrainElement(
+    element: HTMLElement | SVGElement,
+    available: { height: number; width: number }
+  ) {
+    const style = getComputedStyle(element);
+    const borderBox = {
+      height: remainingSpace(available.height, style.marginTop, style.marginBottom),
+      width: remainingSpace(available.width, style.marginLeft, style.marginRight)
+    };
+    element.style.setProperty('max-height', `${borderBox.height}px`, 'important');
+    element.style.setProperty('max-width', `${borderBox.width}px`, 'important');
+
+    return {
+      height: remainingSpace(
+        borderBox.height,
+        style.borderTopWidth,
+        style.borderBottomWidth,
+        style.paddingTop,
+        style.paddingBottom
+      ),
+      width: remainingSpace(
+        borderBox.width,
+        style.borderLeftWidth,
+        style.borderRightWidth,
+        style.paddingLeft,
+        style.paddingRight
+      )
+    };
+  }
+
+  function remainingSpace(size: number, ...spacing: string[]) {
+    return Math.max(
+      0,
+      size - spacing.reduce((total, value) => total + Math.max(0, Number.parseFloat(value) || 0), 0)
+    );
   }
 
   function updateBookmarkScreen(data: BooksDbBookmarkData | undefined) {
@@ -700,9 +772,12 @@
     column-fill: auto;
     height: var(--book-content-child-height, 95vh);
 
-    :global(.ttu-illustration-container) {
-      max-width: var(--book-content-image-max-width, 95vh) !important;
-      max-height: var(--book-content-child-height, 95vh) !important;
+    :global(.ttu-illustration-container),
+    :global(.ttu-illustration-container img),
+    :global(.ttu-illustration-container svg) {
+      box-sizing: border-box !important;
+      min-width: 0 !important;
+      min-height: 0 !important;
     }
   }
 
