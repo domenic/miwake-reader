@@ -38,8 +38,8 @@ test('book data loading formats reader images and keeps spoiler gallery state in
   await expect(readerSpoilerWrapper(page, SPOILER_ONE_ALT)).toHaveCount(1);
   await expect(readerSpoilerWrapper(page, SPOILER_ONE_DUPLICATE_ALT)).toHaveCount(1);
   await expect(readerSpoilerWrapper(page, SPOILER_TWO_ALT)).toHaveCount(1);
-  await expect(page.locator('.book-content .ttu-img-container')).toHaveCount(5);
-  await expect(page.locator('.book-content .ttu-illustration-container')).toHaveCount(4);
+  await expect(page.locator('.book-content .ttu-img-container')).toHaveCount(6);
+  await expect(page.locator('.book-content .ttu-illustration-container')).toHaveCount(5);
 
   await openImageGallery(page);
 

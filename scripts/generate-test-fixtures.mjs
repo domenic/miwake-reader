@@ -135,6 +135,7 @@ await writeOut(
     language: 'en',
     images: {
       'images/portrait-illustration.bmp': bitmapBytes({ red: 45, green: 95, blue: 210 }, 87, 128),
+      'images/landscape-illustration.bmp': bitmapBytes({ red: 210, green: 95, blue: 45 }, 128, 87),
       'images/inline-glyph.bmp': bitmapBytes({ red: 65, green: 165, blue: 80 }, 16, 16)
     },
     chapters: [
@@ -151,7 +152,58 @@ await writeOut(
       alt="Oversized portrait illustration"
       style="width: 43.5em; height: 64em"
     />
-  </figure>`
+  </figure>
+  <p style="padding: 1em; margin: 1em">
+    <img
+      src="images/portrait-illustration.bmp"
+      alt="Small padded illustration"
+      style="width: 2em; height: 2em"
+    />
+  </p>`
+      },
+      {
+        title: 'Padded illustration',
+        bodyHTML: `
+  <p style="padding-top: 5em; text-indent: -5em; margin: 1em 0.9375em">
+    &#x3000;&#x3000;&#x3000;&#x3000;&#x3000;&#x3000;<img
+      src="images/portrait-illustration.bmp"
+      alt="Padded portrait illustration"
+      style="width: 21.6875em; height: 45em"
+    />
+  </p>
+  <p id="following-text">Following text must not be covered by the illustration.</p>`
+      },
+      {
+        title: 'Padded SVG illustration',
+        bodyHTML: `
+  <p style="padding-top: 5em; text-indent: -5em; margin: 1em 0.9375em">
+    &#x3000;&#x3000;&#x3000;&#x3000;&#x3000;&#x3000;<svg
+      role="img"
+      aria-label="Padded SVG illustration"
+      viewBox="0 0 87 128"
+      style="width: 21.6875em; height: 45em"
+    >
+      <rect width="87" height="128" fill="#2d5fd2" />
+    </svg>
+  </p>
+  <p id="following-svg-text">Following text must not be covered by the SVG illustration.</p>`
+      },
+      {
+        title: 'Nested fixed-layout illustration',
+        includeHeading: false,
+        bodyHTML: `
+  <div>
+    <span style="writing-mode: horizontal-tb; vertical-align: middle; width: 100%"></span>
+    <div style="display: inline-block; height: 100%; vertical-align: middle">
+      <div style="display: block; break-inside: avoid">
+        <img
+          src="images/landscape-illustration.bmp"
+          alt="Nested fixed-layout illustration"
+          style="width: 120em; height: 94.8125em"
+        />
+      </div>
+    </div>
+  </div>`
       }
     ]
   })
@@ -304,14 +356,15 @@ ${items}
 
 function chapterXHTML(chapter, language) {
   const bodyContent = chapter.bodyHTML ?? `  <p>${escapeXML(chapter.body)}</p>`;
+  const heading =
+    chapter.includeHeading === false ? '' : `  <h1>${escapeXML(chapter.title)}</h1>\n`;
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE html>
 <html xmlns="http://www.w3.org/1999/xhtml" xml:lang="${escapeXML(language)}" lang="${escapeXML(language)}">
 <head><title>${escapeXML(chapter.title)}</title></head>
 <body>
-  <h1>${escapeXML(chapter.title)}</h1>
-${bodyContent}
+${heading}${bodyContent}
 </body>
 </html>
 `;

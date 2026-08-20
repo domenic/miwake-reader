@@ -139,13 +139,13 @@ function isGalleryInlineImage(imageElement: Element) {
 }
 
 function addImageContainerClass(el: HTMLElement) {
-  for (const imgEl of el.getElementsByTagName('img')) {
-    const parentEl = imgEl.parentElement;
+  for (const mediaEl of el.querySelectorAll('img, svg')) {
+    const parentEl = mediaEl.parentElement;
     if (!parentEl) continue;
 
     parentEl.classList.add('ttu-img-container');
 
-    if (!isImageInline(imgEl)) {
+    if (!isImageInline(mediaEl)) {
       parentEl.classList.add('ttu-illustration-container');
     }
   }
