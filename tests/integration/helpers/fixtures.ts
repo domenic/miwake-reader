@@ -1,6 +1,7 @@
 import { resolve } from 'node:path';
-import { expect, type Page } from '@playwright/test';
+import type { Page } from '@playwright/test';
 import {
+  expect,
   listSyncRoot,
   listRemoveEntryLog,
   overwriteSyncRootFile,

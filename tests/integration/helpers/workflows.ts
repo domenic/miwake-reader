@@ -1,5 +1,6 @@
-import { expect, type Page } from '@playwright/test';
+import type { Page } from '@playwright/test';
 import {
+  expect,
   listSyncRoot,
   pickSyncRootOnNextPicker,
   SYNC_ASSERTION_TIMEOUT,

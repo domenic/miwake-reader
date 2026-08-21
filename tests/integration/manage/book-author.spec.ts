@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from '../helpers/harness.ts';
 import { fixtureTitle, importBookFixtures, VALID_BOOK } from '../helpers/fixtures.ts';
 
 test('import preserves EPUB creator metadata on the book record', async ({ page }) => {
