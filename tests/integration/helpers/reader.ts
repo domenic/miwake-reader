@@ -1,5 +1,5 @@
-import { expect, type Page } from '@playwright/test';
-import { SYNC_ASSERTION_TIMEOUT } from './harness.ts';
+import type { Page } from '@playwright/test';
+import { expect, SYNC_ASSERTION_TIMEOUT } from './harness.ts';
 
 export async function showReaderHeader(page: Page) {
   const header = readerHeader(page);

@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from '../helpers/harness.ts';
 import {
   EDITION_TITLE_BOOK,
   fixtureDisplayTitle,

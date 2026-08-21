@@ -93,6 +93,24 @@ export default tseslint.config(
     }
   },
   {
+    files: ['tests/integration/**/*.ts'],
+    ignores: ['tests/integration/helpers/harness.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: '@playwright/test',
+              importNames: ['expect', 'test'],
+              message: 'Import test and expect from the integration test harness instead.'
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
     files: ['**/*.cjs'],
     languageOptions: {
       sourceType: 'commonjs'

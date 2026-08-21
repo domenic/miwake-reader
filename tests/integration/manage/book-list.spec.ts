@@ -1,4 +1,4 @@
-import { expect, type Page, test } from '@playwright/test';
+import type { Page } from '@playwright/test';
 import {
   bookmarkFixturePartway,
   COVER_REFRESH_BOOK,
@@ -11,6 +11,7 @@ import {
   VALID_BOOK,
   type LibraryBookFixture
 } from '../helpers/fixtures.ts';
+import { expect, test } from '../helpers/harness.ts';
 import { navigateToManage } from '../helpers/navigation.ts';
 
 test('manager derives card progress and sort order from library state', async ({ page }) => {
