@@ -10,7 +10,9 @@ Hosted on <https://reader.miwake.app/>.
 
 ### Refreshed interface
 
-- All top-bar menus have been redesigned to no longer just be cryptic icons, but instead be labeled and grouped.
+- All menus have been redesigned to no longer just be cryptic icons, but instead be labeled and grouped.
+- The library has been redesigned to keep cover art, authors, and reading progress prominent, with clearer actions for individual books and bulk selections.
+- On mobile, the top bars use compact layouts and the app's main sections move to a fixed bottom navigation bar.
 - Dialogs, menus, and sidebars throughout the app have been rebuilt using native browser primitives, making them more consistent and behaviorally reasonable. For example, the <kbd>Esc</kbd> key always closes them.
 - The Settings page's old "Data" tab has been replaced with a "Sync" tab that gathers sync location, backup, and advanced options into one place.
 - A new theme editor makes it easier to customize your reading colors, with live preview.
@@ -19,12 +21,10 @@ Hosted on <https://reader.miwake.app/>.
 - The statistics title filter sidebar has been redesigned for clarity.
 - A welcome screen introduces new users to the app.
 
-_Note: the refreshed interface, especially the top bars, has not yet been adapted for mobile: track progress in [issue #15](https://github.com/domenic/miwake-reader/issues/15)._
-
 ### Book content presentation fixes
 
 - Images preserve both their role and proportions: inline fractions, symbols, and decorative glyphs stay in text flow and out of the image gallery, while oversized illustrations fit within the viewport without distortion.
-- The "after table of contents" spoiler mode no longer hides cover pages in books with no table of contents.
+- Image spoiler blurring is now off by default, and the "after table of contents" mode no longer hides cover pages in books with no table of contents.
 - Section-break margins in EPUBs are now preserved correctly in vertical writing mode.
 - Furigana on the rightmost line of text is no longer clipped in vertical paginated mode.
 
@@ -40,9 +40,11 @@ The sync system has been rebuilt around a single-destination model. From the new
 
 ### Other improvements
 
-- Books in the book manager show improved progress bars.
 - Furigana display settings have been simplified and combined.
+- Book titles are simplified by default to hide recognized edition, imprint, and bundled-content suffixes, with a setting to show the full stored titles.
 - Settings and statistics sub-pages now have their own individual URLs.
+- Book URLs are the same across multiple synced computers.
+- Links throughout the app are now able to be opened in new tabs, right-clicked, etc.
 - Books are always referred to as books, instead of sometimes as books and sometimes as "titles".
 
 ### Bug fixes
@@ -53,6 +55,7 @@ The sync system has been rebuilt around a single-destination model. From the new
 
 ### Under the hood
 
+- Added an integration test suite so that functionality stays functional and bugs stay fixed.
 - Upgraded to Svelte 5, Tailwind CSS v4, TypeScript v6, and other modern tooling.
 - Removed unfinished audiobook and subtitle features that were never completed upstream.
 - Added a [privacy policy](https://reader.miwake.app/privacy) and [terms of service](https://reader.miwake.app/terms).
