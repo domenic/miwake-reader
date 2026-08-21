@@ -13,12 +13,16 @@ import { enableStatistics } from '../helpers/workflows.ts';
 import { EARLIER_STAT_DATE, LATER_STAT_DATE, openStatisticsFilter } from './helpers.ts';
 
 test('statistics header and settings actions operate on loaded statistics', async ({
+  browserName,
   context,
   page
 }, testInfo) => {
   const exportPath = testInfo.outputPath('statistics-export.zip');
 
-  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+  // Firefox does not expose these permissions through Playwright; Chromium headless requires them.
+  if (browserName === 'chromium') {
+    await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+  }
   await page.clock.install({ time: new Date(`${EARLIER_STAT_DATE}T11:59:00Z`) });
   await enableStatistics(page);
   await importBookFixtures(page, [LONG_BOOK, VALID_BOOK]);

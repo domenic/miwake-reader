@@ -24,12 +24,7 @@ test('continuous reader lets users set and show a custom reading point', async (
   await page.keyboard.press('t');
   await expect(page.locator('body')).toHaveClass(/cursor-crosshair/);
 
-  const bookContentBox = await page.locator('.book-content').boundingBox();
-  if (!bookContentBox) throw new Error('Expected book content to have a bounding box');
-  await page.mouse.click(
-    bookContentBox.x + bookContentBox.width / 2,
-    bookContentBox.y + bookContentBox.height / 2
-  );
+  await page.locator('.book-content').click();
   await expect(page.locator('body')).not.toHaveClass(/cursor-crosshair/);
 
   const updatedHeader = await showReaderHeader(page);

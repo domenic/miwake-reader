@@ -13,6 +13,24 @@ const localServerURL =
 export default defineConfig({
   testDir: 'tests/integration',
   forbidOnly: isCI,
+  projects: [
+    { name: 'chromium', use: { browserName: 'chromium' } },
+    {
+      name: 'firefox',
+      // Heavy parallel OPFS activity intermittently fails with "Entry not found" in Firefox.
+      workers: 2,
+      use: {
+        browserName: 'firefox',
+        launchOptions: {
+          firefoxUserPrefs: {
+            // Resolve the native persistence prompt without replacing `navigator.storage.persist()`.
+            'dom.storageManager.prompt.testing': true,
+            'dom.storageManager.prompt.testing.allow': false
+          }
+        }
+      }
+    }
+  ],
   retries: isCI ? 2 : 0,
   outputDir: 'tests/integration/test-results',
   reporter: isCI
