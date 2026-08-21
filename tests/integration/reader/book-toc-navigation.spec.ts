@@ -79,7 +79,10 @@ test('continuous reader updates chapter progress after scrolling', async ({ page
   await openBookFromManage(page, LONG_BOOK);
   await expectBookReaderText(page, LONG_BOOK);
 
-  await page.mouse.wheel(0, 2_000);
+  // Firefox caps each synthetic wheel event to one viewport, so use smaller user-sized deltas.
+  for (let i = 0; i < 4; ++i) {
+    await page.mouse.wheel(0, 500);
+  }
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
   await expectFooterChapterProgress(page, { charactersRead: 8, percentage: 80.59 });
 });
