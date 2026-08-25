@@ -17,6 +17,7 @@ test('mobile section headers keep labeled controls visible and expose overflow a
   await expectVisibleControls(libraryActions, libraryActionLabels);
   await expectControlsToHaveEqualWidths(libraryActions, libraryActionLabels);
   await expectToolbarToFitViewport(libraryActions, page);
+  await expectMenuIndicators(libraryActions, ['Import', 'Sort']);
 
   let navigation = page.getByRole('navigation', { name: 'Primary navigation' });
   await expectVisibleControls(navigation, ['Statistics', 'Settings', 'Manager']);
@@ -52,6 +53,7 @@ test('mobile section headers keep labeled controls visible and expose overflow a
     'More'
   ]);
   await expectToolbarToFitViewport(statisticsActions, page);
+  await expectMenuIndicators(statisticsActions, ['More']);
 
   await visibleControl(statisticsToolbar, 'More').click();
   await expect(visibleControl(statisticsToolbar, 'Copy Reading Time')).toBeVisible();
@@ -98,6 +100,7 @@ test('mobile library selection and reader actions use labeled overflow menus', a
   await expectVisibleControls(libraryActions, ['Select', 'Clear All', 'Actions']);
   await expectControlsToHaveEqualWidths(libraryActions, ['Select', 'Clear All', 'Actions']);
   await expectToolbarToFitViewport(libraryActions, page);
+  await expectMenuIndicators(libraryActions, ['Actions']);
 
   await visibleControl(libraryActions, 'Actions').click();
   await expect(visibleControl(libraryToolbar, 'View Statistics')).toBeVisible();
@@ -118,6 +121,7 @@ test('mobile library selection and reader actions use labeled overflow menus', a
   await expectVisibleControls(readerActions, ['TOC', 'Bookmark', 'More']);
   await expectControlsToHaveEqualWidths(readerActions, ['TOC', 'Bookmark', 'More']);
   await expectToolbarToFitViewport(readerActions, page);
+  await expectMenuIndicators(readerActions, ['More']);
 
   const navigationBar = page.locator('[data-mobile-navigation]');
   await visibleControl(readerActions, 'Bookmark').click();
@@ -183,6 +187,14 @@ async function expectControlsToHaveEqualWidths(toolbar: Locator, labels: string[
     )
   );
   expect(Math.max(...widths) - Math.min(...widths)).toBeLessThanOrEqual(1);
+}
+
+async function expectMenuIndicators(toolbar: Locator, labels: string[]) {
+  for (const label of labels) {
+    const indicator = visibleControl(toolbar, label).locator('[data-menu-indicator]');
+    await expect(indicator).toBeVisible();
+    await expect(indicator).toHaveText('▾');
+  }
 }
 
 function visibleControl(toolbar: Locator, label: string) {

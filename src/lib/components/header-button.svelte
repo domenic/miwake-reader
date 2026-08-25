@@ -18,6 +18,7 @@
     label: string;
     /** Replaces `label` below the `md` breakpoint, where horizontal space is scarce. */
     mobileLabel?: string;
+    menuIndicator?: boolean;
     title?: string;
     selected?: boolean;
     fill?: boolean;
@@ -55,6 +56,7 @@
     faIcon,
     label,
     mobileLabel,
+    menuIndicator = false,
     title,
     disabled = false,
     selected = false,
@@ -111,10 +113,16 @@
 
   {#if label}
     {#if mobileLabel !== undefined && mobileLabel !== label}
-      <span class="md:hidden">{mobileLabel}</span>
-      <span class="hidden md:inline">{label}</span>
+      <span class="md:hidden">
+        {mobileLabel}{#if menuIndicator}<span aria-hidden="true" data-menu-indicator> ▾</span>{/if}
+      </span>
+      <span class="hidden md:inline">
+        {label}{#if menuIndicator}<span aria-hidden="true" data-menu-indicator> ▾</span>{/if}
+      </span>
     {:else}
-      <span>{label}</span>
+      <span>
+        {label}{#if menuIndicator}<span aria-hidden="true" data-menu-indicator> ▾</span>{/if}
+      </span>
     {/if}
   {/if}
 {/snippet}
