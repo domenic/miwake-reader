@@ -58,8 +58,8 @@
   {faIcon}
   {title}
   {fill}
-  label={`${label} ▾`}
-  mobileLabel={label}
+  {label}
+  menuIndicator
   popoverTarget={popoverId}
   icon={iconSnippet}
 />
