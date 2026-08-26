@@ -38,6 +38,15 @@ test('statistics header and settings actions operate on loaded statistics', asyn
 
   const filter = await openStatisticsFilter(page);
   await expect(filter.getByText(fixtureTitle(LONG_BOOK), { exact: true })).toBeVisible();
+
+  const selectAll = filter.locator('thead input[type="checkbox"]');
+  await filter
+    .locator('tbody tr')
+    .filter({ hasText: fixtureTitle(LONG_BOOK) })
+    .getByRole('checkbox')
+    .uncheck();
+  await expect(selectAll).toHaveJSProperty('indeterminate', true);
+
   await filter
     .locator('label')
     .filter({ hasText: 'Only show books with statistics in the target date range' })

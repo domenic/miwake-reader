@@ -68,11 +68,10 @@
   let cancelTooltip = $state('');
   let fileCountData = $state<Record<string, number>>();
 
-  $effect(() => {
-    if (!selectMode) {
-      selectedBookTitles = new Set();
-    }
-  });
+  function updateSelectMode(nextSelectMode: boolean) {
+    selectMode = nextSelectMode;
+    if (!nextSelectMode) selectedBookTitles = new Set();
+  }
 
   // One comparator per sort-menu entry; adding a menu entry without
   // deciding its comparator is a type error.
@@ -287,7 +286,7 @@
           if (!stillPresent.has(title)) set.delete(title);
         });
       });
-      if (selectedBookTitles.size === 0) selectMode = false;
+      if (selectedBookTitles.size === 0) updateSelectMode(false);
     }
   }
 
@@ -371,7 +370,7 @@
     replicationProgressRemaining={replicationProgressState.remaining}
     {cancelTooltip}
     bind:fileCountData
-    bind:selectMode
+    bind:selectMode={() => selectMode, updateSelectMode}
     statisticsHref={selectedStatisticsHref}
     onselectAllClick={onToggleAllBooks}
     oncompletionChange={setSelectedBooksCompleted}

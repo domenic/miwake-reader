@@ -20,7 +20,6 @@
   }: Props = $props();
 
   let titleFilter = $state('');
-  let headerCheckbox = $state<HTMLInputElement>();
 
   let visibleTitles = $derived(
     [...statisticsTitleFilters.keys()].filter(
@@ -34,12 +33,6 @@
     visibleTitles.length > 0 && visibleTitles.every((title) => statisticsTitleFilters.get(title))
   );
   let noneSelected = $derived(visibleTitles.every((title) => !statisticsTitleFilters.get(title)));
-
-  $effect(() => {
-    if (headerCheckbox) {
-      headerCheckbox.indeterminate = !allSelected && !noneSelected;
-    }
-  });
 
   function setAllVisibleTitlesSelected(isSelected: boolean) {
     ontitlefiltertoggleall(visibleTitles, isSelected);
@@ -69,8 +62,8 @@
               <input
                 type="checkbox"
                 bind:checked={() => allSelected, setAllVisibleTitlesSelected}
+                indeterminate={!allSelected && !noneSelected}
                 title={allSelected ? 'Deselect all' : 'Select all'}
-                bind:this={headerCheckbox}
               />
             </th>
             <th class="py-2 text-left font-semibold">Book</th>

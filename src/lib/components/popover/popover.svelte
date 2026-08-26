@@ -1,6 +1,5 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
-  import { browser } from '$app/environment';
   import { popovers } from '$lib/components/popover/popover';
   import { clickOutside } from '$lib/functions/use-click-outside';
   import type { Instance, Placement } from '@popperjs/core';
@@ -60,15 +59,9 @@
   let iconElement = $state<HTMLElement>();
   let popoverElement = $state<HTMLElement>();
 
-  let id: symbol;
+  const id = Symbol('popover');
   let instance: Instance;
   let isOpen = $state(false);
-
-  $effect(() => {
-    if (browser) {
-      id = Symbol('popover');
-    }
-  });
 
   $effect(() => {
     if (isOpen && singlePopover && !$popovers.includes(id)) {

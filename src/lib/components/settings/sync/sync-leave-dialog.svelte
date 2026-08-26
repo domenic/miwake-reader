@@ -114,9 +114,10 @@
     return `${subject} that live only at ${leavingLabel} drop from your library here. Reconnect ${leavingLabel} later to get them back.`;
   });
 
-  $effect(() => {
-    captureClearLibrary(clearLibrary);
-  });
+  function updateClearLibrary(nextClearLibrary: boolean) {
+    clearLibrary = nextClearLibrary;
+    captureClearLibrary(nextClearLibrary);
+  }
 </script>
 
 <DialogContentShell {title} description={`${bodyText} ${sourceUntouched}`}>
@@ -139,7 +140,7 @@
 
     {#if downloadedCount > 0}
       <label class="mt-4 flex items-start gap-3 rounded hover:bg-gray-400/15">
-        <input type="checkbox" class="mt-1" bind:checked={clearLibrary} />
+        <input type="checkbox" class="mt-1" bind:checked={() => clearLibrary, updateClearLibrary} />
         <div>
           <div class="font-medium">
             Also wipe my library on this device ({plural(downloadedCount, 'book', 'books')})

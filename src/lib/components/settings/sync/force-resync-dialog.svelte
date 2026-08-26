@@ -72,9 +72,10 @@
     direction === 'newest' ? 'Reconcile' : direction === 'local-wins' ? 'Push over' : 'Pull over'
   );
 
-  $effect(() => {
-    captureDirection(direction);
-  });
+  function updateDirection(nextDirection: ForceResyncDirection) {
+    direction = nextDirection;
+    captureDirection(nextDirection);
+  }
 </script>
 
 <DialogContentShell
@@ -87,7 +88,7 @@
       name="force-resync-direction"
       {options}
       selected={direction}
-      onchange={(value) => (direction = value)}
+      onchange={updateDirection}
     />
     <p class="text-xs text-gray-600">
       Reading statistics and reading goals also respect the merge-mode settings in Advanced, which
