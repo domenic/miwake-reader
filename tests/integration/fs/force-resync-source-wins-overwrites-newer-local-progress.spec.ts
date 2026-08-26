@@ -3,6 +3,7 @@ import {
   bookmarkFixturePartway,
   bookProgressBar,
   expectBookPartwayProgress,
+  expectBookProgressInSyncRoot,
   expectBooksInManage,
   LONG_BOOK,
   openBookFromManage
@@ -21,7 +22,7 @@ test('force re-sync with "Sync location wins" overwrites newer local progress', 
   await page.clock.install({ time: new Date('2026-05-01T12:00:00Z') });
   await syncBookFixturesToSource(page, [LONG_BOOK]);
   await bookmarkFixturePartway(page, LONG_BOOK);
-  await page.clock.runFor(1_000);
+  await expectBookProgressInSyncRoot(page, LONG_BOOK, { completed: false, percentage: 38 });
   await waitForSuccessfulSync(page);
   await expectBooksInManage(page, { placeholders: [], downloaded: [LONG_BOOK] });
   await expectBookPartwayProgress(page, LONG_BOOK);

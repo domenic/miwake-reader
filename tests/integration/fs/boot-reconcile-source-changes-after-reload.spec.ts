@@ -2,6 +2,7 @@ import { copySyncRoot, expect, test } from '../helpers/harness.ts';
 import {
   bookProgressBar,
   deleteBookFromManage,
+  expectBookProgressInSyncRoot,
   expectBooksInManage,
   importBookFixtures,
   LONG_BOOK,
@@ -30,7 +31,7 @@ test('boot reconcile picks up another context adding, completing, and deleting b
 
   await openBookFromManage(page, VALID_BOOK);
   await completeCurrentBook(page);
-  await expect(page.getByRole('button', { name: /^(Sync pending|Syncing)/ })).toBeVisible();
+  await expectBookProgressInSyncRoot(page, VALID_BOOK, { completed: true, percentage: 0 });
   await waitForSyncIdle(page);
   await copySyncRoot(page, observer.page);
   await observer.page.reload();

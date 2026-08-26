@@ -69,6 +69,11 @@ interface StatisticRowExpectation {
   dateKey: string;
 }
 
+interface SyncRootProgressExpectation {
+  completed: boolean;
+  percentage: number;
+}
+
 interface RecordStatisticOptions {
   durationMs?: number;
 }
@@ -348,6 +353,49 @@ export async function expectBookPartwayProgress(page: Page, fixture: LibraryBook
     'value',
     getPartwayBookmark(fixture).progressValue
   );
+}
+
+/**
+ * Waits for one complete source projection of a book's progress. Checking the semantic filename
+ * metadata and the old-file count makes this a durable checkpoint after the replacement completes,
+ * rather than an observation of the already-visible "Synced" state before a debounced push starts.
+ */
+export async function expectBookProgressInSyncRoot(
+  page: Page,
+  fixture: LibraryBookFixture,
+  expected: SyncRootProgressExpectation,
+  { rootName = 'fake-sync' }: SyncRootOptions = {}
+) {
+  await expect
+    .poll(
+      () =>
+        page.evaluate(
+          async ({ rootName, title }) => {
+            const opfs = await navigator.storage.getDirectory();
+            const root = await opfs.getDirectoryHandle(rootName);
+            const directory = await root.getDirectoryHandle(title);
+            const progressFileNames: string[] = [];
+
+            for await (const [name, handle] of directory.entries()) {
+              if (handle instanceof FileSystemFileHandle && name.startsWith('progress_')) {
+                progressFileNames.push(name);
+              }
+            }
+
+            const [progressFileName] = progressFileNames;
+            const parts = progressFileName?.replace(/\.json$/, '').split('_');
+
+            return {
+              completed: parts?.[5] === 'completed',
+              fileCount: progressFileNames.length,
+              percentage: parts ? Math.round(Number(parts[4]) * 100) : undefined
+            };
+          },
+          { rootName, title: fixtureTitle(fixture) }
+        ),
+      { timeout: SYNC_ASSERTION_TIMEOUT }
+    )
+    .toEqual({ ...expected, fileCount: 1 });
 }
 
 async function bookmarkFixtureAtTOCEntry(

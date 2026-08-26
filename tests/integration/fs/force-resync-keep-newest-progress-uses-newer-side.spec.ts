@@ -5,6 +5,7 @@ import {
   bookmarkFixturePartway,
   bookProgressBar,
   expectBookPartwayProgress,
+  expectBookProgressInSyncRoot,
   expectBooksInManage,
   LONG_BOOK,
   openBookFromManage,
@@ -26,6 +27,7 @@ test('force re-sync with "Keep newest" uses the newer progress from either side'
   await page.clock.install({ time: new Date('2026-05-01T12:00:00Z') });
   await syncBookFixturesToSource(page, [LONG_BOOK, VALID_BOOK]);
   await bookmarkFixturePartway(page, LONG_BOOK);
+  await expectBookProgressInSyncRoot(page, LONG_BOOK, { completed: false, percentage: 38 });
   await waitForSuccessfulSync(page);
   await expectBooksInManage(page, { placeholders: [], downloaded: [LONG_BOOK, VALID_BOOK] });
   await expectBookPartwayProgress(page, LONG_BOOK);
@@ -34,6 +36,10 @@ test('force re-sync with "Keep newest" uses the newer progress from either side'
   await sourceUpdater.page.clock.install({ time: new Date('2026-05-02T12:00:00Z') });
   await openBookFromManage(sourceUpdater.page, VALID_BOOK);
   await completeCurrentBook(sourceUpdater.page);
+  await expectBookProgressInSyncRoot(sourceUpdater.page, VALID_BOOK, {
+    completed: true,
+    percentage: 0
+  });
   await waitForSuccessfulSync(sourceUpdater.page);
   await copySyncRoot(sourceUpdater.page, page);
 

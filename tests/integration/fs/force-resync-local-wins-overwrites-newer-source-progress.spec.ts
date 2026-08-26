@@ -4,6 +4,7 @@ import {
   bookmarkFixturePartway,
   bookProgressBar,
   expectBookPartwayProgress,
+  expectBookProgressInSyncRoot,
   expectBooksInManage,
   LONG_BOOK,
   openBookFromManage
@@ -23,6 +24,7 @@ test('force re-sync with "This device wins" overwrites newer source progress', a
   await page.clock.install({ time: new Date('2026-05-01T12:00:00Z') });
   await syncBookFixturesToSource(page, [LONG_BOOK]);
   await bookmarkFixturePartway(page, LONG_BOOK);
+  await expectBookProgressInSyncRoot(page, LONG_BOOK, { completed: false, percentage: 38 });
   await waitForSuccessfulSync(page);
   await expectBooksInManage(page, { placeholders: [], downloaded: [LONG_BOOK] });
   await expectBookPartwayProgress(page, LONG_BOOK);
@@ -36,6 +38,10 @@ test('force re-sync with "This device wins" overwrites newer source progress', a
 
   await openBookFromManage(sourceUpdater.page, LONG_BOOK);
   await completeCurrentBook(sourceUpdater.page);
+  await expectBookProgressInSyncRoot(sourceUpdater.page, LONG_BOOK, {
+    completed: true,
+    percentage: 38
+  });
   await waitForSuccessfulSync(sourceUpdater.page);
   await expectBooksInManage(sourceUpdater.page, { placeholders: [], downloaded: [LONG_BOOK] });
   await expect(bookProgressBar(sourceUpdater.page, LONG_BOOK)).toHaveAttribute('value', '100');
