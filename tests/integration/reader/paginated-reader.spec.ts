@@ -6,7 +6,13 @@ import {
   LONG_BOOK,
   openBookFromManage
 } from '../helpers/fixtures.ts';
-import { openTOC, showReaderHeader } from '../helpers/reader.ts';
+import {
+  expectReaderActionComplete,
+  focusReaderShortcutTarget,
+  openTOC,
+  pressReaderShortcut,
+  showReaderHeader
+} from '../helpers/reader.ts';
 import { useReaderSettings } from '../helpers/workflows.ts';
 
 test('paginated reader returns to a bookmark after page turns', async ({ page }) => {
@@ -20,10 +26,10 @@ test('paginated reader returns to a bookmark after page turns', async ({ page })
   await expect(returnToBookmark).toHaveCount(0);
 
   const initialProgress = await footerTotalProgressText(page);
-  await page.keyboard.press('Shift+D');
+  await pressReaderShortcut(page, 'Shift+D');
   expect(await footerTotalProgressText(page)).toBe(initialProgress);
 
-  await page.keyboard.press('d');
+  await pressReaderShortcut(page, 'd');
   const bookmarkedProgress = await expectTotalProgressChangedFrom(page, initialProgress);
 
   await header.getByRole('button', { name: 'Bookmark' }).click();
@@ -46,7 +52,7 @@ test('paginated reader auto-bookmarks after a user page turn', async ({ page }) 
 
   await expect(page.getByRole('button', { name: 'Return to Bookmark' })).toHaveCount(0);
 
-  await page.keyboard.press('ArrowRight');
+  await pressReaderShortcut(page, 'ArrowRight');
   await expectTotalProgressChangedFrom(page);
 
   const header = await showReaderHeader(page);
@@ -62,9 +68,10 @@ test('paginated reader keyboard shortcuts turn pages only for plain non-repeated
   await expectBookReaderText(page, LONG_BOOK);
 
   const initialProgress = await footerTotalProgressText(page);
-  await page.keyboard.press('Shift+D');
+  await pressReaderShortcut(page, 'Shift+D');
   expect(await footerTotalProgressText(page)).toBe(initialProgress);
 
+  await focusReaderShortcutTarget(page);
   await page.keyboard.down('d');
   const progressAfterD = await expectTotalProgressChangedFrom(page, initialProgress);
   await page.keyboard.down('d');
@@ -72,27 +79,27 @@ test('paginated reader keyboard shortcuts turn pages only for plain non-repeated
   expect(await footerTotalProgressText(page)).toBe(progressAfterD);
   await expectReaderActionComplete(page);
 
-  await page.keyboard.press('ArrowLeft');
+  await pressReaderShortcut(page, 'ArrowLeft');
   await expect.poll(() => footerTotalProgressText(page)).toBe(initialProgress);
   await expectReaderActionComplete(page);
 
-  await page.keyboard.press('ArrowRight');
+  await pressReaderShortcut(page, 'ArrowRight');
   await expect.poll(() => footerTotalProgressText(page)).toBe(progressAfterD);
   await expectReaderActionComplete(page);
 
-  await page.keyboard.press('PageUp');
+  await pressReaderShortcut(page, 'PageUp');
   await expect.poll(() => footerTotalProgressText(page)).toBe(initialProgress);
   await expectReaderActionComplete(page);
 
-  await page.keyboard.press('PageDown');
+  await pressReaderShortcut(page, 'PageDown');
   await expect.poll(() => footerTotalProgressText(page)).toBe(progressAfterD);
   await expectReaderActionComplete(page);
 
-  await page.keyboard.press('ArrowUp');
+  await pressReaderShortcut(page, 'ArrowUp');
   await expect.poll(() => footerTotalProgressText(page)).toBe(initialProgress);
   await expectReaderActionComplete(page);
 
-  await page.keyboard.press('ArrowDown');
+  await pressReaderShortcut(page, 'ArrowDown');
   await expect.poll(() => footerTotalProgressText(page)).toBe(progressAfterD);
 });
 
@@ -106,22 +113,22 @@ test('vertical paginated reader keyboard shortcuts preserve writing-mode directi
 
   const initialProgress = await footerTotalProgressText(page);
 
-  await page.keyboard.press('d');
+  await pressReaderShortcut(page, 'd');
   expect(await footerTotalProgressText(page)).toBe(initialProgress);
 
-  await page.keyboard.press('a');
+  await pressReaderShortcut(page, 'a');
   const progressAfterA = await expectTotalProgressChangedFrom(page, initialProgress);
   await expectReaderActionComplete(page);
 
-  await page.keyboard.press('d');
+  await pressReaderShortcut(page, 'd');
   await expect.poll(() => footerTotalProgressText(page)).toBe(initialProgress);
   await expectReaderActionComplete(page);
 
-  await page.keyboard.press('ArrowLeft');
+  await pressReaderShortcut(page, 'ArrowLeft');
   await expect.poll(() => footerTotalProgressText(page)).toBe(progressAfterA);
   await expectReaderActionComplete(page);
 
-  await page.keyboard.press('ArrowRight');
+  await pressReaderShortcut(page, 'ArrowRight');
   await expect.poll(() => footerTotalProgressText(page)).toBe(initialProgress);
 });
 
@@ -132,7 +139,7 @@ test('paginated reader preserves progress after resizing', async ({ page }) => {
   await openBookFromManage(page, LONG_BOOK);
   await expectBookReaderText(page, LONG_BOOK);
 
-  await page.keyboard.press('ArrowRight');
+  await pressReaderShortcut(page, 'ArrowRight');
   const progressBeforeResize = await expectTotalProgressChangedFrom(page);
 
   await page.setViewportSize({ width: 700, height: 700 });
@@ -176,10 +183,6 @@ async function expectTotalProgressChangedFrom(page: Page, initialProgress = '0 /
 
 async function footerTotalProgressText(page: Page) {
   return page.locator('#miwake-page-footer span').nth(1).innerText();
-}
-
-async function expectReaderActionComplete(page: Page) {
-  await expect(page.getByRole('button', { name: 'Show reader header' })).toBeEnabled();
 }
 
 async function bookContentWidth(page: Page) {

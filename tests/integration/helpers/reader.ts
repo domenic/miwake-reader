@@ -11,6 +11,22 @@ export async function showReaderHeader(page: Page) {
   return header;
 }
 
+export async function expectReaderActionComplete(page: Page) {
+  await expect(page.getByRole('button', { name: 'Show reader header' })).toBeEnabled({
+    timeout: SYNC_ASSERTION_TIMEOUT
+  });
+}
+
+export async function pressReaderShortcut(page: Page, shortcut: string) {
+  await expectReaderActionComplete(page);
+  await page.locator('body').press(shortcut);
+}
+
+export async function focusReaderShortcutTarget(page: Page) {
+  await expectReaderActionComplete(page);
+  await page.locator('body').focus();
+}
+
 export async function openTOC(page: Page) {
   const header = await showReaderHeader(page);
   await header.getByRole('button', { name: 'TOC' }).click();

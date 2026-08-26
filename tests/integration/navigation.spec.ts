@@ -8,7 +8,7 @@ import {
   openBookFromManage,
   PLAIN_TEXT_BOOK
 } from './helpers/fixtures.ts';
-import { showReaderHeader } from './helpers/reader.ts';
+import { pressReaderShortcut, showReaderHeader } from './helpers/reader.ts';
 import { useReaderSettings } from './helpers/workflows.ts';
 
 test('home route opens the manager when there is no last-opened book', async ({ page }) => {
@@ -192,7 +192,7 @@ async function prepareReaderWithUnsavedProgress(page: Page) {
 
   const progress = page.locator('#miwake-page-footer span').nth(1);
   const initialProgress = await progress.innerText();
-  await page.keyboard.press('d');
+  await pressReaderShortcut(page, 'd');
   await expect.poll(() => progress.innerText()).not.toBe(initialProgress);
 
   return { bookURL, progressAfterMove: await progress.innerText() };

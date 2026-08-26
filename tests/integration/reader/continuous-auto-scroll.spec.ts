@@ -7,7 +7,7 @@ import {
   LONG_BOOK,
   openBookFromManage
 } from '../helpers/fixtures.ts';
-import { openTOC, showReaderHeader } from '../helpers/reader.ts';
+import { openTOC, pressReaderShortcut, showReaderHeader } from '../helpers/reader.ts';
 import { useReaderSettings, enableStatistics } from '../helpers/workflows.ts';
 
 test('continuous reader auto-scroll starts and stops from the keyboard shortcut', async ({
@@ -17,14 +17,12 @@ test('continuous reader auto-scroll starts and stops from the keyboard shortcut'
   await importBookFixtures(page, [LONG_BOOK]);
   await openBookFromManage(page, LONG_BOOK);
   await expectBookReaderText(page, LONG_BOOK);
-  await showReaderHeader(page);
-  await page.locator('.book-content').click({ position: { x: 10, y: 10 } });
 
   const startingScrollY = await scrollY(page);
-  await page.keyboard.press('Space');
+  await pressReaderShortcut(page, 'Space');
   await expect.poll(() => scrollY(page)).toBeGreaterThan(startingScrollY + 50);
 
-  await page.keyboard.press('Space');
+  await pressReaderShortcut(page, 'Space');
   const stoppedScrollY = await scrollY(page);
   await expectScrollToStayStopped(page, stoppedScrollY);
 });
@@ -38,10 +36,10 @@ test('continuous reader page shortcuts scroll forward and back', async ({ page }
   await page.mouse.wheel(0, 1_000);
   const scrolledY = await expectScrollYChangedFrom(page, 0);
 
-  await page.locator('body').press('PageUp');
+  await pressReaderShortcut(page, 'PageUp');
   const afterPageUpScrollY = await expectScrollYLessThan(page, scrolledY - 50);
 
-  await page.locator('body').press('PageDown');
+  await pressReaderShortcut(page, 'PageDown');
   await expect.poll(() => scrollY(page)).toBeGreaterThan(afterPageUpScrollY + 50);
 });
 
@@ -51,14 +49,14 @@ test('continuous reader keyboard shortcuts adjust auto-scroll speed', async ({ p
   await openBookFromManage(page, LONG_BOOK);
   await expectBookReaderText(page, LONG_BOOK);
 
-  await page.keyboard.press('Shift+A');
+  await pressReaderShortcut(page, 'Shift+A');
   const header = await showReaderHeader(page);
   await expect(header.getByTitle('Current autoscroll speed')).toHaveText('20x');
 
-  await page.keyboard.press('a');
+  await pressReaderShortcut(page, 'a');
   await expect(header.getByTitle('Current autoscroll speed')).toHaveText('21x');
 
-  await page.keyboard.press('d');
+  await pressReaderShortcut(page, 'd');
   await expect(header.getByTitle('Current autoscroll speed')).toHaveText('20x');
 });
 
@@ -71,7 +69,7 @@ test('continuous reader shows auto-scroll tracker statistics while auto-scrollin
   await openBookFromManage(page, LONG_BOOK);
   await expectBookReaderText(page, LONG_BOOK);
 
-  await page.keyboard.press('Space');
+  await pressReaderShortcut(page, 'Space');
   await expect.poll(() => scrollY(page)).toBeGreaterThan(50);
   await page.getByRole('button', { name: 'Open reading statistics' }).click();
 
@@ -107,13 +105,13 @@ test('continuous reader bookmark shortcuts create and return to a bookmark', asy
 
   await expect(page.getByRole('button', { name: 'Return to Bookmark' })).toHaveCount(0);
 
-  await page.keyboard.press('Shift+B');
+  await pressReaderShortcut(page, 'Shift+B');
   await expect(page.getByRole('button', { name: 'Return to Bookmark' })).toHaveCount(0);
 
   await page.mouse.wheel(0, 1_000);
   const bookmarkedScrollY = await expectScrollYChangedFrom(page, 0);
 
-  await page.keyboard.press('b');
+  await pressReaderShortcut(page, 'b');
 
   const header = await showReaderHeader(page);
   await expect(header.getByRole('button', { name: 'Return to Bookmark' })).toBeVisible();
@@ -121,7 +119,7 @@ test('continuous reader bookmark shortcuts create and return to a bookmark', asy
   await page.mouse.wheel(0, 1_000);
   await expectScrollYChangedFrom(page, bookmarkedScrollY);
 
-  await page.keyboard.press('r');
+  await pressReaderShortcut(page, 'r');
   await expect.poll(() => scrollY(page)).toBe(bookmarkedScrollY);
 });
 
@@ -132,7 +130,7 @@ test('reader shortcuts are ignored while the table of contents is open', async (
   await expectBookReaderText(page, LONG_BOOK);
 
   await openTOC(page);
-  await page.keyboard.press('b');
+  await pressReaderShortcut(page, 'b');
   await page.getByTitle('Close table of contents').click();
 
   const header = await showReaderHeader(page);
@@ -184,13 +182,13 @@ test('continuous reader tracker toggle shortcut pauses and resumes tracking', as
 
   await expect(page.getByRole('button', { name: 'Resume reading tracker' })).toBeVisible();
 
-  await page.keyboard.press('Shift+P');
+  await pressReaderShortcut(page, 'Shift+P');
   await expect(page.getByRole('button', { name: 'Resume reading tracker' })).toBeVisible();
 
-  await page.keyboard.press('p');
+  await pressReaderShortcut(page, 'p');
   await expect(page.getByRole('button', { name: 'Pause reading tracker' })).toBeVisible();
 
-  await page.keyboard.press('p');
+  await pressReaderShortcut(page, 'p');
   await expect(page.getByRole('button', { name: 'Resume reading tracker' })).toBeVisible();
 });
 
@@ -201,7 +199,7 @@ test('continuous reader tracker freeze shortcut freezes the current position', a
   await openBookFromManage(page, LONG_BOOK);
   await expectBookReaderText(page, LONG_BOOK);
 
-  await page.keyboard.press('f');
+  await pressReaderShortcut(page, 'f');
   await page.getByRole('button', { name: 'Open reading statistics' }).click();
   await expect(page.getByText('Frozen Position')).toBeVisible();
 });

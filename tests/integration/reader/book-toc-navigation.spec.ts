@@ -8,7 +8,7 @@ import {
   longBookChapterStartCharacter,
   openBookFromManage
 } from '../helpers/fixtures.ts';
-import { openTOC } from '../helpers/reader.ts';
+import { openTOC, pressReaderShortcut } from '../helpers/reader.ts';
 import { useReaderSettings } from '../helpers/workflows.ts';
 
 test('table of contents navigation jumps to the selected chapter', async ({ page }) => {
@@ -33,13 +33,13 @@ test('reader chapter shortcuts navigate between chapters', async ({ page }) => {
 
   await expectCurrentFooterPage(page).toBe(0);
 
-  await page.keyboard.press('Shift+M');
+  await pressReaderShortcut(page, 'Shift+M');
   await expectCurrentFooterPage(page).toBe(0);
 
-  await page.keyboard.press('m');
+  await pressReaderShortcut(page, 'm');
   await expectCurrentFooterPage(page).toBe(longBookChapterStartCharacter(2));
 
-  await page.keyboard.press('n');
+  await pressReaderShortcut(page, 'n');
   await expectCurrentFooterPage(page).toBe(0);
 });
 

@@ -7,7 +7,7 @@ import {
   MEDIA_SIZING_BOOK,
   openBookFromManage
 } from '../helpers/fixtures.ts';
-import { openTOC } from '../helpers/reader.ts';
+import { openTOC, pressReaderShortcut } from '../helpers/reader.ts';
 import { useReaderSettings } from '../helpers/workflows.ts';
 
 test('paginated reader content width follows viewport and reader padding', async ({ page }) => {
@@ -127,7 +127,7 @@ for (const configuration of verticalPaginatedConfigurations) {
         .poll(async () => {
           const visibleArea = await visibleMediaArea(media);
           if (visibleArea === 0) {
-            await page.keyboard.press('ArrowLeft');
+            await pressReaderShortcut(page, 'ArrowLeft');
           }
           return visibleArea;
         })
