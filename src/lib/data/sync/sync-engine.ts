@@ -156,7 +156,7 @@ function reportSyncError(context: string, err: unknown): boolean {
  * / silent permission (FS); failures surface via syncHealth$. No-op
  * if no location is connected.
  */
-export async function reconcileBooksOnBoot(): Promise<void> {
+async function reconcileBooksOnBoot(): Promise<void> {
   const location = syncState.location;
   if (!location) return;
 

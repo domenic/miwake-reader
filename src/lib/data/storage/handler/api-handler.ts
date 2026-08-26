@@ -374,7 +374,7 @@ export abstract class ApiStorageHandler extends BaseStorageHandler {
   }
 }
 
-export class ScopedApiHandler
+class ScopedApiHandler
   extends BaseScopedHandler<ApiStorageHandler>
   implements ScopedBookOperations
 {

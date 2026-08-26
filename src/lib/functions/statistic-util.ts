@@ -114,11 +114,6 @@ export function getDateTimeString(
     : minuteDateTime;
 }
 
-export function getWeekNumber(referenceDate: number, startDate: number) {
-  const days = Math.floor((referenceDate - startDate) / (24 * 60 * 60 * 1000));
-  return Math.ceil(days / 7);
-}
-
 export function mergeStatistics(
   statistics: BooksDbStatistic[] = [],
   existingStatistics: BooksDbStatistic[] = [],

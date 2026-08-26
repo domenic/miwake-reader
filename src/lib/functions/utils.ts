@@ -1,10 +1,3 @@
-import { SyncEndpointType } from '$lib/data/storage/storage-types';
-import { getCharacterCount } from './get-character-count';
-
-function externalTargetFilterFunction(element: HTMLElement) {
-  return !element.closest('rt') && getCharacterCount(element) > 0;
-}
-
 export function dummyFn() {}
 
 /**
@@ -16,12 +9,6 @@ export function dummyFn() {}
  */
 export function fireAndForget(promise: Promise<unknown>): void {
   promise.catch(() => {});
-}
-
-export function isOnlineSourceAvailable(isOnline: boolean, storageKey: SyncEndpointType) {
-  return (
-    isOnline || (storageKey !== SyncEndpointType.GDRIVE && storageKey !== SyncEndpointType.ONEDRIVE)
-  );
 }
 
 export function caluclatePercentage(x: number, y: number) {
@@ -58,43 +45,6 @@ export function pluralize(value: number, term: string, printValue = true) {
   return `${printValue ? `${value} ` : ''}${term}${value !== 1 ? 's' : ''}`;
 }
 
-export function getFullHeight(window: Window, element: HTMLElement, addSurroundings = false) {
-  const { borderTopWidth, borderBottomWidth, paddingTop, paddingBottom, marginTop, marginBottom } =
-    window.getComputedStyle(element);
-
-  return addSurroundings
-    ? element.clientHeight +
-        convertComputedStyleToNumber(borderTopWidth) +
-        convertComputedStyleToNumber(borderBottomWidth) +
-        convertComputedStyleToNumber(paddingTop) +
-        convertComputedStyleToNumber(paddingBottom) +
-        convertComputedStyleToNumber(marginTop) +
-        convertComputedStyleToNumber(marginBottom)
-    : element.clientHeight -
-        convertComputedStyleToNumber(borderTopWidth) -
-        convertComputedStyleToNumber(borderBottomWidth) -
-        convertComputedStyleToNumber(paddingTop) -
-        convertComputedStyleToNumber(paddingBottom) -
-        convertComputedStyleToNumber(marginTop) -
-        convertComputedStyleToNumber(marginBottom);
-}
-
-function convertComputedStyleToNumber(value: string) {
-  return Number.parseInt(value.replace('px', ''), 10);
-}
-
 export function convertRemToPixels(window: Window, rem: number) {
   return rem * parseFloat(window.getComputedStyle(document.documentElement).fontSize);
-}
-
-export function getExternalTargetElement(
-  source: Document | Element,
-  selector: string,
-  uselast = true
-) {
-  const elements = [...source.querySelectorAll<HTMLSpanElement>(selector)].filter(
-    externalTargetFilterFunction
-  );
-
-  return uselast ? elements[elements.length - 1] : elements[0];
 }
