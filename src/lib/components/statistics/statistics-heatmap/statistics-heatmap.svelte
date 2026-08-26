@@ -31,6 +31,7 @@
     BooksDbStatistic
   } from '$lib/data/database/books-db/versions/books-db';
   import { getDateRangeLabel } from '$lib/data/reading-goal';
+  import { wallClock } from '$lib/data/sync/wall-clock.svelte';
   import {
     lastStartDayOfWeek$,
     lastStatisticsEndDate$,
@@ -67,7 +68,7 @@
     statisticsTitleFilters
   }: Props = $props();
 
-  let today = $derived(getDayBoundaryDate($dayBoundaryTime$));
+  let today = $derived(getDayBoundaryDate($dayBoundaryTime$, new SvelteDate(wallClock.now)));
   let todayKey = $derived(getDateString(today));
 
   const heatmapArrowButtonsWidth = 30;
@@ -131,8 +132,8 @@
   });
 
   $effect(() => {
-    // Track statisticsTitleFilters and statisticsData to reset and rebuild
-    if (statisticsTitleFilters && statisticsData) {
+    // Track statisticsTitleFilters, statisticsData, and todayKey to reset and rebuild
+    if (statisticsTitleFilters && statisticsData && todayKey) {
       untrack(() => {
         selectedStreak = HeatmapStreakType.NONE;
         selectedStreakDates.clear();
@@ -1188,6 +1189,7 @@
         aria-label={heatmapDay.isCurrentYear
           ? getHeatmapDayAriaLabel(heatmapDay.dayDetails)
           : undefined}
+        aria-current={isToday ? 'date' : undefined}
         disabled={!heatmapDay.isCurrentYear}
         data-date={heatmapDay.dateString}
         popovertarget={heatmapDay.isCurrentYear ? detailsPopoverId : undefined}

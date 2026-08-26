@@ -478,7 +478,7 @@
       </dl>
     </div>
   {:else}
-    No Data found for {statisticsDateRangeLabel}
+    No data for {statisticsDateRangeLabel}
   {/if}
 </div>
 

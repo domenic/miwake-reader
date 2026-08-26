@@ -23,6 +23,7 @@ import { logger } from '$lib/data/logger';
 import { getDateRangeLabel } from '$lib/data/reading-goal';
 import { appShortcuts } from '$lib/data/app-shortcuts.svelte';
 import { getSyncEndpoint } from '$lib/data/storage/storage-handler-factory';
+import { wallClock } from '$lib/data/sync/wall-clock.svelte';
 import { userDeleteStatisticEntries, userUpdateStatistic } from '$lib/data/library';
 import { StorageDataType, SyncEndpointType } from '$lib/data/storage/storage-types';
 import { ReplicationSaveBehavior } from '$lib/functions/replication/replication-options';
@@ -50,7 +51,7 @@ import { japaneseLangIfNeeded } from '$lib/functions/japanese-language';
 import pLimit from 'p-limit';
 import { untrack } from 'svelte';
 import { fromStore } from 'svelte/store';
-import { SvelteMap, SvelteSet } from 'svelte/reactivity';
+import { SvelteDate, SvelteMap, SvelteSet } from 'svelte/reactivity';
 
 interface BookFilterURLState {
   /** Absent when every (or no) title is selected — the URL carries no filter. */
@@ -106,9 +107,12 @@ export class StatisticsController {
       const rangeTemplate = this.#lastStatisticsRangeTemplate.current;
       const startDayOfWeek = this.#lastStartDayOfWeek.current;
       const dayBoundaryTime = this.#dayBoundaryTime.current;
+      const now = wallClock.now;
 
       if (rangeTemplate || startDayOfWeek > -1) {
-        untrack(() => this.#setSelectedStatisticsDays(getDayBoundaryDate(dayBoundaryTime)));
+        untrack(() =>
+          this.#setSelectedStatisticsDays(getDayBoundaryDate(dayBoundaryTime, new SvelteDate(now)))
+        );
       }
     });
   }
