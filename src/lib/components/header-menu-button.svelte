@@ -15,6 +15,7 @@
     href?: ResolvedPathname;
     selected?: boolean;
     disabled?: boolean;
+    separatorBefore?: boolean;
     onclick?: HeaderClickHandler;
   }
 </script>
@@ -80,6 +81,8 @@
           href={menuItem.href}
           aria-current={menuItem.selected ? 'page' : undefined}
           class="w-full px-4 py-2 text-left text-sm whitespace-nowrap hover:bg-white hover:text-gray-700"
+          class:border-t={menuItem.separatorBefore}
+          class:border-gray-500={menuItem.separatorBefore}
           class:bg-white={menuItem.selected}
           class:text-gray-700={menuItem.selected}
           title={menuItem.title}
@@ -92,6 +95,8 @@
           type="button"
           aria-current={menuItem.selected ? 'page' : undefined}
           class="w-full px-4 py-2 text-left text-sm whitespace-nowrap hover:bg-white hover:text-gray-700"
+          class:border-t={menuItem.separatorBefore}
+          class:border-gray-500={menuItem.separatorBefore}
           class:bg-white={menuItem.selected}
           class:text-gray-700={menuItem.selected}
           class:cursor-not-allowed={menuItem.disabled}
@@ -111,7 +116,8 @@
 
 <style>
   .header-menu-popover {
-    position-area: bottom;
+    /* Firefox misplaces the span-all area across mixed writing modes: https://bugzilla.mozilla.org/show_bug.cgi?id=2019601 */
+    position-area: bottom center;
     justify-self: anchor-center;
     position-try-fallbacks: flip-block;
   }

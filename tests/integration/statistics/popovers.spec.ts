@@ -1,7 +1,7 @@
 import { expect, SYNC_ASSERTION_TIMEOUT, test } from '../helpers/harness.ts';
 import {
   importBookFixtures,
-  openStatisticsSettings,
+  openStatisticsViewOptions,
   recordStatisticForBook,
   VALID_BOOK
 } from '../helpers/fixtures.ts';
@@ -20,18 +20,18 @@ test.beforeEach(async ({ page }) => {
 test('statistics summary popovers open, update their controls, and dismiss natively', async ({
   page
 }) => {
-  const settings = await openStatisticsSettings(page);
-  await settings.getByRole('button', { name: 'About reading-time attributes' }).click();
+  const viewOptions = await openStatisticsViewOptions(page);
+  await viewOptions.getByRole('button', { name: 'About reading-time attributes' }).click();
 
-  const helpPopover = settings.getByTestId('statistics-help').filter({
+  const helpPopover = viewOptions.getByTestId('statistics-help').filter({
     hasText: 'Reading Time Attribute which should be used for the Summary Tab'
   });
   await expect(helpPopover).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(helpPopover).toBeHidden();
 
-  await settings.getByTitle('Close statistics settings').click();
-  await expect(settings).toHaveCount(0, { timeout: SYNC_ASSERTION_TIMEOUT });
+  await viewOptions.getByTitle('Close view options').click();
+  await expect(viewOptions).toHaveCount(0, { timeout: SYNC_ASSERTION_TIMEOUT });
 
   const summary = page.getByRole('region', { name: 'Statistics summary' });
   await summary.getByRole('button', { name: 'Total Time', exact: true }).click();

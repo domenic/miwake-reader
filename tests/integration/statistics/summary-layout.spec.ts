@@ -1,7 +1,7 @@
 import { expect, SYNC_ASSERTION_TIMEOUT, test } from '../helpers/harness.ts';
 import {
   importBookFixtures,
-  openStatisticsSettings,
+  openStatisticsViewOptions,
   recordStatisticForBook,
   VALID_BOOK
 } from '../helpers/fixtures.ts';
@@ -20,10 +20,10 @@ test('statistics summary headers stay sticky while the page scrolls', async ({ p
   }
 
   await navigateToStatisticsSummary(page);
-  const settings = await openStatisticsSettings(page);
-  await settings.getByRole('button', { name: 'Set to all time for the selected books' }).click();
-  await settings.getByTitle('Close statistics settings').click();
-  await expect(settings).toHaveCount(0, { timeout: SYNC_ASSERTION_TIMEOUT });
+  const viewOptions = await openStatisticsViewOptions(page);
+  await viewOptions.getByRole('button', { name: 'Set to all time for the selected books' }).click();
+  await viewOptions.getByTitle('Close view options').click();
+  await expect(viewOptions).toHaveCount(0, { timeout: SYNC_ASSERTION_TIMEOUT });
 
   const summary = page.getByRole('region', { name: 'Statistics summary' });
   await expect

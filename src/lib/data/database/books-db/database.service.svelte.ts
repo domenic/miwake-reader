@@ -29,7 +29,7 @@ import type { IDBPDatabase } from 'idb';
 import { showErrorDialog } from '$lib/components/log-report-dialog.svelte';
 import type { MergeMode } from '$lib/data/merge-mode';
 import { ReplicationSaveBehavior } from '$lib/functions/replication/replication-options';
-import { getDefaultStatistic } from '$lib/components/book-reader/book-reading-tracker/tracker-domain';
+import { getDefaultStatistic } from '$lib/data/tracker-domain';
 import { handleErrorDuringReplication } from '$lib/functions/replication/error-handler';
 import { logger } from '$lib/data/logger';
 import pLimit from 'p-limit';
@@ -210,7 +210,7 @@ export class DatabaseService {
 
   async setFirstBookRead(
     bookTitle: string,
-    startDaysHoursForTracker: number,
+    dayBoundaryTime: string,
     existingStatistic?: BooksDbStatistic
   ) {
     const db = await this.db;
@@ -225,7 +225,7 @@ export class DatabaseService {
       return [firstStatistic.dateKey, false];
     }
 
-    const dateKey = getDateKey(startDaysHoursForTracker);
+    const dateKey = getDateKey(dayBoundaryTime);
     const tx = db.transaction(['statistic', 'lastModified'], 'readwrite');
 
     try {

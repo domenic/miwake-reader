@@ -1,5 +1,5 @@
 import { expect, test } from '../helpers/harness.ts';
-import { navigateToSettingsStatistics } from '../helpers/navigation.ts';
+import { navigateToSettingsTracking } from '../helpers/navigation.ts';
 import {
   enableStatistics,
   exportBackup,
@@ -15,10 +15,10 @@ test('backup import restores app settings after a local wipe', async ({ page }, 
   await exportBackup(page, backupPath, { appSettings: true });
   await signOutAndWipe(page);
 
-  await navigateToSettingsStatistics(page);
-  await expect(page.getByRole('heading', { name: 'Tracker Auto Pause' })).toBeHidden();
+  await navigateToSettingsTracking(page);
+  await expect(page.getByRole('switch', { name: 'Track reading activity' })).not.toBeChecked();
 
   await importBackup(page, backupPath);
-  await navigateToSettingsStatistics(page);
-  await expect(page.getByRole('heading', { name: 'Tracker Auto Pause' })).toBeVisible();
+  await navigateToSettingsTracking(page);
+  await expect(page.getByRole('switch', { name: 'Track reading activity' })).toBeChecked();
 });

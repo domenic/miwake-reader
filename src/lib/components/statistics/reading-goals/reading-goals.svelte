@@ -7,8 +7,7 @@
     faSave,
     faTrash
   } from '@fortawesome/free-solid-svg-icons';
-  import { ReadingGoalFrequency } from '$lib/components/book-reader/book-reading-tracker/tracker-domain';
-  import { showSettingsReadingGoalsMergeDialog } from '$lib/components/settings/settings-reading-goals-merge-dialog.svelte';
+  import { showReadingGoalsMergeDialog } from '$lib/components/statistics/reading-goals/reading-goals-merge-dialog.svelte';
   import { buttonClasses } from '$lib/css-classes';
   import { showConfirmDialog } from '$lib/components/confirm-dialog.svelte';
   import { showErrorDialog } from '$lib/components/log-report-dialog.svelte';
@@ -18,7 +17,8 @@
     getDateRangeLabel,
     type ReadingGoal
   } from '$lib/data/reading-goal';
-  import { database, readingGoal$, startDayHoursForTracker$ } from '$lib/data/store';
+  import { database, dayBoundaryTime$, readingGoal$ } from '$lib/data/store';
+  import { ReadingGoalFrequency } from '$lib/data/tracker-domain';
   import { userSaveReadingGoals, userDeleteReadingGoal } from '$lib/data/library';
   import { pluralize } from '$lib/functions/utils';
   import { getDateKey, secondsToMinutes } from '$lib/functions/statistic-util';
@@ -26,32 +26,38 @@
   import Fa from 'svelte-fa';
 
   interface Props {
+    readingGoals: BooksDbReadingGoal[];
     onspinner?: (value: boolean) => void;
+    ongoalschange?: (readingGoals: BooksDbReadingGoal[]) => void;
   }
 
-  let { onspinner }: Props = $props();
+  let { readingGoals, onspinner, ongoalschange }: Props = $props();
 
   const readingGoalFrequencies = [
     {
       id: ReadingGoalFrequency.DAILY,
-      label: 'Daily (1 Day)'
+      label: 'Daily'
     },
     {
       id: ReadingGoalFrequency.WEEKLY,
-      label: 'Weekly (7 Days)'
+      label: '7-day window'
     },
-    { id: ReadingGoalFrequency.MONTHLY, label: 'Monthly (30 Days)' }
+    { id: ReadingGoalFrequency.MONTHLY, label: '30-day window' }
   ];
+  const readingGoalFrequencyLabels = new Map(
+    readingGoalFrequencies.map(({ id, label }) => [id, label])
+  );
 
   let currentTimeGoal = $state(0);
   let currentCharacterGoal = $state(0);
   let currentReadingGoalFrequency = $state(ReadingGoalFrequency.DAILY);
   let currentReadingGoalStartDate = $state('');
   let isInEditMode = $state(false);
-  let readingGoals: BooksDbReadingGoal[] = $state([]);
-  let sortedReadingGoals: BooksDbReadingGoal[] = $state([]);
+  let sortedReadingGoals = $derived(
+    [...readingGoals].sort((a, b) => (a.goalStartDate > b.goalStartDate ? -1 : 1))
+  );
   let historyIndex = $state(0);
-  const itemsPerPage = 1;
+  const itemsPerPage = 5;
 
   let saveDisabled = $derived(
     !!((currentTimeGoal || currentCharacterGoal) && !currentReadingGoalStartDate)
@@ -77,7 +83,9 @@
     }
   });
 
-  onMount(init);
+  onMount(async () => {
+    $readingGoal$ = await getCurrentReadingGoal(readingGoals);
+  });
 
   function handleReadingGoalChange(event: Event, isTimeGoal: boolean) {
     const { value } = event.target as HTMLInputElement;
@@ -109,7 +117,7 @@
     }
 
     try {
-      const todayKey = getDateKey($startDayHoursForTracker$);
+      const todayKey = getDateKey($dayBoundaryTime$);
       const initialExistingReadingGoals = await database.getReadingGoalsForDateWindow(
         currentReadingGoalStartDate < $readingGoal$.goalStartDate
           ? currentReadingGoalStartDate || $readingGoal$.goalStartDate
@@ -142,12 +150,11 @@
       } else if (isFutureWithoutReadingGoalConflicts) {
         readingGoalsToDelete.push($readingGoal$.goalStartDate);
       } else if (initialExistingReadingGoals.length) {
-        ({ readingGoalsToDelete, readingGoalsToInsert, error } =
-          await showSettingsReadingGoalsMergeDialog({
-            currentReadingGoal: $readingGoal$,
-            newReadingGoal,
-            startDayHoursForTracker: $startDayHoursForTracker$
-          }));
+        ({ readingGoalsToDelete, readingGoalsToInsert, error } = await showReadingGoalsMergeDialog({
+          currentReadingGoal: $readingGoal$,
+          newReadingGoal,
+          dayBoundaryTime: $dayBoundaryTime$
+        }));
       } else {
         readingGoalsToInsert.push({ ...newReadingGoal, goalEndDate: '', goalOriginalEndDate: '' });
       }
@@ -178,9 +185,7 @@
         $readingGoal$.goalStartDate &&
         $readingGoal$.goalStartDate === readingGoalToDelete.goalStartDate;
       const term =
-        getDateKey($startDayHoursForTracker$) >= readingGoalToDelete.goalStartDate
-          ? 'started'
-          : 'starting';
+        getDateKey($dayBoundaryTime$) >= readingGoalToDelete.goalStartDate ? 'started' : 'starting';
       dialogMessage = `The${
         isCurrentReadingGoal ? ` current reading goal ${term} on` : ' archived reading goal for '
       } ${dateRangeLabel} will be deleted${isCurrentReadingGoal ? ' without archiving.' : ''}`;
@@ -217,33 +222,18 @@
     }
   }
 
-  async function init() {
-    try {
-      onspinner?.(true);
-      await updateReadingGoalsData();
-    } catch (error) {
-      showErrorDialog({ title: 'Error loading reading goals', error });
-    } finally {
-      onspinner?.(false);
-    }
-  }
-
   async function updateReadingGoalsData() {
-    readingGoals = await database.getReadingGoals();
-
-    sortedReadingGoals = [...readingGoals];
-    sortedReadingGoals.sort((a, b) => (a.goalStartDate > b.goalStartDate ? -1 : 1));
+    const nextReadingGoals = await database.getReadingGoals();
     historyIndex = 0;
 
-    $readingGoal$ = await getCurrentReadingGoal(readingGoals);
+    $readingGoal$ = await getCurrentReadingGoal(nextReadingGoals);
+    ongoalschange?.(nextReadingGoals);
   }
 </script>
 
 <div class="mb-8 sm:col-span-2 lg:col-span-3">
   <div class="flex grow">
-    <h1 class="mb-2 text-xl font-medium w-full">
-      <span class="capitalize">Reading Goals</span>
-    </h1>
+    <h1 class="mb-2 w-full text-xl font-medium">Reading goals</h1>
     {#if isInEditMode}
       <button class={`${buttonClasses} mr-4`} disabled={saveDisabled} onclick={saveReadingGoal}>
         <div
@@ -287,7 +277,7 @@
           class="flex items-center justify-center hover:opacity-50"
           class:cursor-not-allowed={!readingGoals.length}
         >
-          <span class="mr-2">Reset</span>
+          <span class="mr-2">Delete goals</span>
           <Fa icon={faTrash} />
         </div>
       </button>
@@ -295,8 +285,8 @@
   </div>
   <hr class="border border-black" />
   <div class="grid grid-cols-1 gap-4 justify-between items-end mt-4 md:grid-cols-4">
-    <div class="flex flex-col">
-      Time Goal (Min)
+    <label class="flex flex-col">
+      Reading time goal (minutes)
       <input
         type="number"
         min="0"
@@ -305,9 +295,9 @@
         bind:value={currentTimeGoalInMin}
         onblur={(event) => handleReadingGoalChange(event, true)}
       />
-    </div>
-    <div class="flex flex-col">
-      Character Goal
+    </label>
+    <label class="flex flex-col">
+      Character goal
       <input
         type="number"
         min="0"
@@ -316,9 +306,9 @@
         bind:value={currentCharacterGoal}
         onblur={(event) => handleReadingGoalChange(event, false)}
       />
-    </div>
-    <div class="flex flex-col">
-      Frequency
+    </label>
+    <label class="flex flex-col">
+      Goal window
       <select
         class:cursor-not-allowed={!isInEditMode}
         disabled={!isInEditMode}
@@ -330,19 +320,19 @@
           </option>
         {/each}
       </select>
-    </div>
-    <div class="flex flex-col">
-      Start Date
+    </label>
+    <label class="flex flex-col">
+      Start date
       <input
         type="date"
         class:cursor-not-allowed={!isInEditMode}
         disabled={!isInEditMode}
         bind:value={currentReadingGoalStartDate}
       />
-    </div>
+    </label>
   </div>
   <details class="mt-6 cursor-pointer">
-    <summary>Reading Goal History ({pluralize(readingGoals.length, 'Item')})</summary>
+    <summary>Reading goal history ({pluralize(readingGoals.length, 'item')})</summary>
     {#if readingGoals.length}
       <div class="grid-cols-[repeat(4,1fr)_0.1fr] hidden sm:grid">
         {#each historyReadingGoals as historyGoal (historyGoal.goalStartDate)}
@@ -353,7 +343,7 @@
           <div>{dateRangeLabel}</div>
           <div>{secondsToMinutes(historyGoal.timeGoal)} min</div>
           <div>{historyGoal.characterGoal} characters</div>
-          <div>{historyGoal.goalFrequency}</div>
+          <div>{readingGoalFrequencyLabels.get(historyGoal.goalFrequency)}</div>
           <button
             onclick={() => deleteReadingGoals(historyGoal, dateRangeLabel)}
             title="Delete reading goal"
@@ -370,7 +360,7 @@
           )}
           <div class="my-2">
             {dateRangeLabel} / {secondsToMinutes(historyGoal.timeGoal)} min / {historyGoal.characterGoal}
-            characters / {historyGoal.goalFrequency}
+            characters / {readingGoalFrequencyLabels.get(historyGoal.goalFrequency)}
             <button
               onclick={() => deleteReadingGoals(historyGoal, dateRangeLabel)}
               title="Delete reading goal"

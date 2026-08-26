@@ -14,10 +14,8 @@ Hosted on <https://reader.miwake.app/>.
 - The library has been redesigned to keep cover art, authors, and reading progress prominent, with clearer actions for individual books and bulk selections.
 - On mobile, the top bars use compact layouts and the app's main sections move to a fixed bottom navigation bar.
 - Dialogs, menus, and sidebars throughout the app have been rebuilt using native browser primitives, making them more consistent and behaviorally reasonable. For example, the <kbd>Esc</kbd> key always closes them.
-- The Settings page's old "Data" tab has been replaced with a "Sync" tab that gathers sync location, backup, and advanced options into one place.
-- A new theme editor makes it easier to customize your reading colors, with live preview.
-- A new reading goals save dialog makes it clearer how editing reading goals impacts existing goals.
-- The font picker has been redesigned as a unified popover with font previews, bundled/uploaded/system font support, and automatic font name detection from uploaded files.
+- Settings have been completely redone, moving away from a large grid of toggle controls toward clearly-labeled and grouped settings, with a reader preview.
+- Reading Goals are managed alongside reading statistics instead of being buried in Settings, and a clearer save dialog explains how edits affect existing goals.
 - The statistics title filter sidebar has been redesigned for clarity.
 - A welcome screen introduces new users to the app.
 

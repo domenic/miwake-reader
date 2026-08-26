@@ -1,45 +1,46 @@
 import type { BookStatistic } from '$lib/components/statistics/statistics-types';
 import type { BooksDbStatistic } from '$lib/data/database/books-db/versions/books-db';
 
-export function getDate(referenceDateString: string, startOfDay = 0) {
-  return new Date(`${referenceDateString}T${`${startOfDay}`.padStart(2, '0')}:00:00`);
+export function getDate(referenceDateString: string, dayBoundary = '00:00') {
+  const [hours, minutes] = parseDayBoundary(dayBoundary);
+  return new Date(
+    `${referenceDateString}T${`${hours}`.padStart(2, '0')}:${`${minutes}`.padStart(2, '0')}:00`
+  );
 }
 
-export function getStartHoursDate(startOfDay: number, startDate = new Date()) {
+export function getDayBoundaryDate(dayBoundary: string, startDate = new Date()) {
   const referenceDate = startDate;
   const targetDate = new Date(referenceDate.getTime());
+  const [hours, minutes] = parseDayBoundary(dayBoundary);
 
-  targetDate.setHours(startOfDay);
-  targetDate.setMinutes(0);
-  targetDate.setSeconds(0);
-  targetDate.setMilliseconds(0);
+  targetDate.setHours(hours, minutes, 0, 0);
 
-  if (referenceDate.getHours() < targetDate.getHours()) {
+  if (referenceDate < targetDate) {
     targetDate.setDate(targetDate.getDate() - 1);
   }
 
   return targetDate;
 }
 
-export function getDateKey(startOfDay: number, referenceDate = new Date()) {
-  return getDateString(getStartHoursDate(startOfDay, referenceDate));
+export function getDateKey(dayBoundary: string, referenceDate = new Date()) {
+  return getDateString(getDayBoundaryDate(dayBoundary, referenceDate));
 }
 
 export function getPreviousDayKey(
-  startOfDay: number,
+  dayBoundary: string,
   referenceDate = new Date(),
-  ignoreStartOfDay = false
+  ignoreDayBoundary = false
 ) {
   const dayAfter = referenceDate;
   const previousDay = new Date(dayAfter.getTime());
+  const currentDayBoundary = new Date(dayAfter.getTime());
+  const [hours, minutes] = parseDayBoundary(dayBoundary);
 
-  previousDay.setHours(startOfDay);
-  previousDay.setMinutes(0);
-  previousDay.setSeconds(0);
-  previousDay.setMilliseconds(0);
+  previousDay.setHours(hours, minutes, 0, 0);
   previousDay.setDate(previousDay.getDate() - 1);
+  currentDayBoundary.setHours(hours, minutes, 0, 0);
 
-  if (!ignoreStartOfDay && dayAfter.getHours() < previousDay.getHours()) {
+  if (!ignoreDayBoundary && dayAfter < currentDayBoundary) {
     previousDay.setDate(previousDay.getDate() - 1);
   }
 
@@ -52,11 +53,16 @@ export function advanceDateDays(referenceDate: Date, daysToAdvance = 1) {
   return { referenceDate, dateString: getDateString(referenceDate) };
 }
 
-export function getSecondsToDate(startOfDay: number, referenceDate = new Date()) {
+export function getSecondsToDate(dayBoundary: string, referenceDate = new Date()) {
   const dateObject = referenceDate;
-  const targetDate = getStartHoursDate(startOfDay, new Date(dateObject.getTime()));
+  const targetDate = getDayBoundaryDate(dayBoundary, new Date(dateObject.getTime()));
 
   return Math.floor((dateObject.getTime() - targetDate.getTime()) / 1000);
+}
+
+function parseDayBoundary(dayBoundary: string) {
+  const match = /^(?<hours>[01]\d|2[0-3]):(?<minutes>[0-5]\d)$/.exec(dayBoundary);
+  return [Number(match?.groups?.hours ?? 0), Number(match?.groups?.minutes ?? 0)] as const;
 }
 
 export function getDaysBetween(

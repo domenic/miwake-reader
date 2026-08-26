@@ -5,10 +5,9 @@ import { enableStatistics } from '../helpers/workflows.ts';
 test('reader tracker button auto-resumes after tab visibility returns', async ({ page }) => {
   await enableStatistics(page);
   await page
-    .locator('section')
-    .filter({ has: page.getByRole('heading', { name: 'Tracker Auto Pause' }) })
-    .getByRole('button', { name: 'Moderate', exact: true })
-    .click();
+    .getByRole('group', { name: 'Pause tracking' })
+    .getByLabel('When the reader tab loses focus', { exact: false })
+    .check();
 
   await importBookFixtures(page, [VALID_BOOK]);
   await openBookFromManage(page, VALID_BOOK);

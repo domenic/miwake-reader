@@ -27,8 +27,8 @@ import { get } from 'svelte/store';
 const READING_GOAL_LOCALSTORAGE_KEYS = ['readingGoal', 'lastReadingGoalsModified'] as const;
 
 /**
- * Whether a localStorage key belongs to the App-settings checkbox.
- * The set comes from the registry maintained by the persistent localStorage stores —
+ * Whether a `localStorage` key belongs to the App-settings checkbox.
+ * The set comes from the registry maintained by the persistent `localStorage` stores —
  * every preference store self-registers, every runtime store opts out.
  * Reading-goal keys are preferences-of-a-sort but owned by the
  * Reading-goals checkbox, not App settings.
@@ -62,8 +62,10 @@ export async function buildCurrentCatalog(): Promise<BackupCatalog> {
     .sort(byTitle);
 
   return {
-    hasAppSettings: localStorage.length > 0,
-    // localStorage.getItem catches "user has ever interacted with goals";
+    // Persistent preference stores serialize their effective defaults too, so a fresh profile has
+    // meaningful app settings to export even before anything has been written to `localStorage`.
+    hasAppSettings: true,
+    // `localStorage.getItem()` catches "user has ever interacted with goals";
     // lastReadingGoalsModified$ is a sync-marker timestamp, not a
     // presence signal.
     hasReadingGoals: allGoals.length > 0 || localStorage.getItem('readingGoal') !== null,

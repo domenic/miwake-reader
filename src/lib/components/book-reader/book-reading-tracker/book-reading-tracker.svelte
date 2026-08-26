@@ -4,7 +4,7 @@
     type TrackingHistory,
     TrackerSkipThresholdAction,
     TrackerAutoPause
-  } from '$lib/components/book-reader/book-reading-tracker/tracker-domain';
+  } from '$lib/data/tracker-domain';
   import {
     closeTrackerMenu,
     pauseTrackerFor,
@@ -29,7 +29,7 @@
     adjustStatisticsAfterIdleTime$,
     database,
     readingGoal$,
-    startDayHoursForTracker$,
+    dayBoundaryTime$,
     trackerAutoPause$,
     trackerBackwardSkipThreshold$,
     trackerForwardSkipThreshold$,
@@ -86,9 +86,9 @@
     const absoluteTimeDiff = Math.abs(timeDiff);
     const isNegativeTimeDiff = timeDiff < 0;
     const referenceDate = new Date(referenceTick);
-    const referenceDateKey = getDateKey($startDayHoursForTracker$, referenceDate);
+    const referenceDateKey = getDateKey($dayBoundaryTime$, referenceDate);
     const lastStatisticModified = referenceDate.getTime();
-    const secondsOnDay = getSecondsToDate($startDayHoursForTracker$, referenceDate) || 1;
+    const secondsOnDay = getSecondsToDate($dayBoundaryTime$, referenceDate) || 1;
     const overlappedDay = absoluteTimeDiff > secondsOnDay;
     const timeDiffForToday = overlappedDay ? secondsOnDay : absoluteTimeDiff;
     const dateTimeKey = getDateTimeString(lastStatisticModified);
@@ -103,7 +103,7 @@
       }
     ];
 
-    todayKey = getDateKey($startDayHoursForTracker$, todayDate);
+    todayKey = getDateKey($dayBoundaryTime$, todayDate);
 
     if (overlappedDay || referenceDateKey !== todayKey) {
       const otherDayTimeDiff = overlappedDay
@@ -115,7 +115,7 @@
           : timeDiffForToday;
 
       const otherDayKey = overlappedDay
-        ? getPreviousDayKey($startDayHoursForTracker$, referenceDate)
+        ? getPreviousDayKey($dayBoundaryTime$, referenceDate)
         : referenceDateKey;
       const otherDayStatistics =
         statistics.get(otherDayKey) || getDefaultStatistic(bookTitle, otherDayKey);
@@ -267,7 +267,7 @@
   // Snapshot initial values — these are session-start state that diverge as the user reads
   const initSnapshot = untrack(() => ({
     bookTitle,
-    todayKey: getDateKey($startDayHoursForTracker$),
+    todayKey: getDateKey($dayBoundaryTime$),
     exploredCharCount
   }));
   let todayKey = initSnapshot.todayKey;
@@ -361,7 +361,7 @@
       return;
     }
 
-    todayKey = getDateKey($startDayHoursForTracker$);
+    todayKey = getDateKey($dayBoundaryTime$);
     autoScrollerStatistics = getDefaultStatistic(bookTitle, todayKey);
     lastExploredCharCountScroller = untrack(() => exploredCharCount);
 
@@ -557,13 +557,13 @@
 
   async function init() {
     try {
-      todayKey = getDateKey($startDayHoursForTracker$);
+      todayKey = getDateKey($dayBoundaryTime$);
       jpdbPopover = document.getElementById('jpdb-popup');
 
       const statisticsForTitle = await database.getStatisticsForBook(bookTitle);
       const setFirstBookReadResult = await database.setFirstBookRead(
         bookTitle,
-        $startDayHoursForTracker$,
+        $dayBoundaryTime$,
         statisticsForTitle[0]
       );
 
@@ -596,7 +596,7 @@
   }
 
   async function updateReadingGoalWindow() {
-    todayKey = getDateKey($startDayHoursForTracker$);
+    todayKey = getDateKey($dayBoundaryTime$);
     todaysStatistics = statistics.get(todayKey) || getDefaultStatistic(bookTitle, todayKey);
 
     try {
@@ -614,7 +614,7 @@
 
       currentReadingGoal = currentClosedReadingGoal || $readingGoal$;
       [currentReadingGoalStart, currentReadingGoalEnd, remainingTimeInReadingGoalWindow] =
-        getReadingGoalWindow(todayKey, $startDayHoursForTracker$, currentReadingGoal);
+        getReadingGoalWindow(todayKey, $dayBoundaryTime$, currentReadingGoal);
 
       if (
         currentClosedReadingGoal?.goalEndDate &&
@@ -622,7 +622,7 @@
       ) {
         currentReadingGoalEnd = currentClosedReadingGoal.goalEndDate;
 
-        const adjustedEndDate = getDate(currentReadingGoalEnd, $startDayHoursForTracker$);
+        const adjustedEndDate = getDate(currentReadingGoalEnd, $dayBoundaryTime$);
 
         remainingTimeInReadingGoalWindow = toTimeString(
           (adjustedEndDate.getTime() + 8.64e7 - Date.now()) / 1000

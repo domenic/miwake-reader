@@ -1,17 +1,17 @@
 <script module lang="ts">
-  import SettingsReadingGoalsMergeDialog from '$lib/components/settings/settings-reading-goals-merge-dialog.svelte';
+  import ReadingGoalsMergeDialog from '$lib/components/statistics/reading-goals/reading-goals-merge-dialog.svelte';
   import { showDialog } from '$lib/components/dialog/show-dialog';
   import type { ReadingGoal, ReadingGoalSaveResult } from '$lib/data/reading-goal';
 
-  export function showSettingsReadingGoalsMergeDialog(params: {
+  export function showReadingGoalsMergeDialog(params: {
     currentReadingGoal: ReadingGoal;
     newReadingGoal: ReadingGoal;
-    startDayHoursForTracker: number;
+    dayBoundaryTime: string;
   }): Promise<ReadingGoalSaveResult> {
     let result = emptyReadingGoalSaveResult();
 
     return showDialog<ReadingGoalSaveResult>(
-      SettingsReadingGoalsMergeDialog,
+      ReadingGoalsMergeDialog,
       {
         ...params,
         captureResult: (nextResult: ReadingGoalSaveResult) => {
@@ -69,17 +69,16 @@
   interface Props {
     currentReadingGoal: ReadingGoal;
     newReadingGoal: ReadingGoal;
-    startDayHoursForTracker: number;
+    dayBoundaryTime: string;
     captureResult: (result: ReadingGoalSaveResult) => void;
   }
 
-  let { currentReadingGoal, newReadingGoal, startDayHoursForTracker, captureResult }: Props =
-    $props();
+  let { currentReadingGoal, newReadingGoal, dayBoundaryTime, captureResult }: Props = $props();
 
   const initial = untrack(() => ({
     currentReadingGoal,
     newReadingGoal,
-    startDayHoursForTracker
+    dayBoundaryTime
   }));
 
   const dialogController = useDialogController();
@@ -117,21 +116,21 @@
 
   async function init() {
     try {
-      const todayKey = getDateKey(initial.startDayHoursForTracker);
+      const todayKey = getDateKey(initial.dayBoundaryTime);
 
       if (
         initial.currentReadingGoal.goalStartDate &&
         todayKey >= initial.currentReadingGoal.goalStartDate
       ) {
-        const yesterdayKey = getPreviousDayKey(initial.startDayHoursForTracker);
+        const yesterdayKey = getPreviousDayKey(initial.dayBoundaryTime);
         const [readingGoalStart, readingGoalEnd] = getReadingGoalWindow(
           todayKey,
-          initial.startDayHoursForTracker,
+          initial.dayBoundaryTime,
           initial.currentReadingGoal
         );
         const previousReadingGoalEnd = getPreviousDayKey(
-          initial.startDayHoursForTracker,
-          getDate(readingGoalStart, initial.startDayHoursForTracker)
+          initial.dayBoundaryTime,
+          getDate(readingGoalStart, initial.dayBoundaryTime)
         );
 
         archivalMaxDate = readingGoalEnd;
@@ -269,7 +268,7 @@
     }
 
     ({ dateString: newStartDate } = advanceDateDays(
-      getDate(archivalEndDate, initial.startDayHoursForTracker)
+      getDate(archivalEndDate, initial.dayBoundaryTime)
     ));
   }
 

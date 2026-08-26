@@ -32,9 +32,7 @@
   {value}
   {disabled}
   onclick={handleClick}
-  class="{buttonClasses} {danger
-    ? 'text-red-800!'
-    : ''} disabled:cursor-not-allowed disabled:opacity-50"
+  class="{buttonClasses} {danger ? 'text-red-800!' : ''} disabled:opacity-50"
 >
   {@render children()}
 </button>

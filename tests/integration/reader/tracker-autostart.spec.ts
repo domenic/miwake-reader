@@ -9,10 +9,11 @@ import { enableStatistics, useReaderSettings } from '../helpers/workflows.ts';
 
 test('reader autostarts the tracker after page activity settles', async ({ page }) => {
   await enableStatistics(page);
-  const autoStartSection = page.locator('section').filter({
-    has: page.getByRole('heading', { name: 'Autostart tracker (sec)' })
-  });
-  const autoStartInput = autoStartSection.getByRole('spinbutton');
+  await page
+    .getByRole('group', { name: 'Start tracking' })
+    .getByLabel('Automatically', { exact: false })
+    .check();
+  const autoStartInput = page.getByLabel('Start after');
   await autoStartInput.fill('1');
   await autoStartInput.blur();
 

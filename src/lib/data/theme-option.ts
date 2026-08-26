@@ -182,3 +182,12 @@ export const availableThemes = new Map(
     themeObjValueToStringValue(value)
   ])
 );
+
+export function resolveThemeOption(
+  themeId: string,
+  customThemes: Readonly<Record<string, ThemeOption>>
+): ThemeOption {
+  return (
+    availableThemes.get(themeId) ?? customThemes[themeId] ?? availableThemes.get('light-theme')!
+  );
+}

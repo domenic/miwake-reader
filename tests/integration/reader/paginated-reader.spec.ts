@@ -103,6 +103,63 @@ test('paginated reader keyboard shortcuts turn pages only for plain non-repeated
   await expect.poll(() => footerTotalProgressText(page)).toBe(progressAfterD);
 });
 
+test('paginated reader turns pages from either scroll axis', async ({ page }) => {
+  await usePaginatedReader(page);
+  await importBookFixtures(page, [LONG_BOOK]);
+  await openBookFromManage(page, LONG_BOOK);
+  await expectBookReaderText(page, LONG_BOOK);
+
+  const initialProgress = await footerTotalProgressText(page);
+
+  await page.mouse.wheel(0, 100);
+  const progressAfterVerticalScroll = await expectTotalProgressChangedFrom(page, initialProgress);
+  await expectReaderActionComplete(page);
+
+  await page.keyboard.press('ArrowLeft');
+  await expect.poll(() => footerTotalProgressText(page)).toBe(initialProgress);
+  await expectReaderActionComplete(page);
+
+  // Paginated wheel input is throttled so one physical gesture does not race through the book.
+  await page.waitForTimeout(50);
+  await page.mouse.wheel(100, 0);
+  await expect.poll(() => footerTotalProgressText(page)).toBe(progressAfterVerticalScroll);
+});
+
+test('paginated reader can ignore scrolling without disabling other navigation', async ({
+  page
+}) => {
+  await usePaginatedReader(page, { turnPagesByScrolling: 'Off' });
+  await importBookFixtures(page, [LONG_BOOK]);
+  await openBookFromManage(page, LONG_BOOK);
+  await expectBookReaderText(page, LONG_BOOK);
+
+  const initialProgress = await footerTotalProgressText(page);
+  await page.mouse.wheel(0, 100);
+  await page.mouse.wheel(100, 0);
+  await page.waitForTimeout(150);
+  expect(await footerTotalProgressText(page)).toBe(initialProgress);
+
+  await page.keyboard.press('ArrowRight');
+  await expectTotalProgressChangedFrom(page, initialProgress);
+});
+
+test('vertical paginated reader maps both scroll axes to reading direction', async ({ page }) => {
+  await usePaginatedReader(page, { writingMode: 'Vertical' });
+  await importBookFixtures(page, [LONG_BOOK]);
+  await openBookFromManage(page, LONG_BOOK);
+  await expectBookReaderText(page, LONG_BOOK);
+
+  const initialProgress = await footerTotalProgressText(page);
+
+  await page.mouse.wheel(-100, 0);
+  await expectTotalProgressChangedFrom(page, initialProgress);
+  await expectReaderActionComplete(page);
+
+  await page.waitForTimeout(50);
+  await page.mouse.wheel(0, -100);
+  await expect.poll(() => footerTotalProgressText(page)).toBe(initialProgress);
+});
+
 test('vertical paginated reader keyboard shortcuts preserve writing-mode direction', async ({
   page
 }) => {
@@ -162,6 +219,7 @@ async function usePaginatedReader(
     autoBookmark?: string;
     autoBookmarkTime?: string;
     readerMaxWidth?: string;
+    turnPagesByScrolling?: string;
     writingMode?: string;
   } = {}
 ) {

@@ -11,7 +11,7 @@
     faTrash,
     type IconDefinition
   } from '@fortawesome/free-solid-svg-icons';
-  import type { TrackingHistory } from '$lib/components/book-reader/book-reading-tracker/tracker-domain';
+  import type { TrackingHistory } from '$lib/data/tracker-domain';
   import type { ChapterWithProgress } from '$lib/components/book-reader/book-toc/book-toc-state.svelte';
   import type { BooksDbStatistic } from '$lib/data/database/books-db/versions/books-db';
   import type { ReadingGoal } from '$lib/data/reading-goal';

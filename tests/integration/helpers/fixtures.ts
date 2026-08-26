@@ -289,8 +289,8 @@ export async function expectNoStatisticsInSummary(page: Page) {
 
 export async function deleteAllStatisticsFromSummary(page: Page) {
   await showAllStatistics(page);
-  const settings = await openStatisticsSettings(page);
-  await settings.getByRole('button', { name: 'Delete All' }).click();
+  const viewOptions = await openStatisticsViewOptions(page);
+  await viewOptions.getByRole('button', { name: 'Delete All' }).click();
 
   const dialog = page.locator('dialog[open]');
   await expect(dialog.getByRole('heading', { name: 'Delete data' })).toBeVisible();
@@ -459,24 +459,24 @@ function bookPlaceholderIndicator(page: Page, fixture: LibraryBookFixture) {
 
 async function showAllStatistics(page: Page) {
   await navigateToStatisticsSummary(page);
-  const settings = await openStatisticsSettings(page);
-  await settings.getByRole('button', { name: 'Set to all time for the selected books' }).click();
-  await settings.getByTitle('Close statistics settings').click();
-  await expect(settings).toHaveCount(0, { timeout: SYNC_ASSERTION_TIMEOUT });
+  const viewOptions = await openStatisticsViewOptions(page);
+  await viewOptions.getByRole('button', { name: 'Set to all time for the selected books' }).click();
+  await viewOptions.getByTitle('Close view options').click();
+  await expect(viewOptions).toHaveCount(0, { timeout: SYNC_ASSERTION_TIMEOUT });
 }
 
-export async function openStatisticsSettings(page: Page) {
-  const settings = statisticsSettingsDialog(page);
-  if (await settings.isVisible()) {
-    return settings;
+export async function openStatisticsViewOptions(page: Page) {
+  const viewOptions = statisticsViewOptionsDialog(page);
+  if (await viewOptions.isVisible()) {
+    return viewOptions;
   }
 
-  await page.getByRole('button', { name: 'Statistics Settings', exact: true }).click();
-  await expect(settings).toBeVisible({ timeout: SYNC_ASSERTION_TIMEOUT });
-  return settings;
+  await page.getByRole('button', { name: 'View Options', exact: true }).click();
+  await expect(viewOptions).toBeVisible({ timeout: SYNC_ASSERTION_TIMEOUT });
+  return viewOptions;
 }
 
-function statisticsSettingsDialog(page: Page) {
+function statisticsViewOptionsDialog(page: Page) {
   return page.locator('dialog.sidebar-overlay[open]').filter({
     has: page.getByRole('button', { name: 'Delete All' })
   });

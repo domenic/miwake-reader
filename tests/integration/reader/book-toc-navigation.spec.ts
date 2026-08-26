@@ -89,10 +89,7 @@ test('continuous reader updates chapter progress after scrolling', async ({ page
 
 test('continuous reader preserves chapter progress after resizing', async ({ page }) => {
   await page.setViewportSize({ width: 1_000, height: 700 });
-  await useProgressReaderSettings(page, {
-    autoPositionOnResize: 'On',
-    viewMode: 'Continuous'
-  });
+  await useProgressReaderSettings(page, { viewMode: 'Continuous' });
   await importBookFixtures(page, [LONG_BOOK]);
   await openBookFromManage(page, LONG_BOOK);
   await expectBookReaderText(page, LONG_BOOK);
@@ -115,10 +112,9 @@ function chapterRow(page: Page, chapterLabel: string) {
 
 async function useProgressReaderSettings(
   page: Page,
-  settings: { autoPositionOnResize?: string; tapToFlip?: string; viewMode?: string } = {}
+  settings: { tapToFlip?: string; viewMode?: string } = {}
 ) {
   await useReaderSettings(page, {
-    autoPositionOnResize: settings.autoPositionOnResize,
     showFooterChapterCharacters: 'On',
     showFooterChapterPercentage: 'On',
     viewMode: settings.viewMode ?? 'Paginated',

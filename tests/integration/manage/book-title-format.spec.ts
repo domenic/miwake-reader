@@ -10,12 +10,25 @@ import {
 } from '../helpers/fixtures.ts';
 import {
   navigateToManage,
-  navigateToSettingsReader,
+  navigateToSettingsAppearance,
   navigateToSettingsSync,
   navigateToStatisticsSummary
 } from '../helpers/navigation.ts';
 import { enableStatistics } from '../helpers/workflows.ts';
 import { openStatisticsFilter } from '../statistics/helpers.ts';
+
+test('previews simplified and full book titles in appearance settings', async ({ page }) => {
+  const preview = page.getByLabel('Live reader preview');
+  const simplifiedTitle = '余白のリズム';
+  const fullTitle = '余白のリズム【電子限定短編付き】（白波文庫）';
+
+  await navigateToSettingsAppearance(page);
+  await expect(preview.getByText(simplifiedTitle, { exact: true })).toBeVisible();
+  await expect(preview.getByText(fullTitle, { exact: true })).toHaveCount(0);
+
+  await page.getByRole('group', { name: 'Book titles' }).getByLabel('Full').check();
+  await expect(preview.getByText(fullTitle, { exact: true })).toBeVisible();
+});
 
 test('uses simplified titles by default without changing book URLs', async ({ page }) => {
   const fullTitle = fixtureTitle(EDITION_TITLE_BOOK);
@@ -29,8 +42,8 @@ test('uses simplified titles by default without changing book URLs', async ({ pa
   await expect(page).toHaveTitle(`${simplifiedTitle} | Miwake Reader`);
   expect(new URL(page.url()).searchParams.get('t')).toBe(fullTitle);
 
-  await navigateToSettingsReader(page);
-  await page.getByRole('button', { name: 'Full', exact: true }).click();
+  await navigateToSettingsAppearance(page);
+  await page.getByRole('group', { name: 'Book titles' }).getByLabel('Full').check();
   await navigateToManage(page);
 
   await expect(page.getByRole('link', { name: fullTitle, exact: true })).toBeVisible();

@@ -5,6 +5,7 @@
     faCopy,
     faEllipsis,
     faFilter,
+    faFlag,
     faMap,
     faSliders
   } from '@fortawesome/free-solid-svg-icons';
@@ -23,9 +24,10 @@
     titleFilterEnabled: boolean;
     oncopydata: (dataKey: keyof BookStatistic) => void;
     onopenfilter: () => void;
-    onopensettings: () => void;
+    onopenviewoptions: () => void;
     summaryHref: ResolvedPathname;
     heatmapHref: ResolvedPathname;
+    goalsHref: ResolvedPathname;
   }
 
   let {
@@ -33,9 +35,10 @@
     titleFilterEnabled,
     oncopydata,
     onopenfilter,
-    onopensettings,
+    onopenviewoptions,
     summaryHref,
-    heatmapHref
+    heatmapHref,
+    goalsHref
   }: Props = $props();
 
   const copyStatisticsDataItems: StatisticsDataSource[] = [
@@ -47,18 +50,20 @@
     onclick: () => oncopydata(key)
   }));
 
-  const settingsAction: HeaderAction = {
+  const viewOptionsAction: HeaderAction = {
     faIcon: faSliders,
-    label: 'Statistics Settings',
-    title: 'Open statistics settings',
-    onclick: () => onopensettings()
+    label: 'View Options',
+    title: 'Open view options',
+    onclick: () => onopenviewoptions()
   };
 
   let summarySelected = $derived(activeView === 'summary');
   let heatmapSelected = $derived(activeView === 'heatmap');
+  let goalsSelected = $derived(activeView === 'goals');
+  let showStatisticsActions = $derived(activeView !== 'goals');
   const mobileMenuItems = [
     ...copyMenuItems.map(({ label, onclick }) => ({ label: `Copy ${label}`, onclick })),
-    settingsAction
+    viewOptionsAction
   ];
 </script>
 
@@ -85,39 +90,51 @@
           title={heatmapSelected ? undefined : 'Switch to Heatmap tab'}
           href={heatmapHref}
         />
-        <div class="hidden md:block {headerDividerClasses}"></div>
         <HeaderButton
-          faIcon={faFilter}
-          title="Open book filter menu"
-          label="Filter"
-          disabled={!titleFilterEnabled}
-          onclick={() => {
-            if (titleFilterEnabled) {
-              onopenfilter();
-            }
-          }}
+          faIcon={faFlag}
+          label="Goals"
+          selected={goalsSelected}
+          variant="tab"
+          title={goalsSelected ? undefined : 'Switch to Goals tab'}
+          href={goalsHref}
         />
-        <div class="hidden md:contents">
-          <HeaderButton {...settingsAction} />
-        </div>
-        <div class="contents md:hidden">
-          <HeaderMenuButton
-            faIcon={faEllipsis}
-            title="More statistics actions"
-            label="More"
-            fill
-            items={mobileMenuItems}
+        {#if showStatisticsActions}
+          <div class="hidden md:block {headerDividerClasses}"></div>
+          <HeaderButton
+            faIcon={faFilter}
+            title="Open book filter menu"
+            label="Filter"
+            disabled={!titleFilterEnabled}
+            onclick={() => {
+              if (titleFilterEnabled) {
+                onopenfilter();
+              }
+            }}
           />
-        </div>
+          <div class="hidden md:contents">
+            <HeaderButton {...viewOptionsAction} />
+          </div>
+          <div class="contents md:hidden">
+            <HeaderMenuButton
+              faIcon={faEllipsis}
+              title="More statistics actions"
+              label="More"
+              fill
+              items={mobileMenuItems}
+            />
+          </div>
+        {/if}
       </div>
       <div class="hidden md:flex">
-        <HeaderMenuButton
-          faIcon={faCopy}
-          title="Copy data in TMW log format"
-          label="Copy"
-          items={copyMenuItems}
-        />
-        <div class={headerDividerClasses}></div>
+        {#if showStatisticsActions}
+          <HeaderMenuButton
+            faIcon={faCopy}
+            title="Copy data in TMW log format"
+            label="Copy"
+            items={copyMenuItems}
+          />
+          <div class={headerDividerClasses}></div>
+        {/if}
         <HeaderNavTabs />
       </div>
     </div>

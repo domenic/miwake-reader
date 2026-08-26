@@ -34,7 +34,7 @@ export async function expectStatisticsBookFilterCount(page: Page, count: number)
     .toBe(count);
 }
 
-export async function expectStatisticsView(page: Page, view: 'summary' | 'heatmap') {
+export async function expectStatisticsView(page: Page, view: 'summary' | 'heatmap' | 'goals') {
   await expect
     .poll(() => new URL(page.url()).searchParams.get('view'), {
       timeout: SYNC_ASSERTION_TIMEOUT

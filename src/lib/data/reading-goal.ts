@@ -2,12 +2,12 @@ import {
   advanceDateDays,
   getDate,
   getDateString,
-  getStartHoursDate,
+  getDayBoundaryDate,
   toTimeString
 } from '$lib/functions/statistic-util';
 
 import type { BooksDbReadingGoal } from '$lib/data/database/books-db/versions/books-db';
-import { ReadingGoalFrequency } from '$lib/components/book-reader/book-reading-tracker/tracker-domain';
+import { ReadingGoalFrequency } from '$lib/data/tracker-domain';
 import { database } from '$lib/data/store';
 
 export interface ReadingGoal {
@@ -52,7 +52,7 @@ export async function getCurrentReadingGoal(givenReadingGoals?: BooksDbReadingGo
 
 export function getReadingGoalWindow(
   todayKey: string,
-  startDayHoursForTracker: number,
+  dayBoundaryTime: string,
   readingGoal: ReadingGoal
 ) {
   let readingGoalStart = '';
@@ -62,8 +62,8 @@ export function getReadingGoalWindow(
     readingGoalStart = todayKey;
     readingGoalEnd = todayKey;
   } else if (readingGoal.goalFrequency === ReadingGoalFrequency.WEEKLY) {
-    const todayDate = getStartHoursDate(startDayHoursForTracker);
-    const readingGoalStartDate = getDate(readingGoal.goalStartDate, startDayHoursForTracker);
+    const todayDate = getDayBoundaryDate(dayBoundaryTime);
+    const readingGoalStartDate = getDate(readingGoal.goalStartDate, dayBoundaryTime);
     const todayDay = todayDate.getDay() || 7;
     const readingGoalStartDateDay = readingGoalStartDate.getDay() || 7;
 
@@ -89,7 +89,7 @@ export function getReadingGoalWindow(
     ({ dateString: readingGoalEnd } = advanceDateDays(getDate(readingGoalStart), 29));
   }
 
-  const readingGoalEndDate = getDate(readingGoalEnd, startDayHoursForTracker);
+  const readingGoalEndDate = getDate(readingGoalEnd, dayBoundaryTime);
 
   return [
     readingGoalStart,

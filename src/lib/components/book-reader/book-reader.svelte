@@ -47,7 +47,6 @@
     furiganaStyle: FuriganaStyle;
     secondDimensionMaxValue: number;
     firstDimensionMargin: number;
-    autoPositionOnResize: boolean;
     avoidPageBreak: boolean;
     pageColumns: number;
     autoBookmark: boolean;
@@ -95,7 +94,6 @@
     furiganaStyle,
     secondDimensionMaxValue,
     firstDimensionMargin,
-    autoPositionOnResize,
     avoidPageBreak,
     pageColumns,
     autoBookmark,
@@ -320,7 +318,6 @@
       {furiganaStyle}
       {secondDimensionMaxValue}
       {firstDimensionMargin}
-      {autoPositionOnResize}
       {autoBookmark}
       {autoBookmarkTime}
       {multiplier}

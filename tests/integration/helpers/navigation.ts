@@ -4,9 +4,10 @@ import { readerIsMounted, showReaderHeader } from './reader.ts';
 
 type AppPath =
   | '/manage'
-  | '/settings/reader'
+  | '/settings/appearance'
+  | '/settings/reading'
   | '/settings/sync'
-  | '/settings/statistics'
+  | '/settings/tracking'
   | '/statistics';
 
 interface NavigationOptions {
@@ -34,36 +35,53 @@ export async function navigateToManage(page: Page, options?: NavigationOptions) 
   await navigateWithGlobalTab(page, 'Manager', (path) => path === '/manage', options);
 }
 
-export async function navigateToSettingsReader(page: Page, options?: NavigationOptions) {
-  await navigateToSettingsSection(page, '/settings/reader', 'Reader', options);
+export async function navigateToSettingsAppearance(page: Page, options?: NavigationOptions) {
+  await navigateToSettingsSection(page, '/settings/appearance', 'Appearance', options);
+}
+
+export async function navigateToSettingsReading(page: Page, options?: NavigationOptions) {
+  await navigateToSettingsSection(page, '/settings/reading', 'Reading', options);
 }
 
 export async function navigateToSettingsSync(page: Page, options?: NavigationOptions) {
   await navigateToSettingsSection(page, '/settings/sync', 'Sync', options);
 }
 
-export async function navigateToSettingsStatistics(page: Page, options?: NavigationOptions) {
-  await navigateToSettingsSection(page, '/settings/statistics', 'Statistics', options);
+export async function navigateToSettingsTracking(page: Page, options?: NavigationOptions) {
+  await navigateToSettingsSection(page, '/settings/tracking', 'Tracking', options);
 }
 
 export async function navigateToStatisticsSummary(page: Page, options?: NavigationOptions) {
+  await navigateToStatisticsView(page, 'summary', 'Summary', options);
+}
+
+export async function navigateToStatisticsGoals(page: Page, options?: NavigationOptions) {
+  await navigateToStatisticsView(page, 'goals', 'Goals', options);
+}
+
+async function navigateToStatisticsView(
+  page: Page,
+  view: 'summary' | 'goals',
+  tabName: 'Summary' | 'Goals',
+  options?: NavigationOptions
+) {
   await loadApp(page);
   const readerMounted = await readerIsMounted(page);
   if (
     currentPath(page) !== '/statistics' ||
-    currentStatisticsView(page) !== 'summary' ||
+    currentStatisticsView(page) !== view ||
     readerMounted
   ) {
     if (currentPath(page) !== '/statistics' || readerMounted) {
       await navigateWithGlobalTab(page, 'Statistics', (path) => path === '/statistics', options);
     }
 
-    if (currentStatisticsView(page) !== 'summary') {
-      await page.getByRole('link', { name: 'Summary', exact: true }).click();
+    if (currentStatisticsView(page) !== view) {
+      await page.getByRole('link', { name: tabName, exact: true }).click();
     }
   }
   await expectPath(page, '/statistics');
-  await expectStatisticsView(page, 'summary');
+  await expectStatisticsView(page, view);
 }
 
 async function navigateToSettingsSection(
@@ -155,7 +173,7 @@ function currentStatisticsView(page: Page) {
   return new URL(page.url()).searchParams.get('view');
 }
 
-async function expectStatisticsView(page: Page, view: 'summary' | 'heatmap') {
+async function expectStatisticsView(page: Page, view: 'summary' | 'heatmap' | 'goals') {
   await expect
     .poll(() => currentStatisticsView(page), { timeout: SYNC_ASSERTION_TIMEOUT })
     .toBe(view);

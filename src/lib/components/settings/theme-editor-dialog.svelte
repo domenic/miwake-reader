@@ -2,15 +2,11 @@
   import ThemeEditorDialog from '$lib/components/settings/theme-editor-dialog.svelte';
   import { showDialog } from '$lib/components/dialog/show-dialog';
 
-  export function showThemeEditorDialog(params: {
-    selectedTheme?: string;
-    existingThemes: { id: string; text: string }[];
-  }) {
+  export function showThemeEditorDialog(params: { selectedTheme?: string } = {}) {
     showDialog(
       ThemeEditorDialog,
       {
-        selectedTheme: params.selectedTheme,
-        existingThemes: params.existingThemes
+        selectedTheme: params.selectedTheme
       },
       {
         closedBy: 'any',
@@ -23,11 +19,12 @@
 <script lang="ts">
   import DialogButton from '$lib/components/dialog/dialog-button.svelte';
   import DialogContentShell from '$lib/components/dialog/dialog-content-shell.svelte';
+  import SettingsSegmentedControl from '$lib/components/settings/settings-segmented-control.svelte';
   import { inputClasses } from '$lib/css-classes';
   import { customThemes$, theme$ } from '$lib/data/store';
   import {
     FuriganaStyle,
-    furiganaStyleLabels,
+    furiganaStyleOptions,
     setupRubyClickListeners
   } from '$lib/data/furigana-style';
   import { availableThemes, type ThemeOption } from '$lib/data/theme-option';
@@ -45,19 +42,29 @@
 
   interface Props {
     selectedTheme?: string;
-    existingThemes?: { id: string; text: string }[];
   }
 
-  let { selectedTheme, existingThemes = [] }: Props = $props();
+  let { selectedTheme }: Props = $props();
 
   const init = untrack(() => ({
-    selectedTheme,
-    existingThemes
+    selectedTheme
   }));
 
   const isEditMode = !!init.selectedTheme;
 
   type ThemeColors = Record<keyof ThemeOption, RgbaColor>;
+
+  function mapThemeValues<T>(mapper: (key: keyof ThemeOption) => T): Record<keyof ThemeOption, T> {
+    return {
+      fontColor: mapper('fontColor'),
+      backgroundColor: mapper('backgroundColor'),
+      selectionFontColor: mapper('selectionFontColor'),
+      selectionBackgroundColor: mapper('selectionBackgroundColor'),
+      hintFuriganaShadowColor: mapper('hintFuriganaShadowColor'),
+      hintFuriganaFontColor: mapper('hintFuriganaFontColor'),
+      tooltipTextFontColor: mapper('tooltipTextFontColor')
+    };
+  }
 
   function parseRgba(str: string): RgbaColor {
     const match = str.match(/rgba?\((.+)\)/);
@@ -82,11 +89,11 @@
   }
 
   function parseTheme(theme: ThemeOption): ThemeColors {
-    const result: any = {};
-    for (const [key, value] of Object.entries(theme)) {
-      result[key] = parseRgba(value);
-    }
-    return result;
+    return mapThemeValues((key) => parseRgba(theme[key]));
+  }
+
+  function serializeTheme(theme: ThemeColors): ThemeOption {
+    return mapThemeValues((key) => toRgbaString(theme[key]));
   }
 
   function loadInitialTheme(): ThemeColors {
@@ -101,13 +108,7 @@
   let themeNameElm = $state<HTMLInputElement>();
   let customTheme: ThemeColors = $state(loadInitialTheme());
   let previewMode: FuriganaStyle = $state(FuriganaStyle.Dim);
-
-  const previewModes = [
-    FuriganaStyle.Default,
-    FuriganaStyle.Dim,
-    FuriganaStyle.Toggle,
-    FuriganaStyle.Hide
-  ].map((id) => ({ id, label: furiganaStyleLabels[id] }));
+  let existingThemeIds = $derived([...availableThemes.keys(), ...Object.keys($customThemes$)]);
 
   function handleColorInput(attribute: keyof ThemeOption, hex: string) {
     const { r, g, b } = hexToRgb(hex);
@@ -118,6 +119,9 @@
 
   $effect(() => {
     if (!previewTextEl) return () => {};
+    previewTextEl
+      .querySelectorAll('ruby.reveal-rt')
+      .forEach((element) => element.classList.remove('reveal-rt'));
     return setupRubyClickListeners(previewTextEl, previewMode);
   });
 
@@ -143,16 +147,14 @@
       return false;
     }
 
-    const newTheme: any = {};
-    for (const [key, value] of Object.entries(customTheme)) {
-      newTheme[key] = toRgbaString(value as RgbaColor);
-    }
+    const newTheme = serializeTheme(customTheme);
+    const customThemes = { ...$customThemes$ };
 
     if (init.selectedTheme && init.selectedTheme !== themeName) {
-      delete $customThemes$[init.selectedTheme];
+      delete customThemes[init.selectedTheme];
     }
 
-    $customThemes$ = { ...$customThemes$, [themeName]: newTheme };
+    $customThemes$ = { ...customThemes, [themeName]: newTheme };
     $theme$ = themeName;
 
     return true;
@@ -180,12 +182,12 @@
         {
           attribute: 'hintFuriganaFontColor',
           label: 'Hint reading',
-          subtitle: 'Furigana text in "dim" mode'
+          subtitle: 'Color of faint readings'
         },
         {
           attribute: 'hintFuriganaShadowColor',
           label: 'Hint glow',
-          subtitle: 'Shadow on kanji in "toggle" mode'
+          subtitle: 'Glow behind text with hidden readings'
         }
       ]
     },
@@ -216,8 +218,8 @@
     }}
   >
     <option value="" disabled selected>Copy from...</option>
-    {#each init.existingThemes as theme (theme.id)}
-      <option value={theme.id}>{theme.id}</option>
+    {#each existingThemeIds as themeId (themeId)}
+      <option value={themeId}>{themeId}</option>
     {/each}
   </select>
 
@@ -234,40 +236,30 @@
   <!-- Preview panel -->
   <div
     class="preview mb-4 overflow-hidden rounded-md border border-gray-300"
-    class:preview-dim={previewMode === FuriganaStyle.Dim}
-    class:preview-toggle={previewMode === FuriganaStyle.Toggle}
-    class:preview-hide={previewMode === FuriganaStyle.Hide}
     style:background-color={toRgbaString(customTheme.backgroundColor)}
     style:color={toRgbaString(customTheme.fontColor)}
-    style:--preview-hint-font-color={toRgbaString(customTheme.hintFuriganaFontColor)}
-    style:--preview-hint-shadow-color={toRgbaString(customTheme.hintFuriganaShadowColor)}
+    style:--book-content-hint-furigana-font-color={toRgbaString(customTheme.hintFuriganaFontColor)}
+    style:--book-content-hint-furigana-shadow-color={toRgbaString(
+      customTheme.hintFuriganaShadowColor
+    )}
   >
     <div class="mb-3 flex items-center justify-between px-5 pt-3">
-      <div class="flex overflow-hidden rounded-md border border-gray-300">
-        {#each previewModes as mode (mode.id)}
-          <button
-            type="button"
-            class="cursor-pointer px-2 py-1 text-[10px] tracking-wide"
-            class:bg-gray-700={previewMode === mode.id}
-            class:text-white={previewMode === mode.id}
-            class:bg-gray-100={previewMode !== mode.id}
-            class:text-gray-500={previewMode !== mode.id}
-            onclick={() => {
-              previewMode = mode.id;
-              previewTextEl
-                ?.querySelectorAll('ruby.reveal-rt')
-                .forEach((el) => el.classList.remove('reveal-rt'));
-            }}
-          >
-            {mode.label}
-          </button>
-        {/each}
+      <div class="min-w-0">
+        <SettingsSegmentedControl
+          label="Furigana preview mode"
+          options={furiganaStyleOptions}
+          bind:value={previewMode}
+        />
       </div>
       <span class="text-[9px] tracking-widest text-gray-400">PREVIEW</span>
     </div>
     <div class="px-5 pb-4">
       <p
         bind:this={previewTextEl}
+        class="book-content"
+        class:book-content--furigana-style-dim={previewMode === FuriganaStyle.Dim}
+        class:book-content--furigana-style-toggle={previewMode === FuriganaStyle.Toggle}
+        class:book-content--furigana-style-hide={previewMode === FuriganaStyle.Hide}
         style="font-family: 'Noto Serif JP', Georgia, serif; font-size: 15px; line-height: 1.8"
         lang="ja"
       >
@@ -301,7 +293,7 @@
             {@const popoverId = `color-${attribute}-${popoverSuffix}`}
             <button
               type="button"
-              class="flex cursor-pointer items-center gap-3 rounded-md border border-gray-300 px-3 py-2 text-left"
+              class="flex items-center gap-3 rounded-md border border-gray-300 px-3 py-2 text-left"
               popovertarget={popoverId}
             >
               <div
@@ -412,45 +404,5 @@
   .color-input::-moz-color-swatch {
     border: none;
     border-radius: 2px;
-  }
-
-  .preview rt {
-    user-select: none;
-  }
-
-  .preview-dim rt {
-    color: var(--preview-hint-font-color);
-  }
-
-  .preview-dim ruby:hover rt {
-    color: inherit;
-  }
-
-  .preview-toggle ruby {
-    text-shadow: var(--preview-hint-shadow-color) 1px 0 10px;
-  }
-
-  .preview-toggle rt {
-    visibility: hidden;
-  }
-
-  .preview-toggle ruby:hover rt {
-    visibility: visible;
-  }
-
-  .preview-toggle ruby:hover {
-    text-shadow: none;
-  }
-
-  .preview-toggle :global(ruby.reveal-rt) {
-    text-shadow: none;
-
-    rt {
-      visibility: visible;
-    }
-  }
-
-  .preview-hide rt {
-    display: none;
   }
 </style>

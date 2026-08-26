@@ -5,7 +5,7 @@
     faLayerGroup,
     faRepeat
   } from '@fortawesome/free-solid-svg-icons';
-  import { ReadingGoalFrequency } from '$lib/components/book-reader/book-reading-tracker/tracker-domain';
+  import { ReadingGoalFrequency } from '$lib/data/tracker-domain';
   import {
     type HeatmapMonthLabel,
     type HeatmapStreak,
@@ -35,18 +35,18 @@
     lastStartDayOfWeek$,
     lastStatisticsEndDate$,
     lastStatisticsStartDate$,
-    startDayHoursForTracker$
+    dayBoundaryTime$
   } from '$lib/data/store';
   import {
     advanceDateDays,
     getDate,
     getDateString,
-    getStartHoursDate,
+    getDayBoundaryDate,
     getDaysBetween,
     getPreviousDayKey,
     secondsToMinutes
   } from '$lib/functions/statistic-util';
-  import { caluclatePercentage, limitToRange, pluralize } from '$lib/functions/utils';
+  import { caluclatePercentage, clamp, pluralize } from '$lib/functions/utils';
   import { onMount, tick, untrack } from 'svelte';
   import { SvelteDate, SvelteMap, SvelteSet } from 'svelte/reactivity';
   import Fa from 'svelte-fa';
@@ -67,7 +67,7 @@
     statisticsTitleFilters
   }: Props = $props();
 
-  let today = $derived(getStartHoursDate($startDayHoursForTracker$));
+  let today = $derived(getDayBoundaryDate($dayBoundaryTime$));
   let todayKey = $derived(getDateString(today));
 
   const heatmapArrowButtonsWidth = 30;
@@ -83,7 +83,7 @@
 
   let heatmapElement: HTMLElement = $state()!;
   let monthLabels: HeatmapMonthLabel[] = $state([...monthLabelList]);
-  let heatmapYear = $state(getStartHoursDate($startDayHoursForTracker$).getFullYear());
+  let heatmapYear = $state(getDayBoundaryDate($dayBoundaryTime$).getFullYear());
   let globalHeatmapData: StatisticsHeatmapData | ReadingGoalsHeatmapData = $state()!;
   const globalHeatmapDayData = new SvelteMap<
     string,
@@ -310,7 +310,11 @@
               ({ dateString: currentReadingStreakDateString } =
                 advanceDateDays(currentReadingStreakDate));
             } else if (currentReadingStreak.startDate && !daysRead.has(dateKey)) {
-              currentReadingStreak.endDate = getPreviousDayKey(0, currentReadingStreakDate, true);
+              currentReadingStreak.endDate = getPreviousDayKey(
+                '00:00',
+                currentReadingStreakDate,
+                true
+              );
               currentReadingStreak.duration += 1;
 
               streaks.push(currentReadingStreak);
@@ -575,28 +579,27 @@
           currentReadingGoalWindow.readingTimePercentage = Math.floor(
             realReadingTimePercentage * 100
           );
-          currentReadingGoalWindow.normalizedReadingTimePercentage = limitToRange(
+          currentReadingGoalWindow.normalizedReadingTimePercentage = clamp(
+            currentReadingGoalWindow.readingTimePercentage,
             0,
-            100,
-            currentReadingGoalWindow.readingTimePercentage
+            100
           );
           currentReadingGoalWindow.charactersReadPercentage = Math.floor(
             realCharactersReadPercentage * 100
           );
-          currentReadingGoalWindow.normalizedCharactersReadPercentage = limitToRange(
+          currentReadingGoalWindow.normalizedCharactersReadPercentage = clamp(
+            currentReadingGoalWindow.charactersReadPercentage,
             0,
-            100,
-            currentReadingGoalWindow.charactersReadPercentage
+            100
           );
           currentReadingGoalWindow.readingGoalCompletedPercentage = realPercentage;
-          currentReadingGoalWindow.normalizedReadingGoalCompletedPercentage = limitToRange(
-            0,
-            100,
+          currentReadingGoalWindow.normalizedReadingGoalCompletedPercentage = clamp(
             caluclatePercentage(
-              limitToRange(0, 1, realReadingTimePercentage) +
-                limitToRange(0, 1, realCharactersReadPercentage),
+              clamp(realReadingTimePercentage, 0, 1) + clamp(realCharactersReadPercentage, 0, 1),
               allBasePercentage
-            )
+            ),
+            0,
+            100
           );
 
           const completedReadingGoal =
@@ -807,7 +810,7 @@
     maxValue: number,
     value: number
   ) {
-    const colorRatio = limitToRange(0, 1, value / (maxValue - minValue));
+    const colorRatio = clamp(value / (maxValue - minValue), 0, 1);
     const r = Math.ceil(
       parseInt(colorStart.substring(0, 2), 16) * (1 - colorRatio) +
         parseInt(colorEnd.substring(0, 2), 16) * colorRatio

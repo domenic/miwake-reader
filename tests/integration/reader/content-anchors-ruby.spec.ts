@@ -22,6 +22,12 @@ test('book content enhancement wires generated anchors and ruby clicks', async (
   const ruby = rubySample.locator('ruby');
   const rubyText = ruby.locator('rt');
   await expect(rubyText).toBeHidden();
+
+  await ruby.hover();
+  await expect(rubyText).toBeVisible();
+  await page.mouse.move(0, 0);
+  await expect(rubyText).toBeHidden();
+
   await ruby.dispatchEvent('click');
   await expect(rubyText).toBeVisible();
   await ruby.dispatchEvent('click');

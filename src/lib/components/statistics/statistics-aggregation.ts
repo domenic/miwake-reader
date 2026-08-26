@@ -1,4 +1,4 @@
-import { getDefaultStatistic } from '$lib/components/book-reader/book-reading-tracker/tracker-domain';
+import { getDefaultStatistic } from '$lib/data/tracker-domain';
 import {
   type BookStatistic,
   StatisticsReadingDataAggregationMode

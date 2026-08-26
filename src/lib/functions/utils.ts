@@ -50,8 +50,8 @@ export function getWeightedAverage(values: number[], weights: number[]) {
   return sum / weightedSum;
 }
 
-export function limitToRange(minValue: number, maxValue: number, currentValue: number) {
-  return Math.min(Math.max(currentValue, minValue), maxValue);
+export function clamp(value: number, minimum: number, maximum: number) {
+  return Math.min(maximum, Math.max(minimum, value));
 }
 
 export function pluralize(value: number, term: string, printValue = true) {

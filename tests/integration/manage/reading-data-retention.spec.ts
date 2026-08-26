@@ -8,7 +8,7 @@ import {
   importBookFixtures,
   LONG_BOOK
 } from '../helpers/fixtures.ts';
-import { navigateToSettingsStatistics } from '../helpers/navigation.ts';
+import { navigateToSettingsTracking } from '../helpers/navigation.ts';
 
 // Bookmarks are keyed by canonical title, so with the default
 // keep-local-reading-data setting a deleted book's reading position
@@ -36,10 +36,9 @@ test('reading position is gone after delete and re-import with keep off', async 
 });
 
 async function setKeepLocalReadingData(page: Page, enabled: boolean) {
-  await navigateToSettingsStatistics(page);
+  await navigateToSettingsTracking(page);
   await page
-    .locator('section')
-    .filter({ has: page.getByRole('heading', { name: 'Keep Local Data on Deletion' }) })
-    .getByRole('button', { name: enabled ? 'On' : 'Off', exact: true })
-    .click();
+    .getByRole('group', { name: 'After removing a book' })
+    .getByLabel(enabled ? 'Keep reading data' : 'Delete reading data', { exact: false })
+    .check();
 }
