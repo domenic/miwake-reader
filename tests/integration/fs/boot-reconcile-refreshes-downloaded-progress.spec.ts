@@ -3,6 +3,7 @@ import {
   bookmarkFixturePartway,
   bookProgressBar,
   expectBookPartwayProgress,
+  expectBookProgressInSyncRoot,
   expectBooksInManage,
   LONG_BOOK,
   openBookFromManage,
@@ -27,10 +28,12 @@ test('boot reconcile refreshes downloaded book progress from another context', a
   });
 
   await bookmarkFixturePartway(page, LONG_BOOK);
+  await expectBookProgressInSyncRoot(page, LONG_BOOK, { completed: false, percentage: 38 });
   await waitForSuccessfulSync(page);
 
   await openBookFromManage(page, VALID_BOOK);
   await completeCurrentBook(page);
+  await expectBookProgressInSyncRoot(page, VALID_BOOK, { completed: true, percentage: 0 });
   await waitForSuccessfulSync(page);
 
   await copySyncRoot(page, observer.page);
