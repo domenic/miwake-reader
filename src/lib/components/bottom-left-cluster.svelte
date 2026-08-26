@@ -4,7 +4,6 @@
   // it. The sync pill stays anchored in the lower-left corner across every route so users always know where to find it.
   import { resolve } from '$app/paths';
   import { page } from '$app/state';
-  import type { Snippet } from 'svelte';
   import Fa from 'svelte-fa';
   import {
     faArrowsRotate,
@@ -23,7 +22,6 @@
     toggleTrackerPauseByUser,
     trackerStatus
   } from '$lib/components/book-reader/book-reading-tracker/tracker-state.svelte';
-  import Popover from '$lib/components/popover/popover.svelte';
   import { showErrorDialog } from '$lib/components/log-report-dialog.svelte';
   import { autoReplication$, statisticsEnabled$ } from '$lib/data/store';
   import { connectCloud } from '$lib/data/sync/source-manager';
@@ -146,37 +144,22 @@
     'sync-indicator-size flex items-center justify-center rounded-full text-base transition-colors hover:bg-black/5 sm:text-lg';
 </script>
 
-{#snippet clusterPopover(label: string, control: Snippet)}
-  <Popover
-    eventType="pointer"
-    placement="right"
-    fallbackPlacements={['top', 'bottom', 'left']}
-    strategy="fixed"
-    contentStyles="padding: 0.4rem 0.6rem; font-size: 0.75rem; font-weight: 500;"
-  >
-    {#snippet content()}{label}{/snippet}
-    {@render control()}
-  </Popover>
-{/snippet}
-
 {#snippet actionButton(label: string, icon: IconDefinition, onClick: (event: MouseEvent) => void)}
-  {#snippet control()}
-    <button
-      type="button"
-      aria-label={label}
-      class="{buttonClass} cursor-pointer text-gray-600"
-      onclick={onClick}
-    >
-      <Fa {icon} />
-    </button>
-  {/snippet}
-  {@render clusterPopover(label, control)}
+  <button
+    type="button"
+    title={label}
+    class="{buttonClass} cursor-pointer text-gray-600"
+    onclick={onClick}
+  >
+    <Fa {icon} />
+  </button>
 {/snippet}
 
-{#snippet syncControl()}
+<!-- TODO: Revisit these tooltips with `interestfor` and `popover="hint"` once supported by our target browsers. -->
+<div class="sync-indicator-inset writing-horizontal-tb fixed z-40 flex flex-col-reverse gap-2">
   {#if syncClickable}
     <a
-      aria-label={syncLabel}
+      title={syncLabel}
       class="{buttonClass} {wrapperVariantClasses[indicator.kind]} cursor-pointer"
       href={resolve(indicator.kind === 'off' ? '/settings/sync#sync-direction' : '/settings/sync')}
       onclick={onSyncClick}
@@ -186,17 +169,13 @@
   {:else}
     <button
       type="button"
-      aria-label={syncLabel}
+      title={syncLabel}
       class="{buttonClass} {wrapperVariantClasses[indicator.kind]} cursor-default"
       tabindex={-1}
     >
       <Fa icon={icons[indicator.kind]} class={indicator.kind === 'syncing' ? 'animate-spin' : ''} />
     </button>
   {/if}
-{/snippet}
-
-<div class="sync-indicator-inset writing-horizontal-tb fixed z-40 flex flex-col-reverse gap-2">
-  {@render clusterPopover(syncLabel, syncControl)}
 
   {#if showTrackerButtons}
     {@render actionButton(

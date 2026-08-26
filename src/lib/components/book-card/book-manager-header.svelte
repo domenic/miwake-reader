@@ -5,7 +5,6 @@
   import HeaderButton, { type HeaderAction } from '$lib/components/header-button.svelte';
   import HeaderMenuButton from '$lib/components/header-menu-button.svelte';
   import HeaderNavTabs from '$lib/components/header-nav-tabs.svelte';
-  import Popover from '$lib/components/popover/popover.svelte';
   import { baseHeaderClasses, headerDividerClasses } from '$lib/css-classes';
   import { FilesystemStorageHandler } from '$lib/data/storage/handler/filesystem-handler';
   import { inputAllowDirectory } from '$lib/functions/file-dom/input-allow-directory';
@@ -312,15 +311,16 @@
       </div>
     </div>
   {:else}
-    <div
-      title="Cancel operation"
-      class="mx-auto flex h-full items-center justify-center px-4 max-w-6xl"
-    >
-      <Popover contentText={cancelTooltip} contentStyles="padding: 0.75rem" eventType="pointer">
-        <button type="button" onclick={() => oncancelReplication?.()}>
-          <Fa icon={faCircleXmark} />
-        </button>
-      </Popover>
+    <div class="mx-auto flex h-full items-center justify-center px-4 max-w-6xl">
+      <!-- TODO: Revisit this tooltip with `interestfor` and `popover="hint"` once supported by our target browsers. -->
+      <button
+        type="button"
+        aria-label="Cancel operation"
+        title={cancelTooltip}
+        onclick={() => oncancelReplication?.()}
+      >
+        <Fa icon={faCircleXmark} />
+      </button>
       <progress class="mx-4 w-full" value={replicationProgress} max={replicationToProgress}
       ></progress>
       <div class="ml-4 min-w-fit">{replicationProgressRemaining}</div>

@@ -188,11 +188,11 @@ test('mobile navigation is unavailable while a library operation is in progress'
   ]);
 
   const navigation = page.locator('[data-mobile-navigation]');
-  await expect(page.getByTitle('Cancel operation')).toBeVisible();
+  await expect(libraryToolbar.getByRole('progressbar')).toBeVisible();
   await expect(navigation).toHaveAttribute('inert', '');
   await expect(navigation).toHaveCSS('opacity', '0');
 
-  await expect(page.getByTitle('Cancel operation')).toBeHidden();
+  await expect(libraryToolbar.getByRole('progressbar')).toBeHidden();
   await expect(navigation).not.toHaveAttribute('inert', '');
   await expect(navigation).toHaveCSS('opacity', '1');
 });
