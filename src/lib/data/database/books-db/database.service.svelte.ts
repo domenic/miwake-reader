@@ -41,7 +41,10 @@ const LAST_ITEM_KEY = 0;
 export class DatabaseService {
   #state = $state({
     isReady: false,
-    listLoading: browser,
+    // IndexedDB is browser-only, so library contents are unknown during prerendering. Keep the
+    // loading state through hydration to avoid flashing the empty-library screen before the first
+    // browser refresh finishes.
+    listLoading: true,
     dataList: [] as BookCardProps[],
     bookmarks: [] as BooksDbBookmarkData[],
     lastItemTitle: undefined as string | undefined,

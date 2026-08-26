@@ -14,6 +14,17 @@ import {
 import { expect, test } from '../helpers/harness.ts';
 import { navigateToManage } from '../helpers/navigation.ts';
 
+test('manager prerender shows a loading state while library contents are unknown', async ({
+  page
+}) => {
+  const response = await page.request.get('/manage');
+  expect(response.ok()).toBe(true);
+
+  const html = await response.text();
+  expect(html).toContain('Loading...');
+  expect(html).not.toContain('Drop files here or click to upload');
+});
+
 test('manager derives card progress and sort order from library state', async ({ page }) => {
   await importBookFixtures(page, [COVER_REFRESH_BOOK, LONG_BOOK, PLAIN_TEXT_BOOK]);
   await bookmarkFixturePartway(page, LONG_BOOK);
