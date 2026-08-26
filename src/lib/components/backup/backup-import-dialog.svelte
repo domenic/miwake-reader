@@ -36,7 +36,7 @@
   import BackupSelectionTree from '$lib/components/backup/backup-selection-tree.svelte';
   import DialogButton from '$lib/components/dialog/dialog-button.svelte';
   import DialogContentShell from '$lib/components/dialog/dialog-content-shell.svelte';
-  import SyncRadioGroup from '$lib/components/settings/sync/sync-radio-group.svelte';
+  import SettingsRadioGroup from '$lib/components/settings/settings-radio-group.svelte';
   import { isEmptySelection } from '$lib/components/backup/backup-types';
   import { untrack } from 'svelte';
 
@@ -121,12 +121,10 @@
   {#if stage.kind === 'select'}
     <div class="space-y-4">
       <BackupSelectionTree {catalog} {selection} onchange={(next) => (selection = next)} />
-      <SyncRadioGroup
-        heading="When the ZIP and this device disagree"
-        name="backup-import-direction"
+      <SettingsRadioGroup
+        legend="When the ZIP and this device disagree"
         options={directionOptions}
-        selected={direction}
-        onchange={(value) => (direction = value)}
+        bind:value={direction}
       />
     </div>
     {#if errorMessage}

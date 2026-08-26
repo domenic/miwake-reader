@@ -35,7 +35,7 @@
 <script lang="ts">
   import DialogButton from '$lib/components/dialog/dialog-button.svelte';
   import DialogContentShell from '$lib/components/dialog/dialog-content-shell.svelte';
-  import SyncRadioGroup from '$lib/components/settings/sync/sync-radio-group.svelte';
+  import SettingsRadioGroup from '$lib/components/settings/settings-radio-group.svelte';
   import { describeSyncLocation } from '$lib/components/settings/sync/sync-utils';
 
   interface Props {
@@ -53,18 +53,18 @@
     {
       id: 'newest' as const,
       label: 'Keep newest',
-      description: `For each item, whichever side was modified most recently wins. Same behavior as regular sync, just applied to everything at once. Safe default.`,
+      description: `For each item, whichever side was modified most recently wins. This matches regular sync behavior and is the safe default.`,
       isDefault: true
     },
     {
       id: 'local-wins' as const,
       label: 'This device wins',
-      description: `Push this device's version of every item to ${locationLabel}, ignoring modification times. Edits there that haven't been synced here yet will be lost.`
+      description: `Pushes this device's version of every item to ${locationLabel}, ignoring modification times. Edits there that haven't been synced here yet will be lost.`
     },
     {
       id: 'remote-wins' as const,
       label: 'Sync location wins',
-      description: `Pull every item from ${locationLabel}, ignoring modification times. Any unsynced local edits will be lost.`
+      description: `Pulls every item from ${locationLabel}, ignoring modification times. Any unsynced local edits will be lost.`
     }
   ]);
 
@@ -80,15 +80,13 @@
 
 <DialogContentShell
   title="Force full re-sync"
-  description={`Walks every book, bookmark, reading statistic, and reading goal in your library to check for differences between ${locationLabel} and this device.`}
+  description={`Checks every book, bookmark, reading statistic, and reading goal in your library for differences between ${locationLabel} and this device.`}
 >
   <div class="space-y-2">
-    <SyncRadioGroup
-      heading="Direction"
-      name="force-resync-direction"
+    <SettingsRadioGroup
+      legend="Direction"
       {options}
-      selected={direction}
-      onchange={updateDirection}
+      bind:value={() => direction, updateDirection}
     />
     <p class="text-xs text-gray-600">
       Reading statistics and reading goals also respect the merge-mode settings in Advanced, which

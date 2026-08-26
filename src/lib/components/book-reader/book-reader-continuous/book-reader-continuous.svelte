@@ -10,7 +10,7 @@
   import { logger } from '$lib/data/logger';
   import { appShortcuts } from '$lib/data/app-shortcuts.svelte';
   import type { TextMarginMode } from '$lib/data/text-margin-mode';
-  import { customReadingPointEnabled$, disableWheelNavigation$, userFonts$ } from '$lib/data/store';
+  import { userFonts$ } from '$lib/data/store';
   import { getReferencePoints } from '$lib/functions/range-util';
   import { faBookmark, faSpinner } from '@fortawesome/free-solid-svg-icons';
   import { onDestroy, onMount, untrack } from 'svelte';
@@ -21,7 +21,7 @@
   import { AutoScrollerContinuous } from './auto-scroller-continuous.svelte';
   import { BookmarkManagerContinuous, type BookmarkPosData } from './bookmark-manager-continuous';
   import { CharacterStatsCalculator } from './character-stats-calculator';
-  import { horizontalMouseWheel } from './horizontal-mouse-wheel';
+  import { crossAxisWheelScroll } from '../wheel-navigation';
   import { PageManagerContinuous } from './page-manager-continuous';
 
   interface Props {
@@ -49,7 +49,6 @@
     furiganaStyle: FuriganaStyle;
     secondDimensionMaxValue: number;
     firstDimensionMargin: number;
-    autoPositionOnResize: boolean;
     autoBookmark: boolean;
     autoBookmarkTime: number;
     loadingState: boolean;
@@ -91,7 +90,6 @@
     furiganaStyle,
     secondDimensionMaxValue,
     firstDimensionMargin,
-    autoPositionOnResize,
     autoBookmark,
     autoBookmarkTime,
     loadingState,
@@ -129,10 +127,6 @@
   let isResizeScroll = false;
 
   let fontLoadingAdded = false;
-
-  const scrollFn = browser
-    ? horizontalMouseWheel(4, document.documentElement, requestAnimationFrame)
-    : () => 0;
 
   const sectionToElement = new SvelteMap<string, HTMLElement>();
 
@@ -241,9 +235,9 @@
     return readerController.registerPageManager(pageManager);
   });
 
-  // Update custom reading point position
+  // Update reading marker position
   $effect(() => {
-    if ($customReadingPointEnabled$ && contentEl && Number.isFinite(customReadingPoint)) {
+    if (contentEl && Number.isFinite(customReadingPoint)) {
       updateCustomReadingPointPosition();
       onScroll();
       updateSectionProgress();
@@ -264,12 +258,6 @@
   $effect(() => {
     const dimension = verticalMode ? height : width;
 
-    if (!autoPositionOnResize) {
-      lastAutoPositionDimension = dimension;
-      clearScheduledAutoPosition();
-      return;
-    }
-
     if (lastAutoPositionDimension === undefined) {
       lastAutoPositionDimension = dimension;
       return;
@@ -287,12 +275,8 @@
     // Register wheel handler with { passive: false } since Svelte 5 doesn't support |nonpassive
     document.body.addEventListener('wheel', onWheel, { passive: false });
 
-    // Register mousedown handler on body
-    document.body.addEventListener('mousedown', onBodyMousedown);
-
     return () => {
       document.body.removeEventListener('wheel', onWheel);
-      document.body.removeEventListener('mousedown', onBodyMousedown);
     };
   });
 
@@ -334,7 +318,7 @@
   }
 
   function updateCustomReadingPointPosition() {
-    if (!$customReadingPointEnabled$ || !contentEl) {
+    if (!contentEl) {
       return;
     }
 
@@ -531,15 +515,8 @@
   }
 
   function onWheel(ev: WheelEvent) {
-    if (verticalMode && !$disableWheelNavigation$ && !appShortcuts.disabled) {
-      scrollFn(ev, fontSize, innerWidth.current!);
-    }
-  }
-
-  function onBodyMousedown(e: MouseEvent) {
-    if ($disableWheelNavigation$ && e.button === 1) {
-      e.preventDefault();
-    }
+    if (appShortcuts.disabled) return;
+    crossAxisWheelScroll(ev, document.documentElement, fontSize, verticalMode);
   }
 
   function onScroll() {
@@ -645,6 +622,7 @@
   bind:this={contentEl}
   style:color={fontColor}
   style:font-size="{fontSize}px"
+  style:font-kerning="normal"
   style:line-height={lineHeight}
   style:max-width={!verticalMode && secondDimensionMaxValue
     ? `${secondDimensionMaxValue}px`
@@ -739,18 +717,9 @@
   </div>
 {/if}
 
-<svelte:window
-  onscroll={onScroll}
-  onresize={() => {
-    if (autoPositionOnResize) {
-      isResizeScroll = true;
-    }
-  }}
-/>
+<svelte:window onscroll={onScroll} onresize={() => (isResizeScroll = true)} />
 
 <style>
-  @import '../styles.css';
-
   .book-content {
     :global(svg),
     :global(img) {

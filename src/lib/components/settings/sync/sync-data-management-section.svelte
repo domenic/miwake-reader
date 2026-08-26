@@ -6,8 +6,9 @@
   import { showErrorDialog } from '$lib/components/log-report-dialog.svelte';
   import { showMessageDialog } from '$lib/components/message-dialog.svelte';
   import { syncState } from '$lib/data/sync/sync-store.svelte';
-  import SyncButton from '$lib/components/settings/sync/sync-button.svelte';
-  import SyncSection from '$lib/components/settings/sync/sync-section.svelte';
+  import SettingsButton from '$lib/components/settings/settings-button.svelte';
+  import SettingsItem from '$lib/components/settings/settings-item.svelte';
+  import SettingsSection from '$lib/components/settings/settings-section.svelte';
   import { showForceResyncDialog } from '$lib/components/settings/sync/force-resync-dialog.svelte';
   import { forceFullResync } from '$lib/data/sync/sync-engine';
   import {
@@ -94,74 +95,49 @@
       await showErrorDialog({ title: 'Error wiping local data', error });
     }
   }
-
-  interface Item {
-    title: string;
-    description: string;
-    action: string;
-    variant?: 'default' | 'danger';
-    danger?: boolean;
-    disabled?: boolean;
-    onclick: () => unknown;
-  }
-
-  // Force re-sync disables (and relabels) while any sync is in flight —
-  // both this one and an ambient push that happened to start at the
-  // same time. Same lock prevents double-start.
-  let items: Item[] = $derived([
-    {
-      title: 'Export backup to ZIP',
-      description: 'Save selected books, bookmarks, statistics, and settings to a ZIP file.',
-      action: 'Export',
-      onclick: onExport
-    },
-    {
-      title: 'Import backup from ZIP',
-      description: 'Restore from a previously exported backup file.',
-      action: 'Import',
-      onclick: onImport
-    },
-    {
-      title: 'Force full re-sync',
-      description:
-        'Walk every file in your library to ensure there are no differences between your sync location and this device. Useful if you suspect something drifted.',
-      action: syncState.isSyncing
-        ? 'Syncing…'
-        : syncState.isSyncPending
-          ? 'Sync pending…'
-          : 'Re-sync',
-      disabled: syncState.isSyncing || syncState.isSyncPending,
-      onclick: onForceResync
-    },
-    {
-      title: 'Sign out and wipe local data',
-      description:
-        'Disconnect your sync location and delete everything from this device. Your data stored elsewhere is unchanged.',
-      action: 'Sign out and wipe',
-      variant: 'danger',
-      danger: true,
-      onclick: onSignOutAndWipe
-    }
-  ]);
 </script>
 
-<SyncSection title="Data management">
-  {#each items as item, i (item.title)}
-    <div
-      class="flex items-center justify-between gap-4 py-3"
-      class:border-t={i > 0}
-      class:border-gray-400={i > 0}
-      class:border-opacity-40={i > 0}
-    >
-      <div class="flex-1">
-        <div class="font-medium" class:text-red-800={item.danger}>
-          {item.title}
-        </div>
-        <div class="mt-0.5 text-sm text-gray-600">{item.description}</div>
-      </div>
-      <SyncButton variant={item.variant} disabled={item.disabled} onclick={item.onclick}
-        >{item.action}</SyncButton
+<SettingsSection title="Data management">
+  <SettingsItem
+    label="Export backup to ZIP"
+    description="Saves selected books, bookmarks, statistics, and settings to a ZIP file."
+  >
+    {#snippet control()}
+      <SettingsButton onclick={onExport}>Export</SettingsButton>
+    {/snippet}
+  </SettingsItem>
+
+  <SettingsItem
+    label="Import backup from ZIP"
+    description="Restores from a previously exported backup file."
+  >
+    {#snippet control()}
+      <SettingsButton onclick={onImport}>Import</SettingsButton>
+    {/snippet}
+  </SettingsItem>
+
+  <SettingsItem
+    label="Force full re-sync"
+    description="Checks every file in your library for differences between your sync location and this device. This is useful if you suspect something drifted."
+  >
+    {#snippet control()}
+      <!-- Both a re-sync started here and an ambient push lock this action against double-starts. -->
+      <SettingsButton
+        disabled={syncState.isSyncing || syncState.isSyncPending}
+        onclick={onForceResync}
       >
-    </div>
-  {/each}
-</SyncSection>
+        {syncState.isSyncing ? 'Syncing…' : syncState.isSyncPending ? 'Sync pending…' : 'Re-sync'}
+      </SettingsButton>
+    {/snippet}
+  </SettingsItem>
+
+  <SettingsItem
+    label="Sign out and wipe local data"
+    description="Disconnects your sync location and deletes everything from this device. Your data stored elsewhere is unchanged."
+    tone="danger"
+  >
+    {#snippet control()}
+      <SettingsButton variant="danger" onclick={onSignOutAndWipe}>Sign out and wipe</SettingsButton>
+    {/snippet}
+  </SettingsItem>
+</SettingsSection>

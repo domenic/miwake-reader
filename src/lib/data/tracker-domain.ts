@@ -1,5 +1,7 @@
 import type { BooksDbStatistic } from '$lib/data/database/books-db/versions/books-db';
 
+/** Shared domain values used by tracking, statistics, reading goals, and their settings. */
+
 export enum TrackerAutoPause {
   OFF = 'off',
   MODERATE = 'moderate',

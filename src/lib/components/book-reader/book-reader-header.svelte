@@ -5,6 +5,7 @@
     faCrosshairs,
     faEllipsis,
     faExpand,
+    faEye,
     faFlag,
     faHashtag,
     faImages,
@@ -15,9 +16,11 @@
   import HeaderButton, { type HeaderAction } from '$lib/components/header-button.svelte';
   import HeaderMenuButton from '$lib/components/header-menu-button.svelte';
   import HeaderNavTabs from '$lib/components/header-nav-tabs.svelte';
+  import { showMessageDialog } from '$lib/components/message-dialog.svelte';
   import { baseHeaderClasses, headerDividerClasses } from '$lib/css-classes';
   import { deviceEnvironment } from '$lib/data/device-environment.svelte';
-  import { customReadingPointEnabled$, viewMode$ } from '$lib/data/store';
+  import { appName } from '$lib/data/env';
+  import { viewMode$ } from '$lib/data/store';
   import { ViewMode } from '$lib/data/view-mode';
 
   interface Props {
@@ -64,14 +67,51 @@
     onreaderImageGalleryClick
   }: Props = $props();
 
-  let customReadingPointMenuItems = $derived([
-    ...(hasCustomReadingPoint ? [{ label: 'Show Point', onclick: onshowCustomReadingPoint }] : []),
-    { label: 'Set Point', onclick: onsetCustomReadingPoint },
-    ...(hasCustomReadingPoint ? [{ label: 'Reset Point', onclick: onresetCustomReadingPoint }] : [])
+  let paginatedReadingPositionMenuItems = $derived([
+    { label: 'Set current reading position', onclick: onsetCustomReadingPoint },
+    ...(hasCustomReadingPoint
+      ? [
+          { label: 'Show current reading position', onclick: onshowCustomReadingPoint },
+          { label: 'Clear current reading position', onclick: onresetCustomReadingPoint }
+        ]
+      : []),
+    {
+      label: 'About reading position…',
+      separatorBefore: true,
+      onclick: showPaginatedReadingPositionHelp
+    }
   ]);
-  let showCustomReadingPointMenu = $derived(
-    $customReadingPointEnabled$ || $viewMode$ === ViewMode.Paginated
-  );
+  let scrollReadingMarkerMenuItems = $derived([
+    { label: 'Move reading marker', onclick: onsetCustomReadingPoint },
+    ...(hasCustomReadingPoint
+      ? [
+          { label: 'Show reading marker', onclick: onshowCustomReadingPoint },
+          { label: 'Reset reading marker', onclick: onresetCustomReadingPoint }
+        ]
+      : []),
+    {
+      label: 'About reading marker…',
+      separatorBefore: true,
+      onclick: showScrollReadingMarkerHelp
+    }
+  ]);
+  let readingLocationMenu = $derived.by(() => {
+    if ($viewMode$ === ViewMode.Paginated) {
+      return {
+        faIcon: faCrosshairs,
+        label: 'Position',
+        title: 'Open current reading position actions',
+        items: paginatedReadingPositionMenuItems
+      };
+    }
+
+    return {
+      faIcon: faEye,
+      label: 'Marker',
+      title: 'Open reading marker actions',
+      items: scrollReadingMarkerMenuItems
+    };
+  });
   let secondaryActions: HeaderAction[] = $derived([
     {
       faIcon: faFlag,
@@ -112,10 +152,21 @@
         ]
       : [])
   ]);
-  let mobileMenuItems = $derived([
-    ...secondaryActions,
-    ...(showCustomReadingPointMenu ? customReadingPointMenuItems : [])
-  ]);
+  let mobileMenuItems = $derived([...secondaryActions, ...readingLocationMenu.items]);
+
+  function showPaginatedReadingPositionHelp() {
+    return showMessageDialog({
+      title: 'Current reading position',
+      message: `In paginated mode, ${appName} normally estimates your position to be the start of the visible page. Set the current position to identify the exact paragraph you are reading.\n\nThis position is used to calculate progress, characters read, and bookmarks saved on this page. It is cleared when you turn the page.`
+    });
+  }
+
+  function showScrollReadingMarkerHelp() {
+    return showMessageDialog({
+      title: 'Reading marker',
+      message: `The reading marker represents where your eyes normally rest on the screen. By default, it is at the top edge of the reading area for horizontal text and the right edge for vertical text.\n\nIn scroll mode, as text passes this fixed point, ${appName} updates your progress, characters read, and bookmark position. The marker stays at the same relative screen position across books and screen sizes.`
+    });
+  }
 </script>
 
 <div
@@ -168,15 +219,8 @@
   </div>
 
   <div class="hidden md:flex">
-    {#if showCustomReadingPointMenu}
-      <HeaderMenuButton
-        faIcon={faCrosshairs}
-        title="Open custom point actions"
-        label="Point"
-        items={customReadingPointMenuItems}
-      />
-      <div class={headerDividerClasses}></div>
-    {/if}
+    <HeaderMenuButton {...readingLocationMenu} />
+    <div class={headerDividerClasses}></div>
     <HeaderNavTabs />
   </div>
 </div>

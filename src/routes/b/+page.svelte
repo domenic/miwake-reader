@@ -11,7 +11,6 @@
   import {
     autoBookmark$,
     autoBookmarkTime$,
-    autoPositionOnResize$,
     avoidPageBreak$,
     database,
     enableTapEdgeToFlip$,
@@ -42,18 +41,16 @@
     confirmClose$,
     verticalCustomReadingPosition$,
     horizontalCustomReadingPosition$,
-    customReadingPointEnabled$,
     statisticsEnabled$,
     openTrackerOnCompletion$,
     addCharactersOnCompletion$,
     manualBookmark$,
     customThemes$,
     overwriteBookCompletion$,
-    startDayHoursForTracker$,
+    dayBoundaryTime$,
     pauseTrackerOnCustomPointChange$,
     showCharacterCounter$,
     showPercentage$,
-    enableVerticalFontKerning$,
     enableFontVPAL$,
     verticalTextOrientation$
   } from '$lib/data/store';
@@ -61,7 +58,7 @@
   import BookReaderHeader from '$lib/components/book-reader/book-reader-header.svelte';
   import { readerImageGallery } from '$lib/components/book-reader/book-reader-image-gallery/book-reader-image-gallery-state.svelte';
   import BookReaderImageGallery from '$lib/components/book-reader/book-reader-image-gallery/book-reader-image-gallery.svelte';
-  import { getDefaultStatistic } from '$lib/components/book-reader/book-reading-tracker/tracker-domain';
+  import { getDefaultStatistic } from '$lib/data/tracker-domain';
   import {
     openTrackerMenu,
     pauseTrackerFor,
@@ -74,7 +71,6 @@
   import { bookTOCState } from '$lib/components/book-reader/book-toc/book-toc-state.svelte';
   import BookTOC from '$lib/components/book-reader/book-toc/book-toc.svelte';
   import { showNumberDialog } from '$lib/components/number-dialog.svelte';
-  import { mergeEntries } from '$lib/components/merged-header-icon/merged-entries';
   import SidebarOverlay from '$lib/components/sidebar-overlay.svelte';
   import {
     type BooksDbBookData,
@@ -98,7 +94,7 @@
   } from '$lib/data/library';
   import { BaseStorageHandler } from '$lib/data/storage/handler/base-handler';
   import { StorageDataType } from '$lib/data/storage/storage-types';
-  import { availableThemes } from '$lib/data/theme-option';
+  import { resolveThemeOption } from '$lib/data/theme-option';
   import { ViewMode } from '$lib/data/view-mode';
   import loadBookData, {
     type LoadedBookData
@@ -115,7 +111,7 @@
   import { syncState } from '$lib/data/sync/sync-store.svelte';
   import { getDateKey } from '$lib/functions/statistic-util';
   import { clickOutside } from '$lib/functions/use-click-outside';
-  import { convertRemToPixels, dummyFn, limitToRange } from '$lib/functions/utils';
+  import { clamp, convertRemToPixels, dummyFn } from '$lib/functions/utils';
   import { handleReaderKeydown } from '$lib/components/book-reader/book-reader-keybind';
   import { onDestroy, tick, untrack } from 'svelte';
   import { innerHeight, innerWidth } from 'svelte/reactivity/window';
@@ -177,11 +173,7 @@
 
   const readerController = new BookReaderController();
 
-  let fontFeatureSettings = $derived(
-    [$enableVerticalFontKerning$ && '"vkrn"', $enableFontVPAL$ && '"vpal"']
-      .filter((f) => !!f && $verticalMode$)
-      .join(', ')
-  );
+  let fontFeatureSettings = $derived($enableFontVPAL$ && $verticalMode$ ? '"vpal"' : '');
 
   let bookTitle = $derived(browser ? (page.url.searchParams.get('t') ?? '') : '');
   let hasLegacyBookId = $derived(browser && page.url.searchParams.has('id'));
@@ -238,7 +230,7 @@
     if (hasLegacyBookId) {
       // Pre-title URLs carried the per-device numeric IDB id; there is
       // nothing stable to map it to, so send the visitor to the library.
-      void goto(resolve(mergeEntries.MANAGE.routeId), { replaceState: true });
+      void goto(resolve('/manage'), { replaceState: true });
       return;
     }
 
@@ -296,13 +288,13 @@
       if (loadedBook) {
         bookmarkData = database.getBookmark(loadedBook.title);
       } else {
-        await goto(resolve(mergeEntries.MANAGE.routeId));
+        await goto(resolve('/manage'));
       }
     } catch (error) {
       if (signal.aborted) return;
 
       showErrorDialog({ title: 'Error loading book', error });
-      await goto(resolve(mergeEntries.MANAGE.routeId));
+      await goto(resolve('/manage'));
     } finally {
       if (!signal.aborted) {
         logger.debug(
@@ -374,9 +366,7 @@
     }
 
     if (!$statisticsEnabled$) {
-      const wasNew = (
-        await database.setFirstBookRead(currentContext.title, $startDayHoursForTracker$)
-      )[1];
+      const wasNew = (await database.setFirstBookRead(currentContext.title, $dayBoundaryTime$))[1];
 
       if (wasNew) {
         scheduleReplication(StorageDataType.STATISTICS);
@@ -413,9 +403,7 @@
     containerViewportHeight = visualViewport?.height || 0;
   }
 
-  let themeOption = $derived(
-    availableThemes.get($theme$) || $customThemes$[$theme$] || availableThemes.get('light-theme')!
-  );
+  let themeOption = $derived(resolveThemeOption($theme$, $customThemes$));
 
   $effect(() => {
     if (!browser) return;
@@ -568,7 +556,7 @@
 
   let firstDimensionMargin = $derived(
     browser && $enableTapEdgeToFlip$ && isPaginated && $verticalMode$
-      ? limitToRange(convertRemToPixels(window, 0.5), innerWidth.current!, $firstDimensionMargin$)
+      ? clamp($firstDimensionMargin$, convertRemToPixels(window, 0.5), innerWidth.current!)
       : ($firstDimensionMargin$ ?? 0)
   );
 
@@ -688,7 +676,7 @@
       }
 
       const finishedStatistic = await database.getStatisticForCompletedBook(rawBookData.title);
-      const todayKey = getDateKey($startDayHoursForTracker$);
+      const todayKey = getDateKey($dayBoundaryTime$);
       const statisticsUntilToday = await database.getStatisticsUntilDate(
         rawBookData.title,
         todayKey
@@ -977,7 +965,8 @@
         if ($confirmClose$ && storedExploredCharacter !== exploredCharCount) {
           const confirmed = await showConfirmDialog({
             title: 'Confirm exit',
-            message: 'Your current location was not bookmarked. Continue leaving?',
+            message:
+              'Your reading position has changed and has not yet been saved. Continue leaving?',
             confirmLabel: 'Continue'
           });
 
@@ -1028,10 +1017,6 @@
   }
 
   function handleSetCustomReadingPoint() {
-    if (!$customReadingPointEnabled$ && !isPaginated) {
-      return;
-    }
-
     const contentEl = document.querySelector('.book-content');
 
     if (!contentEl) {
@@ -1305,9 +1290,8 @@
     hasChapterData={bookTOCState.hasChapters}
     hasText={!!bookCharCount}
     hasCustomReadingPoint={!!(
-      ($customReadingPointEnabled$ || isPaginated) &&
-      ((isPaginated && customReadingPointRange) ||
-        (!isPaginated && customReadingPointLeft > -1 && customReadingPointTop > -1))
+      (isPaginated && customReadingPointRange) ||
+      (!isPaginated && customReadingPointLeft > -1 && customReadingPointTop > -1)
     )}
     showFullscreenButton={fullscreenManager.fullscreenEnabled}
     autoScrollMultiplier={$multiplier$}
@@ -1403,7 +1387,6 @@
     viewMode={$viewMode$}
     secondDimensionMaxValue={$secondDimensionMaxValue$}
     {firstDimensionMargin}
-    autoPositionOnResize={$autoPositionOnResize$}
     avoidPageBreak={$avoidPageBreak$}
     pageColumns={$pageColumns$}
     autoBookmark={$autoBookmark$}

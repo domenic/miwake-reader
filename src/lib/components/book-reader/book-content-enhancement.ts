@@ -58,7 +58,7 @@ function setupAnchorClickListeners(
   }
 }
 
-function setupSpoilerImageListeners(contentEl: HTMLElement, signal: AbortSignal) {
+export function setupSpoilerImageListeners(contentEl: HTMLElement, signal: AbortSignal) {
   const cleanups = Array.from(contentEl.querySelectorAll('[data-miwake-spoiler-img]')).map((el) =>
     setupSpoilerImageListener(el, signal)
   );

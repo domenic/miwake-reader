@@ -9,10 +9,10 @@
   import { appShortcuts } from '$lib/data/app-shortcuts.svelte';
   import type { TextMarginMode } from '$lib/data/text-margin-mode';
   import {
-    disableWheelNavigation$,
     firstDimensionMargin$,
     selectionToBookmarkEnabled$,
     swipeThreshold$,
+    turnPagesByScrolling$,
     userFonts$
   } from '$lib/data/store';
   import { clearRange, createRange, pulseElement } from '$lib/functions/range-util';
@@ -20,6 +20,7 @@
   import Fa from 'svelte-fa';
   import { useSwipe, type SwipeCustomEvent } from 'svelte-gestures';
   import type { BookReaderController } from '../book-reader-controller.svelte';
+  import { wheelPageDirection } from '../wheel-navigation';
   import { BookmarkManagerPaginated } from './bookmark-manager-paginated';
   import { PageManagerPaginated } from './page-manager-paginated';
   import { SectionCharacterStatsCalculator } from './section-character-stats-calculator';
@@ -385,17 +386,16 @@
   onMount(() => {
     let lastWheelFlip = 0;
     const handleWheel = (ev: WheelEvent) => {
-      if ($disableWheelNavigation$ || appShortcuts.disabled) return;
+      if (!$turnPagesByScrolling$ || appShortcuts.disabled) return;
+
+      const direction = wheelPageDirection(ev, verticalMode);
+      if (direction === undefined) return;
 
       const now = performance.now();
       if (now - lastWheelFlip < 50) return;
       lastWheelFlip = now;
 
-      let multiplier = (ev.deltaX < 0 ? -1 : 1) * (verticalMode ? -1 : 1);
-      if (!ev.deltaX) {
-        multiplier = ev.deltaY < 0 ? -1 : 1;
-      }
-      pageManager?.flipPage(multiplier as -1 | 1);
+      pageManager?.flipPage(direction);
     };
 
     document.body.addEventListener('wheel', handleWheel, { passive: true });
@@ -677,6 +677,7 @@
   bind:this={scrollEl}
   style:color={fontColor}
   style:font-size="{fontSize}px"
+  style:font-kerning="normal"
   style:line-height={lineHeight}
   style:padding-top={!verticalMode && firstDimensionMargin
     ? `${firstDimensionMargin}px`
@@ -755,8 +756,6 @@
 <svelte:window onresize={handleResize} />
 
 <style>
-  @import '../styles.css';
-
   .book-content {
     overflow: hidden;
     width: var(--book-content-child-width, 95vh);

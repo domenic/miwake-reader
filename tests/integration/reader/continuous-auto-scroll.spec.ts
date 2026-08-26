@@ -43,6 +43,55 @@ test('continuous reader page shortcuts scroll forward and back', async ({ page }
   await expect.poll(() => scrollY(page)).toBeGreaterThan(afterPageUpScrollY + 50);
 });
 
+test('horizontal continuous reader accepts either scroll axis and preserves middle clicks', async ({
+  page
+}) => {
+  await useContinuousReader(page, { turnPagesByScrolling: 'Off' });
+  await importBookFixtures(page, [LONG_BOOK]);
+  await openBookFromManage(page, LONG_BOOK);
+  await expectBookReaderText(page, LONG_BOOK);
+
+  await page.mouse.wheel(0, 500);
+  await expect.poll(() => scrollY(page)).toBeGreaterThan(0);
+
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await expect.poll(() => scrollY(page)).toBe(0);
+
+  await page.mouse.wheel(500, 0);
+  await expect.poll(() => scrollY(page)).toBeGreaterThan(0);
+
+  await page.evaluate(() => {
+    document.body.addEventListener(
+      'mousedown',
+      (event) => {
+        document.body.dataset.middleMousedownPrevented = String(event.defaultPrevented);
+      },
+      { once: true }
+    );
+  });
+  await page.mouse.click(10, 10, { button: 'middle' });
+  await expect(page.locator('body')).toHaveAttribute('data-middle-mousedown-prevented', 'false');
+});
+
+test('vertical continuous reader accepts either scroll axis', async ({ page }) => {
+  await useContinuousReader(page, {
+    turnPagesByScrolling: 'Off',
+    writingMode: 'Vertical'
+  });
+  await importBookFixtures(page, [LONG_BOOK]);
+  await openBookFromManage(page, LONG_BOOK);
+  await expectBookReaderText(page, LONG_BOOK);
+
+  await page.mouse.wheel(-500, 0);
+  await expect.poll(() => scrollX(page)).toBeLessThan(0);
+
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await expect.poll(() => scrollX(page)).toBe(0);
+
+  await page.mouse.wheel(0, 500);
+  await expect.poll(() => scrollX(page)).toBeLessThan(0);
+});
+
 test('continuous reader keyboard shortcuts adjust auto-scroll speed', async ({ page }) => {
   await useContinuousReader(page);
   await importBookFixtures(page, [LONG_BOOK]);
@@ -220,17 +269,28 @@ test.describe('touch devices', () => {
 
 async function useContinuousReader(
   page: Page,
-  settings: { autoBookmark?: string; autoBookmarkTime?: string } = {}
+  settings: {
+    autoBookmark?: string;
+    autoBookmarkTime?: string;
+    turnPagesByScrolling?: string;
+    writingMode?: string;
+  } = {}
 ) {
+  const { writingMode = 'Horizontal', ...readerSettings } = settings;
+
   await useReaderSettings(page, {
-    ...settings,
+    ...readerSettings,
     viewMode: 'Continuous',
-    writingMode: 'Horizontal'
+    writingMode
   });
 }
 
 function scrollY(page: Page) {
   return page.evaluate(() => window.scrollY);
+}
+
+function scrollX(page: Page) {
+  return page.evaluate(() => window.scrollX);
 }
 
 async function expectScrollYChangedFrom(page: Page, startingScrollY: number) {

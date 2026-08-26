@@ -1,24 +1,46 @@
 <script lang="ts">
   interface Props {
+    id: string;
     checked: boolean;
-    label: string;
+    label?: string;
     class?: string;
+    disabled?: boolean;
+    labelledBy?: string;
+    describedBy?: string;
   }
 
-  let { checked = $bindable(), label, class: className = '' }: Props = $props();
+  let {
+    id,
+    checked = $bindable(),
+    label,
+    class: className,
+    disabled = false,
+    labelledBy,
+    describedBy
+  }: Props = $props();
 </script>
 
-<label class="flex items-center gap-3 select-none {className}">
+<label
+  for={id}
+  class={['relative inline-flex shrink-0', label && 'items-center gap-3 select-none', className]}
+>
+  <input
+    {id}
+    type="checkbox"
+    role="switch"
+    class="peer sr-only"
+    bind:checked
+    {disabled}
+    aria-labelledby={labelledBy}
+    aria-describedby={describedBy}
+  />
   <span
-    class="relative inline-block w-10 h-6 rounded-full transition-colors"
-    class:bg-blue-500={checked}
-    class:bg-gray-500={!checked}
-  >
-    <input type="checkbox" class="sr-only" bind:checked />
-    <span
-      class="absolute top-1 left-1 size-4 rounded-full bg-white transition-transform"
-      class:translate-x-4={checked}
-    ></span>
-  </span>
-  <span>{label}</span>
+    class="h-6 w-10 rounded-full border border-white/50 bg-gray-500 transition-colors peer-checked:bg-accent-color peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-accent-color"
+    aria-hidden="true"
+  ></span>
+  <span
+    class="pointer-events-none absolute top-1 inset-s-1 size-4 rounded-full bg-white shadow-[0_1px_2px_rgb(0_0_0/25%)] transition-transform peer-checked:translate-x-4"
+    aria-hidden="true"
+  ></span>
+  {#if label}<span>{label}</span>{/if}
 </label>

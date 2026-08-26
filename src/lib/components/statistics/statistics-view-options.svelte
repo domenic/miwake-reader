@@ -1,8 +1,6 @@
 <script lang="ts">
   import { faCircleQuestion, faLeftLong, faRightLong } from '@fortawesome/free-solid-svg-icons';
-  import ButtonToggleGroup from '$lib/components/button-toggle-group/button-toggle-group.svelte';
-  import { optionsForToggle } from '$lib/components/button-toggle-group/toggle-option';
-  import SettingsItemGroup from '$lib/components/settings/settings-item-group.svelte';
+  import ToggleSwitch from '$lib/components/toggle-switch.svelte';
   import {
     type StatisticsDateChange,
     statisticsRangeTemplates,
@@ -238,15 +236,12 @@
       {/each}
     </select>
   </div>
-  <div class="mt-4">
-    <SettingsItemGroup title="Confirm Statistics Deletion" applyHeaderClasses={false}>
-      <ButtonToggleGroup
-        invertColors
-        options={optionsForToggle}
-        bind:selectedOptionId={$confirmStatisticsDeletion$}
-      />
-    </SettingsItemGroup>
-  </div>
+  <ToggleSwitch
+    id="confirm-statistics-deletion"
+    label="Confirm Statistics Deletion"
+    class="mt-8 mb-3"
+    bind:checked={$confirmStatisticsDeletion$}
+  />
 </div>
 
 <style>

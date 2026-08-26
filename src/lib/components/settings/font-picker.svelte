@@ -33,6 +33,7 @@
   let isOpen = $state(false);
 
   const popoverId = $derived(`font-picker-${group}`);
+  const labelId = $derived(`${popoverId}-label`);
   const fonts = $derived(bundledFonts[group]);
   const allOptions = $derived([...fonts, ...$userFonts$.map((uf) => uf.name)]);
   let focusedIndex = $state(-1);
@@ -186,15 +187,16 @@
   }
 </script>
 
-<section class="pb-8 md:pb-3">
-  <h2 class="mb-2 text-xl font-medium capitalize">{fontGroupLabels[group]}</h2>
+<div>
+  <div id={labelId} class="mb-2 font-medium">{fontGroupLabels[group]}</div>
   <button
     use:ripple
     type="button"
-    class="flex w-full cursor-pointer items-center justify-between rounded-lg border border-gray-300 px-3 py-2.5 text-left"
+    class="flex w-full items-center justify-between rounded-lg border border-gray-300 px-3 py-2.5 text-left"
     class:rounded-b-none={isOpen}
     aria-haspopup="listbox"
     aria-expanded={isOpen}
+    aria-labelledby={labelId}
     popovertarget={popoverId}
   >
     <div class="min-w-0">
@@ -325,7 +327,7 @@
                   <button
                     type="button"
                     title="Remove font"
-                    class="ml-2 shrink-0 cursor-pointer p-1 text-xs text-gray-400 hover:text-gray-600"
+                    class="ml-2 shrink-0 p-1 text-xs text-gray-400 hover:text-gray-600"
                     onclick={(e) => {
                       e.stopPropagation();
                       removeFont(userFont);
@@ -344,7 +346,7 @@
         {#if fontCache}
           <button
             type="button"
-            class="flex w-full cursor-pointer items-center gap-2 px-5 py-2 text-left text-gray-500 hover:bg-gray-50"
+            class="flex w-full items-center gap-2 px-5 py-2 text-left text-gray-500 hover:bg-gray-50"
             onclick={() => fileInput?.click()}
           >
             <Fa icon={faUpload} />
@@ -355,7 +357,7 @@
         {#if isSystemFont}
           <button
             type="button"
-            class="flex w-full cursor-pointer items-center justify-between bg-gray-700 px-5 py-2 text-left text-white"
+            class="flex w-full items-center justify-between bg-gray-700 px-5 py-2 text-left text-white"
             onclick={() => {
               view = 'system';
             }}
@@ -378,7 +380,7 @@
         {:else}
           <button
             type="button"
-            class="flex w-full cursor-pointer items-center gap-2 px-5 py-2 text-left text-gray-500 hover:bg-gray-50"
+            class="flex w-full items-center gap-2 px-5 py-2 text-left text-gray-500 hover:bg-gray-50"
             onclick={() => {
               view = 'system';
             }}
@@ -392,7 +394,7 @@
       <div class="p-5">
         <button
           type="button"
-          class="mb-3 flex cursor-pointer items-center gap-1.5 text-[13px] text-gray-500 hover:text-gray-700"
+          class="mb-3 flex items-center gap-1.5 text-[13px] text-gray-500 hover:text-gray-700"
           onclick={() => {
             view = 'list';
           }}
@@ -431,7 +433,7 @@
           <button
             use:ripple
             type="button"
-            class="{buttonClasses} disabled:cursor-not-allowed disabled:opacity-40"
+            class="{buttonClasses} disabled:opacity-40"
             disabled={!systemFontName.trim()}
             onclick={() => selectFont(systemFontName.trim())}>Use this font</button
           >
@@ -452,7 +454,7 @@
     bind:this={fileInput}
     onchange={handleFileUpload}
   />
-</section>
+</div>
 
 <style>
   .font-picker-popover {

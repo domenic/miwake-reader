@@ -1,41 +1,44 @@
 <script lang="ts">
   import { resolve } from '$app/paths';
   import type { RouteId } from '$app/types';
-  import { faBookOpenReader, faClock, faCloudArrowUp } from '@fortawesome/free-solid-svg-icons';
+  import {
+    faBookOpenReader,
+    faClock,
+    faCloudArrowUp,
+    faPalette
+  } from '@fortawesome/free-solid-svg-icons';
   import HeaderButton from '$lib/components/header-button.svelte';
   import HeaderNavTabs from '$lib/components/header-nav-tabs.svelte';
-  import type { SettingsRoute } from '$lib/components/settings/settings-route';
   import { baseHeaderClasses } from '$lib/css-classes';
 
   interface Props {
-    activeRouteId?: RouteId | null;
-  }
-
-  interface SettingItem {
-    label: string;
-    href: SettingsRoute;
-    icon: typeof faBookOpenReader;
+    activeRouteId: RouteId | null;
   }
 
   let { activeRouteId }: Props = $props();
 
-  const settingItems: SettingItem[] = [
+  const settingItems = [
     {
-      label: 'Reader',
-      href: '/settings/reader',
+      label: 'Appearance',
+      href: '/settings/appearance',
+      icon: faPalette
+    },
+    {
+      label: 'Reading',
+      href: '/settings/reading',
       icon: faBookOpenReader
+    },
+    {
+      label: 'Tracking',
+      href: '/settings/tracking',
+      icon: faClock
     },
     {
       label: 'Sync',
       href: '/settings/sync',
       icon: faCloudArrowUp
-    },
-    {
-      label: 'Statistics',
-      href: '/settings/statistics',
-      icon: faClock
     }
-  ];
+  ] as const;
 </script>
 
 <div class={baseHeaderClasses} role="toolbar" aria-label="Settings controls">

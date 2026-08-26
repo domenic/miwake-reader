@@ -1,4 +1,4 @@
-export type StatisticsView = 'heatmap' | 'summary';
+export type StatisticsView = 'heatmap' | 'summary' | 'goals';
 
 export const defaultStatisticsView: StatisticsView = 'heatmap';
 export const statisticsBookQueryParam = 't';
@@ -9,7 +9,7 @@ export const statisticsBookQueryParam = 't';
  */
 export const statisticsLegacyBookQueryParam = 'b';
 export const statisticsViewQueryParam = 'view';
-export const statisticsViews: StatisticsView[] = [defaultStatisticsView, 'summary'];
+export const statisticsViews: StatisticsView[] = [defaultStatisticsView, 'summary', 'goals'];
 
 export function getValidStatisticsView(view?: string | null): StatisticsView {
   return statisticsViews.includes(view as StatisticsView)

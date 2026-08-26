@@ -4,7 +4,7 @@ import {
   fixtureTitle,
   importBookFixtures,
   LONG_BOOK,
-  openStatisticsSettings,
+  openStatisticsViewOptions,
   recordStatisticForBook,
   VALID_BOOK
 } from '../helpers/fixtures.ts';
@@ -12,7 +12,7 @@ import { navigateToStatisticsSummary } from '../helpers/navigation.ts';
 import { enableStatistics } from '../helpers/workflows.ts';
 import { EARLIER_STAT_DATE, LATER_STAT_DATE, openStatisticsFilter } from './helpers.ts';
 
-test('statistics header and settings actions operate on loaded statistics', async ({
+test('statistics header and view options operate on loaded statistics', async ({
   browserName,
   context,
   page
@@ -55,18 +55,21 @@ test('statistics header and settings actions operate on loaded statistics', asyn
   await filter.getByTitle('Close book filter').click();
   await expect(filter).toHaveCount(0, { timeout: SYNC_ASSERTION_TIMEOUT });
 
-  const settings = await openStatisticsSettings(page);
-  await settings.getByLabel('Template').selectOption('This Year');
+  const viewOptions = await openStatisticsViewOptions(page);
+  await expect(
+    viewOptions.getByRole('switch', { name: 'Confirm Statistics Deletion' })
+  ).toBeChecked();
+  await viewOptions.getByLabel('Template').selectOption('This Year');
   await expect(page.getByText(EARLIER_STAT_DATE, { exact: true })).toBeVisible({
     timeout: SYNC_ASSERTION_TIMEOUT
   });
 
-  await settings.getByRole('button', { name: 'Set to all time for the selected books' }).click();
+  await viewOptions.getByRole('button', { name: 'Set to all time for the selected books' }).click();
   await expect(page.getByText(EARLIER_STAT_DATE, { exact: true })).toBeVisible({
     timeout: SYNC_ASSERTION_TIMEOUT
   });
-  await settings.getByTitle('Close statistics settings').click();
-  await expect(settings).toHaveCount(0, { timeout: SYNC_ASSERTION_TIMEOUT });
+  await viewOptions.getByTitle('Close view options').click();
+  await expect(viewOptions).toHaveCount(0, { timeout: SYNC_ASSERTION_TIMEOUT });
 
   await page.getByRole('button', { name: /Copy/ }).click();
   await page.getByRole('button', { name: 'Reading Time' }).click();
@@ -76,16 +79,16 @@ test('statistics header and settings actions operate on loaded statistics', asyn
     })
     .toContain(`.log readtime 2 ${fixtureTitle(VALID_BOOK)}`);
 
-  const exportSettings = await openStatisticsSettings(page);
+  const exportViewOptions = await openStatisticsViewOptions(page);
   const [download] = await Promise.all([
     page.waitForEvent('download'),
-    exportSettings.getByRole('button', { name: 'Export Selection' }).click()
+    exportViewOptions.getByRole('button', { name: 'Export Selection' }).click()
   ]);
   expect(download.suggestedFilename()).toMatch(/^miwake-reader-export-[\d-]+\.zip$/);
   await download.saveAs(exportPath);
   expect((await stat(exportPath)).size).toBeGreaterThan(0);
 
-  await exportSettings.getByRole('button', { name: 'Delete All' }).click();
+  await exportViewOptions.getByRole('button', { name: 'Delete All' }).click();
   const dialog = page.locator('dialog[open]').filter({
     has: page.getByRole('heading', { name: 'Delete data' })
   });

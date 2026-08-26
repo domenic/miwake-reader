@@ -14,10 +14,10 @@
   import { providerLabel } from '$lib/components/settings/sync/sync-utils';
   import SyncAlert from '$lib/components/settings/sync/sync-alert.svelte';
   import SyncBadge from '$lib/components/settings/sync/sync-badge.svelte';
-  import SyncButton from '$lib/components/settings/sync/sync-button.svelte';
+  import SettingsButton from '$lib/components/settings/settings-button.svelte';
+  import SettingsItem from '$lib/components/settings/settings-item.svelte';
   import SyncLastSyncedTime from '$lib/components/settings/sync/sync-last-synced-time.svelte';
-  import SyncRow from '$lib/components/settings/sync/sync-row.svelte';
-  import SyncSection from '$lib/components/settings/sync/sync-section.svelte';
+  import SettingsSection from '$lib/components/settings/settings-section.svelte';
   import { showCustomOAuthDialog } from '$lib/components/settings/sync/custom-oauth-dialog.svelte';
   import { showSyncLeaveDialog } from '$lib/components/settings/sync/sync-leave-dialog.svelte';
 
@@ -34,9 +34,19 @@
   let activeCloud = $derived(active?.kind === 'cloud' ? active : null);
   let activeFs = $derived(active?.kind === 'fs' ? active : null);
 
-  function toProvider(target: 'gdrive' | 'onedrive'): CloudProviderType {
-    return target === 'gdrive' ? SyncEndpointType.GDRIVE : SyncEndpointType.ONEDRIVE;
-  }
+  const cloudProviders = [
+    {
+      provider: SyncEndpointType.GDRIVE,
+      description: 'Syncs to a folder in your Google Drive account.'
+    },
+    {
+      provider: SyncEndpointType.ONEDRIVE,
+      description: 'Syncs to a folder in your Microsoft OneDrive account.'
+    }
+  ] as const satisfies readonly {
+    provider: CloudProviderType;
+    description: string;
+  }[];
 
   /** Counts of what's in the library, split by status. Both numbers
    *  feed the leave-dialog so the user sees what happens on disconnect:
@@ -55,8 +65,8 @@
     return { downloaded, placeholders };
   }
 
-  function targetLabelFor(target: 'gdrive' | 'onedrive' | 'fs'): string {
-    return target === 'fs' ? 'your sync folder' : providerLabel(toProvider(target));
+  function targetLabelFor(target: CloudProviderType | SyncEndpointType.FS): string {
+    return target === SyncEndpointType.FS ? 'your sync folder' : providerLabel(target);
   }
 
   /**
@@ -66,34 +76,33 @@
    * same time, since switching might otherwise mirror downloaded
    * books over to a destination the user thought of as a clean slate.
    */
-  async function onPick(target: 'gdrive' | 'onedrive' | 'fs') {
+  async function onPick(target: CloudProviderType | SyncEndpointType.FS) {
     if (busy) return;
     const targetLabel = targetLabelFor(target);
 
-    let clearLibrary = false;
-    if (active) {
-      const counts = await countLibraryBooks();
-      const result = await showSyncLeaveDialog({
-        leaving: active,
-        nextLabel: targetLabel,
-        downloadedCount: counts.downloaded,
-        placeholderCount: counts.placeholders
-      });
-      if (result.kind === 'cancel') return;
-      clearLibrary = result.clearLibrary;
-    }
-
     busy = true;
     try {
-      if (target === 'fs') {
+      let clearLibrary = false;
+      if (active) {
+        const counts = await countLibraryBooks();
+        const result = await showSyncLeaveDialog({
+          leaving: active,
+          nextLabel: targetLabel,
+          downloadedCount: counts.downloaded,
+          placeholderCount: counts.placeholders
+        });
+        if (result.kind === 'cancel') return;
+        clearLibrary = result.clearLibrary;
+      }
+
+      if (target === SyncEndpointType.FS) {
         await connectFs({ clearLibrary });
       } else {
-        const provider = toProvider(target);
-        await connectCloud(provider, {
+        await connectCloud(target, {
           clearLibrary,
           // The UI shows "Using your stored custom OAuth app" when
           // creds are present; matching that hint here.
-          useCustomCredentials: !!$cloudCustomCredentials$[provider]
+          useCustomCredentials: !!$cloudCustomCredentials$[target]
         });
       }
     } catch (error) {
@@ -104,25 +113,27 @@
   }
 
   async function onDisconnect() {
-    if (!active) return;
-    const counts = await countLibraryBooks();
-    const result = await showSyncLeaveDialog({
-      leaving: active,
-      nextLabel: null,
-      downloadedCount: counts.downloaded,
-      placeholderCount: counts.placeholders
-    });
-    if (result.kind === 'cancel') return;
+    if (busy || !active) return;
     busy = true;
     try {
+      const counts = await countLibraryBooks();
+      const result = await showSyncLeaveDialog({
+        leaving: active,
+        nextLabel: null,
+        downloadedCount: counts.downloaded,
+        placeholderCount: counts.placeholders
+      });
+      if (result.kind === 'cancel') return;
       await disconnect({ clearLibrary: result.clearLibrary });
+    } catch (error) {
+      await showErrorDialog({ title: 'Error disconnecting sync location', error });
     } finally {
       busy = false;
     }
   }
 
   async function onReconnect() {
-    if (!activeCloud) return;
+    if (busy || !activeCloud) return;
     busy = true;
     try {
       await connectCloud(activeCloud.provider, {
@@ -137,6 +148,7 @@
   }
 
   async function onGrantFsAccess() {
+    if (busy) return;
     // Re-running the picker is the only way to get a fresh permission
     // grant in a user-activation context.
     busy = true;
@@ -160,148 +172,131 @@
   }
 
   async function onUseCustom(provider: CloudProviderType) {
-    const stored = $cloudCustomCredentials$[provider];
-    const isActive = activeCloud?.provider === provider && activeCloud.usesCustomCredentials;
-    const result = await showCustomOAuthDialog({
-      provider,
-      providerLabel: providerLabel(provider),
-      isActive,
-      hasStoredCredentials: !!stored,
-      initialClientId: stored?.clientId,
-      initialClientSecret: stored?.clientSecret,
-      initialTokenEndpoint: stored?.tokenEndpoint
-    });
+    if (busy) return;
+    busy = true;
+    try {
+      const stored = $cloudCustomCredentials$[provider];
+      const isActive = activeCloud?.provider === provider && activeCloud.usesCustomCredentials;
+      const result = await showCustomOAuthDialog({
+        provider,
+        providerLabel: providerLabel(provider),
+        isActive,
+        hasStoredCredentials: !!stored,
+        initialClientId: stored?.clientId,
+        initialClientSecret: stored?.clientSecret,
+        initialTokenEndpoint: stored?.tokenEndpoint
+      });
 
-    if (result.kind === 'cancel') return;
+      if (result.kind === 'cancel') return;
 
-    if (result.kind === 'clear') {
-      const next = { ...$cloudCustomCredentials$ };
-      delete next[provider];
-      $cloudCustomCredentials$ = next;
-      if (activeCloud?.provider === provider && activeCloud.usesCustomCredentials) {
-        await disconnect();
+      if (result.kind === 'clear') {
+        const next = { ...$cloudCustomCredentials$ };
+        delete next[provider];
+        $cloudCustomCredentials$ = next;
+        if (activeCloud?.provider === provider && activeCloud.usesCustomCredentials) {
+          await disconnect();
+        }
+        return;
       }
-      return;
-    }
 
-    if (result.kind === 'revert-to-default') {
-      if (activeCloud?.provider === provider && activeCloud.usesCustomCredentials) {
-        // Force default mode while leaving stored custom creds in
-        // place, so the user can re-Save them later without re-typing.
-        await connectCloud(provider, { useCustomCredentials: false });
+      if (result.kind === 'revert-to-default') {
+        if (activeCloud?.provider === provider && activeCloud.usesCustomCredentials) {
+          // Force default mode while leaving stored custom creds in
+          // place, so the user can re-Save them later without re-typing.
+          await connectCloud(provider, { useCustomCredentials: false });
+        }
+        return;
       }
-      return;
-    }
 
-    $cloudCustomCredentials$ = {
-      ...$cloudCustomCredentials$,
-      [provider]: result.credentials
-    };
+      $cloudCustomCredentials$ = {
+        ...$cloudCustomCredentials$,
+        [provider]: result.credentials
+      };
 
-    if (result.activate) {
-      await connectCloud(provider, { useCustomCredentials: true });
+      if (result.activate) {
+        await connectCloud(provider, { useCustomCredentials: true });
+      }
+    } catch (error) {
+      await showErrorDialog({
+        title: `Error updating ${providerLabel(provider)} credentials`,
+        error
+      });
+    } finally {
+      busy = false;
     }
   }
 </script>
 
-<SyncSection
+<SettingsSection
   title="Sync location"
   description="Pick one place to mirror your library, bookmarks, and reading data so it follows you across devices."
 >
   {#if !active}
     {#if browser}
-      <SyncRow first>
-        {#snippet main()}
-          <div class="font-medium">Google Drive</div>
-          <div class="mt-1 text-sm text-gray-600">
-            Sync to a folder in your Google Drive account.
-          </div>
-          <div class="mt-1.5 flex flex-wrap items-center gap-2 text-xs text-gray-600">
+      {#each cloudProviders as option (option.provider)}
+        <SettingsItem label={providerLabel(option.provider)} description={option.description}>
+          {#snippet control()}
+            <SettingsButton disabled={busy} onclick={() => onPick(option.provider)}>
+              Connect
+            </SettingsButton>
+          {/snippet}
+          <div class="flex flex-wrap items-center gap-2 text-xs text-gray-600">
             <span
-              >Using {$cloudCustomCredentials$[SyncEndpointType.GDRIVE]
+              >Using {$cloudCustomCredentials$[option.provider]
                 ? 'your stored custom'
                 : `${appName}'s default`} OAuth app.</span
             >
             <button
               type="button"
-              class="cursor-pointer text-gray-600 underline hover:text-black"
-              onclick={() => onUseCustom(SyncEndpointType.GDRIVE)}
-              >{$cloudCustomCredentials$[SyncEndpointType.GDRIVE]
+              class="text-gray-600 underline hover:text-black disabled:opacity-50"
+              disabled={busy}
+              onclick={() => onUseCustom(option.provider)}
+              >{$cloudCustomCredentials$[option.provider]
                 ? 'Manage credentials'
                 : 'Use custom credentials'}</button
             >
           </div>
-        {/snippet}
-        {#snippet actions()}
-          <SyncButton variant="primary" disabled={busy} onclick={() => onPick('gdrive')}>
-            Connect
-          </SyncButton>
-        {/snippet}
-      </SyncRow>
-
-      <SyncRow>
-        {#snippet main()}
-          <div class="font-medium">OneDrive</div>
-          <div class="mt-1 text-sm text-gray-600">
-            Sync to a folder in your Microsoft OneDrive account.
-          </div>
-          <div class="mt-1.5 flex flex-wrap items-center gap-2 text-xs text-gray-600">
-            <span
-              >Using {$cloudCustomCredentials$[SyncEndpointType.ONEDRIVE]
-                ? 'your stored custom'
-                : `${appName}'s default`} OAuth app.</span
-            >
-            <button
-              type="button"
-              class="cursor-pointer text-gray-600 underline hover:text-black"
-              onclick={() => onUseCustom(SyncEndpointType.ONEDRIVE)}
-              >{$cloudCustomCredentials$[SyncEndpointType.ONEDRIVE]
-                ? 'Manage credentials'
-                : 'Use custom credentials'}</button
-            >
-          </div>
-        {/snippet}
-        {#snippet actions()}
-          <SyncButton variant="primary" disabled={busy} onclick={() => onPick('onedrive')}>
-            Connect
-          </SyncButton>
-        {/snippet}
-      </SyncRow>
+        </SettingsItem>
+      {/each}
 
       {#if supportsFsPicker}
-        <SyncRow>
-          {#snippet main()}
-            <div class="font-medium">Sync folder</div>
-            <div class="mt-1 text-sm text-gray-600">
-              Mirror your library to a folder on this device. Pair with your own sync tool
-              (Syncthing, Dropbox, etc.) for cross-device coverage.
-            </div>
-          {/snippet}
-          {#snippet actions()}
-            <SyncButton variant="primary" disabled={busy} onclick={() => onPick('fs')}>
+        <SettingsItem
+          label="Sync folder"
+          description="Mirrors your library to a folder on this device. Works with your own sync tool, such as Syncthing or Dropbox, for cross-device coverage."
+        >
+          {#snippet control()}
+            <SettingsButton disabled={busy} onclick={() => onPick(SyncEndpointType.FS)}>
               Choose folder
-            </SyncButton>
+            </SettingsButton>
           {/snippet}
-        </SyncRow>
+        </SettingsItem>
       {/if}
     {/if}
   {:else if activeCloud}
-    <SyncRow first>
-      {#snippet main()}
-        <div class="flex flex-wrap items-center gap-2">
-          <span class="font-medium">{providerLabel(activeCloud.provider)}</span>
-          {#if health.status === 'ok'}
-            <SyncBadge variant="success">Connected</SyncBadge>
-          {:else if health.status === 'reauth-required'}
-            <SyncBadge variant="warning">Reconnect required</SyncBadge>
-          {:else if health.status === 'error'}
-            <SyncBadge variant="danger">Sync failed</SyncBadge>
-          {/if}
-          {#if activeCloud.usesCustomCredentials}
-            <SyncBadge variant="info">Custom OAuth</SyncBadge>
-          {/if}
-        </div>
-        <div class="mt-1 text-sm text-gray-600">
+    <SettingsItem label={providerLabel(activeCloud.provider)}>
+      {#snippet control()}
+        {#if health.status === 'reauth-required' || health.status === 'permission-required'}
+          <SettingsButton variant="warning" disabled={busy} onclick={onReconnect}
+            >Reconnect</SettingsButton
+          >
+        {:else if health.status === 'error'}
+          <SettingsButton disabled={busy} onclick={onRetry}>Retry</SettingsButton>
+        {:else}
+          <SettingsButton disabled={busy} onclick={onDisconnect}>Disconnect</SettingsButton>
+        {/if}
+      {/snippet}
+      <div class="flex flex-wrap items-center gap-2">
+        {#if health.status === 'ok'}
+          <SyncBadge variant="success">Connected</SyncBadge>
+        {:else if health.status === 'reauth-required'}
+          <SyncBadge variant="warning">Reconnect required</SyncBadge>
+        {:else if health.status === 'error'}
+          <SyncBadge variant="danger">Sync failed</SyncBadge>
+        {/if}
+        {#if activeCloud.usesCustomCredentials}
+          <SyncBadge variant="info">Custom OAuth</SyncBadge>
+        {/if}
+        <span class="text-sm text-gray-600">
           {#if activeCloud.lastSyncedAt === null}
             Not yet synced
           {:else if health.status === 'ok'}
@@ -312,134 +307,117 @@
           {#if activeCloud.bookCount !== null}
             · {activeCloud.bookCount} book{activeCloud.bookCount === 1 ? '' : 's'}
           {/if}
-        </div>
-        {#if health.status === 'reauth-required' || health.status === 'permission-required'}
-          <SyncAlert variant="warning" summary={health.summary} detail={health.detail} />
-        {:else if health.status === 'error'}
-          <SyncAlert
-            variant="danger"
-            summary={health.summary}
-            detail={health.detail}
-            technicalDetail={health.technicalDetail}
-          />
-        {/if}
-        <div class="mt-1.5 flex flex-wrap items-center gap-2 text-xs text-gray-600">
-          <span
-            >Using {activeCloud.usesCustomCredentials ? 'your' : `${appName}'s default`} OAuth app.</span
-          >
-          <button
-            type="button"
-            class="cursor-pointer text-gray-600 underline hover:text-black"
-            onclick={() => onUseCustom(activeCloud!.provider)}
-            >{activeCloud.usesCustomCredentials
-              ? 'Manage credentials'
-              : 'Use custom credentials'}</button
-          >
-        </div>
-      {/snippet}
-      {#snippet actions()}
-        {#if health.status === 'reauth-required' || health.status === 'permission-required'}
-          <SyncButton variant="warning" onclick={onReconnect}>Reconnect</SyncButton>
-        {:else if health.status === 'error'}
-          <SyncButton onclick={onRetry}>Retry</SyncButton>
-        {:else}
-          <SyncButton onclick={onDisconnect}>Disconnect</SyncButton>
-        {/if}
-      {/snippet}
-    </SyncRow>
+        </span>
+      </div>
+      {#if health.status === 'reauth-required' || health.status === 'permission-required'}
+        <SyncAlert variant="warning" summary={health.summary} detail={health.detail} />
+      {:else if health.status === 'error'}
+        <SyncAlert
+          variant="danger"
+          summary={health.summary}
+          detail={health.detail}
+          technicalDetail={health.technicalDetail}
+        />
+      {/if}
+      <div class="mt-1.5 flex flex-wrap items-center gap-2 text-xs text-gray-600">
+        <span
+          >Using {activeCloud.usesCustomCredentials ? 'your' : `${appName}'s default`} OAuth app.</span
+        >
+        <button
+          type="button"
+          class="text-gray-600 underline hover:text-black disabled:opacity-50"
+          disabled={busy}
+          onclick={() => onUseCustom(activeCloud!.provider)}
+          >{activeCloud.usesCustomCredentials
+            ? 'Manage credentials'
+            : 'Use custom credentials'}</button
+        >
+      </div>
+    </SettingsItem>
 
-    <SyncRow>
-      {#snippet main()}
-        <div class="text-xs text-gray-500">
-          Switching destinations signs you out of {providerLabel(activeCloud.provider)} on this device.
-          Your library on this device will sync up to the new destination unless you wipe it during the
-          switch.
-        </div>
-      {/snippet}
-      {#snippet actions()}
+    <SettingsItem
+      label="Change sync location"
+      description={`Switching destinations signs you out of ${providerLabel(activeCloud.provider)} on this device. Your library on this device will sync up to the new destination unless you wipe it during the switch.`}
+    >
+      {#snippet control()}
         <div class="flex flex-wrap gap-2">
-          {#if activeCloud.provider !== SyncEndpointType.GDRIVE}
-            <SyncButton disabled={busy} onclick={() => onPick('gdrive')}>
-              Switch to Google Drive
-            </SyncButton>
-          {/if}
-          {#if activeCloud.provider !== SyncEndpointType.ONEDRIVE}
-            <SyncButton disabled={busy} onclick={() => onPick('onedrive')}>
-              Switch to OneDrive
-            </SyncButton>
-          {/if}
+          {#each cloudProviders as option (option.provider)}
+            {#if activeCloud.provider !== option.provider}
+              <SettingsButton disabled={busy} onclick={() => onPick(option.provider)}>
+                Switch to {providerLabel(option.provider)}
+              </SettingsButton>
+            {/if}
+          {/each}
           {#if supportsFsPicker}
-            <SyncButton disabled={busy} onclick={() => onPick('fs')}>
+            <SettingsButton disabled={busy} onclick={() => onPick(SyncEndpointType.FS)}>
               Switch to a sync folder
-            </SyncButton>
+            </SettingsButton>
           {/if}
         </div>
       {/snippet}
-    </SyncRow>
+    </SettingsItem>
   {:else if activeFs}
-    <SyncRow first>
-      {#snippet main()}
-        <div class="flex flex-wrap items-center gap-2">
-          <span class="font-medium">Sync folder</span>
-          {#if health.status === 'ok'}
-            <SyncBadge variant="success">Connected</SyncBadge>
-          {:else if health.status === 'permission-required'}
-            <SyncBadge variant="warning">Permission required</SyncBadge>
-          {:else if health.status === 'error'}
-            <SyncBadge variant="danger">Sync failed</SyncBadge>
-          {/if}
-        </div>
-        <div class="mt-1 font-mono text-xs text-gray-600">{activeFs.path}</div>
+    <SettingsItem label="Sync folder">
+      {#snippet control()}
+        {#if health.status === 'permission-required' || health.status === 'reauth-required'}
+          <SettingsButton variant="warning" disabled={busy} onclick={onGrantFsAccess}
+            >Grant access</SettingsButton
+          >
+        {:else if health.status === 'error'}
+          <SettingsButton disabled={busy} onclick={onRetry}>Retry</SettingsButton>
+        {:else}
+          <div class="flex flex-wrap gap-2">
+            <SettingsButton disabled={busy} onclick={() => onPick(SyncEndpointType.FS)}
+              >Change folder</SettingsButton
+            >
+            <SettingsButton disabled={busy} onclick={onDisconnect}>Disconnect</SettingsButton>
+          </div>
+        {/if}
+      {/snippet}
+      <div class="flex flex-wrap items-center gap-2">
         {#if health.status === 'ok'}
-          <div class="text-sm text-gray-600">
+          <SyncBadge variant="success">Connected</SyncBadge>
+        {:else if health.status === 'permission-required'}
+          <SyncBadge variant="warning">Permission required</SyncBadge>
+        {:else if health.status === 'error'}
+          <SyncBadge variant="danger">Sync failed</SyncBadge>
+        {/if}
+        {#if health.status === 'ok'}
+          <span class="text-sm text-gray-600">
             {#if activeFs.lastSyncedAt === null}
               Not yet synced
             {:else}
               Synced <SyncLastSyncedTime timestamp={activeFs.lastSyncedAt} />
             {/if}
-          </div>
+          </span>
         {/if}
-        {#if health.status === 'reauth-required' || health.status === 'permission-required'}
-          <SyncAlert variant="warning" summary={health.summary} detail={health.detail} />
-        {:else if health.status === 'error'}
-          <SyncAlert
-            variant="danger"
-            summary={health.summary}
-            detail={health.detail}
-            technicalDetail={health.technicalDetail}
-          />
-        {/if}
-      {/snippet}
-      {#snippet actions()}
-        {#if health.status === 'permission-required' || health.status === 'reauth-required'}
-          <SyncButton variant="warning" onclick={onGrantFsAccess}>Grant access</SyncButton>
-        {:else if health.status === 'error'}
-          <SyncButton onclick={onRetry}>Retry</SyncButton>
-        {:else}
-          <SyncButton onclick={() => onPick('fs')}>Change folder</SyncButton>
-          <SyncButton onclick={onDisconnect}>Disconnect</SyncButton>
-        {/if}
-      {/snippet}
-    </SyncRow>
+      </div>
+      <div class="mt-1 font-mono text-xs text-gray-600">{activeFs.path}</div>
+      {#if health.status === 'reauth-required' || health.status === 'permission-required'}
+        <SyncAlert variant="warning" summary={health.summary} detail={health.detail} />
+      {:else if health.status === 'error'}
+        <SyncAlert
+          variant="danger"
+          summary={health.summary}
+          detail={health.detail}
+          technicalDetail={health.technicalDetail}
+        />
+      {/if}
+    </SettingsItem>
 
-    <SyncRow>
-      {#snippet main()}
-        <div class="text-xs text-gray-500">
-          Switching destinations stops mirroring to your sync folder; files already there stay on
-          disk. Your library on this device will sync up to the new destination unless you wipe it
-          during the switch.
-        </div>
-      {/snippet}
-      {#snippet actions()}
+    <SettingsItem
+      label="Change sync location"
+      description="Switching destinations stops mirroring to your sync folder; files already there stay on disk. Your library on this device will sync up to the new destination unless you wipe it during the switch."
+    >
+      {#snippet control()}
         <div class="flex flex-wrap gap-2">
-          <SyncButton disabled={busy} onclick={() => onPick('gdrive')}>
-            Switch to Google Drive
-          </SyncButton>
-          <SyncButton disabled={busy} onclick={() => onPick('onedrive')}>
-            Switch to OneDrive
-          </SyncButton>
+          {#each cloudProviders as option (option.provider)}
+            <SettingsButton disabled={busy} onclick={() => onPick(option.provider)}>
+              Switch to {providerLabel(option.provider)}
+            </SettingsButton>
+          {/each}
         </div>
       {/snippet}
-    </SyncRow>
+    </SettingsItem>
   {/if}
-</SyncSection>
+</SettingsSection>

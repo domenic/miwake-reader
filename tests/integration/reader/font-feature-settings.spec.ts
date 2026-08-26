@@ -11,7 +11,6 @@ import { useReaderSettings } from '../helpers/workflows.ts';
 test('reader applies font feature settings only in vertical writing mode', async ({ page }) => {
   await useReaderSettings(page, {
     fontVPAL: 'On',
-    verticalFontKerning: 'On',
     verticalTextOrientation: 'Upright',
     viewMode: 'Continuous',
     writingMode: 'Vertical'
@@ -21,7 +20,8 @@ test('reader applies font feature settings only in vertical writing mode', async
   await expectBookReaderText(page, LONG_BOOK);
 
   await expectBookContentStyles(page, {
-    fontFeatureSettings: '"vkrn", "vpal"',
+    fontFeatureSettings: '"vpal"',
+    fontKerning: 'normal',
     textOrientation: 'upright'
   });
 
@@ -31,13 +31,14 @@ test('reader applies font feature settings only in vertical writing mode', async
 
   await expectBookContentStyles(page, {
     fontFeatureSettings: '',
+    fontKerning: 'normal',
     textOrientation: ''
   });
 });
 
 async function expectBookContentStyles(
   page: Page,
-  expected: { fontFeatureSettings: string; textOrientation: string }
+  expected: { fontFeatureSettings: string; fontKerning: string; textOrientation: string }
 ) {
   await expect.poll(() => bookContentStyles(page)).toEqual(expected);
 }
@@ -47,6 +48,7 @@ function bookContentStyles(page: Page) {
     const content = el as HTMLElement;
     return {
       fontFeatureSettings: content.style.fontFeatureSettings,
+      fontKerning: content.style.fontKerning,
       textOrientation: content.style.textOrientation
     };
   });

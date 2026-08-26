@@ -1,11 +1,11 @@
 import { expect, SYNC_ASSERTION_TIMEOUT, test } from '../helpers/harness.ts';
 import {
   importBookFixtures,
-  openStatisticsSettings,
+  openStatisticsViewOptions,
   recordStatisticForBook,
   VALID_BOOK
 } from '../helpers/fixtures.ts';
-import { navigateToStatisticsSummary } from '../helpers/navigation.ts';
+import { navigateToStatisticsGoals, navigateToStatisticsSummary } from '../helpers/navigation.ts';
 import { enableStatistics } from '../helpers/workflows.ts';
 import { LATER_STAT_DATE } from './helpers.ts';
 
@@ -45,7 +45,29 @@ test('statistics keyboard shortcuts change the range template and aggregation mo
   await page.keyboard.up('a');
   await expect(summary.getByText('Book', { exact: true }).first()).toBeHidden();
 
-  const settings = await openStatisticsSettings(page);
-  await expect(settings.getByLabel('Template')).toHaveValue('This Week');
-  await expect(settings.getByLabel('Primary Aggregration')).toHaveValue('Date');
+  const viewOptions = await openStatisticsViewOptions(page);
+  await expect(viewOptions.getByLabel('Template')).toHaveValue('This Week');
+  await expect(viewOptions.getByLabel('Primary Aggregration')).toHaveValue('Date');
+});
+
+test('statistics keyboard shortcuts do not change hidden view options on Reading Goals', async ({
+  page
+}) => {
+  await page.addInitScript(() => {
+    localStorage.setItem('lastStatisticsRangeTemplate', 'This Week');
+    localStorage.setItem('lastPrimaryReadingDataAggregationMode', 'Date');
+  });
+  await navigateToStatisticsGoals(page);
+
+  await page.keyboard.press('t');
+  await page.keyboard.press('a');
+
+  await expect
+    .poll(() =>
+      page.evaluate(() => ({
+        range: localStorage.getItem('lastStatisticsRangeTemplate'),
+        aggregation: localStorage.getItem('lastPrimaryReadingDataAggregationMode')
+      }))
+    )
+    .toEqual({ range: 'This Week', aggregation: 'Date' });
 });

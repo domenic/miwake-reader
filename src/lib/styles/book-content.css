@@ -6,51 +6,51 @@
    elements so that EPUB content renders with browser defaults (inline). The
    :where() keeps specificity at zero so any reader-specific rules still win. */
 .book-content {
-  :global(:where(img, svg, video, canvas, audio, iframe, embed, object)) {
+  :where(img, svg, video, canvas, audio, iframe, embed, object) {
     display: revert;
     vertical-align: revert;
   }
 }
 
 .book-content {
-  :global(.ttu-book-html-wrapper.ttu-no-text),
-  :global(.ttu-book-body-wrapper.ttu-no-text) {
+  .ttu-book-html-wrapper.ttu-no-text,
+  .ttu-book-body-wrapper.ttu-no-text {
     margin: 0 !important;
   }
 
-  :global(svg) {
+  svg {
     display: block;
     margin: auto;
   }
 
-  :global(a) {
+  a {
     color: inherit !important;
   }
 
-  :global(a:link) {
+  a:link {
     opacity: 0.8;
   }
 
-  :global(a):hover {
+  a:hover {
     opacity: 0.95;
   }
 
-  :global(ruby > rt) {
+  ruby > rt {
     user-select: none;
   }
 
-  :global([data-miwake-spoiler-img]) {
-    :global(.spoiler-label) {
+  [data-miwake-spoiler-img] {
+    .spoiler-label {
       display: none;
     }
   }
 
-  :global(.ttu-img-parent) {
+  .ttu-img-parent {
     display: contents;
   }
 
   &:not(.ttu-apply-important) {
-    :global(p) {
+    p {
       text-indent: var(--book-content-text-intendation, 0rem);
     }
 
@@ -58,7 +58,7 @@
       text-align: justify;
       hyphens: auto;
 
-      :global(p) {
+      p {
         text-align: justify;
         hyphens: auto;
       }
@@ -67,26 +67,26 @@
     &.ttu-text-wrap-pretty {
       text-wrap: pretty;
 
-      :global(p) {
+      p {
         text-wrap: pretty;
       }
     }
   }
 
   &.ttu-apply-important {
-    :global(p) {
+    p {
       text-indent: var(--book-content-text-intendation, 0rem) !important;
     }
 
     &.book-content--writing-vertical-rl.ttu-margin-manual {
-      :global(p) {
+      p {
         margin-right: var(--book-content-text-margin, 0rem) !important;
         margin-left: var(--book-content-text-margin, 0rem) !important;
       }
     }
 
     &.book-content--writing-horizontal-rl.ttu-margin-manual {
-      :global(p) {
+      p {
         margin-top: var(--book-content-text-margin, 0rem) !important;
         margin-bottom: var(--book-content-text-margin, 0rem) !important;
       }
@@ -96,7 +96,7 @@
       text-align: justify !important;
       hyphens: auto !important;
 
-      :global(p) {
+      p {
         text-align: justify !important;
         hyphens: auto !important;
       }
@@ -105,7 +105,7 @@
     &.ttu-text-wrap-pretty {
       text-wrap: pretty !important;
 
-      :global(p) {
+      p {
         text-wrap: pretty !important;
       }
     }
@@ -113,112 +113,95 @@
 }
 
 .book-content--furigana-style-hide {
-  :global(rt) {
+  rt {
     display: none;
   }
 }
 
 .book-content--furigana-style-dim {
-  :global(ruby) {
-    :global(rt) {
+  ruby {
+    rt {
       color: var(--book-content-hint-furigana-font-color);
     }
 
     @media (hover: hover) {
       &:hover {
-        :global(rt) {
+        rt {
           color: inherit;
         }
       }
     }
   }
-  :global(ruby.reveal-rt) {
-    :global(rt) {
+  ruby.reveal-rt {
+    rt {
       color: inherit;
     }
   }
 }
 
 .book-content--furigana-style-toggle {
-  :global(ruby) {
+  ruby {
     cursor: pointer;
     text-shadow: var(--book-content-hint-furigana-shadow-color) 1px 0 10px;
 
-    :global(rt) {
+    rt {
       visibility: hidden;
     }
 
     @media (hover: hover) {
       &:hover {
-        :global(rt) {
+        rt {
           visibility: visible;
         }
       }
     }
   }
 
-  :global(ruby.reveal-rt) {
+  ruby.reveal-rt {
     text-shadow: none;
 
-    :global(rt) {
+    rt {
       visibility: visible;
     }
   }
 }
 
-.book-content--furigana-style-toggle {
-  :global(ruby) {
-    @media (hover: hover) {
-      &:not(.reveal-rt):hover {
-        :global(rt) {
-          visibility: hidden;
-        }
-      }
-    }
-  }
-}
-
 /* Use :where() so EPUB class-specific margins (e.g. for section breaks) aren't
-   overridden. The :global() bypasses Svelte scoping so :where() can actually
-   zero out the specificity of the parent selectors. See
+   overridden. See
    https://github.com/ttu-ttu/ebook-reader/issues/486 for a repro. */
-:global(
-  :where(
-    .book-content:not(.ttu-apply-important).book-content--writing-vertical-rl.ttu-margin-manual
-  )
+:where(
+  .book-content:not(.ttu-apply-important).book-content--writing-vertical-rl.ttu-margin-manual
 ) {
-  :global(p) {
+  p {
     margin-right: var(--book-content-text-margin, 0rem);
     margin-left: var(--book-content-text-margin, 0rem);
   }
 }
 
-:global(
-  :where(
-    .book-content:not(.ttu-apply-important).book-content--writing-horizontal-rl.ttu-margin-manual
-  )
+:where(
+  .book-content:not(.ttu-apply-important).book-content--writing-horizontal-rl.ttu-margin-manual
 ) {
-  :global(p) {
+  p {
     margin-top: var(--book-content-text-margin, 0rem);
     margin-bottom: var(--book-content-text-margin, 0rem);
   }
 }
 
 .book-content--hide-spoiler-image {
-  :global([data-miwake-spoiler-img]) {
+  [data-miwake-spoiler-img] {
     display: inline-block;
     vertical-align: middle;
     overflow: hidden;
     position: relative;
     cursor: pointer;
 
-    :global(.spoiler-label) {
+    .spoiler-label {
       position: absolute;
       top: 50%;
       left: 50%;
       transform: translate(-50%, -50%);
       color: #dcddde;
-      background-color: rgba(0, 0, 0, 0.6);
+      background-color: rgb(0 0 0 / 60%);
       display: inline-block;
       padding: 12px 8px;
       border-radius: 20px;
@@ -229,14 +212,14 @@
     }
 
     @media (hover: hover) {
-      &:hover :global(.spoiler-label) {
+      &:hover .spoiler-label {
         color: #ffffff;
-        background-color: rgba(0, 0, 0, 0.9);
+        background-color: rgb(0 0 0 / 90%);
       }
     }
 
-    :global(img),
-    :global(svg) {
+    img,
+    svg {
       filter: blur(44px);
     }
   }

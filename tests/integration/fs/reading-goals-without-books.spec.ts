@@ -1,21 +1,19 @@
 import { expect, test } from '../helpers/harness.ts';
+import { navigateToStatisticsGoals } from '../helpers/navigation.ts';
 import {
   connectFS,
-  enableStatistics,
   expectReadingGoalsInSyncRoot,
   signOutAndWipe,
   waitForSuccessfulSync
 } from '../helpers/workflows.ts';
 
 test('sync pushes reading goals with no books to the source', async ({ page }) => {
-  await enableStatistics(page, 'Reading Goals');
+  await navigateToStatisticsGoals(page);
 
   await expect(page.getByRole('heading', { name: 'Reading Goals' })).toBeVisible();
   await page.getByRole('button', { name: 'Edit' }).click();
-  const timeGoal = page
-    .getByText('Time Goal (Min)', { exact: true })
-    .locator('input[type="number"]');
-  const startDate = page.getByText('Start Date', { exact: true }).locator('input[type="date"]');
+  const timeGoal = page.getByLabel('Reading time goal (minutes)');
+  const startDate = page.getByLabel('Start date');
   await timeGoal.fill('30');
   await startDate.fill('2026-05-22');
   await page.getByRole('button', { name: 'Save' }).click();
@@ -30,7 +28,7 @@ test('sync pushes reading goals with no books to the source', async ({ page }) =
   await signOutAndWipe(page);
   await connectFS(page);
 
-  await enableStatistics(page, 'Reading Goals');
+  await navigateToStatisticsGoals(page);
   await expect(timeGoal).toHaveValue('30');
   await expect(startDate).toHaveValue('2026-05-22');
 });

@@ -1,5 +1,6 @@
 @import 'tailwindcss';
 @import '$lib/styles/material-elevation.css';
+@import '$lib/styles/book-content.css';
 @plugin '@tailwindcss/forms';
 @source inline('animate-[pulse_0.5s_cubic-bezier(0.4,0,0.6,1)_1]');
 @source inline('animate-[pulse_1s_cubic-bezier(0.4,0,0.6,1)_infinite]');
@@ -7,11 +8,22 @@
 @theme {
   --font-sans: 'Noto Sans JP', sans-serif;
   --font-serif: 'Noto Serif JP', serif;
+  --color-accent-color: var(--accent-color);
   --color-background-color: var(--background-color);
   --spacing-21: 5.25rem;
 }
 
 @layer base {
+  input[type='checkbox'],
+  input[type='radio'] {
+    /* The forms plugin renders checkboxes and radios from `currentColor`. */
+    color: var(--accent-color);
+
+    &:focus {
+      --tw-ring-color: var(--accent-color);
+    }
+  }
+
   button:not(:disabled),
   [role='button']:not(:disabled),
   input[type='checkbox']:not(:disabled),
@@ -20,8 +32,11 @@
     cursor: pointer;
   }
 
-  input[type='checkbox']:disabled,
-  input[type='radio']:disabled,
+  button:disabled,
+  [role='button'][aria-disabled='true'],
+  input:disabled,
+  select:disabled,
+  textarea:disabled,
   label:has(input:disabled, select:disabled, textarea:disabled) {
     cursor: not-allowed;
   }
@@ -66,6 +81,7 @@
 }
 
 :root {
+  --accent-color: var(--color-gray-700);
   --font-color: rgba(0, 0, 0, 0.87);
   --background-color: #eceff1;
   --header-height: 3rem;
@@ -73,6 +89,7 @@
   --sync-indicator-size: 2rem;
   --sync-safe-inline-inset: calc(var(--sync-indicator-size) + var(--sync-indicator-gap) * 2);
   --mobile-navigation-height: 0px;
+  accent-color: var(--accent-color);
   scrollbar-color: #c1c1c1 #c1c1c100;
 }
 

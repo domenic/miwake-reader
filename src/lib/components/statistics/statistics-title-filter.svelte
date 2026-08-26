@@ -49,6 +49,7 @@
     />
   </div>
   <ToggleSwitch
+    id="statistics-filter-date-range-only"
     bind:checked={filterDateRangeOnly}
     label="Only show books with statistics in the target date range"
     class="mt-4"

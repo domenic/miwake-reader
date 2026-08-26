@@ -35,8 +35,13 @@ test('mobile section headers keep labeled controls visible and expose overflow a
 
   const settingsToolbar = page.getByRole('toolbar', { name: 'Settings controls' });
   const settingsActions = settingsToolbar.locator('[data-mobile-actions]');
-  await expectVisibleControls(settingsActions, ['Reader', 'Sync', 'Statistics']);
-  await expectControlsToHaveEqualWidths(settingsActions, ['Reader', 'Sync', 'Statistics']);
+  await expectVisibleControls(settingsActions, ['Appearance', 'Reading', 'Tracking', 'Sync']);
+  await expectControlsToHaveEqualWidths(settingsActions, [
+    'Appearance',
+    'Reading',
+    'Tracking',
+    'Sync'
+  ]);
   await expectToolbarToFitViewport(settingsActions, page);
 
   navigation = page.getByRole('navigation', { name: 'Primary navigation' });
@@ -45,10 +50,11 @@ test('mobile section headers keep labeled controls visible and expose overflow a
 
   const statisticsToolbar = page.getByRole('toolbar', { name: 'Statistics controls' });
   const statisticsActions = statisticsToolbar.locator('[data-mobile-actions]');
-  await expectVisibleControls(statisticsActions, ['Summary', 'Heatmap', 'Filter', 'More']);
+  await expectVisibleControls(statisticsActions, ['Summary', 'Heatmap', 'Goals', 'Filter', 'More']);
   await expectControlsToHaveEqualWidths(statisticsActions, [
     'Summary',
     'Heatmap',
+    'Goals',
     'Filter',
     'More'
   ]);
@@ -58,7 +64,16 @@ test('mobile section headers keep labeled controls visible and expose overflow a
   await visibleControl(statisticsToolbar, 'More').click();
   await expect(visibleControl(statisticsToolbar, 'Copy Reading Time')).toBeVisible();
   await expect(visibleControl(statisticsToolbar, 'Copy Characters Read')).toBeVisible();
-  await expect(visibleControl(statisticsToolbar, 'Statistics Settings')).toBeVisible();
+  await expect(visibleControl(statisticsToolbar, 'View Options')).toBeVisible();
+  await expectToolbarToFitViewport(statisticsActions, page);
+  await page.keyboard.press('Escape');
+
+  await visibleControl(statisticsActions, 'Goals').click();
+  await page.waitForURL((url) => url.searchParams.get('view') === 'goals');
+  await expectVisibleControls(statisticsActions, ['Summary', 'Heatmap', 'Goals']);
+  await expectControlsToHaveEqualWidths(statisticsActions, ['Summary', 'Heatmap', 'Goals']);
+  await expect(visibleControl(statisticsActions, 'Filter')).toBeHidden();
+  await expect(visibleControl(statisticsActions, 'More')).toBeHidden();
   await expectToolbarToFitViewport(statisticsActions, page);
 });
 
@@ -139,11 +154,19 @@ test('mobile library selection and reader actions use labeled overflow menus', a
   await expectControlsToHaveEqualWidths(navigation, ['Book', 'Statistics', 'Settings', 'Manager']);
   await expectToolbarToFitViewport(navigation, page);
 
-  await visibleControl(readerActions, 'More').click();
+  const moreButton = visibleControl(readerActions, 'More');
+  await moreButton.click();
+  const moreMenuId = await moreButton.getAttribute('popovertarget');
+  const moreMenuBounds = await readerToolbar.locator(`#${moreMenuId}`).boundingBox();
+  const readerViewport = page.viewportSize();
+  expect(moreMenuBounds).not.toBeNull();
+  expect(readerViewport).not.toBeNull();
+  expect(moreMenuBounds!.x).toBeGreaterThanOrEqual(0);
+  expect(moreMenuBounds!.x + moreMenuBounds!.width).toBeLessThanOrEqual(readerViewport!.width);
   await expect(visibleControl(readerToolbar, 'Complete Book')).toBeVisible();
   await expect(visibleControl(readerToolbar, 'Fullscreen')).toBeVisible();
   await expect(visibleControl(readerToolbar, 'Jump to Character')).toBeVisible();
-  await expect(visibleControl(readerToolbar, 'Set Point')).toBeVisible();
+  await expect(visibleControl(readerToolbar, 'Set current reading position')).toBeVisible();
 });
 
 test('mobile navigation is unavailable while a library operation is in progress', async ({
