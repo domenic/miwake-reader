@@ -37,7 +37,7 @@
     by Miwake Reader or shared with any third party.
   </p>
 
-  <h2 class="mb-3 mt-6 text-xl font-semibold">OneDrive integration</h2>
+  <h2 class="mb-3 mt-6 text-xl font-semibold">Microsoft OneDrive integration</h2>
 
   <p class="mb-4">
     If you choose to connect a OneDrive account, the app requests the

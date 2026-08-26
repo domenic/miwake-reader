@@ -28,7 +28,7 @@ Hosted on <https://reader.miwake.app/>.
 
 ### Sync and backups
 
-The sync system has been rebuilt around a single-destination model. From the new **Settings → Sync** page you connect one place — Google Drive, OneDrive, or a local sync folder — and your library, bookmarks, statistics, and reading goals follow you across devices in the background.
+The sync system has been rebuilt around a single-destination model. From the new **Settings → Sync** page you connect one place — Google Drive, Microsoft OneDrive, or a local sync folder — and your library, bookmarks, statistics, and reading goals follow you across devices in the background.
 
 - **Sync** (continuous, ambient) and **Backup** (one-shot ZIP) are now distinct features with their own UI. The new export and import dialogs let you choose exactly what travels — books, bookmarks, statistics, reading goals, app settings — and how to resolve conflicts on import.
 - OneDrive uses an app-specific folder instead of asking for broad file access.
