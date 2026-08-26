@@ -9,6 +9,7 @@ import { storageRootName } from '$lib/data/env';
 import { mergeReadingGoals, readingGoalSortFunction } from '$lib/data/reading-goal';
 import type { SyncEndpointType, SyncTitle } from '$lib/data/storage/storage-types';
 import type {
+  AuthenticationOptions,
   ScopedBookOperations,
   ScopedSettings,
   SyncEndpoint
@@ -68,7 +69,7 @@ export abstract class BaseStorageHandler implements SyncEndpoint {
    */
   abstract listSyncTitles(opts?: { refresh?: boolean; silentOnly?: boolean }): Promise<SyncTitle[]>;
 
-  abstract authenticate(authWindow: Window | null, silentOnly?: boolean): Promise<void>;
+  abstract authenticate(authWindow: Window | null, options?: AuthenticationOptions): Promise<void>;
 
   abstract clearData(clearAll?: boolean): void;
 

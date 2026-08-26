@@ -85,13 +85,13 @@ export class StorageOAuthManager {
     window: Window,
     storageSourceName: string,
     authWindow?: Window | null,
-    silentOnly = false
+    allowInteractive = true
   ): Promise<string | undefined> {
     if (this.pendingGetToken) {
       return this.pendingGetToken;
     }
 
-    this.pendingGetToken = this.doGetToken(window, storageSourceName, authWindow, silentOnly);
+    this.pendingGetToken = this.doGetToken(window, storageSourceName, authWindow, allowInteractive);
 
     try {
       return await this.pendingGetToken;
@@ -104,7 +104,7 @@ export class StorageOAuthManager {
     window: Window,
     storageSourceName: string,
     authWindow?: Window | null,
-    silentOnly = false
+    allowInteractive = true
   ): Promise<string | undefined> {
     const oldToken = storageOAuthTokens.get(storageSourceName);
 
@@ -160,7 +160,7 @@ export class StorageOAuthManager {
     }
 
     // 4. No valid token — would need interactive auth.
-    if (silentOnly) {
+    if (!allowInteractive) {
       throw new NeedsInteractiveAuthError(storageSourceName, this.storageType);
     }
 
@@ -435,9 +435,11 @@ export class StorageOAuthManager {
     // Defaults first, then remoteData — so a user-provided custom
     // tokenEndpoint (RemoteContext.tokenEndpoint) wins over the
     // env-default for this provider when present.
+    const defaults = StorageOAuthManager.getAuthVariables(this.storageType);
     const authData = {
-      ...StorageOAuthManager.getAuthVariables(this.storageType),
+      ...defaults,
       ...this.remoteData,
+      tokenEndpoint: this.remoteData.tokenEndpoint ?? defaults.tokenEndpoint,
       storageType: this.storageType,
       needsRefreshToken: !this.remoteData.refreshToken,
       codeVerifier: this.codeVerifier,

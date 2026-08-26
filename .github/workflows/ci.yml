@@ -10,6 +10,8 @@ jobs:
   test:
     name: Test
     runs-on: ubuntu-latest
+    env:
+      VITE_GDRIVE_CLIENT_ID: fake-default-client.apps.googleusercontent.com
     steps:
       - name: Checkout
         uses: actions/checkout@v6

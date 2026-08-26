@@ -175,7 +175,7 @@ async function reconcileBooksOnBoot(): Promise<void> {
   beginLongRunning();
   try {
     if (location.kind === 'cloud') {
-      await handler.authenticate(null, true);
+      await handler.authenticate(null, { allowInteractive: false });
     }
 
     const remoteBooks = await handler.listSyncTitles({ silentOnly: true });
@@ -554,7 +554,7 @@ async function pushOne(context: ReplicationContext, types: BookDataType[]): Prom
         `location=${location.kind}, types=[${typeLabel}]`
     );
     if (location.kind === 'cloud') {
-      await handler.authenticate(null, true);
+      await handler.authenticate(null, { allowInteractive: false });
     }
     await replicateData({
       library: local,
@@ -608,7 +608,7 @@ async function syncReadingGoals(direction: 'push' | 'pull', reason: string): Pro
       `sync ${direction}: start reading-goals, reason=${reason}, location=${location.kind}`
     );
     if (location.kind === 'cloud') {
-      await handler.authenticate(null, true);
+      await handler.authenticate(null, { allowInteractive: false });
     }
     await replicateData({
       library: localEndpoint(),
@@ -647,7 +647,7 @@ async function deleteRemoteBooks(titles: string[], signal: AbortSignal): Promise
   beginLongRunning();
   try {
     if (location.kind === 'cloud') {
-      await handler.authenticate(null, true);
+      await handler.authenticate(null, { allowInteractive: false });
     }
     await handler.deleteBookData(titles, signal, false);
     markSynced();
@@ -679,7 +679,7 @@ async function pushDeletedStatistics(titles: string[]): Promise<void> {
   beginLongRunning();
   try {
     if (location.kind === 'cloud') {
-      await handler.authenticate(null, true);
+      await handler.authenticate(null, { allowInteractive: false });
     }
     await replicateData({
       library: localEndpoint(),
@@ -714,7 +714,7 @@ async function pushDeletedReadingGoals(): Promise<void> {
   beginLongRunning();
   try {
     if (location.kind === 'cloud') {
-      await handler.authenticate(null, true);
+      await handler.authenticate(null, { allowInteractive: false });
     }
     await replicateData({
       library: localEndpoint(),
@@ -759,8 +759,10 @@ async function drainReplayQueue(): Promise<void> {
 /**
  * Called by the reader when a book is opened. Pulls per-book state
  * (and the book content if local is a placeholder) from the configured
- * sync location. Silent — failures surface via syncHealth$; the
- * reader continues with whatever local data it has.
+ * sync location. Already-downloaded books authenticate silently and
+ * failures surface via syncHealth$. Placeholder hydration is an
+ * explicit download request, so cloud sources may prompt for sign-in
+ * after silent token refresh fails.
  *
  * Respects the autoReplication direction: only pulls if Down or Both.
  */
@@ -799,8 +801,10 @@ export async function reconcileForBookOpen(context: ReplicationContext): Promise
   beginLongRunning();
   try {
     if (location.kind === 'cloud') {
-      logger.debug('reconcileForBookOpen: cloud authenticate (silent)');
-      await handler.authenticate(null, true);
+      logger.debug(
+        `reconcileForBookOpen: cloud authenticate (${isPlaceholder ? 'interactive' : 'silent'})`
+      );
+      await handler.authenticate(null, { allowInteractive: isPlaceholder });
     }
     await replicateData({
       library: local,
@@ -857,7 +861,7 @@ export async function forceFullResync(direction: ForceResyncDirection): Promise<
   try {
     if (location.kind === 'cloud') {
       try {
-        await endpointFor(location).authenticate(null, true);
+        await endpointFor(location).authenticate(null, { allowInteractive: false });
       } catch (err) {
         reportSyncError('forceFullResync (auth)', err);
         throw err;

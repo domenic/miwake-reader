@@ -24,7 +24,7 @@ export interface SyncRootOptions {
   rootName?: string;
 }
 
-type SyncRootSnapshotEntry =
+export type SyncRootSnapshotEntry =
   | { kind: 'directory'; name: string; entries: SyncRootSnapshotEntry[] }
   | { kind: 'file'; name: string; data: Uint8Array<ArrayBuffer> };
 
@@ -188,39 +188,7 @@ export async function copySyncRoot(
     targetRootName = DEFAULT_SYNC_ROOT_NAME
   }: { sourceRootName?: string; targetRootName?: string } = {}
 ) {
-  const snapshot = await sourcePage.evaluate(
-    async ({ sourceRootName }) => {
-      async function snapshotDirectory(
-        directory: FileSystemDirectoryHandle
-      ): Promise<SyncRootSnapshotEntry[]> {
-        const entries: SyncRootSnapshotEntry[] = [];
-
-        for await (const [name, handle] of directory.entries()) {
-          if (handle instanceof FileSystemDirectoryHandle) {
-            entries.push({
-              kind: 'directory',
-              name,
-              entries: await snapshotDirectory(handle)
-            });
-          } else {
-            const file = await handle.getFile();
-            entries.push({
-              kind: 'file',
-              name,
-              data: await file.bytes()
-            });
-          }
-        }
-
-        return entries.sort((a, b) => a.name.localeCompare(b.name));
-      }
-
-      const opfs = await navigator.storage.getDirectory();
-      const root = await opfs.getDirectoryHandle(sourceRootName, { create: true });
-      return snapshotDirectory(root);
-    },
-    { sourceRootName }
-  );
+  const snapshot = await snapshotSyncRoot(sourcePage, { rootName: sourceRootName });
 
   await targetPage.evaluate(
     async ({ snapshot, targetRootName }) => {
@@ -253,6 +221,49 @@ export async function copySyncRoot(
       await restoreEntries(root, snapshot);
     },
     { snapshot, targetRootName }
+  );
+}
+
+/**
+ * Capture a fake sync source as provider-neutral folders and bytes. Cloud-provider tests use this
+ * to feed files produced by the real replication pipeline into their HTTP-boundary fakes.
+ */
+export async function snapshotSyncRoot(
+  page: Page,
+  { rootName = DEFAULT_SYNC_ROOT_NAME }: SyncRootOptions = {}
+): Promise<SyncRootSnapshotEntry[]> {
+  return page.evaluate(
+    async ({ sourceRootName }) => {
+      async function snapshotDirectory(
+        directory: FileSystemDirectoryHandle
+      ): Promise<SyncRootSnapshotEntry[]> {
+        const entries: SyncRootSnapshotEntry[] = [];
+
+        for await (const [name, handle] of directory.entries()) {
+          if (handle instanceof FileSystemDirectoryHandle) {
+            entries.push({
+              kind: 'directory',
+              name,
+              entries: await snapshotDirectory(handle)
+            });
+          } else {
+            const file = await handle.getFile();
+            entries.push({
+              kind: 'file',
+              name,
+              data: await file.bytes()
+            });
+          }
+        }
+
+        return entries.sort((a, b) => a.name.localeCompare(b.name));
+      }
+
+      const opfs = await navigator.storage.getDirectory();
+      const root = await opfs.getDirectoryHandle(sourceRootName, { create: true });
+      return snapshotDirectory(root);
+    },
+    { sourceRootName: rootName }
   );
 }
 
