@@ -1,3 +1,4 @@
+import type { Page } from '@playwright/test';
 import { expect, test } from './helpers/harness.ts';
 import {
   navigateToSettingsAppearance,
@@ -403,10 +404,7 @@ test('switch labels toggle their controls and reading settings fit on mobile', a
   }
 });
 
-async function expectStoredSettings(
-  page: import('@playwright/test').Page,
-  expected: Record<string, string>
-) {
+async function expectStoredSettings(page: Page, expected: Record<string, string>) {
   await expect
     .poll(() =>
       page.evaluate((keys) => {

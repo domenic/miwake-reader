@@ -102,6 +102,11 @@ export interface LocalReplicationEndpoint extends BookOperations {
   readonly kind: 'local';
 }
 
+export interface AuthenticationOptions {
+  /** Whether cached/refresh-token failure may open an OAuth window. */
+  allowInteractive?: boolean;
+}
+
 /**
  * An external location books are mirrored to/from. Implementations:
  * GDriveStorageHandler, OneDriveStorageHandler,
@@ -119,10 +124,10 @@ export interface SyncEndpoint extends BookOperations {
   listSyncTitles(opts?: { refresh?: boolean; silentOnly?: boolean }): Promise<SyncTitle[]>;
   /**
    * OAuth-flavored endpoints (GDrive, OneDrive) re-establish a token
-   * here. FS/backup are no-ops. `silentOnly` skips popup-opening and
-   * throws `NeedsInteractiveAuthError` if a fresh token can't be
-   * obtained from cache or refresh — used on the boot / ambient paths
-   * where there's no user gesture available.
+   * here. FS/backup are no-ops. Set `allowInteractive` to false to skip
+   * popup-opening and throw `NeedsInteractiveAuthError` if a fresh token
+   * can't be obtained from cache or refresh — used on boot and ambient
+   * paths where login UI would be disruptive.
    */
-  authenticate(authWindow: Window | null, silentOnly?: boolean): Promise<void>;
+  authenticate(authWindow: Window | null, options?: AuthenticationOptions): Promise<void>;
 }

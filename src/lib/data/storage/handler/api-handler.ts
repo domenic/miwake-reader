@@ -10,7 +10,11 @@ import {
   BaseStorageHandler,
   type ExternalFile
 } from '$lib/data/storage/handler/base-handler';
-import type { ScopedBookOperations, ScopedSettings } from '$lib/data/storage/handler/handler-roles';
+import type {
+  AuthenticationOptions,
+  ScopedBookOperations,
+  ScopedSettings
+} from '$lib/data/storage/handler/handler-roles';
 import { StorageOAuthManager } from '$lib/data/storage/storage-oauth-manager';
 import { SyncEndpointType } from '$lib/data/storage/storage-types';
 import { database } from '$lib/data/store';
@@ -97,13 +101,20 @@ export abstract class ApiStorageHandler extends BaseStorageHandler {
    * popup is opened synchronously inside the user's click handler,
    * then this method navigates it to the OAuth flow.
    *
-   * With `silentOnly: true`: used by the sync engine on app boot /
-   * ambient operations. Tries the cached/refreshable token path; if
-   * that fails, throws `NeedsInteractiveAuthError` instead of opening
-   * a popup (which would be blocked anyway without a user gesture).
+   * With `allowInteractive: false`: used by the sync engine on app boot /
+   * ambient operations. Tries the cached/refreshable token path; if that
+   * fails, throws `NeedsInteractiveAuthError` instead of opening a popup.
    */
-  async authenticate(authWindow: Window | null, silentOnly = false): Promise<void> {
-    await this.authManager.getToken(this.window, this.storageSourceName, authWindow, silentOnly);
+  async authenticate(
+    authWindow: Window | null,
+    { allowInteractive = true }: AuthenticationOptions = {}
+  ): Promise<void> {
+    await this.authManager.getToken(
+      this.window,
+      this.storageSourceName,
+      authWindow,
+      allowInteractive
+    );
   }
 
   clearData(clearAll = true) {

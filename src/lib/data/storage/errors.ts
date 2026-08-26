@@ -14,7 +14,7 @@ export class NeedsInteractiveAuthError extends Error {
   ) {
     super(
       `Interactive sign-in required for ${storageSourceName} (${storageType}); ` +
-        'silentOnly was set so no popup was opened.'
+        'interactive authentication was disabled so no popup was opened.'
     );
     this.name = 'NeedsInteractiveAuthError';
   }
