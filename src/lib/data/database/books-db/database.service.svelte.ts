@@ -317,9 +317,10 @@ export class DatabaseService {
   }
 
   /**
-   * Delete books from local IDB. Returns the ids that were actually
-   * deleted. Throws AggregateError on any per-id failure (with the
-   * partial-success list attached via `.cause` if you need it; the
+   * Delete books from local IDB. With `keepLocalReadingData`, reading data created for downloaded
+   * books is retained, but bookmarks copied from the sync source for placeholder books are still
+   * deleted with their book rows. Returns the ids that were actually deleted. Throws AggregateError
+   * on any per-id failure (with the partial-success list attached via `.cause` if you need it; the
    * caller's typical recovery is to re-derive UI state from a fresh
    * `getAll('data')` rather than parse the error).
    */
@@ -331,6 +332,7 @@ export class DatabaseService {
   ): Promise<number[]> {
     const db = await this.db;
     const deleted: number[] = [];
+    let deletedBookmark = false;
     const errors: Error[] = [];
     const limiter = pLimit(1);
     const tasks: Promise<void>[] = [];
@@ -342,9 +344,14 @@ export class DatabaseService {
         limiter(async () => {
           try {
             signal.throwIfAborted();
-            deleted.push(
-              await this.#deleteSingleData(db, id, idsToTitles.get(id), !keepLocalReadingData)
+            const result = await this.#deleteSingleData(
+              db,
+              id,
+              idsToTitles.get(id),
+              !keepLocalReadingData
             );
+            deleted.push(result.dataId);
+            deletedBookmark ||= result.deletedBookmark;
           } catch (error: any) {
             handleErrorDuringReplication(
               error,
@@ -361,7 +368,7 @@ export class DatabaseService {
       if (err.name === 'AbortError') throw err;
     });
 
-    if (!keepLocalReadingData) {
+    if (!keepLocalReadingData || deletedBookmark) {
       // The in-memory bookmark list drives /manage's progress join (by
       // title); left stale, a deleted bookmark would re-attach to a
       // re-imported same-title book within the session.
@@ -406,19 +413,20 @@ export class DatabaseService {
     dataId: number,
     title: string | undefined,
     shouldDeleteLocalReadingData: boolean
-  ) {
+  ): Promise<{ dataId: number; deletedBookmark: boolean }> {
     const storeNames: ('data' | 'bookmark' | 'statistic' | 'lastItem' | 'lastModified')[] = [
+      'bookmark',
       'data',
       'lastItem'
     ];
 
     if (shouldDeleteLocalReadingData) {
-      storeNames.push('bookmark');
       storeNames.push('statistic');
       storeNames.push('lastModified');
     }
 
     const tx = db.transaction(storeNames, 'readwrite');
+    let deletedBookmark = false;
     let deletedLastItem = false;
 
     try {
@@ -430,8 +438,19 @@ export class DatabaseService {
         deletedLastItem = true;
       }
 
+      if (bookTitle !== undefined) {
+        const bookmarkStore = tx.objectStore('bookmark');
+        const shouldDeleteBookmark =
+          shouldDeleteLocalReadingData ||
+          (await bookmarkStore.get(bookTitle))?.placeholder === true;
+
+        if (shouldDeleteBookmark) {
+          await bookmarkStore.delete(bookTitle);
+          deletedBookmark = true;
+        }
+      }
+
       if (shouldDeleteLocalReadingData && bookTitle !== undefined) {
-        await tx.objectStore('bookmark').delete(bookTitle);
         await tx.objectStore('statistic').delete(IDBKeyRange.bound([bookTitle], [bookTitle, []]));
         await tx.objectStore('lastModified').delete([bookTitle, StorageDataType.STATISTICS]);
       }
@@ -456,7 +475,7 @@ export class DatabaseService {
 
     replicationProgressState.report({ progressToAdd: 1 });
 
-    return dataId;
+    return { dataId, deletedBookmark };
   }
 
   async saveStorageSource(storageSource: BooksDbStorageSource, oldName: string) {
