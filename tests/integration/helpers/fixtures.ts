@@ -284,7 +284,7 @@ export async function expectStatisticsInSummary(
 
 export async function expectNoStatisticsInSummary(page: Page) {
   await showAllStatistics(page);
-  await expect(page.getByText(/No Data found/)).toBeVisible({ timeout: SYNC_ASSERTION_TIMEOUT });
+  await expect(page.getByText(/No data for/)).toBeVisible({ timeout: SYNC_ASSERTION_TIMEOUT });
 }
 
 export async function deleteAllStatisticsFromSummary(page: Page) {
@@ -295,7 +295,7 @@ export async function deleteAllStatisticsFromSummary(page: Page) {
   const dialog = page.locator('dialog[open]');
   await expect(dialog.getByRole('heading', { name: 'Delete data' })).toBeVisible();
   await dialog.getByRole('button', { name: 'Delete', exact: true }).click();
-  await expect(page.getByText(/No Data found/)).toBeVisible({ timeout: SYNC_ASSERTION_TIMEOUT });
+  await expect(page.getByText(/No data for/)).toBeVisible({ timeout: SYNC_ASSERTION_TIMEOUT });
 }
 
 export async function openBookFromManage(page: Page, fixture: LibraryBookFixture) {

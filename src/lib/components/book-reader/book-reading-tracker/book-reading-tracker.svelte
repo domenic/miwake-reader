@@ -25,6 +25,7 @@
   import { PAGE_CHANGE } from '$lib/data/events';
   import { logger } from '$lib/data/logger';
   import { getReadingGoalWindow, type ReadingGoal } from '$lib/data/reading-goal';
+  import { wallClock } from '$lib/data/sync/wall-clock.svelte';
   import {
     adjustStatisticsAfterIdleTime$,
     database,
@@ -48,7 +49,7 @@
   } from '$lib/functions/statistic-util';
   import { fireAndForget, filterNotNullAndNotUndefined } from '$lib/functions/utils';
   import { onDestroy, onMount, tick, untrack } from 'svelte';
-  import { SvelteMap, SvelteSet } from 'svelte/reactivity';
+  import { SvelteDate, SvelteMap, SvelteSet } from 'svelte/reactivity';
 
   interface Props {
     fontColor: string;
@@ -351,6 +352,19 @@
 
   $effect(() => {
     if (trackerStatus.menuOpen && trackerStatus.pausedOutsideMenu) {
+      untrack(() => fireAndForget(updateReadingGoalWindow()));
+    }
+  });
+
+  $effect(() => {
+    if (!trackerStatus.menuOpen) {
+      return;
+    }
+
+    const now = wallClock.now;
+    const currentTodayKey = getDateKey($dayBoundaryTime$, new SvelteDate(now));
+
+    if (currentTodayKey !== todayKey) {
       untrack(() => fireAndForget(updateReadingGoalWindow()));
     }
   });

@@ -93,5 +93,5 @@ test('statistics header and view options operate on loaded statistics', async ({
     has: page.getByRole('heading', { name: 'Delete data' })
   });
   await dialog.getByRole('button', { name: 'Delete', exact: true }).click();
-  await expect(page.getByText(/No Data found/)).toBeVisible({ timeout: SYNC_ASSERTION_TIMEOUT });
+  await expect(page.getByText(/No data for/)).toBeVisible({ timeout: SYNC_ASSERTION_TIMEOUT });
 });
