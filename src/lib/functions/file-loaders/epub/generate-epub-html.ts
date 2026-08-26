@@ -13,7 +13,7 @@ import { getParagraphNodes } from '../../../components/book-reader/get-paragraph
 import path from 'path-browserify';
 import { get } from 'svelte/store';
 
-export const prependValue = 'miwake-';
+const prependValue = 'miwake-';
 
 interface TOCChapter {
   reference: string;

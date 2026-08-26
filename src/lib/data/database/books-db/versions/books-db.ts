@@ -9,4 +9,3 @@ export type BooksDbStorageSource = BooksDb['storageSource']['value'];
 export type BooksDbStatistic = BooksDb['statistic']['value'];
 export type BooksDbReadingGoal = BooksDb['readingGoal']['value'];
 export type BooksDbLastModified = BooksDb['lastModified']['value'];
-export const currentDbVersion = 8;

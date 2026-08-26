@@ -1,13 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   getStatisticsURL,
-  getValidStatisticsView,
-  statisticsViews
+  getValidStatisticsView
 } from '../../src/lib/components/statistics/statistics-view.ts';
 
 describe('statistics views', () => {
   it('recognizes the goals view', () => {
-    expect(statisticsViews).toContain('goals');
     expect(getValidStatisticsView('goals')).toBe('goals');
   });
 

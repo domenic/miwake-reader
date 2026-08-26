@@ -31,7 +31,7 @@ interface OAuthTokenData {
   refreshToken?: string;
 }
 
-export const storageOAuthTokens = new Map<string, OAuthTokenData>();
+const storageOAuthTokens = new Map<string, OAuthTokenData>();
 
 /**
  * Drop any cached access token for this source. Must be called by

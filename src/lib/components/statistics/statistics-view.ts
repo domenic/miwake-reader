@@ -1,7 +1,7 @@
 export type StatisticsView = 'heatmap' | 'summary' | 'goals';
 
 export const defaultStatisticsView: StatisticsView = 'heatmap';
-export const statisticsBookQueryParam = 't';
+const statisticsBookQueryParam = 't';
 /**
  * Pre-title URLs filtered by the per-device numeric IDB id (`?b=20`). There
  * is nothing stable to map those to, so the page strips them and shows the
@@ -9,7 +9,7 @@ export const statisticsBookQueryParam = 't';
  */
 export const statisticsLegacyBookQueryParam = 'b';
 export const statisticsViewQueryParam = 'view';
-export const statisticsViews: StatisticsView[] = [defaultStatisticsView, 'summary', 'goals'];
+const statisticsViews: StatisticsView[] = [defaultStatisticsView, 'summary', 'goals'];
 
 export function getValidStatisticsView(view?: string | null): StatisticsView {
   return statisticsViews.includes(view as StatisticsView)

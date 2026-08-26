@@ -29,7 +29,7 @@ const exactTimeFormat = new Intl.DateTimeFormat(undefined, {
  * with "just now" for anything under a minute (the API's "0 seconds
  * ago" / "now" is not great).
  */
-export function formatRelativeTime(timestamp: number, now = Date.now()): string {
+function formatRelativeTime(timestamp: number, now = Date.now()): string {
   const diff = timestamp - now; // negative for past
   const absDiff = Math.abs(diff);
   if (absDiff < MINUTE) return 'just now';
