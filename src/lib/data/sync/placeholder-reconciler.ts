@@ -91,8 +91,9 @@ function isStillActive(expectedSourceInstanceId: string): boolean {
 
 /**
  * Scan every book row, delete those where `predicate` returns true.
- * Companion bookmark / lastItem / statistic rows are cascade-cleaned
- * via `database.deleteData`. Returns the count actually deleted.
+ * Companion `lastItem` and source-derived placeholder bookmark rows
+ * are cascade-cleaned via `database.deleteData`; locally authored
+ * reading data is retained. Returns the count actually deleted.
  *
  * `precheck` runs after the scan but before any delete, so callers
  * can bail (e.g. on source rotation) without leaving partial

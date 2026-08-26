@@ -69,6 +69,12 @@ interface StatisticRowExpectation {
   dateKey: string;
 }
 
+interface SyncRootStatisticExpectation {
+  charactersRead: number;
+  dateKey: string;
+  readingTime: number;
+}
+
 interface RecordStatisticOptions {
   durationMs?: number;
 }
@@ -233,6 +239,24 @@ export async function expectBooksInManage(
   ]);
 }
 
+export async function selectBookSort(
+  page: Page,
+  label: string,
+  direction: 'ascending' | 'descending'
+) {
+  await page.getByRole('button', { name: /Sort/ }).click();
+  await page.getByRole('button', { name: `Sort by ${label} ${direction}` }).click();
+}
+
+export async function expectBookOrder(page: Page, fixtures: readonly LibraryBookFixture[]) {
+  const cards = page.locator('article');
+  await expect(cards).toHaveCount(fixtures.length);
+
+  for (const [index, fixture] of fixtures.entries()) {
+    await expect(cards.nth(index)).toContainText(fixtureDisplayTitle(fixture));
+  }
+}
+
 export async function recordStatisticForBook(
   page: Page,
   fixture: LibraryBookFixture,
@@ -356,18 +380,32 @@ async function bookmarkFixtureAtTOCEntry(
   { tocButtonTitle, minimumFooterPage }: PartwayBookmarkMetadata
 ) {
   await openBookFromManage(page, fixture);
-  await openTOC(page);
-  await page.getByTitle(tocButtonTitle).click();
-  await expect
-    .poll(async () => {
-      const footerText = await page.locator('#miwake-page-footer').innerText();
-      return Number(/(\d+) \/ \d+/.exec(footerText)?.[1] ?? 0);
-    })
-    .toBeGreaterThan(minimumFooterPage);
-  const readerHeader = await showReaderHeader(page);
-  await readerHeader.getByRole('button', { name: 'Bookmark' }).click();
-  await showReaderHeader(page);
-  await expect(page.getByRole('button', { name: 'Return to Bookmark' })).toBeVisible();
+
+  // Firefox can rebuild the paginator after its first stable-looking layout. Treat choosing the
+  // chapter and saving its bookmark as one semantic operation so a late rebuild cannot leave this
+  // fixture bookmarked back at the beginning of the book.
+  await expect(async () => {
+    if ((await currentReaderFooterPage(page)) <= minimumFooterPage) {
+      await openTOC(page);
+      await page.getByTitle(tocButtonTitle).click({ timeout: 2_000 });
+      expect(await currentReaderFooterPage(page)).toBeGreaterThan(minimumFooterPage);
+    }
+
+    const readerHeader = await showReaderHeader(page);
+    await readerHeader
+      .getByRole('button', { name: 'Bookmark', exact: true })
+      .click({ timeout: 2_000 });
+    const updatedReaderHeader = await showReaderHeader(page);
+    expect(
+      await updatedReaderHeader.getByRole('button', { name: 'Return to Bookmark' }).isVisible()
+    ).toBe(true);
+    expect(await currentReaderFooterPage(page)).toBeGreaterThan(minimumFooterPage);
+  }).toPass({ timeout: SYNC_ASSERTION_TIMEOUT });
+}
+
+async function currentReaderFooterPage(page: Page): Promise<number> {
+  const footerText = await page.locator('#miwake-page-footer').innerText();
+  return Number(/(\d+) \/ \d+/.exec(footerText)?.[1] ?? 0);
 }
 
 /**
@@ -399,10 +437,41 @@ export async function expectBookStatisticsInSyncRoot(
   options?: SyncRootOptions
 ) {
   await expect
-    .poll(() => listBookStatisticsInSyncRoot(page, fixture, options), {
-      timeout: SYNC_ASSERTION_TIMEOUT
-    })
+    .poll(
+      async () =>
+        (await listBookStatisticsInSyncRoot(page, fixture, options)).map(
+          (statistic) => statistic.dateKey
+        ),
+      { timeout: SYNC_ASSERTION_TIMEOUT }
+    )
     .toEqual([...dateKeys].sort());
+}
+
+export async function expectBookStatisticInSyncRoot(
+  page: Page,
+  fixture: LibraryBookFixture,
+  expected: SyncRootStatisticExpectation,
+  options?: SyncRootOptions
+) {
+  await expect
+    .poll(
+      async () => {
+        const statistics = await listBookStatisticsInSyncRoot(page, fixture, options);
+        const statistic = statistics.find(({ dateKey }) => dateKey === expected.dateKey);
+
+        if (!statistic) return undefined;
+
+        return {
+          charactersRead: statistic.charactersRead,
+          dateKey: statistic.dateKey,
+          readingTime: statistic.readingTime
+        };
+      },
+      {
+        timeout: SYNC_ASSERTION_TIMEOUT
+      }
+    )
+    .toEqual(expected);
 }
 
 export async function removeBooksFromSyncRoot(
@@ -412,6 +481,32 @@ export async function removeBooksFromSyncRoot(
 ) {
   await Promise.all(
     fixtures.map((fixture) => removeSyncRootEntry(page, fixtureTitle(fixture), options))
+  );
+}
+
+export async function removeBookProgressFromSyncRoot(
+  page: Page,
+  fixture: LibraryBookFixture,
+  { rootName = 'fake-sync' }: SyncRootOptions = {}
+) {
+  await page.evaluate(
+    async ({ rootName, title }) => {
+      const opfs = await navigator.storage.getDirectory();
+      const root = await opfs.getDirectoryHandle(rootName);
+      const directory = await root.getDirectoryHandle(title);
+      let removed = 0;
+
+      for await (const [name, handle] of directory.entries()) {
+        if (!(handle instanceof FileSystemFileHandle) || !name.startsWith('progress_')) continue;
+        await directory.removeEntry(name);
+        removed += 1;
+      }
+
+      if (removed === 0) {
+        throw new Error(`Unable to find a progress file under ${title}`);
+      }
+    },
+    { rootName, title: fixtureTitle(fixture) }
   );
 }
 
@@ -493,23 +588,32 @@ async function listBookStatisticsInSyncRoot(
       const root = await opfs.getDirectoryHandle(rootName, { create: true });
       const directory = await root.getDirectoryHandle(title);
 
-      const dateKeys: string[] = [];
+      const statisticsRows: Array<{
+        charactersRead: number;
+        dateKey: string;
+        readingTime: number;
+      }> = [];
       for await (const [name, handle] of directory.entries()) {
         if (!(handle instanceof FileSystemFileHandle) || !name.startsWith('statistics_')) continue;
 
         const file = await handle.getFile();
         const statistics = JSON.parse(await file.text()) as Array<{
+          charactersRead?: number;
           dateKey?: string;
           readingTime?: number;
         }>;
         for (const statistic of statistics) {
           if (statistic.dateKey && Number(statistic.readingTime) > 0) {
-            dateKeys.push(statistic.dateKey);
+            statisticsRows.push({
+              charactersRead: Number(statistic.charactersRead),
+              dateKey: statistic.dateKey,
+              readingTime: Number(statistic.readingTime)
+            });
           }
         }
       }
 
-      return dateKeys.sort();
+      return statisticsRows.sort((a, b) => a.dateKey.localeCompare(b.dateKey));
     },
     { rootName, title: fixtureTitle(fixture) }
   );

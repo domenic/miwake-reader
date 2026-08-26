@@ -3,10 +3,18 @@ import { expect, SYNC_ASSERTION_TIMEOUT } from './harness.ts';
 
 export async function showReaderHeader(page: Page) {
   const header = readerHeader(page);
+  await expectReaderActionComplete(page);
 
-  await expect(header).toHaveAttribute('inert', '', { timeout: SYNC_ASSERTION_TIMEOUT });
-  await page.getByRole('button', { name: 'Show reader header' }).click();
-  await expect(header).not.toHaveAttribute('inert', '', { timeout: SYNC_ASSERTION_TIMEOUT });
+  await expect(async () => {
+    if ((await header.getAttribute('inert')) !== null) {
+      await page.getByRole('button', { name: 'Show reader header' }).click();
+    }
+    await expect(header).not.toHaveAttribute('inert', '');
+    await expect(header).toBeVisible();
+    await expect(header).toHaveCSS('translate', 'none');
+  }).toPass({
+    timeout: SYNC_ASSERTION_TIMEOUT
+  });
 
   return header;
 }
@@ -28,8 +36,14 @@ export async function focusReaderShortcutTarget(page: Page) {
 }
 
 export async function openTOC(page: Page) {
-  const header = await showReaderHeader(page);
-  await header.getByRole('button', { name: 'TOC' }).click();
+  const openTOCDialog = page.locator('dialog[open]').filter({
+    has: page.getByRole('button', { name: 'Close table of contents' })
+  });
+  if ((await openTOCDialog.count()) === 0) {
+    const header = await showReaderHeader(page);
+    await header.getByRole('button', { name: 'TOC' }).click();
+  }
+  await expect(openTOCDialog).toBeVisible({ timeout: SYNC_ASSERTION_TIMEOUT });
 }
 
 function readerHeader(page: Page) {

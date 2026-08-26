@@ -3,6 +3,7 @@ import {
   bookmarkFixturePartway,
   bookProgressBar,
   corruptBookDataInSyncRoot,
+  expectBookOrder,
   expectBookPartwayProgress,
   expectBooksInManage,
   expectBooksInSyncRoot,
@@ -10,6 +11,7 @@ import {
   LONG_BOOK,
   openBookFromManage,
   PLAIN_TEXT_BOOK,
+  selectBookSort,
   VALID_BOOK
 } from '../helpers/fixtures.ts';
 import { navigateToManage } from '../helpers/navigation.ts';
@@ -19,6 +21,7 @@ import { connectFS, signOutAndWipe } from '../helpers/workflows.ts';
 test('fresh-device placeholders preserve varied UI-created progress and surface corrupt source files', async ({
   page
 }) => {
+  await page.clock.install({ time: new Date('2026-05-01T12:00:00Z') });
   await importBookFixtures(page, [VALID_BOOK, LONG_BOOK, PLAIN_TEXT_BOOK]);
 
   await bookmarkFixturePartway(page, LONG_BOOK);
@@ -28,6 +31,7 @@ test('fresh-device placeholders preserve varied UI-created progress and surface 
   });
   await expectBookPartwayProgress(page, LONG_BOOK);
 
+  await page.clock.setSystemTime(new Date('2026-05-02T12:00:00Z'));
   await openBookFromManage(page, VALID_BOOK);
   await completeCurrentBook(page);
 
@@ -45,6 +49,8 @@ test('fresh-device placeholders preserve varied UI-created progress and surface 
   await expect(bookProgressBar(page, VALID_BOOK)).toHaveAttribute('value', '100');
   await expectBookPartwayProgress(page, LONG_BOOK);
   await expect(bookProgressBar(page, PLAIN_TEXT_BOOK)).toHaveAttribute('value', '0');
+  await selectBookSort(page, 'Last Read', 'descending');
+  await expectBookOrder(page, [VALID_BOOK, LONG_BOOK, PLAIN_TEXT_BOOK]);
 
   await openBookFromManage(page, VALID_BOOK);
   await showReaderHeader(page);

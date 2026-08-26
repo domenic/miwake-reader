@@ -1,9 +1,11 @@
-import { expect, test } from './helpers/harness.ts';
-import { plantLegacyV7Database } from './helpers/legacy-database.ts';
+import { expect, SYNC_ASSERTION_TIMEOUT, test } from './helpers/harness.ts';
+import { plantLegacyV7Database, readLegacyFSIdentityBackfill } from './helpers/legacy-database.ts';
 import { loadApp } from './helpers/navigation.ts';
 
 const KEPT_TITLE = '移行テストの本';
 const DUPLICATE_TITLE = '重複タイトルの本';
+const LEGACY_SEEN_TITLE = 'Previously mirrored book';
+const LEGACY_UNSEEN_TITLE = 'Never mirrored book';
 
 test('a v7 database migrates to title-keyed bookmarks and lastItem', async ({ page, context }) => {
   await plantLegacyV7Database(context, {
@@ -47,4 +49,70 @@ test('a v7 database migrates to title-keyed bookmarks and lastItem', async ({ pa
   await page.goto('/');
   await expect(page).toHaveURL(`/b?${new URLSearchParams({ t: KEPT_TITLE })}`);
   await expect(page.getByText('migrated reader content')).toBeVisible();
+});
+
+test('legacy source membership migrates to a stable source identity', async ({ page, context }) => {
+  await plantLegacyV7Database(context, {
+    books: [
+      {
+        id: 1,
+        title: LEGACY_SEEN_TITLE,
+        elementHtml: '<p>Previously mirrored content</p>',
+        lastSeenOnSource: 1_700_000_000_000
+      },
+      {
+        id: 2,
+        title: LEGACY_UNSEEN_TITLE,
+        elementHtml: '<p>Never mirrored content</p>'
+      }
+    ],
+    fsStorageSource: {
+      fsPath: 'legacy-sync-folder',
+      lastSourceModified: 1_700_000_000_000
+    }
+  });
+
+  await loadApp(page);
+
+  await expect
+    .poll(
+      () =>
+        readLegacyFSIdentityBackfill(page, {
+          seenTitle: LEGACY_SEEN_TITLE,
+          unseenTitle: LEGACY_UNSEEN_TITLE
+        }),
+      { timeout: SYNC_ASSERTION_TIMEOUT }
+    )
+    .toEqual({
+      seenBook: {
+        exists: true,
+        legacyLastSeenOnSourcePresent: false,
+        sourceInstanceId: expect.stringMatching(/\S/)
+      },
+      sourceInstanceId: expect.stringMatching(/\S/),
+      unseenBook: {
+        exists: true,
+        legacyLastSeenOnSourcePresent: false,
+        sourceInstanceId: null
+      }
+    });
+
+  const migratedState = await readLegacyFSIdentityBackfill(page, {
+    seenTitle: LEGACY_SEEN_TITLE,
+    unseenTitle: LEGACY_UNSEEN_TITLE
+  });
+  expect(migratedState.seenBook.sourceInstanceId).toBe(migratedState.sourceInstanceId);
+
+  await page.reload();
+  await loadApp(page);
+  await expect
+    .poll(
+      () =>
+        readLegacyFSIdentityBackfill(page, {
+          seenTitle: LEGACY_SEEN_TITLE,
+          unseenTitle: LEGACY_UNSEEN_TITLE
+        }),
+      { timeout: SYNC_ASSERTION_TIMEOUT }
+    )
+    .toEqual(migratedState);
 });

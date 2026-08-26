@@ -25,3 +25,14 @@ The in-tree integration suite should exercise the app through user-visible workf
 ## Sync Roots
 
 The mocked directory picker defaults to the OPFS directory named `fake-sync`. Helpers that operate on fake sync roots take a `rootName` option; tests involving multiple fake folders should pass explicit names instead of relying on hidden global state.
+
+## Cloud Providers
+
+Cloud-provider specs intercept OAuth and storage requests at the HTTP boundary. The app's popup handling, token persistence, provider clients, replication, and local database remain real, while the Google Drive and OneDrive protocol adapters operate over a shared provider-neutral fake storage tree.
+
+- Seed provider data through `FakeGoogleDrive.fromBookFixtures()` or `FakeOneDrive.fromBookFixtures()` when possible. These factories produce wire bytes through real FS replication before exposing them through the fake provider API.
+- Keep provider protocol behavior in its adapter and provider-neutral tree behavior in the shared storage fake.
+- Drive sign-in, connection, reconnection, and other user actions through the UI.
+- Assert remote outcomes through semantic fake methods and use `expect.poll()` for asynchronous propagation.
+- Keep fakes strict: reject unsupported requests, malformed parameters, and invalid state instead of returning permissive defaults.
+- Never use real OAuth tokens, fixed waits, or raw IndexedDB access in cloud specs.

@@ -1,14 +1,15 @@
-import type { Page } from '@playwright/test';
+import { SyncEndpointType } from '$lib/data/storage/storage-types';
+import { connectToCloud } from '../helpers/cloud.ts';
 import { expect, SYNC_ASSERTION_TIMEOUT, test } from '../helpers/harness.ts';
 import {
   expectBookReaderText,
   expectBooksInManage,
+  importBookFixtures,
   openBookFromManage,
   VALID_BOOK
 } from '../helpers/fixtures.ts';
 import { FakeGoogleDrive } from '../helpers/fake-google-drive.ts';
-import { navigateToSettingsSync } from '../helpers/navigation.ts';
-import { signOutAndWipe } from '../helpers/workflows.ts';
+import { signOutAndWipe, waitForSuccessfulSync } from '../helpers/workflows.ts';
 
 test('opening a cloud-only book reconnects expired OAuth before downloading', async ({
   context,
@@ -18,7 +19,7 @@ test('opening a cloud-only book reconnects expired OAuth before downloading', as
   await fakeDrive.install(context);
   await signOutAndWipe(page);
 
-  await connectToDefaultFakeGoogleDrive(page);
+  await connectToCloud(page, SyncEndpointType.GDRIVE);
   await expectBooksInManage(page, { placeholders: [VALID_BOOK], downloaded: [] });
   expect(fakeDrive.authorizationCodeExchanges).toBe(1);
 
@@ -39,14 +40,26 @@ test('opening a cloud-only book reconnects expired OAuth before downloading', as
   await expect(page.getByRole('link', { name: 'Open Issue Tracker' })).toHaveCount(0);
 });
 
-async function connectToDefaultFakeGoogleDrive(page: Page) {
-  await navigateToSettingsSync(page);
-  const googleDriveSettings = page.locator('[aria-disabled]').filter({
-    has: page.getByText('Google Drive', { exact: true })
-  });
-  await googleDriveSettings.getByRole('button', { name: 'Connect', exact: true }).click();
+test('opening an already-downloaded book stays non-interactive after OAuth expires', async ({
+  context,
+  page
+}) => {
+  const fakeDrive = new FakeGoogleDrive([]);
+  await fakeDrive.install(context);
+  await connectToCloud(page, SyncEndpointType.GDRIVE);
+  await importBookFixtures(page, [VALID_BOOK]);
+  await waitForSuccessfulSync(page);
+  expect(fakeDrive.authorizationCodeExchanges).toBe(1);
 
-  await expect(page.getByText('Connected', { exact: true })).toBeVisible({
+  fakeDrive.expireRefreshToken();
+  await page.reload();
+  await expect(page.getByRole('link', { name: 'Sign-in expired' })).toBeVisible({
     timeout: SYNC_ASSERTION_TIMEOUT
   });
-}
+  expect(fakeDrive.failedRefreshes).toBeGreaterThan(0);
+
+  await openBookFromManage(page, VALID_BOOK);
+
+  await expectBookReaderText(page, VALID_BOOK);
+  expect(fakeDrive.authorizationCodeExchanges).toBe(1);
+});

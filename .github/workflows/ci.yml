@@ -12,6 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       VITE_GDRIVE_CLIENT_ID: fake-default-client.apps.googleusercontent.com
+      VITE_ONEDRIVE_CLIENT_ID: 00000000-0000-0000-0000-000000000001
     steps:
       - name: Checkout
         uses: actions/checkout@v6

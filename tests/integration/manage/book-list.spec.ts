@@ -1,15 +1,14 @@
-import type { Page } from '@playwright/test';
 import {
   bookmarkFixturePartway,
   COVER_REFRESH_BOOK,
+  expectBookOrder,
   expectBookPartwayProgress,
-  fixtureDisplayTitle,
   fixtureTitle,
   importBookFixtures,
   LONG_BOOK,
   PLAIN_TEXT_BOOK,
-  VALID_BOOK,
-  type LibraryBookFixture
+  selectBookSort,
+  VALID_BOOK
 } from '../helpers/fixtures.ts';
 import { expect, test } from '../helpers/harness.ts';
 import { navigateToManage } from '../helpers/navigation.ts';
@@ -32,10 +31,10 @@ test('manager derives card progress and sort order from library state', async ({
   await navigateToManage(page);
   await expectBookPartwayProgress(page, LONG_BOOK);
 
-  await selectSort(page, 'Title', 'ascending');
+  await selectBookSort(page, 'Title', 'ascending');
   await expectBookOrder(page, [COVER_REFRESH_BOOK, LONG_BOOK, PLAIN_TEXT_BOOK]);
 
-  await selectSort(page, 'Title', 'descending');
+  await selectBookSort(page, 'Title', 'descending');
   await expectBookOrder(page, [PLAIN_TEXT_BOOK, LONG_BOOK, COVER_REFRESH_BOOK]);
 
   await page.reload();
@@ -195,21 +194,3 @@ test('selection mode exposes the applicable per-book actions in bulk', async ({ 
   await expect(dialog).toContainText(`『${title}』`);
   await dialog.getByRole('button', { name: 'Cancel' }).click();
 });
-
-async function selectSort(page: Page, label: string, direction: 'ascending' | 'descending') {
-  await page.getByRole('button', { name: /Sort/ }).click();
-  await page
-    .getByRole('button', {
-      name: `Sort by ${label} ${direction}`
-    })
-    .click();
-}
-
-async function expectBookOrder(page: Page, fixtures: LibraryBookFixture[]) {
-  const cards = page.locator('article');
-  await expect(cards).toHaveCount(fixtures.length);
-
-  for (const [index, fixture] of fixtures.entries()) {
-    await expect(cards.nth(index)).toContainText(fixtureDisplayTitle(fixture));
-  }
-}

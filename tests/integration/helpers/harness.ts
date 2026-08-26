@@ -41,6 +41,7 @@ declare global {
 }
 
 export const SYNC_ASSERTION_TIMEOUT = 15_000;
+export const TEST_SYNC_PUSH_DEBOUNCE_MS = 50;
 
 /**
  * Extended Playwright test with the OPFS-backed showDirectoryPicker mock installed via
@@ -79,7 +80,7 @@ export async function newPageInTestContext(browser: Browser, testInfo: TestInfo)
 }
 
 async function installTestInitScripts(context: BrowserContext) {
-  await context.addInitScript(pickerInitScript);
+  await context.addInitScript(pickerInitScript, TEST_SYNC_PUSH_DEBOUNCE_MS);
 }
 
 export async function listSyncRoot(
@@ -300,10 +301,10 @@ export async function setDocumentVisibility(page: Page, state: DocumentVisibilit
  * also do not update `document.visibilityState` or fire `visibilitychange`, so the same init script
  * installs a narrow Page Visibility seam that tests can drive with `setDocumentVisibility()`.
  */
-function pickerInitScript() {
+function pickerInitScript(syncPushDebounceMs: number) {
   // Keep ambient sync assertions fast without changing production debounce timing. This script
   // runs before app modules load, so the sync engine observes the test-only value at startup.
-  window.__miwakeTestSyncPushDebounceMs = 50;
+  window.__miwakeTestSyncPushDebounceMs = syncPushDebounceMs;
 
   FileSystemDirectoryHandle.prototype.queryPermission = async () =>
     window.__miwakeTestDenyFSAccess ? 'denied' : 'granted';

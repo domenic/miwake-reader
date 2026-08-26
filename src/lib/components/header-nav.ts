@@ -42,6 +42,10 @@ function isSelectedRoute(routeId: HeaderRouteId) {
 }
 
 function getTabHref(routeId: HeaderRouteId) {
+  if (routeId === '/settings') {
+    return '/settings/appearance';
+  }
+
   const bookTitle = currentBookTitle();
 
   if (routeId === '/statistics' && bookTitle !== undefined) {

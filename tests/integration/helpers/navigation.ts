@@ -74,11 +74,12 @@ async function navigateToStatisticsView(
   ) {
     if (currentPath(page) !== '/statistics' || readerMounted) {
       await navigateWithGlobalTab(page, 'Statistics', (path) => path === '/statistics', options);
+      await expect
+        .poll(() => currentStatisticsView(page), { timeout: SYNC_ASSERTION_TIMEOUT })
+        .not.toBeNull();
     }
 
-    if (currentStatisticsView(page) !== view) {
-      await page.getByRole('link', { name: tabName, exact: true }).click();
-    }
+    await selectStatisticsTab(page, view, tabName);
   }
   await expectPath(page, '/statistics');
   await expectStatisticsView(page, view);
@@ -100,6 +101,9 @@ async function navigateToSettingsSection(
         (current) => current.startsWith('/settings'),
         options
       );
+      await expect(
+        page.getByRole('link', { name: 'Appearance', exact: true }).first()
+      ).toHaveAttribute('aria-current', 'page', { timeout: SYNC_ASSERTION_TIMEOUT });
     }
 
     await page.getByRole('link', { name: tabName, exact: true }).first().click();
@@ -159,6 +163,21 @@ async function assertExpectedReaderExitDialog(
     timeout: SYNC_ASSERTION_TIMEOUT
   });
   await dialog.getByRole('button', { name: 'Continue' }).click();
+}
+
+async function selectStatisticsTab(
+  page: Page,
+  view: 'summary' | 'goals',
+  tabName: 'Summary' | 'Goals'
+) {
+  const tab = page.getByRole('link', { name: tabName, exact: true }).first();
+  await expect(async () => {
+    if (currentStatisticsView(page) !== view) {
+      await tab.click();
+    }
+    expect(currentStatisticsView(page)).toBe(view);
+    await expect(tab).toHaveAttribute('aria-current', 'page');
+  }).toPass({ timeout: SYNC_ASSERTION_TIMEOUT });
 }
 
 async function expectPath(page: Page, path: AppPath) {

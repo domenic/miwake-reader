@@ -58,7 +58,7 @@ test('route-changing controls expose their destinations as links', async ({ page
   );
   await expect(page.getByRole('link', { name: 'Settings', exact: true })).toHaveAttribute(
     'href',
-    '/settings'
+    '/settings/appearance'
   );
   await expect(page.getByRole('link', { name: 'Manager', exact: true })).toHaveAttribute(
     'href',
