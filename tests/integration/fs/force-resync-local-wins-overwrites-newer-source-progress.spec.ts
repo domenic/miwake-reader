@@ -25,9 +25,9 @@ test('force re-sync with "This device wins" overwrites newer source progress', a
   await syncBookFixturesToSource(page, [LONG_BOOK]);
   await bookmarkFixturePartway(page, LONG_BOOK);
   await expectBookProgressInSyncRoot(page, LONG_BOOK, { completed: false, percentage: 38 });
-  await waitForSuccessfulSync(page);
   await expectBooksInManage(page, { placeholders: [], downloaded: [LONG_BOOK] });
   await expectBookPartwayProgress(page, LONG_BOOK);
+  await waitForSuccessfulSync(page);
 
   await using sourceUpdater = await newPageInTestContext(browser, testInfo);
   await loadApp(sourceUpdater.page);
@@ -42,9 +42,9 @@ test('force re-sync with "This device wins" overwrites newer source progress', a
     completed: true,
     percentage: 38
   });
-  await waitForSuccessfulSync(sourceUpdater.page);
   await expectBooksInManage(sourceUpdater.page, { placeholders: [], downloaded: [LONG_BOOK] });
   await expect(bookProgressBar(sourceUpdater.page, LONG_BOOK)).toHaveAttribute('value', '100');
+  await waitForSuccessfulSync(sourceUpdater.page);
 
   await copySyncRoot(sourceUpdater.page, page);
   await forceFullResync(page, 'This device wins');

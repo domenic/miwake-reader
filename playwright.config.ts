@@ -7,7 +7,6 @@ process.env.LC_ALL = 'C.UTF-8';
 
 const isCI = !!process.env.CI;
 const ciServerURL = 'http://localhost:4173';
-const fakeGoogleClientId = 'fake-default-client.apps.googleusercontent.com';
 const localServerURL =
   /Local:\s+(?<playwright_test_base_url>http:\/\/(?:localhost|127\.0\.0\.1):\d+\/)/;
 
@@ -50,12 +49,14 @@ export default defineConfig({
         reuseExistingServer: false
       }
     : {
-        command: 'npm run dev',
+        command: 'npm run dev -- --mode playwright',
         // Playwright forces FORCE_COLOR=1 on the spawned server, and vite 8
         // then embeds ANSI escapes inside the printed URL (bold port number),
         // which the wait regex below can never match. NO_COLOR wins over
         // FORCE_COLOR in vite's color detection.
-        env: { NO_COLOR: '1', VITE_GDRIVE_CLIENT_ID: fakeGoogleClientId },
+        env: {
+          NO_COLOR: '1'
+        },
         wait: {
           stdout: localServerURL,
           stderr: localServerURL

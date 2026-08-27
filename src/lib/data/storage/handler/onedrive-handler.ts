@@ -361,7 +361,13 @@ export class OneDriveStorageHandler extends ApiStorageHandler {
 
         return response;
       } catch (error) {
-        await this.request(uploadUrl, { method: 'DELETE' }, 'json', 1, signal).catch(() => {
+        await this.request(
+          uploadUrl,
+          { method: 'DELETE', skipAuth: true },
+          'json',
+          1,
+          signal
+        ).catch(() => {
           // no-op
         });
         throw error;
@@ -465,8 +471,8 @@ export class OneDriveStorageHandler extends ApiStorageHandler {
         syncTitle.progress = progress;
         syncTitle.lastBookmarkModified = lastBookmarkModified;
         syncTitle.completed = completed;
-      } else if (file.name.startsWith('cover_') && file.thumbnails?.[0].large?.url) {
-        syncTitle.coverImage = file.thumbnails?.[0].large?.url;
+      } else if (file.name.startsWith('cover_') && file.thumbnails?.[0]?.large?.url) {
+        syncTitle.coverImage = file.thumbnails[0].large.url;
       }
     }
 
