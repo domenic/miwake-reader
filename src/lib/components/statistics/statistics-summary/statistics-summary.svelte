@@ -354,6 +354,7 @@
           <input
             class="w-full"
             type="number"
+            aria-label="Reading time (seconds)"
             bind:value={rowInEditTime}
             onchange={() => {
               if (rowInEdit && (!Number.isFinite(rowInEditTime) || rowInEditTime < 0)) {
@@ -394,6 +395,7 @@
           <input
             class="w-full"
             type="number"
+            aria-label="Characters read"
             bind:value={rowInEditCharacters}
             onchange={() => {
               if (rowInEdit && (!Number.isFinite(rowInEditCharacters) || rowInEditCharacters < 0)) {
