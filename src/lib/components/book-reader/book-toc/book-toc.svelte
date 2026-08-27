@@ -69,17 +69,17 @@
     }
   }
 
-  function changeChapter(canNavigate: boolean, indexMod: number) {
+  async function changeChapter(canNavigate: boolean, indexMod: number) {
     if (canNavigate) {
       const nextChapter = bookTOCState.chapterAtOffset(indexMod);
 
       if (nextChapter) {
-        goToChapter(nextChapter.reference, false);
+        await goToChapter(nextChapter.reference, false);
       }
     }
   }
 
-  function goToChapter(chapterId: string, closeTOC = false) {
+  async function goToChapter(chapterId: string, closeTOC = false) {
     const nextChapter = bookTOCState.mainChapters.find(
       (chapter) => chapter.reference === chapterId
     );
@@ -89,7 +89,7 @@
       closeTOCAfterNextPageChange();
     }
 
-    readerController.goToChapter(chapterId);
+    await readerController.goToChapter(chapterId);
 
     if ((!hasCharacterChange || !$statisticsEnabled$ || !resumeTrackerAfterTOCCloses) && closeTOC) {
       bookTOCState.isOpen = false;
@@ -130,7 +130,7 @@
           chapter.reference !== currentChapterReference}
         class:hover:opacity-60={chapter.progress < 100 ||
           chapter.reference === currentChapterReference}
-        onclick={() => goToChapter(chapter.reference, true)}
+        onclick={() => void goToChapter(chapter.reference, true)}
         onkeyup={dummyFn}
       >
         <span id={chapterActionId} class="sr-only">Go to chapter</span>
@@ -150,7 +150,7 @@
     role="button"
     title={prevChapterAvailable ? `${verticalMode ? 'Next' : 'Previous'} Chapter` : ''}
     class:opacity-30={!prevChapterAvailable}
-    onclick={() => changeChapter(prevChapterAvailable, verticalMode ? 1 : -1)}
+    onclick={() => void changeChapter(prevChapterAvailable, verticalMode ? 1 : -1)}
     onkeyup={dummyFn}
   >
     <Fa icon={faChevronLeft} />
@@ -160,7 +160,7 @@
     role="button"
     title={nextChapterAvailable ? `${verticalMode ? 'Previous' : 'Next'} Chapter` : ''}
     class:opacity-30={!nextChapterAvailable}
-    onclick={() => changeChapter(nextChapterAvailable, verticalMode ? -1 : 1)}
+    onclick={() => void changeChapter(nextChapterAvailable, verticalMode ? -1 : 1)}
     onkeyup={dummyFn}
   >
     <Fa icon={faChevronRight} />

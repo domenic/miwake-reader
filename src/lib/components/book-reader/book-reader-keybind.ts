@@ -20,7 +20,7 @@ type ReaderKeybindMap = Readonly<Record<string, ReaderKeybindAction>>;
 
 interface ReaderKeybindOptions {
   bookmarkPage: () => void;
-  changeChapter: (offset: number) => void;
+  changeChapter: (offset: number) => Promise<void>;
   freezeTrackerPosition: () => void;
   handleSetCustomReadingPoint: () => void;
   isPaginated: boolean;
@@ -79,6 +79,7 @@ export function handleReaderKeydown(ev: KeyboardEvent, options: ReaderKeybindOpt
     return;
   }
 
+  let completion: Promise<void> | undefined;
   let handled = true;
   switch (action) {
     case ReaderKeybindAction.BOOKMARK: {
@@ -104,10 +105,10 @@ export function handleReaderKeydown(ev: KeyboardEvent, options: ReaderKeybindOpt
       handled = prevPageIfAvailable(options);
       break;
     case ReaderKeybindAction.PREV_CHAPTER:
-      options.changeChapter(options.isVertical ? 1 : -1);
+      completion = options.changeChapter(options.isVertical ? 1 : -1);
       break;
     case ReaderKeybindAction.NEXT_CHAPTER:
-      options.changeChapter(options.isVertical ? -1 : 1);
+      completion = options.changeChapter(options.isVertical ? -1 : 1);
       break;
     case ReaderKeybindAction.SET_READING_POINT:
       options.handleSetCustomReadingPoint();
@@ -125,6 +126,7 @@ export function handleReaderKeydown(ev: KeyboardEvent, options: ReaderKeybindOpt
   }
 
   finishAppKeydown(ev);
+  return completion;
 }
 
 function getModeKeybindMap(options: ReaderKeybindOptions) {

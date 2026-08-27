@@ -660,15 +660,14 @@
     pageManager.flipPage(nextPage ? 1 : -1);
   }
 
-  function goToChapter(chapterId: string) {
+  async function goToChapter(chapterId: string) {
     const nextSectionIndex = sections.findIndex(
       (section) => section.id === chapterId || section.querySelector(`[id="${chapterId}"]`)
     );
 
     if (nextSectionIndex > -1) {
-      void setSectionIndexAndWait(nextSectionIndex).then(() => {
-        pageManager?.scrollTo(0, true);
-      });
+      await setSectionIndexAndWait(nextSectionIndex);
+      pageManager?.scrollTo(0, true);
     }
   }
 </script>

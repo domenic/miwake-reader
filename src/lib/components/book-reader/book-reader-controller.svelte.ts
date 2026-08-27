@@ -4,6 +4,8 @@ import type { AutoScroller, BookmarkManager, ChapterNavigator, PageManager } fro
 export class BookReaderController {
   #autoScroller = $state<AutoScroller>();
   #bookmarkManager = $state<BookmarkManager>();
+  #chapterNavigation: Promise<void> | undefined;
+  #chapterNavigationPending = $state(false);
   #chapterNavigator: ChapterNavigator | undefined;
   #pageManager = $state<PageManager>();
 
@@ -17,6 +19,10 @@ export class BookReaderController {
 
   get canPage() {
     return !!this.#pageManager;
+  }
+
+  get chapterNavigationPending() {
+    return this.#chapterNavigationPending;
   }
 
   registerAutoScroller(autoScroller: AutoScroller) {
@@ -104,8 +110,20 @@ export class BookReaderController {
     this.#requireBookmarkManager().scrollToBookmark(bookmarkData, customReadingPointScrollOffset);
   }
 
-  goToChapter(chapterId: string) {
-    this.#requireChapterNavigator()(chapterId);
+  goToChapter(chapterId: string): Promise<void> {
+    const chapterNavigator = this.#requireChapterNavigator();
+    const previousNavigation = this.#chapterNavigation;
+    this.#chapterNavigationPending = true;
+    const navigation = (previousNavigation?.catch(() => undefined) ?? Promise.resolve())
+      .then(() => chapterNavigator(chapterId))
+      .finally(() => {
+        if (this.#chapterNavigation === navigation) {
+          this.#chapterNavigation = undefined;
+          this.#chapterNavigationPending = false;
+        }
+      });
+    this.#chapterNavigation = navigation;
+    return navigation;
   }
 
   #requireBookmarkManager() {

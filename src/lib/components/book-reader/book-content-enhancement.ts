@@ -51,7 +51,7 @@ function setupAnchorClickListeners(
         ev.preventDefault();
         ev.stopImmediatePropagation();
 
-        readerController.goToChapter(el.hash.substring(1));
+        void readerController.goToChapter(el.hash.substring(1));
       },
       { signal }
     );

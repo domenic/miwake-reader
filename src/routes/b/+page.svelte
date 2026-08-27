@@ -127,10 +127,14 @@
 
   const READER_STATISTICS_SYNC_THROTTLE_MS = 60_000;
   const trackerMenuFitsBesideReader = new MediaQuery('min-width: 900px');
+  const readerController = new BookReaderController();
 
   let showSpinner = $state(true);
   let showHeader = $state(false);
-  let readerActionPending = $state(false);
+  let localReaderActionPending = $state(false);
+  let readerActionPending = $derived(
+    localReaderActionPending || readerController.chapterNavigationPending
+  );
 
   // Set synchronously (not just in the `$effect` below) so the mobile bottom navigation never
   // flashes during the first frame after navigating into the reader.
@@ -170,8 +174,6 @@
   let wasTrackerMenuOpen = $state(false);
   let lastReaderStatisticsSyncAt = 0;
   let readerStatisticsSyncDirty = false;
-
-  const readerController = new BookReaderController();
 
   let fontFeatureSettings = $derived($enableFontVPAL$ && $verticalMode$ ? '"vpal"' : '');
 
@@ -836,7 +838,7 @@
   }
 
   function onKeydown(ev: KeyboardEvent) {
-    handleReaderKeydown(ev, {
+    void handleReaderKeydown(ev, {
       bookmarkPage,
       changeChapter,
       freezeTrackerPosition,
@@ -856,15 +858,26 @@
       return false;
     }
 
-    readerActionPending = true;
+    localReaderActionPending = true;
     return true;
   }
 
   function endReaderAction() {
-    readerActionPending = false;
+    localReaderActionPending = false;
   }
 
   async function bookmarkPage() {
+    if (!bookTitle || !readerController.canBookmark) return;
+    if (!beginReaderAction()) return;
+
+    try {
+      await saveBookmark();
+    } finally {
+      endReaderAction();
+    }
+  }
+
+  async function saveBookmark() {
     if (!bookTitle || !readerController.canBookmark) return;
 
     let data: BooksDbBookmarkData;
@@ -924,7 +937,7 @@
     fullscreenManager.exitFullscreen();
   }
 
-  function changeChapter(offset: number) {
+  async function changeChapter(offset: number) {
     if (!bookTOCState.hasChapters) {
       return;
     }
@@ -946,7 +959,7 @@
       pauseTracker('jump', true);
     }
 
-    readerController.goToChapter(nextChapter.reference);
+    await readerController.goToChapter(nextChapter.reference);
   }
 
   async function leaveReader(navigation: BeforeNavigate) {
@@ -984,7 +997,7 @@
         }
 
         if (!$manualBookmark$) {
-          await bookmarkPage();
+          await saveBookmark();
         }
 
         if ($statisticsEnabled$ && trackerElm) {
