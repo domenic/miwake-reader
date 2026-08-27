@@ -18,8 +18,9 @@ export default defineConfig({
     { name: 'chromium', use: { browserName: 'chromium' } },
     {
       name: 'firefox',
-      // Heavy parallel OPFS activity intermittently fails with "Entry not found" in Firefox.
-      workers: 2,
+      // Parallel OPFS activity intermittently fails with "Entry not found" in Firefox, even with
+      // only two workers. Keep Firefox serial so independent test profiles do not interfere.
+      workers: 1,
       use: {
         browserName: 'firefox',
         launchOptions: {
