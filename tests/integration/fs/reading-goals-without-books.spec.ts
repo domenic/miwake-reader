@@ -2,33 +2,46 @@ import { expect, test } from '../helpers/harness.ts';
 import { navigateToStatisticsGoals } from '../helpers/navigation.ts';
 import {
   connectFS,
+  expectReadingGoal,
   expectReadingGoalsInSyncRoot,
+  setReadingGoal,
   signOutAndWipe,
   waitForSuccessfulSync
 } from '../helpers/workflows.ts';
 
-test('sync pushes reading goals with no books to the source', async ({ page }) => {
-  await navigateToStatisticsGoals(page);
+const READING_GOAL = { timeGoal: '30', startDate: '2026-05-22' };
 
-  await expect(page.getByRole('heading', { name: 'Reading Goals' })).toBeVisible();
-  await page.getByRole('button', { name: 'Edit' }).click();
-  const timeGoal = page.getByLabel('Reading time goal (minutes)');
-  const startDate = page.getByLabel('Start date');
-  await timeGoal.fill('30');
-  await startDate.fill('2026-05-22');
-  await page.getByRole('button', { name: 'Save' }).click();
-  await expect(page.getByRole('button', { name: 'Edit' })).toBeVisible();
-  await expect(timeGoal).toHaveValue('30');
+test('sync pushes reading goals with no books to the source', async ({ page }) => {
+  await setReadingGoal(page, READING_GOAL);
 
   await connectFS(page);
   await waitForSuccessfulSync(page);
 
-  await expectReadingGoalsInSyncRoot(page);
+  await expectReadingGoalsInSyncRoot(page, [READING_GOAL.startDate]);
 
   await signOutAndWipe(page);
   await connectFS(page);
 
+  await expectReadingGoal(page, READING_GOAL);
+});
+
+test('deleting reading goals pushes an empty replacement under the default merge mode', async ({
+  page
+}) => {
+  await setReadingGoal(page, READING_GOAL);
+  await connectFS(page);
+  await waitForSuccessfulSync(page);
+  await expectReadingGoalsInSyncRoot(page, [READING_GOAL.startDate]);
+
   await navigateToStatisticsGoals(page);
-  await expect(timeGoal).toHaveValue('30');
-  await expect(startDate).toHaveValue('2026-05-22');
+  await page.getByRole('button', { name: 'Delete goals', exact: true }).click();
+
+  const dialog = page.locator('dialog[open]');
+  await expect(dialog.getByRole('heading', { name: 'Data deletion' })).toBeVisible();
+  await dialog.getByRole('button', { name: 'Delete', exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+
+  await expect(page.getByLabel('Reading time goal (minutes)')).toHaveValue('0');
+  await waitForSuccessfulSync(page);
+  await expectReadingGoalsInSyncRoot(page, []);
 });
