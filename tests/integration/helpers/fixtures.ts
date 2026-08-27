@@ -69,6 +69,12 @@ interface StatisticRowExpectation {
   dateKey: string;
 }
 
+interface SyncRootStatisticExpectation {
+  charactersRead: number;
+  dateKey: string;
+  readingTime: number;
+}
+
 interface SyncRootProgressExpectation {
   completed: boolean;
   percentage: number;
@@ -456,10 +462,41 @@ export async function expectBookStatisticsInSyncRoot(
   options?: SyncRootOptions
 ) {
   await expect
-    .poll(() => listBookStatisticsInSyncRoot(page, fixture, options), {
-      timeout: SYNC_ASSERTION_TIMEOUT
-    })
+    .poll(
+      async () =>
+        (await listBookStatisticsInSyncRoot(page, fixture, options)).map(
+          (statistic) => statistic.dateKey
+        ),
+      { timeout: SYNC_ASSERTION_TIMEOUT }
+    )
     .toEqual([...dateKeys].sort());
+}
+
+export async function expectBookStatisticInSyncRoot(
+  page: Page,
+  fixture: LibraryBookFixture,
+  expected: SyncRootStatisticExpectation,
+  options?: SyncRootOptions
+) {
+  await expect
+    .poll(
+      async () => {
+        const statistics = await listBookStatisticsInSyncRoot(page, fixture, options);
+        const statistic = statistics.find(({ dateKey }) => dateKey === expected.dateKey);
+
+        if (!statistic) return undefined;
+
+        return {
+          charactersRead: statistic.charactersRead,
+          dateKey: statistic.dateKey,
+          readingTime: statistic.readingTime
+        };
+      },
+      {
+        timeout: SYNC_ASSERTION_TIMEOUT
+      }
+    )
+    .toEqual(expected);
 }
 
 export async function removeBooksFromSyncRoot(
@@ -550,23 +587,32 @@ async function listBookStatisticsInSyncRoot(
       const root = await opfs.getDirectoryHandle(rootName, { create: true });
       const directory = await root.getDirectoryHandle(title);
 
-      const dateKeys: string[] = [];
+      const statisticsRows: Array<{
+        charactersRead: number;
+        dateKey: string;
+        readingTime: number;
+      }> = [];
       for await (const [name, handle] of directory.entries()) {
         if (!(handle instanceof FileSystemFileHandle) || !name.startsWith('statistics_')) continue;
 
         const file = await handle.getFile();
         const statistics = JSON.parse(await file.text()) as Array<{
+          charactersRead?: number;
           dateKey?: string;
           readingTime?: number;
         }>;
         for (const statistic of statistics) {
           if (statistic.dateKey && Number(statistic.readingTime) > 0) {
-            dateKeys.push(statistic.dateKey);
+            statisticsRows.push({
+              charactersRead: Number(statistic.charactersRead),
+              dateKey: statistic.dateKey,
+              readingTime: Number(statistic.readingTime)
+            });
           }
         }
       }
 
-      return dateKeys.sort();
+      return statisticsRows.sort((a, b) => a.dateKey.localeCompare(b.dateKey));
     },
     { rootName, title: fixtureTitle(fixture) }
   );
