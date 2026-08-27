@@ -12,9 +12,7 @@ export const statisticsViewQueryParam = 'view';
 const statisticsViews: StatisticsView[] = [defaultStatisticsView, 'summary', 'goals'];
 
 export function getValidStatisticsView(view?: string | null): StatisticsView {
-  return statisticsViews.includes(view as StatisticsView)
-    ? (view as StatisticsView)
-    : defaultStatisticsView;
+  return statisticsViews.find((statisticsView) => statisticsView === view) ?? defaultStatisticsView;
 }
 
 export function getStatisticsURL(view: StatisticsView, bookTitles?: readonly string[]) {

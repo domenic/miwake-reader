@@ -1,10 +1,12 @@
 <script lang="ts">
-  import type { RouteId } from '$app/types';
+  import { afterNavigate } from '$app/navigation';
   import { page } from '$app/state';
   import type { Snippet } from 'svelte';
   import ReaderModeSettings from '$lib/components/settings/reader-mode-settings.svelte';
   import SettingsHeader from '$lib/components/settings/settings-header.svelte';
+  import { getSettingsView } from '$lib/components/settings/settings-view';
   import { pxScreen } from '$lib/css-classes';
+  import { lastSettingsView$ } from '$lib/data/store';
 
   interface Props {
     children?: Snippet;
@@ -12,14 +14,18 @@
 
   let { children }: Props = $props();
 
-  let activeRouteId = $derived(page.route.id as RouteId | null);
-  let showReaderModeSettings = $derived(
-    activeRouteId === '/settings/appearance' || activeRouteId === '/settings/reading'
-  );
+  let activeView = $derived(getSettingsView(page.route.id));
+  let showReaderModeSettings = $derived(activeView === 'appearance' || activeView === 'reading');
+
+  afterNavigate(() => {
+    if (activeView !== undefined) {
+      $lastSettingsView$ = activeView;
+    }
+  });
 </script>
 
 <div class="elevation-4 fixed inset-x-0 top-0 z-10">
-  <SettingsHeader {activeRouteId} />
+  <SettingsHeader {activeView} />
 </div>
 
 <div class="{pxScreen} h-full pt-(--header-height)">
