@@ -9,6 +9,7 @@ import {
   defaultStatisticsView,
   type StatisticsView
 } from '$lib/components/statistics/statistics-view';
+import { defaultSettingsView, type SettingsView } from '$lib/components/settings/settings-view';
 import {
   StatisticsRangeTemplate,
   type BookStatistic,
@@ -331,6 +332,11 @@ export const lastBlurredTrackerItems$ = setLocalStorageStore<string>(
 );
 
 export const lastReadingGoalsModified$ = numberLocalStorageStore('lastReadingGoalsModified', 0);
+
+export const lastSettingsView$ = stringLocalStorageStore<SettingsView>(
+  'lastSettingsView',
+  defaultSettingsView
+);
 
 export const lastStatisticsView$ = stringLocalStorageStore<StatisticsView>(
   'lastStatisticsView',

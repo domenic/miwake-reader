@@ -28,6 +28,44 @@ test('settings entry points and legacy routes open the settings sections', async
   await expect(page).toHaveURL('/settings/tracking');
 });
 
+test('/settings and the Settings tab restore the last-visited settings section', async ({
+  page
+}) => {
+  await page.goto('/settings/reading');
+  await expect(page.getByRole('link', { name: 'Reading', exact: true })).toHaveAttribute(
+    'aria-current',
+    'page'
+  );
+
+  await page.goto('/settings');
+  await expect(page).toHaveURL('/settings/reading');
+
+  await page.goto('/manage');
+  await expect(page).toHaveURL('/manage');
+
+  await page.getByRole('link', { name: 'Settings', exact: true }).click();
+  await expect(page).toHaveURL('/settings/reading');
+});
+
+test('/statistics and the Statistics tab restore the last-visited statistics view', async ({
+  page
+}) => {
+  await page.goto('/statistics?view=summary');
+  await expect(page.getByRole('link', { name: 'Summary', exact: true })).toHaveAttribute(
+    'aria-current',
+    'page'
+  );
+
+  await page.goto('/statistics');
+  await expect(page).toHaveURL('/statistics?view=summary');
+
+  await page.goto('/manage');
+  await expect(page).toHaveURL('/manage');
+
+  await page.getByRole('link', { name: 'Statistics', exact: true }).click();
+  await expect(page).toHaveURL('/statistics?view=summary');
+});
+
 test('home route and Book tab open the last-opened book', async ({ page }) => {
   const bookURL = `/b?${new URLSearchParams({ t: fixtureTitle(PLAIN_TEXT_BOOK) })}`;
 

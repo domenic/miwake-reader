@@ -1,6 +1,5 @@
 <script lang="ts">
   import { resolve } from '$app/paths';
-  import type { RouteId } from '$app/types';
   import {
     faBookOpenReader,
     faClock,
@@ -9,33 +8,34 @@
   } from '@fortawesome/free-solid-svg-icons';
   import HeaderButton from '$lib/components/header-button.svelte';
   import HeaderNavTabs from '$lib/components/header-nav-tabs.svelte';
+  import { getSettingsURL, type SettingsView } from '$lib/components/settings/settings-view';
   import { baseHeaderClasses } from '$lib/css-classes';
 
   interface Props {
-    activeRouteId: RouteId | null;
+    activeView?: SettingsView;
   }
 
-  let { activeRouteId }: Props = $props();
+  let { activeView }: Props = $props();
 
   const settingItems = [
     {
       label: 'Appearance',
-      href: '/settings/appearance',
+      view: 'appearance',
       icon: faPalette
     },
     {
       label: 'Reading',
-      href: '/settings/reading',
+      view: 'reading',
       icon: faBookOpenReader
     },
     {
       label: 'Tracking',
-      href: '/settings/tracking',
+      view: 'tracking',
       icon: faClock
     },
     {
       label: 'Sync',
-      href: '/settings/sync',
+      view: 'sync',
       icon: faCloudArrowUp
     }
   ] as const;
@@ -53,9 +53,9 @@
         <HeaderButton
           faIcon={settingItem.icon}
           label={settingItem.label}
-          selected={activeRouteId === settingItem.href}
+          selected={activeView === settingItem.view}
           variant="tab"
-          href={resolve(settingItem.href)}
+          href={resolve(getSettingsURL(settingItem.view))}
         />
       {/each}
     </div>

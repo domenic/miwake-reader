@@ -1,6 +1,5 @@
 <script lang="ts">
-  import { browser } from '$app/environment';
-  import { goto } from '$app/navigation';
+  import { afterNavigate, goto } from '$app/navigation';
   import { resolve } from '$app/paths';
   import { page } from '$app/state';
   import { faSpinner } from '@fortawesome/free-solid-svg-icons';
@@ -18,7 +17,6 @@
     getStatisticsBookTitles,
     getStatisticsURL,
     getValidStatisticsView,
-    statisticsLegacyBookQueryParam,
     statisticsViewQueryParam,
     type StatisticsView
   } from '$lib/components/statistics/statistics-view';
@@ -35,16 +33,13 @@
   const controller = new StatisticsController();
 
   let appliedBookFilterKey = $state<string>();
-  let searchParams = $derived(browser ? page.url.searchParams : new URLSearchParams());
-  let hasLegacyBookIds = $derived(searchParams.has(statisticsLegacyBookQueryParam));
+  let searchParams = $derived(page.url.searchParams);
   let requestedStatisticsBookTitles = $derived(getStatisticsBookTitles(searchParams));
   let requestedStatisticsBookFilterKey = $derived(
     getStatisticsBookFilterKey(requestedStatisticsBookTitles)
   );
   let requestedStatisticsView = $derived(searchParams.get(statisticsViewQueryParam));
-  let activeView = $derived(
-    getValidStatisticsView(requestedStatisticsView ?? $lastStatisticsView$)
-  );
+  let activeView = $derived(getValidStatisticsView(requestedStatisticsView));
   const statisticsPageTitles: Record<StatisticsView, string> = {
     summary: 'Statistics Summary',
     heatmap: 'Statistics Heatmap',
@@ -56,8 +51,6 @@
   let statisticsInitialization: Promise<void> | undefined;
 
   $effect(() => {
-    if (!browser) return;
-
     if (activeView === 'goals') {
       goalsInitialization ??= controller.initGoals();
     } else if (!statisticsInitialization) {
@@ -68,36 +61,12 @@
     }
   });
 
-  $effect(() => {
-    if (!browser) return;
-
-    if (hasLegacyBookIds) {
-      // Pre-title URLs filtered by the per-device numeric id; nothing stable
-      // to map it to, so drop the filter and show the unfiltered view.
-      goto(resolve(getStatisticsURL(activeView)), {
-        replaceState: true,
-        noScroll: true,
-        keepFocus: true
-      });
-      return;
-    }
-
-    if (requestedStatisticsView !== activeView) {
-      goto(resolve(getStatisticsURL(activeView, requestedStatisticsBookTitles)), {
-        replaceState: true,
-        noScroll: true,
-        keepFocus: true
-      });
-      return;
-    }
-
-    if ($lastStatisticsView$ !== activeView) {
-      $lastStatisticsView$ = activeView;
-    }
+  afterNavigate(() => {
+    $lastStatisticsView$ = activeView;
   });
 
   $effect(() => {
-    if (controller.isLoading || hasLegacyBookIds) return;
+    if (controller.isLoading) return;
 
     const filterKey = requestedStatisticsBookFilterKey;
 
