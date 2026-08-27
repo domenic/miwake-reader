@@ -1,7 +1,6 @@
 import type { Page } from '@playwright/test';
 import {
   expect,
-  listSyncRoot,
   pickSyncRootOnNextPicker,
   SYNC_ASSERTION_TIMEOUT,
   type SyncRootOptions
@@ -357,15 +356,50 @@ export async function expectReadingGoal(
   await expect(startDateInput).toHaveValue(startDate);
 }
 
-export async function expectReadingGoalsInSyncRoot(page: Page, options?: SyncRootOptions) {
+export async function expectReadingGoalsInSyncRoot(
+  page: Page,
+  goalStartDates: readonly string[],
+  { rootName = 'fake-sync' }: SyncRootOptions = {}
+) {
   await expect
-    .poll(() => listSyncRoot(page, options), { timeout: SYNC_ASSERTION_TIMEOUT })
-    .toEqual([
-      {
-        kind: 'file',
-        name: expect.stringMatching(/^miwake-user-goals_\d+_\d+_\d+\.json$/)
-      }
-    ]);
+    .poll(
+      () =>
+        page.evaluate(
+          async ({ rootName }) => {
+            const opfs = await navigator.storage.getDirectory();
+            const root = await opfs.getDirectoryHandle(rootName, { create: true });
+            const fileNames: string[] = [];
+            const sourceGoalStartDates: string[] = [];
+
+            for await (const [name, handle] of root.entries()) {
+              if (
+                !(handle instanceof FileSystemFileHandle) ||
+                !name.startsWith('miwake-user-goals_')
+              ) {
+                continue;
+              }
+
+              fileNames.push(name);
+              const file = await handle.getFile();
+              const goals = JSON.parse(await file.text()) as Array<{ goalStartDate?: string }>;
+              for (const goal of goals) {
+                if (goal.goalStartDate) sourceGoalStartDates.push(goal.goalStartDate);
+              }
+            }
+
+            return {
+              fileNames: fileNames.sort(),
+              goalStartDates: sourceGoalStartDates.sort()
+            };
+          },
+          { rootName }
+        ),
+      { timeout: SYNC_ASSERTION_TIMEOUT }
+    )
+    .toEqual({
+      fileNames: [expect.stringMatching(/^miwake-user-goals_\d+_\d+_\d+\.json$/)],
+      goalStartDates: [...goalStartDates].sort()
+    });
 }
 
 export async function forceFullResync(
