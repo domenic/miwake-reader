@@ -253,6 +253,16 @@ export async function expectBookOrder(page: Page, fixtures: readonly LibraryBook
   }
 }
 
+export async function expectBookCoverLoaded(page: Page, fixture: LibraryBookFixture) {
+  const cover = bookCard(page, fixture).locator('img.book-cover');
+  await expect(cover).toBeVisible({ timeout: SYNC_ASSERTION_TIMEOUT });
+  await expect
+    .poll(() => cover.evaluate((element) => (element as HTMLImageElement).naturalWidth), {
+      timeout: SYNC_ASSERTION_TIMEOUT
+    })
+    .toBeGreaterThan(0);
+}
+
 export async function recordStatisticForBook(
   page: Page,
   fixture: LibraryBookFixture,

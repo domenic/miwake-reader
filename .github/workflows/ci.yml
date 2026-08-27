@@ -10,8 +10,6 @@ jobs:
   test:
     name: Test
     runs-on: ubuntu-latest
-    env:
-      VITE_GDRIVE_CLIENT_ID: fake-default-client.apps.googleusercontent.com
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -28,8 +26,11 @@ jobs:
       - name: Check
         run: npm run check
 
-      - name: Build
+      - name: Build production app
         run: npm run build
+
+      - name: Build integration app
+        run: npm run build -- --mode playwright
 
       - name: Cache Playwright browsers
         uses: actions/cache@v5

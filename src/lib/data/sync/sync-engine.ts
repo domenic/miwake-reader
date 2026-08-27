@@ -258,6 +258,9 @@ let pendingGoalsPush = false;
 let pushTimer: ReturnType<typeof setTimeout> | null = null;
 let pushRunning = false;
 const canceledBookPushTitles = new Set<string>();
+const readingGoalsOperationKey = Symbol('reading goals');
+type SourceOperationKey = string | typeof readingGoalsOperationKey;
+const sourceOperationTails = new Map<SourceOperationKey, Promise<void>>();
 /** Non-push long-running operations (boot reconcile, per-book pull,
  *  force resync). Incremented at entry, decremented in `finally`;
  *  emitSyncingState ORs this with push state. */
@@ -270,6 +273,30 @@ function enqueueReplay(op: () => Promise<void>): void {
     replayQueue.shift();
   }
   replayQueue.push(op);
+}
+
+/** Serialize source operations that touch the same book or library-scoped artifact. */
+function enqueueSourceOperation(
+  keys: readonly SourceOperationKey[],
+  operation: () => Promise<void>
+): Promise<void> {
+  const uniqueKeys = [...new Set(keys)];
+  const predecessors = uniqueKeys
+    .map((key) => sourceOperationTails.get(key))
+    .filter((promise): promise is Promise<void> => promise !== undefined);
+  const current = Promise.all(predecessors.map((promise) => promise.catch(() => {}))).then(
+    operation
+  );
+
+  for (const key of uniqueKeys) sourceOperationTails.set(key, current);
+
+  const cleanup = () => {
+    for (const key of uniqueKeys) {
+      if (sourceOperationTails.get(key) === current) sourceOperationTails.delete(key);
+    }
+  };
+  current.then(cleanup, cleanup);
+  return current;
 }
 
 function beginLongRunning(): void {
@@ -523,7 +550,11 @@ function emitSyncingState(): void {
   if (syncState.isSyncPending !== pendingWork) syncState.isSyncPending = pendingWork;
 }
 
-async function pushOne(context: ReplicationContext, types: BookDataType[]): Promise<void> {
+function pushOne(context: ReplicationContext, types: BookDataType[]): Promise<void> {
+  return enqueueSourceOperation([context.title], () => performBookPush(context, types));
+}
+
+async function performBookPush(context: ReplicationContext, types: BookDataType[]): Promise<void> {
   if (canceledBookPushTitles.has(context.title)) return;
 
   const location = syncState.location;
@@ -604,23 +635,25 @@ async function syncReadingGoals(direction: 'push' | 'pull', reason: string): Pro
 
   beginLongRunning();
   try {
-    logger.debug(
-      `sync ${direction}: start reading-goals, reason=${reason}, location=${location.kind}`
-    );
-    if (location.kind === 'cloud') {
-      await handler.authenticate(null, { allowInteractive: false });
-    }
-    await replicateData({
-      library: localEndpoint(),
-      endpoint: handler,
-      direction,
-      refreshDataList: false,
-      contexts: [],
-      dataToReplicate: [StorageDataType.READING_GOALS],
-      settings: scopedSettings()
+    await enqueueSourceOperation([readingGoalsOperationKey], async () => {
+      logger.debug(
+        `sync ${direction}: start reading-goals, reason=${reason}, location=${location.kind}`
+      );
+      if (location.kind === 'cloud') {
+        await handler.authenticate(null, { allowInteractive: false });
+      }
+      await replicateData({
+        library: localEndpoint(),
+        endpoint: handler,
+        direction,
+        refreshDataList: false,
+        contexts: [],
+        dataToReplicate: [StorageDataType.READING_GOALS],
+        settings: scopedSettings()
+      });
+      markSynced();
+      logger.debug(`sync ${direction}: complete reading-goals, durationMs=${Date.now() - started}`);
     });
-    markSynced();
-    logger.debug(`sync ${direction}: complete reading-goals, durationMs=${Date.now() - started}`);
   } catch (err) {
     const recoverable = reportSyncError(`${direction} reading goals`, err);
     if (direction === 'push' && recoverable) {
@@ -646,11 +679,13 @@ async function deleteRemoteBooks(titles: string[], signal: AbortSignal): Promise
   const handler = endpointFor(location);
   beginLongRunning();
   try {
-    if (location.kind === 'cloud') {
-      await handler.authenticate(null, { allowInteractive: false });
-    }
-    await handler.deleteBookData(titles, signal, false);
-    markSynced();
+    await enqueueSourceOperation(titles, async () => {
+      if (location.kind === 'cloud') {
+        await handler.authenticate(null, { allowInteractive: false });
+      }
+      await handler.deleteBookData(titles, signal, false);
+      markSynced();
+    });
   } catch (err) {
     const recoverable = reportSyncError('delete books', err);
     if (recoverable) {
@@ -678,19 +713,21 @@ async function pushDeletedStatistics(titles: string[]): Promise<void> {
 
   beginLongRunning();
   try {
-    if (location.kind === 'cloud') {
-      await handler.authenticate(null, { allowInteractive: false });
-    }
-    await replicateData({
-      library: localEndpoint(),
-      endpoint: handler,
-      direction: 'push',
-      refreshDataList: false,
-      contexts,
-      dataToReplicate: [StorageDataType.STATISTICS],
-      settings: scopedSettings({ winnerTakesAll: true })
+    await enqueueSourceOperation(titles, async () => {
+      if (location.kind === 'cloud') {
+        await handler.authenticate(null, { allowInteractive: false });
+      }
+      await replicateData({
+        library: localEndpoint(),
+        endpoint: handler,
+        direction: 'push',
+        refreshDataList: false,
+        contexts,
+        dataToReplicate: [StorageDataType.STATISTICS],
+        settings: scopedSettings({ winnerTakesAll: true })
+      });
+      markSynced();
     });
-    markSynced();
   } catch (err) {
     const recoverable = reportSyncError('push deleted statistics', err);
     if (recoverable) enqueueReplay(() => pushDeletedStatistics([...titles]));
@@ -713,19 +750,21 @@ async function pushDeletedReadingGoals(): Promise<void> {
 
   beginLongRunning();
   try {
-    if (location.kind === 'cloud') {
-      await handler.authenticate(null, { allowInteractive: false });
-    }
-    await replicateData({
-      library: localEndpoint(),
-      endpoint: handler,
-      direction: 'push',
-      refreshDataList: false,
-      contexts: [],
-      dataToReplicate: [StorageDataType.READING_GOALS],
-      settings: scopedSettings({ winnerTakesAll: true })
+    await enqueueSourceOperation([readingGoalsOperationKey], async () => {
+      if (location.kind === 'cloud') {
+        await handler.authenticate(null, { allowInteractive: false });
+      }
+      await replicateData({
+        library: localEndpoint(),
+        endpoint: handler,
+        direction: 'push',
+        refreshDataList: false,
+        contexts: [],
+        dataToReplicate: [StorageDataType.READING_GOALS],
+        settings: scopedSettings({ winnerTakesAll: true })
+      });
+      markSynced();
     });
-    markSynced();
   } catch (err) {
     const recoverable = reportSyncError('push deleted reading goals', err);
     if (recoverable) enqueueReplay(() => pushDeletedReadingGoals());
@@ -800,22 +839,24 @@ export async function reconcileForBookOpen(context: ReplicationContext): Promise
 
   beginLongRunning();
   try {
-    if (location.kind === 'cloud') {
-      logger.debug(
-        `reconcileForBookOpen: cloud authenticate (${isPlaceholder ? 'interactive' : 'silent'})`
-      );
-      await handler.authenticate(null, { allowInteractive: isPlaceholder });
-    }
-    await replicateData({
-      library: local,
-      endpoint: handler,
-      direction: 'pull',
-      refreshDataList: isPlaceholder,
-      contexts: [context],
-      dataToReplicate: types,
-      settings: scopedSettings()
+    await enqueueSourceOperation([context.title, readingGoalsOperationKey], async () => {
+      if (location.kind === 'cloud') {
+        logger.debug(
+          `reconcileForBookOpen: cloud authenticate (${isPlaceholder ? 'interactive' : 'silent'})`
+        );
+        await handler.authenticate(null, { allowInteractive: isPlaceholder });
+      }
+      await replicateData({
+        library: local,
+        endpoint: handler,
+        direction: 'pull',
+        refreshDataList: isPlaceholder,
+        contexts: [context],
+        dataToReplicate: types,
+        settings: scopedSettings()
+      });
+      markSynced();
     });
-    markSynced();
   } catch (err) {
     reportSyncError('reconcileForBookOpen', err);
   } finally {

@@ -28,9 +28,9 @@ test('force re-sync with "Keep newest" uses the newer progress from either side'
   await syncBookFixturesToSource(page, [LONG_BOOK, VALID_BOOK]);
   await bookmarkFixturePartway(page, LONG_BOOK);
   await expectBookProgressInSyncRoot(page, LONG_BOOK, { completed: false, percentage: 38 });
-  await waitForSuccessfulSync(page);
   await expectBooksInManage(page, { placeholders: [], downloaded: [LONG_BOOK, VALID_BOOK] });
   await expectBookPartwayProgress(page, LONG_BOOK);
+  await waitForSuccessfulSync(page);
 
   await using sourceUpdater = await connectedSourceUpdater(browser, testInfo, page);
   await sourceUpdater.page.clock.install({ time: new Date('2026-05-02T12:00:00Z') });

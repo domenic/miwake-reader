@@ -192,7 +192,6 @@ export class GDriveStorageHandler extends ApiStorageHandler {
     signal?: AbortSignal
   ) {
     const params = new URLSearchParams();
-    params.append('fields', 'files(name)');
     params.append('alt', 'media');
 
     return this.request(
