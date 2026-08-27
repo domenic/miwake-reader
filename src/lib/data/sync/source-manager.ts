@@ -487,12 +487,9 @@ async function wipeLibraryContents(): Promise<void> {
  * persisted in IndexedDB. Call once from the root layout on mount.
  *
  * Also runs a one-time backfill for the `sourceInstanceId` schema
- * additions: any storageSource record lacking a `sourceInstanceId`
- * gets one generated, and any book row carrying the legacy
- * `lastSeenOnSource` (pre-refactor) field has it migrated to
- * `lastSeenSourceInstanceId` matching the active source's new id.
- * This is idempotent — once a record / row has the new fields the
- * backfill is a no-op.
+ * addition: any storageSource record lacking a `sourceInstanceId`
+ * gets one generated. This is idempotent — once a record has the new
+ * field the backfill is a no-op.
  */
 export async function loadConnectionsFromDb(): Promise<void> {
   const db = await database.db;
@@ -503,9 +500,6 @@ export async function loadConnectionsFromDb(): Promise<void> {
   // cleanup (e.g., an older release left a dormant record alongside
   // the active one).
   if (!records.length) {
-    // No source ever connected: still drop any orphan legacy
-    // lastSeenOnSource fields so book rows match the v7 schema.
-    await migrateLegacyLastSeenOnSource(null);
     return;
   }
   const initialActive = records.reduce((a, b) =>
@@ -517,11 +511,8 @@ export async function loadConnectionsFromDb(): Promise<void> {
     }
   }
 
-  // Backfill the active record's sourceInstanceId (a fresh UUID for
-  // any record predating the per-source-identity refactor), then
-  // migrate book rows carrying the legacy `lastSeenOnSource`
-  // timestamp to `lastSeenSourceInstanceId` pointing at the active
-  // id. Idempotent on subsequent boots.
+  // Backfill the active record's sourceInstanceId with a fresh UUID
+  // for any record predating the per-source-identity refactor.
   const sourceInstanceId = initialActive.sourceInstanceId ?? newSourceInstanceId();
   const active =
     initialActive.sourceInstanceId === sourceInstanceId
@@ -530,7 +521,6 @@ export async function loadConnectionsFromDb(): Promise<void> {
   if (initialActive !== active) {
     await database.saveStorageSource(active, active.name);
   }
-  await migrateLegacyLastSeenOnSource(sourceInstanceId);
 
   if (active.type === SyncEndpointType.GDRIVE || active.type === SyncEndpointType.ONEDRIVE) {
     syncState.location = {
@@ -558,28 +548,4 @@ export async function loadConnectionsFromDb(): Promise<void> {
       sourceInstanceId
     };
   }
-}
-
-/**
- * Drop the legacy `lastSeenOnSource` field from every book row that
- * still carries it. When `activeSourceInstanceId` is non-null,
- * stamp `lastSeenSourceInstanceId` in its place so the row's
- * membership claim survives the schema migration; with no active
- * source there's nothing to point at, so just remove the legacy
- * field. Idempotent — rows already on the new shape are skipped.
- */
-async function migrateLegacyLastSeenOnSource(activeSourceInstanceId: string | null): Promise<void> {
-  const db = await database.db;
-  const tx = db.transaction('data', 'readwrite');
-  for await (const cursor of tx.store) {
-    const row = cursor.value as typeof cursor.value & { lastSeenOnSource?: number };
-    if (row.lastSeenOnSource === undefined) continue;
-    const next = { ...row };
-    delete next.lastSeenOnSource;
-    if (activeSourceInstanceId !== null) {
-      next.lastSeenSourceInstanceId = activeSourceInstanceId;
-    }
-    await cursor.update(next);
-  }
-  await tx.done;
 }
