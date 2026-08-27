@@ -10,7 +10,7 @@ import {
   type SyncRootOptions
 } from './harness.ts';
 import { navigateToManage, navigateToStatisticsSummary } from './navigation.ts';
-import { openTOC, showReaderHeader } from './reader.ts';
+import { expectReaderActionComplete, openTOC, showReaderHeader } from './reader.ts';
 
 const NOT_A_ZIP_BOOK = 'not-a-zip-book';
 const NOT_AN_EPUB_BOOK = 'not-an-epub-book';
@@ -421,6 +421,7 @@ async function bookmarkFixtureAtTOCEntry(
   await openBookFromManage(page, fixture);
   await openTOC(page);
   await page.getByTitle(tocButtonTitle).click();
+  await expectReaderActionComplete(page);
   await expect
     .poll(async () => {
       const footerText = await page.locator('#miwake-page-footer').innerText();
@@ -429,6 +430,7 @@ async function bookmarkFixtureAtTOCEntry(
     .toBeGreaterThan(minimumFooterPage);
   const readerHeader = await showReaderHeader(page);
   await readerHeader.getByRole('button', { name: 'Bookmark' }).click();
+  await expectReaderActionComplete(page);
   await showReaderHeader(page);
   await expect(page.getByRole('button', { name: 'Return to Bookmark' })).toBeVisible();
 }

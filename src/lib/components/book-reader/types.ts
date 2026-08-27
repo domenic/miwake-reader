@@ -7,7 +7,7 @@ export interface AutoScroller {
   destroy: () => void;
 }
 
-export type ChapterNavigator = (chapterId: string) => void;
+export type ChapterNavigator = (chapterId: string) => void | Promise<void>;
 
 export interface BookmarkManager {
   formatBookmarkData: (
