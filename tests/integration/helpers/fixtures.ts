@@ -233,6 +233,15 @@ export async function expectBooksInManage(
   ]);
 }
 
+export async function expectBookOrder(page: Page, fixtures: readonly LibraryBookFixture[]) {
+  const cards = page.locator('article');
+  await expect(cards).toHaveCount(fixtures.length);
+
+  for (const [index, fixture] of fixtures.entries()) {
+    await expect(cards.nth(index)).toContainText(fixtureDisplayTitle(fixture));
+  }
+}
+
 export async function recordStatisticForBook(
   page: Page,
   fixture: LibraryBookFixture,
