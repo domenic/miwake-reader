@@ -18,9 +18,9 @@ import type {
 import { StorageOAuthManager } from '$lib/data/storage/storage-oauth-manager';
 import { SyncEndpointType } from '$lib/data/storage/storage-types';
 import { database } from '$lib/data/store';
-import { convertAuthErrorResponse } from '$lib/functions/replication/error-handler';
 import { ReplicationSaveBehavior } from '$lib/functions/replication/replication-options';
 import type { ReplicationContext } from '$lib/functions/replication/replication-progress.svelte';
+import { errorFromResponse } from '$lib/functions/response-error';
 import { mergeStatistics, updateStatisticToStore } from '$lib/functions/statistic-util';
 
 export interface RequestOptions {
@@ -313,13 +313,17 @@ export abstract class ApiStorageHandler extends BaseStorageHandler {
               if (this.status >= 200 && this.status < 400) {
                 resolve(this.response);
               } else {
-                const errorMessage = await convertAuthErrorResponse(this);
+                const responseError = await errorFromResponse(this);
 
                 if (this.status === 404) {
-                  logger.error(errorMessage);
-                  reject(new Error('Resource not found. Refresh your current tab and try again'));
+                  logger.error(responseError);
+                  reject(
+                    new Error('Resource not found. Refresh your current tab and try again', {
+                      cause: responseError
+                    })
+                  );
                 } else {
-                  reject(new Error(errorMessage));
+                  reject(responseError);
                 }
               }
             }

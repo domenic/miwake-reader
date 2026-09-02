@@ -22,7 +22,7 @@ import {
 import { StorageSourceDefault, SyncEndpointType } from '$lib/data/storage/storage-types';
 import { database } from '$lib/data/store';
 import { showMessageDialog } from '$lib/components/message-dialog.svelte';
-import { convertAuthErrorResponse } from '$lib/functions/replication/error-handler';
+import { errorFromResponse } from '$lib/functions/response-error';
 
 interface OAuthTokenData {
   accessToken: string;
@@ -317,8 +317,10 @@ export class StorageOAuthManager {
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
       });
       if (!httpResponse.ok) {
-        const errorBody = await convertAuthErrorResponse(httpResponse);
-        logger.error(`Unable to refresh token for ${this.storageSourceName}: ${errorBody}`);
+        const responseError = await errorFromResponse(httpResponse);
+        logger.error(
+          `Unable to refresh token for ${this.storageSourceName}: ${responseError.message}`
+        );
         // 4xx: the RT itself is bad (rotated, revoked, invalid_grant).
         // Clear it so the next caller hits the interactive auth path.
         // 5xx / network errors are transient: keep the RT so the next

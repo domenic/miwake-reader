@@ -1,7 +1,7 @@
 <script lang="ts">
   import { browser } from '$app/environment';
   import { faSpinner } from '@fortawesome/free-solid-svg-icons';
-  import { convertAuthErrorResponse } from '$lib/functions/replication/error-handler';
+  import { errorFromResponse } from '$lib/functions/response-error';
   import { SyncEndpointType } from '$lib/data/storage/storage-types';
   import { SvelteURLSearchParams } from 'svelte/reactivity';
   import Fa from 'svelte-fa';
@@ -63,7 +63,7 @@
       })
         .then(async (response) => {
           if (!response.ok) {
-            throw new Error(await convertAuthErrorResponse(response));
+            throw await errorFromResponse(response);
           }
 
           return response.json();
