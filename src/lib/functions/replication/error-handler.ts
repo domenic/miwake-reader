@@ -32,33 +32,3 @@ export function handleErrorDuringReplication(
 
   return `${baseError}${message}`;
 }
-
-export async function convertAuthErrorResponse(
-  response: Response | XMLHttpRequest
-): Promise<string> {
-  const isXHR = response instanceof XMLHttpRequest;
-
-  let error = `Received Status ${response.status} `;
-
-  try {
-    const headers = isXHR
-      ? response.getResponseHeader('Content-Type')
-      : response.headers.get('Content-Type');
-
-    if (headers?.includes('application/json')) {
-      const jsonResponse = isXHR ? response.response : await response.json();
-
-      error =
-        jsonResponse.error_description ||
-        jsonResponse.error?.message ||
-        jsonResponse.error ||
-        error;
-    } else {
-      error = isXHR ? response.responseText : await response.text();
-    }
-  } catch (_) {
-    // no-op
-  }
-
-  return error;
-}

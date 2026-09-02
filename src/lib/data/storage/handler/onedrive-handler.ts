@@ -2,6 +2,7 @@ import { oneDriveTokenEndpoint } from '$lib/data/env';
 import { ApiStorageHandler, type UploadOptions } from '$lib/data/storage/handler/api-handler';
 import { BaseStorageHandler, type ExternalFile } from '$lib/data/storage/handler/base-handler';
 import { SyncEndpointType, type SyncTitle } from '$lib/data/storage/storage-types';
+import { errorFromResponseBody } from '$lib/functions/response-error';
 import pLimit from 'p-limit';
 
 interface OneDriveFile extends ExternalFile {
@@ -122,12 +123,7 @@ export class OneDriveStorageHandler extends ApiStorageHandler {
                 if (responseWithError) {
                   const { body } = responseWithError;
 
-                  throw new Error(
-                    body.error_description ||
-                      body.error?.message ||
-                      body.error ||
-                      'Received error on data retrival'
-                  );
+                  throw errorFromResponseBody(body, 'Received error while retrieving data');
                 }
 
                 for (let index = 0, { length } = responses; index < length; index += 1) {
