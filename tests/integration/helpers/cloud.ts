@@ -1,6 +1,7 @@
 import type { Page } from '@playwright/test';
 import type { CloudProviderType } from '$lib/data/sync/sync-store.svelte';
 import { providerLabel } from '$lib/data/sync/provider-label';
+import { cloudSourceName } from '$lib/data/sync/sync-helpers';
 import { expect, SYNC_ASSERTION_TIMEOUT } from './harness.ts';
 import { navigateToSettingsSync } from './navigation.ts';
 
@@ -60,4 +61,33 @@ export function cloudProviderCard(page: Page, provider: CloudProviderType) {
     .getByLabel('Sync location')
     .getByText(providerLabel(provider), { exact: true })
     .locator('xpath=ancestor::div[@aria-disabled][1]');
+}
+
+export async function storedCloudSourceModifiedAt(
+  page: Page,
+  provider: CloudProviderType
+): Promise<number> {
+  return page.evaluate(
+    async (sourceName) => {
+      const db = await new Promise<IDBDatabase>((resolve, reject) => {
+        const request = indexedDB.open('books');
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+      try {
+        const record = await new Promise<{ lastSourceModified: number }>((resolve, reject) => {
+          const request = db
+            .transaction('storageSource')
+            .objectStore('storageSource')
+            .get(sourceName);
+          request.onsuccess = () => resolve(request.result);
+          request.onerror = () => reject(request.error);
+        });
+        return record.lastSourceModified;
+      } finally {
+        db.close();
+      }
+    },
+    cloudSourceName(provider, false)
+  );
 }

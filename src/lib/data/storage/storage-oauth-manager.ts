@@ -31,6 +31,11 @@ interface OAuthTokenData {
   refreshToken?: string;
 }
 
+interface PendingTokenRequest {
+  allowInteractive: boolean;
+  promise: Promise<string | undefined>;
+}
+
 const storageOAuthTokens = new Map<string, OAuthTokenData>();
 
 /**
@@ -74,7 +79,7 @@ export class StorageOAuthManager {
 
   private authTimeoutTimer: number | undefined;
 
-  private pendingGetToken: Promise<string | undefined> | undefined;
+  private pendingGetToken: PendingTokenRequest | undefined;
 
   constructor(type: SyncEndpointType, refreshEndpoint: string) {
     this.storageType = type;
@@ -87,16 +92,35 @@ export class StorageOAuthManager {
     authWindow?: Window | null,
     allowInteractive = true
   ): Promise<string | undefined> {
-    if (this.pendingGetToken) {
-      return this.pendingGetToken;
+    while (this.pendingGetToken) {
+      const pending = this.pendingGetToken;
+      try {
+        return await pending.promise;
+      } catch (error) {
+        // An explicit reconnect must not inherit a concurrent ambient request's prohibition on
+        // popups. Wait for the silent request because both paths mutate this manager's auth state,
+        // then let the interactive caller make its own attempt if the silent one failed.
+        if (!allowInteractive || pending.allowInteractive) {
+          throw error;
+        }
+        if (this.pendingGetToken === pending) {
+          this.pendingGetToken = undefined;
+        }
+      }
     }
 
-    this.pendingGetToken = this.doGetToken(window, storageSourceName, authWindow, allowInteractive);
+    const pending: PendingTokenRequest = {
+      allowInteractive,
+      promise: this.doGetToken(window, storageSourceName, authWindow, allowInteractive)
+    };
+    this.pendingGetToken = pending;
 
     try {
-      return await this.pendingGetToken;
+      return await pending.promise;
     } finally {
-      this.pendingGetToken = undefined;
+      if (this.pendingGetToken === pending) {
+        this.pendingGetToken = undefined;
+      }
     }
   }
 
