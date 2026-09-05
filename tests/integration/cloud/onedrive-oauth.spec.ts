@@ -2,10 +2,12 @@ import { SyncEndpointType } from '$lib/data/storage/storage-types';
 import {
   connectToCloud,
   connectToCloudWithCustomOAuth,
-  expectCloudConnected
+  expectCloudConnected,
+  storedCloudSourceModifiedAt
 } from '../helpers/cloud.ts';
 import { FakeOneDrive } from '../helpers/fake-onedrive.ts';
 import { expect, SYNC_ASSERTION_TIMEOUT, test } from '../helpers/harness.ts';
+import { importBookFixtures, VALID_BOOK } from '../helpers/fixtures.ts';
 
 const CUSTOM_CLIENT_ID = '11111111-1111-1111-1111-111111111111';
 const CUSTOM_CLIENT_SECRET = 'fake-onedrive-client-secret';
@@ -30,6 +32,47 @@ test('persists consecutive OneDrive refresh-token rotations', async ({ context, 
 
   expect(fakeDrive.authorizationCodeExchanges).toBe(1);
   expect(fakeDrive.failedRefreshes).toBe(0);
+});
+
+test('reconnects an expired OneDrive session from the sync indicator', async ({
+  context,
+  page
+}) => {
+  const fakeDrive = new FakeOneDrive([]);
+  await fakeDrive.install(context);
+  await connectToCloud(page, SyncEndpointType.ONEDRIVE);
+  expect(fakeDrive.authorizationCodeExchanges).toBe(1);
+
+  fakeDrive.expireRefreshToken();
+  await page.reload();
+  const reconnect = page.getByRole('link', { name: 'OneDrive sign-in expired' });
+  await expect(reconnect).toBeVisible({ timeout: SYNC_ASSERTION_TIMEOUT });
+
+  // Start an ambient push while the reconnect-required state is visible. The explicit reconnect
+  // must not inherit this silent auth attempt's prohibition against opening a popup.
+  const refresh = fakeDrive.holdNextRefresh();
+  await importBookFixtures(page, [VALID_BOOK]);
+  await refresh.started;
+  const previousSourceModifiedAt = await storedCloudSourceModifiedAt(
+    page,
+    SyncEndpointType.ONEDRIVE
+  );
+  const popup = context.waitForEvent('page');
+  await reconnect.click();
+  await popup;
+  try {
+    await expect
+      .poll(() => storedCloudSourceModifiedAt(page, SyncEndpointType.ONEDRIVE))
+      .toBeGreaterThan(previousSourceModifiedAt);
+  } finally {
+    refresh.release();
+  }
+
+  await expect(page.getByRole('link', { name: /Synced/ })).toBeVisible({
+    timeout: SYNC_ASSERTION_TIMEOUT
+  });
+  expect(fakeDrive.authorizationCodeExchanges).toBe(2);
+  expect(fakeDrive.failedRefreshes).toBeGreaterThan(0);
 });
 
 test('custom OneDrive refresh uses its token endpoint and client secret', async ({

@@ -53,6 +53,11 @@ interface UploadSession {
   parentId: string;
 }
 
+interface RefreshGate {
+  markStarted: () => void;
+  release: Promise<void>;
+}
+
 interface GraphBatchRequest {
   id: string;
   method: string;
@@ -72,6 +77,7 @@ export class FakeOneDrive {
   #latestAccessToken = '';
   #refreshExchanges = 0;
   #refreshTokenSequence = 0;
+  #nextRefreshGate: RefreshGate | undefined;
   #uploadSessionSequence = 0;
   #cancelledUploadSessions = 0;
   #failNextUploadChunk = false;
@@ -150,6 +156,19 @@ export class FakeOneDrive {
 
   expireRefreshToken(): void {
     this.#refreshTokens.clear();
+  }
+
+  holdNextRefresh(): { started: Promise<void>; release: () => void } {
+    let markStarted!: () => void;
+    let release!: () => void;
+    const started = new Promise<void>((resolve) => {
+      markStarted = resolve;
+    });
+    const released = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    this.#nextRefreshGate = { markStarted, release: released };
+    return { started, release };
   }
 
   failNextUploadChunk(): void {
@@ -268,6 +287,13 @@ export class FakeOneDrive {
     if (grantType !== 'authorization_code' && grantType !== 'refresh_token') {
       await fulfillJSON(route, { error: 'unsupported_grant_type' }, 400);
       return;
+    }
+
+    if (grantType === 'refresh_token' && this.#nextRefreshGate) {
+      const gate = this.#nextRefreshGate;
+      this.#nextRefreshGate = undefined;
+      gate.markStarted();
+      await gate.release;
     }
 
     this.#tokenRequests.push({
